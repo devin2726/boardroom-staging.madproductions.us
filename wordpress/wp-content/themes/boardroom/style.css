@@ -1,20 +1,25 @@
 /*
 Theme Name: The Boardroom
-Description: Lightweight theme replicating the look of boardroomqc.com (dark + gold, League Spartan, full-width hero slider). Pairs with the Boardroom Booking plugin.
-Version: 1.0.0
+Description: Lightweight theme replicating the look of boardroomqc.com (dark + gold, EB Garamond, full-width hero slider). Pairs with the Boardroom Booking plugin.
+Version: 1.1.0
 Author: Mad Productions
 Text Domain: boardroom
 */
-@font-face{font-family:'League Spartan';src:url(assets/fonts/league-spartan.woff2) format('woff2');font-weight:400 700;font-display:swap}
+@font-face{font-family:'EB Garamond';src:url(assets/fonts/eb-garamond-400.woff2) format('woff2');font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:'EB Garamond';src:url(assets/fonts/eb-garamond-500.woff2) format('woff2');font-weight:500;font-style:normal;font-display:swap}
+@font-face{font-family:'EB Garamond';src:url(assets/fonts/eb-garamond-600.woff2) format('woff2');font-weight:600;font-style:normal;font-display:swap}
+@font-face{font-family:'EB Garamond';src:url(assets/fonts/eb-garamond-700.woff2) format('woff2');font-weight:700;font-style:normal;font-display:swap}
+@font-face{font-family:'EB Garamond';src:url(assets/fonts/eb-garamond-400-italic.woff2) format('woff2');font-weight:400;font-style:italic;font-display:swap}
 :root{--gold:#c4912e;--gold-d:#996f1d;--ink:#161616;--ink2:#1b1b1b;--bg2:#f7f7f7;--txt:#474747}
 *{box-sizing:border-box}html{scroll-behavior:smooth}
-body{margin:0;font-family:Helvetica,Arial,sans-serif;color:var(--txt);background:#fff;line-height:1.6}
-h1,h2,h3,h4,.brand,.btn,.nav a{font-family:'League Spartan',Arial,Helvetica,sans-serif;color:var(--ink)}
+body{margin:0;font-family:'EB Garamond',Georgia,'Times New Roman',serif;color:var(--txt);background:#fff;font-size:18px;line-height:1.7}
+h1,h2,h3,h4,.brand,.btn,.nav a{font-family:'EB Garamond',Georgia,'Times New Roman',serif;color:var(--ink)}
+h1,h2,h3,h4{font-weight:600;font-variant-numeric:lining-nums}
 h1,h2{letter-spacing:.06em;text-transform:uppercase;line-height:1.15}h2{font-size:clamp(26px,4vw,40px);text-align:center;margin:0 0 32px}
 h2:after{content:"";display:block;width:60px;height:3px;background:var(--gold);margin:14px auto 0}
 a{color:var(--gold-d)}img{max-width:100%;display:block}
 .wrap{max-width:1200px;margin:auto;padding:0 24px}
-.announce{background:var(--gold);color:#fff;text-align:center;padding:8px;font-family:'League Spartan',sans-serif;letter-spacing:.08em;text-transform:uppercase;font-size:14px}
+.announce{background:var(--gold);color:#fff;text-align:center;padding:8px;font-family:'EB Garamond',Georgia,'Times New Roman',serif;letter-spacing:.08em;text-transform:uppercase;font-size:16px;font-variant-numeric:lining-nums}
 .announce a{color:#fff;text-decoration:none}
 .site-header{background:var(--ink);position:sticky;top:0;z-index:50}
 .site-header .wrap{display:flex;align-items:center;justify-content:space-between;min-height:76px;gap:16px}
@@ -37,7 +42,7 @@ a{color:var(--gold-d)}img{max-width:100%;display:block}
 .hero .arrow{position:absolute;top:50%;z-index:3;background:rgba(0,0,0,.3);border:0;color:#fff;font-size:36px;width:52px;height:52px;cursor:pointer;transform:translateY(-50%)}.hero .prev{left:12px}.hero .next{right:12px}
 section.block{padding:80px 0}section.alt{background:var(--bg2)}section.dark{background:var(--ink);color:#ddd}section.dark h2{color:#fff}
 .amen{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:28px}
-.amen .card{background:#fff;text-align:center;box-shadow:0 4px 18px rgba(0,0,0,.08)}.amen .card img{aspect-ratio:4/3;object-fit:cover;width:100%}
+.amen .card{background:#fff;text-align:center;box-shadow:0 4px 18px rgba(0,0,0,.08);font-variant-numeric:lining-nums}.amen .card img{aspect-ratio:4/3;object-fit:cover;width:100%}
 .amen .card h3{margin:0;padding:22px 18px;font-size:20px;letter-spacing:.04em}
 .cta{text-align:center}.cta p{font-size:18px;max-width:640px;margin:0 auto 28px}
 .gallery{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px}.gallery a{display:block;overflow:hidden}
@@ -49,7 +54,7 @@ section.block{padding:80px 0}section.alt{background:var(--bg2)}section.dark{back
 .page-hero{background:var(--ink) center/cover;padding:90px 0;text-align:center;position:relative}.page-hero:before{content:"";position:absolute;inset:0;background:rgba(0,0,0,.55)}
 .page-hero h1{position:relative;color:#fff;margin:0;font-size:clamp(30px,5vw,54px)}
 .content{padding:60px 0;max-width:900px;margin:auto}.content.wide{max-width:1200px}
-.content details{border-bottom:1px solid #ddd;padding:16px 0}.content summary{font-family:'League Spartan',sans-serif;font-size:20px;color:var(--ink);cursor:pointer}
+.content details{border-bottom:1px solid #ddd;padding:16px 0}.content summary{font-family:'EB Garamond',Georgia,'Times New Roman',serif;font-size:20px;font-weight:600;color:var(--ink);cursor:pointer;font-variant-numeric:lining-nums}
 .placeholder{background:#fff7e6;border:1px dashed var(--gold);padding:10px 14px;font-size:14px}
 .site-footer{background:var(--ink2);color:#aaa;text-align:center;padding:40px 24px;font-size:14px}.site-footer a{color:#ddd;margin:0 10px}
 .fmenu{list-style:none;padding:0;margin:0;display:flex;justify-content:center;gap:8px}.gallery{grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
