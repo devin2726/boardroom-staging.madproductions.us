@@ -1,0 +1,53 @@
+services:
+  wordpress:
+    build:
+      context: ./wordpress
+    restart: unless-stopped
+    environment:
+      - SERVICE_FQDN_WORDPRESS_80
+      - WP_HOME=${SERVICE_FQDN_WORDPRESS:-http://localhost:8080}
+      - WORDPRESS_DB_HOST=db:3306
+      - WORDPRESS_DB_NAME=${MYSQL_DATABASE:-boardroom}
+      - WORDPRESS_DB_USER=${SERVICE_USER_MYSQL:-boardroom}
+      - WORDPRESS_DB_PASSWORD=${SERVICE_PASSWORD_MYSQL:-boardroom-local}
+      - WORDPRESS_TABLE_PREFIX=wp_
+      - WP_ADMIN_PASSWORD=${WP_ADMIN_PASSWORD:-}
+      - WP_ADMIN_EMAIL=${WP_ADMIN_EMAIL:-}
+      - DISCOURAGE_SEARCH=${DISCOURAGE_SEARCH:-1}
+      - |
+        WORDPRESS_CONFIG_EXTRA=
+        if (isset($$_SERVER['HTTP_X_FORWARDED_PROTO']) && $$_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') { $$_SERVER['HTTPS'] = 'on'; }
+        $$br_home = rtrim((string) getenv('WP_HOME'), '/'); if ($$br_home && !preg_match('#^https?://#', $$br_home)) { $$br_home = 'https://' . $$br_home; }
+        if ($$br_home) { define('WP_HOME', $$br_home); define('WP_SITEURL', $$br_home); }
+        define('DISALLOW_FILE_EDIT', true);
+    volumes:
+      - wordpress-files:/var/www/html
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS -o /dev/null http://127.0.0.1/wp-login.php || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+  db:
+    build:
+      context: ./db
+    restart: unless-stopped
+    environment:
+      - MYSQL_DATABASE=${MYSQL_DATABASE:-boardroom}
+      - MYSQL_USER=${SERVICE_USER_MYSQL:-boardroom}
+      - MYSQL_PASSWORD=${SERVICE_PASSWORD_MYSQL:-boardroom-local}
+      - MYSQL_ROOT_PASSWORD=${SERVICE_PASSWORD_ROOT:-boardroom-root-local}
+    volumes:
+      - mariadb-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+volumes:
+  wordpress-files:
+  mariadb-data:

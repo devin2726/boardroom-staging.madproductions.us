@@ -1,0 +1,5 @@
+# Local testing only: docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build
+services:
+  wordpress:
+    ports:
+      - "8080:80"

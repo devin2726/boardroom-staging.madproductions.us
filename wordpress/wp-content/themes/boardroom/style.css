@@ -1,0 +1,55 @@
+/*
+Theme Name: The Boardroom
+Description: Lightweight theme replicating the look of boardroomqc.com (dark + gold, League Spartan, full-width hero slider). Pairs with the Boardroom Booking plugin.
+Version: 1.0.0
+Author: Mad Productions
+Text Domain: boardroom
+*/
+@font-face{font-family:'League Spartan';src:url(assets/fonts/league-spartan.woff2) format('woff2');font-weight:400 700;font-display:swap}
+:root{--gold:#c4912e;--gold-d:#996f1d;--ink:#161616;--ink2:#1b1b1b;--bg2:#f7f7f7;--txt:#474747}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;font-family:Helvetica,Arial,sans-serif;color:var(--txt);background:#fff;line-height:1.6}
+h1,h2,h3,h4,.brand,.btn,.nav a{font-family:'League Spartan',Arial,Helvetica,sans-serif;color:var(--ink)}
+h1,h2{letter-spacing:.06em;text-transform:uppercase;line-height:1.15}h2{font-size:clamp(26px,4vw,40px);text-align:center;margin:0 0 32px}
+h2:after{content:"";display:block;width:60px;height:3px;background:var(--gold);margin:14px auto 0}
+a{color:var(--gold-d)}img{max-width:100%;display:block}
+.wrap{max-width:1200px;margin:auto;padding:0 24px}
+.announce{background:var(--gold);color:#fff;text-align:center;padding:8px;font-family:'League Spartan',sans-serif;letter-spacing:.08em;text-transform:uppercase;font-size:14px}
+.announce a{color:#fff;text-decoration:none}
+.site-header{background:var(--ink);position:sticky;top:0;z-index:50}
+.site-header .wrap{display:flex;align-items:center;justify-content:space-between;min-height:76px;gap:16px}
+.brand{color:#fff;font-size:28px;font-weight:700;letter-spacing:.06em;text-decoration:none;text-transform:uppercase;display:flex;align-items:center;gap:10px}
+.brand img{width:42px;height:42px;border-radius:50%}
+.nav ul{list-style:none;margin:0;padding:0;display:flex;gap:28px}.nav a{color:#fff;text-decoration:none;text-transform:uppercase;letter-spacing:.1em;font-size:15px}
+.nav a:hover,.nav .current-menu-item a{color:var(--gold)}
+.menu-toggle{display:none;background:none;border:1px solid #fff;color:#fff;padding:8px 12px;font-size:18px}
+@media(max-width:800px){.menu-toggle{display:block}.nav{display:none;position:absolute;top:100%;left:0;right:0;background:var(--ink)}.nav.open{display:block}.nav ul{flex-direction:column;gap:0}.nav a{display:block;padding:14px 24px;border-top:1px solid #333}}
+.btn{display:inline-block;background:var(--gold);color:#fff!important;padding:16px 36px;text-decoration:none;text-transform:uppercase;letter-spacing:.12em;font-weight:700;border:0;cursor:pointer;font-size:15px}
+.btn:hover{background:var(--gold-d)}.btn.ghost{background:transparent;border:2px solid #fff}
+/* hero slider */
+.hero{position:relative;height:min(82vh,760px);min-height:440px;overflow:hidden;background:#000}
+.hero .slide{position:absolute;inset:0;background-size:cover;background-position:center;opacity:0;transition:opacity 1.2s}
+.hero .slide.on{opacity:1}.hero:after{content:"";position:absolute;inset:0;background:rgba(0,0,0,.45)}
+.hero .cap{position:absolute;inset:0;z-index:2;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px}
+.hero h1{color:#fff;font-size:clamp(34px,7vw,72px);margin:0 0 28px}
+.hero .dots{position:absolute;bottom:20px;left:0;right:0;z-index:3;display:flex;justify-content:center;gap:10px}
+.hero .dots button{width:12px;height:12px;border-radius:50%;border:2px solid #fff;background:transparent;padding:0;cursor:pointer}.hero .dots .on{background:#fff}
+.hero .arrow{position:absolute;top:50%;z-index:3;background:rgba(0,0,0,.3);border:0;color:#fff;font-size:36px;width:52px;height:52px;cursor:pointer;transform:translateY(-50%)}.hero .prev{left:12px}.hero .next{right:12px}
+section.block{padding:80px 0}section.alt{background:var(--bg2)}section.dark{background:var(--ink);color:#ddd}section.dark h2{color:#fff}
+.amen{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:28px}
+.amen .card{background:#fff;text-align:center;box-shadow:0 4px 18px rgba(0,0,0,.08)}.amen .card img{aspect-ratio:4/3;object-fit:cover;width:100%}
+.amen .card h3{margin:0;padding:22px 18px;font-size:20px;letter-spacing:.04em}
+.cta{text-align:center}.cta p{font-size:18px;max-width:640px;margin:0 auto 28px}
+.gallery{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px}.gallery a{display:block;overflow:hidden}
+.gallery img{aspect-ratio:1;object-fit:cover;width:100%;transition:transform .4s}.gallery a:hover img{transform:scale(1.05)}
+.lightbox{position:fixed;inset:0;background:rgba(0,0,0,.9);display:none;align-items:center;justify-content:center;z-index:99}.lightbox.on{display:flex}.lightbox img{max-height:90vh;max-width:92vw}
+.contact-grid{display:grid;grid-template-columns:1fr 1fr;gap:48px}@media(max-width:800px){.contact-grid{grid-template-columns:1fr}}
+.form label{display:block;font-weight:600;margin-bottom:14px;color:var(--ink)}.form input,.form textarea{display:block;width:100%;padding:12px;border:1px solid #bbb;margin-top:4px;font:inherit}
+.form .hp{position:absolute;left:-9999px}.notice{padding:12px 16px;background:#fff7e6;border-left:4px solid var(--gold);margin-bottom:16px}
+.page-hero{background:var(--ink) center/cover;padding:90px 0;text-align:center;position:relative}.page-hero:before{content:"";position:absolute;inset:0;background:rgba(0,0,0,.55)}
+.page-hero h1{position:relative;color:#fff;margin:0;font-size:clamp(30px,5vw,54px)}
+.content{padding:60px 0;max-width:900px;margin:auto}.content.wide{max-width:1200px}
+.content details{border-bottom:1px solid #ddd;padding:16px 0}.content summary{font-family:'League Spartan',sans-serif;font-size:20px;color:var(--ink);cursor:pointer}
+.placeholder{background:#fff7e6;border:1px dashed var(--gold);padding:10px 14px;font-size:14px}
+.site-footer{background:var(--ink2);color:#aaa;text-align:center;padding:40px 24px;font-size:14px}.site-footer a{color:#ddd;margin:0 10px}
+.fmenu{list-style:none;padding:0;margin:0;display:flex;justify-content:center;gap:8px}.gallery{grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
