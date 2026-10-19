@@ -19,11 +19,12 @@ Coolify magic variables used: `SERVICE_FQDN_WORDPRESS_80` (domain → container 
 4. (Optional) Environment Variables: set `WP_ADMIN_PASSWORD` (applied once, on first boot) and `WP_ADMIN_EMAIL`. Leave `DISCOURAGE_SEARCH=1` for staging.
 5. **Deploy**. The first boot imports the DB, then the log shows `[boardroom] rewriting URLs: http://localhost:8088 -> https://boardroom.madproductions.us` and `[boardroom] init done`. Both containers should turn **healthy**.
 6. Open `https://<domain>/wp-admin` and log in as **admin**. The password is `boardroom-local` unless you set `WP_ADMIN_PASSWORD`. **Change it right away**: Users → Profile, and set your real email.
-7. **Bookings → Settings**: enter real rates, cleaning fee, tax %, deposit %, hours, admin email, cancellation policy and blackout dates, plus the Stripe **test** keys `pk_test_…` / `sk_test_…`.
-8. **Stripe Dashboard (Test mode) → Developers → Webhooks → Add endpoint**: `https://<domain>/wp-json/brb/v1/stripe-webhook`, events `checkout.session.completed` and `checkout.session.expired`. Copy the signing secret `whsec_…` into Bookings → Settings.
-9. **SMTP**: Plugins → Add New → "WP Mail SMTP" (or FluentSMTP). Configure the mail provider (Google Workspace/Postmark/SES/GoDaddy SMTP) so confirmations get delivered. The container has no local mail server.
-10. **Search engines**: staging stays hidden (`blog_public=0` is enforced on every start while `DISCOURAGE_SEARCH=1`). At launch set `DISCOURAGE_SEARCH=0`, redeploy, and untick Settings → Reading.
-11. Test a booking with card `4242 4242 4242 4242`. It should show as Confirmed under Bookings → All Bookings.
+7. **Bookings → Settings**: replace every `[VERIFY]` placeholder. Guests see that text on the confirmation page and in email until you do. Fill in the check payable-to name, where to bring the check, in-person hours, and the free-text payment instructions. Set the real day rate, hourly rate, cleaning fee, and tax %. Choose the check that secures the date (full amount is the default, or a percent, or a fixed amount) and how many days before the event the balance is due. Confirm the admin notification email and the cancellation policy.
+8. **Do not clear blackout dates.** They live in the database (Bookings → Settings), not in Git. Saving other settings keeps the list. The box under the list is the only way to delete every saved date. Plugin upgrades do not replace this option.
+9. **Minimum notice and hold length** both default to 48 hours. Minimum notice means a booking must start at least that many hours from now (the rule the owner described as not renting inside 48 hours). Hold length is how long a saved, unpaid date stays reserved. Change either number under Bookings → Settings if the rule changes.
+10. **SMTP**: Plugins → Add New → "WP Mail SMTP" (or FluentSMTP). Configure the mail provider (Google Workspace/Postmark/SES/GoDaddy SMTP) so hold and check emails get delivered. The container has no local mail server.
+11. **Search engines**: staging stays hidden (`blog_public=0` is enforced on every start while `DISCOURAGE_SEARCH=1`). At launch set `DISCOURAGE_SEARCH=0`, redeploy, and untick Settings → Reading.
+12. Test on the Book page: pick a date at least 48 hours out, save it, and confirm the guest is told the hold deadline in America/Chicago, the check amount, who the check is payable to, where and when to bring it, and the booking reference for the memo. In wp-admin, open the booking (status **Held (awaiting check)**), record the deposit check, then record the balance. The status becomes **Paid in full** and the guest is emailed. A start inside the minimum notice is refused. Unpaid holds expire on their own (WP-Cron, and again on each page load) and the date opens up.
 
 ## Changing domain later
 Change the domain in Coolify and redeploy. The entrypoint search-replaces the old stored URL with the new one automatically.
@@ -35,6 +36,7 @@ Edit the theme/plugin in `wordpress/wp-content/…`, push, and redeploy. The the
 Back up the `mariadb-data` and `wordpress-files` volumes (Coolify → Storages / scheduled DB backups for the `db` service, using the root password from `SERVICE_PASSWORD_ROOT`).
 
 ## Notes
-- Re-running the SQL import never happens once `mariadb-data` has data. To start fresh, delete the volume.
+- Re-running the SQL import never happens once `mariadb-data` has data. Deleting that volume wipes bookings, blackout dates, and pages. Do not delete it to deploy this change.
+- Payment is by check brought in person. Saving a date holds it (default 48 hours) so it cannot be double-booked. The website does not collect payment.
 - The theme/plugin file editor in wp-admin is disabled (`DISALLOW_FILE_EDIT`). Change code via Git.
 - Local test: `cp .env.example .env && docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build` → http://localhost:8080

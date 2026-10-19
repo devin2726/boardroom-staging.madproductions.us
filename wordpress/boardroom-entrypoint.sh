@@ -35,6 +35,9 @@ post_start() {
   if [ -n "$WP_ADMIN_EMAIL" ]; then $WP user update admin --user_email="$WP_ADMIN_EMAIL" --skip-email >/dev/null || true; fi
   [ "${DISCOURAGE_SEARCH:-1}" = "1" ] && $WP option update blog_public 0 >/dev/null
   $WP rewrite flush --hard >/dev/null 2>&1 || true
+  # Load the booking plugin so its upgrade runs (adds columns, keeps saved options). Does not import or reset the database.
+  BRB_VER_NOW=$(wp --path="$WP_DIR" --allow-root eval 'echo get_option("brb_version");' 2>/dev/null || true)
+  echo "[boardroom] booking version ${BRB_VER_NOW:-unknown}"
   echo "[boardroom] init done"
 }
 if [ "$1" = "apache2-foreground" ]; then post_start & fi
