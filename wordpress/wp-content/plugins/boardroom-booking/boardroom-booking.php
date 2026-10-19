@@ -55,7 +55,7 @@ function brb_defaults() {
         'hold_hours' => '48',
         'currency' => 'usd',
         'admin_email' => $admin,
-        'payee' => '[VERIFY] Payable to',
+        'payee' => '[VERIFY] Name on the check',
         'pay_location' => '[VERIFY] In-person location',
         'pay_hours' => '[VERIFY] In-person hours',
         'pay_instructions' => '[VERIFY] Extra instructions for bringing the check.',
@@ -414,7 +414,7 @@ function brb_hold_lines($b) {
     $ref = brb_ref($b);
     $lines = [];
     $lines[] = 'Your date is held until ' . brb_format_utc_mysql($b->hold_until) . '.';
-    $lines[] = 'Bring a check for ' . $bring . ' payable to ' . $o['payee'] . ' to ' . $o['pay_location'] . ' (' . $o['pay_hours'] . ').';
+    $lines[] = 'Bring a check for ' . $bring . ' payable to ' . $o['payee'] . ', to ' . $o['pay_location'] . ' (' . $o['pay_hours'] . ').';
     $lines[] = 'Write booking reference ' . $ref . ' on the memo line.';
     $lines[] = 'If the check is not received by then, the hold is released.';
     $balance = round((float) $b->total - (float) $b->deposit_due, 2);
@@ -430,7 +430,7 @@ function brb_preview_lines($q, DateTimeImmutable $start) {
     $hours = brb_hold_hours();
     $lines = [];
     $lines[] = "Saving this date holds it for {$hours} hours. The next page shows the exact deadline in America/Chicago.";
-    $lines[] = 'Bring a check for ' . brb_money($q['due']) . ' payable to ' . $o['payee'] . ' to ' . $o['pay_location'] . ' (' . $o['pay_hours'] . ').';
+    $lines[] = 'Bring a check for ' . brb_money($q['due']) . ' payable to ' . $o['payee'] . ', to ' . $o['pay_location'] . ' (' . $o['pay_hours'] . ').';
     $lines[] = 'Write the booking reference (shown after you save) on the memo line.';
     $lines[] = 'If the check is not received by then, the hold is released.';
     $balance = round((float) $q['total'] - (float) $q['due'], 2);

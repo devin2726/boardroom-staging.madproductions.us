@@ -8,15 +8,14 @@ if (!defined('ABSPATH')) {
     exit(1);
 }
 
-$fail = 0;
-$ok = 0;
+$GLOBALS['brb_fail'] = 0;
+$GLOBALS['brb_ok'] = 0;
 function brb_t($cond, $msg) {
-    global $fail, $ok;
     if ($cond) {
-        $ok++;
+        $GLOBALS['brb_ok']++;
         echo "ok  $msg\n";
     } else {
-        $fail++;
+        $GLOBALS['brb_fail']++;
         echo "FAIL $msg\n";
     }
 }
@@ -359,5 +358,5 @@ try {
     else delete_option('brb_settings');
 }
 
-echo "\n$ok passed, $fail failed\n";
-exit($fail ? 1 : 0);
+echo "\n{$GLOBALS['brb_ok']} passed, {$GLOBALS['brb_fail']} failed\n";
+exit($GLOBALS['brb_fail'] ? 1 : 0);
