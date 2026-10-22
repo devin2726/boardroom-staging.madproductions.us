@@ -34,10 +34,10 @@ add_filter('pre_wp_mail', function ($short, $atts) {
 $GLOBALS['brb_mails'] = [];
 
 try {
-    brb_t(get_option('brb_version') === '2.0.0', 'plugin storage version is 2.0.0');
+    brb_t(get_option('brb_version') === '2.1.0', 'plugin storage version is 2.1.0');
     brb_t(get_option('blog_public') === '0' || get_option('blog_public') === 0, 'staging discourages search engines');
     $cols = $wpdb->get_col('SHOW COLUMNS FROM ' . brb_table(), 0);
-    foreach (['deposit_due', 'amount_paid', 'source', 'hold_until', 'balance_due_on', 'status'] as $col) {
+    foreach (['deposit_due', 'amount_paid', 'source', 'hold_until', 'balance_due_on', 'price_set', 'status'] as $col) {
         brb_t(in_array($col, $cols, true), "column $col exists");
     }
     brb_t($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', brb_pay_table())) === brb_pay_table(), 'checks table exists');
@@ -58,6 +58,8 @@ try {
         'mode' => 'both',
         'day_rate' => '500',
         'hourly_rate' => '75',
+        'starting_price' => '750',
+        'typical_price' => 'often near $1,500',
         'min_hours' => '2',
         'open_hour' => '9',
         'close_hour' => '23',
@@ -80,6 +82,8 @@ try {
     $migrated = get_option('brb_settings');
     brb_t(brb_blackouts() === $dates, '24 blackout dates survive the upgrade');
     brb_t(($migrated['day_rate'] ?? '') === '500', 'day rate is kept');
+    brb_t(($migrated['starting_price'] ?? '') === '750', 'a saved starting price is kept');
+    brb_t(($migrated['typical_price'] ?? '') === 'often near $1,500', 'a saved typical price text is kept');
     brb_t(($migrated['policy'] ?? '') === 'Keep this policy text.', 'policy text is kept');
     brb_t(($migrated['admin_email'] ?? '') === 'admin@example.com', 'admin email is kept');
     brb_t(!array_key_exists($brand . '_sk', $migrated) && !isset($migrated['hold_minutes']), 'legacy keys are dropped');
@@ -102,6 +106,22 @@ try {
     brb_admin_settings();
     ob_end_clean();
     brb_t(count(brb_blackouts()) === 24, 'saving an empty blackout box does not delete saved dates');
+
+    $_POST = brb_opt();
+    unset($_POST['day_rate'], $_POST['hourly_rate'], $_POST['cleaning_fee'], $_POST['tax_rate']);
+    $_POST['brb_save'] = '1';
+    $_POST['blackouts'] = implode("\n", $dates);
+    $_POST['starting_price'] = '600';
+    $_POST['typical_price'] = 'most events around $1,200';
+    unset($_POST['clear_blackouts']);
+    $_REQUEST['_wpnonce'] = wp_create_nonce('brb_settings');
+    $_POST['_wpnonce'] = $_REQUEST['_wpnonce'];
+    ob_start();
+    brb_admin_settings();
+    ob_end_clean();
+    brb_t((string) brb_opt('day_rate') === '500', 'saving the form keeps the stored day rate');
+    brb_t((string) brb_opt('hourly_rate') === '75' && (string) brb_opt('cleaning_fee') === '100' && (string) brb_opt('tax_rate') === '7', 'saving the form keeps hourly, cleaning, and tax figures');
+    brb_t(brb_price_sentence() === 'Pricing from $600 per day (most events around $1,200), final price confirmed based on date, guest count and features.', 'public price sentence uses the starting and typical text');
 
     $_POST = brb_opt();
     $_POST['brb_save'] = '1';
@@ -188,7 +208,9 @@ try {
             brb_t(strpos($body, '[VERIFY] Test Window') !== false && strpos($body, '[VERIFY] Test Hours') !== false, 'email names the drop-off place and hours');
             brb_t(strpos($body, 'Write booking reference ' . brb_ref($b) . ' on the memo line.') !== false, 'email tells the guest what to write on the memo');
             brb_t(strpos($body, 'If the check is not received by then, the hold is released.') !== false, 'email says the hold is released');
-            brb_t(strpos($body, brb_money($b->deposit_due)) !== false, 'email states the check amount');
+            brb_t(stripos($body, 'price to be confirmed') !== false, 'email says price to be confirmed');
+            brb_t(strpos($body, '$0.00') === false && strpos($body, '$500') === false && strpos($body, '$75') === false && strpos($body, '$100') === false, 'hold email has no placeholder or zero total');
+            brb_t((int) $b->price_set === 0 && (float) $b->total == 0.0, 'a public save does not store a guessed total');
         }
         brb_t(count(array_filter($GLOBALS['brb_mails'], function ($m) {
             return stripos($m['to'], 'admin@example.com') !== false;
@@ -204,7 +226,25 @@ try {
         brb_t(strpos($html, 'Your date is held until ' . $deadline) !== false, 'confirmation page states the exact deadline');
         brb_t(strpos($html, 'Save your date') !== false, 'confirmation page is the booking shortcode');
         brb_t(strpos($html, brb_ref($b)) !== false && strpos($html, 'memo line') !== false, 'confirmation page shows the memo reference');
+        brb_t(stripos($html, 'price to be confirmed') !== false, 'confirmation says price to be confirmed');
+        brb_t(strpos($html, '$0.00') === false && strpos($html, '$500') === false && strpos($html, '$75') === false && strpos($html, '$100') === false && strpos($html, '7%') === false, 'confirmation has no placeholder amounts');
         foreach ($banned as $w) brb_t(stripos($html, $w) === false, "confirmation HTML has no $w");
+
+        $blocked_pay = brb_record_payment($b->id, 100, '1000', brb_now()->format('Y-m-d'), 'Too soon', true);
+        brb_t(is_wp_error($blocked_pay) && $blocked_pay->get_error_code() === 'price', 'a check cannot be recorded before the agreed price is set');
+        $blocked_paid = brb_mark_paid_full($b->id);
+        brb_t(is_wp_error($blocked_paid), 'mark paid waits for an agreed price');
+
+        $GLOBALS['brb_mails'] = [];
+        $priced = brb_set_agreed_price($b->id, 1200);
+        brb_t(!is_wp_error($priced) && $priced && (int) $priced->price_set === 1, 'staff can set the agreed price');
+        brb_t($priced && abs((float) $priced->total - 1200) < 0.01 && abs((float) $priced->deposit_due - 600) < 0.01, 'deposit is half of the agreed price');
+        $price_mail = null;
+        foreach ($GLOBALS['brb_mails'] as $m) {
+            if (stripos($m['to'], 'flow-test@example.com') !== false && stripos($m['subject'], 'price is confirmed') !== false) $price_mail = $m;
+        }
+        brb_t($price_mail && strpos($price_mail['message'], '$1,200.00') !== false && strpos($price_mail['message'], '$600.00') !== false, 'price email states the agreed price and the check to bring');
+        $b = $priced;
 
         $first = round((float) $b->deposit_due, 2);
         $second = round((float) $b->total - $first, 2);
@@ -244,6 +284,8 @@ try {
             brb_admin_settings();
             $settings_html = ob_get_clean();
             brb_t(strpos($settings_html, 'Minimum notice') !== false && strpos($settings_html, 'Hold length') !== false, 'settings explain notice and hold length');
+            brb_t(strpos($settings_html, 'Starting price') !== false && strpos($settings_html, 'Typical price text') !== false, 'settings show starting and typical price');
+            brb_t(strpos($settings_html, 'Full-day rate') === false && strpos($settings_html, '$500') === false && strpos($settings_html, '$75') === false, 'settings do not show the old public rates');
             foreach ($banned as $w) brb_t(stripos($settings_html, $w) === false, "settings HTML has no $w");
         }
     }
@@ -328,8 +370,28 @@ try {
     foreach ($banned as $w) brb_t(stripos($clean, $w) === false, "scrubbed copy has no $w");
     brb_t(stripos($clean, 'check') !== false, 'scrubbed copy talks about a check');
 
+    $faq = get_page_by_path('faq');
+    $faq_html = $faq ? (string) $faq->post_content : '';
+    brb_t(stripos($faq_html, 'How much does it cost?') !== false && stripos($faq_html, '$600') !== false && stripos($faq_html, '$1,200') !== false && stripos($faq_html, '$2,000') !== false, 'faq explains the price range');
+    brb_t(stripos($faq_html, 'arrives not set up') !== false && stripos($faq_html, 'extra fee') !== false, 'faq explains setup and seating');
+    brb_t(stripos($faq_html, 'Christmas decorations are up in December') !== false, 'faq explains decorations');
+    brb_t(stripos($faq_html, 'take the garbage out') !== false && stripos($faq_html, 'following day') !== false, 'faq explains cleanup');
+    brb_t(stripos($faq_html, '48 hours') !== false && stripos($faq_html, 'price to be confirmed') !== false, 'faq explains the hold, the notice, and an unconfirmed price');
+    brb_t(stripos($faq_html, 'How many guests can The Boardroom hold') !== false && stripos($faq_html, 'Up to 75') !== false, 'faq keeps the capacity answer');
+    if ($faq) {
+        wp_update_post(['ID' => (int) $faq->ID, 'post_content' => '<p>Custom FAQ without the seed question.</p>']);
+        clean_post_cache((int) $faq->ID);
+        brb_refresh_faq();
+        $custom = get_post((int) $faq->ID);
+        brb_t($custom && strpos((string) $custom->post_content, 'Custom FAQ') !== false, 'a rewritten faq is not replaced');
+        wp_update_post(['ID' => (int) $faq->ID, 'post_content' => brb_faq_markup()]);
+        clean_post_cache((int) $faq->ID);
+    } else {
+        brb_t(false, 'a rewritten faq is not replaced');
+    }
+
     foreach ([
-        'faq' => 'save the date',
+        'faq' => 'price to be confirmed',
         'privacy-policy' => 'check brought in person',
         'terms-and-conditions' => 'your check',
     ] as $slug => $needle) {
@@ -340,12 +402,45 @@ try {
     }
     $_GET = ['date' => $later, 'type' => 'day', 'days' => 1, 'guests' => 4];
     $quote_html = do_shortcode('[boardroom_booking]');
-    brb_t(strpos($quote_html, 'Save this date') !== false, 'quote page submit button is Save this date');
-    brb_t(strpos($quote_html, 'Check to bring') !== false, 'quote page shows the check amount');
+    brb_t(strpos($quote_html, 'Save this date') !== false, 'review page submit button is Save this date');
+    brb_t(strpos($quote_html, 'Pricing from $600 per day (most events around $1,200), final price confirmed based on date, guest count and features.') !== false, 'review page shows the from price');
+    brb_t(stripos($quote_html, 'price to be confirmed') !== false, 'review page says price to be confirmed');
+    brb_t(strpos($quote_html, '$500') === false && strpos($quote_html, '$75') === false && strpos($quote_html, '$100') === false && strpos($quote_html, '7%') === false && strpos($quote_html, 'Cleaning fee') === false, 'review page has no placeholder rate, fee, or tax');
     foreach ($banned as $w) brb_t(stripos($quote_html, $w) === false, "quote HTML has no $w");
     $_GET = [];
     $picker = do_shortcode('[boardroom_booking]');
-    brb_t(strpos($picker, 'Get Quote') !== false && strpos($picker, 'hours from now') !== false, 'calendar explains the minimum notice');
+    brb_t(strpos($picker, 'Continue') !== false && strpos($picker, 'hours from now') !== false, 'calendar explains the minimum notice');
+    brb_t(strpos($picker, 'Pricing from $600 per day') !== false && strpos($picker, 'no separate hourly price') !== false, 'calendar uses the from price for a shorter block');
+    brb_t(strpos($picker, '$500') === false && strpos($picker, '$75') === false && strpos($picker, '/hr') === false, 'calendar has no hourly dollar rate');
+
+    $legacy = $wpdb->insert(brb_table(), [
+        'token' => 'legacyprice' . wp_generate_password(8, false),
+        'mode' => 'day',
+        'start_dt' => '2031-04-04 00:00:00',
+        'end_dt' => '2031-04-05 00:00:00',
+        'guests' => 4,
+        'name' => 'Legacy',
+        'email' => 'flow-test@example.com',
+        'subtotal' => '500.00',
+        'cleaning' => '100.00',
+        'tax' => '42.00',
+        'total' => '642.00',
+        'amount_due' => '642.00',
+        'deposit_due' => '642.00',
+        'amount_paid' => '0.00',
+        'status' => 'held',
+        'source' => 'online',
+        'price_set' => 0,
+        'created' => current_time('mysql', true),
+    ]);
+    brb_t((bool) $legacy, 'a historical priced row can be inserted');
+    if ($legacy) {
+        $legacy_id = (int) $wpdb->insert_id;
+        $created_ids[] = $legacy_id;
+        brb_migrate_prices();
+        $kept = brb_booking($legacy_id);
+        brb_t($kept && (int) $kept->price_set === 1 && abs((float) $kept->total - 642) < 0.01, 'an existing priced booking keeps its total');
+    }
 } finally {
     if ($created_ids) {
         $in = implode(',', array_map('intval', $created_ids));
