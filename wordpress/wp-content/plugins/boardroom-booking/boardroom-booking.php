@@ -1,12 +1,12 @@
 <?php
 /**
  * Plugin Name: Boardroom Booking
- * Description: Self-hosted direct booking for The Boardroom — full-day and hourly blocks, availability calendar, quotes, in-person check holds, blackout dates, and emails.
- * Version: 2.0.0
+ * Description: Self-hosted direct booking for The Boardroom — full-day and hourly blocks, availability calendar, agreed prices, in-person check holds, blackout dates, and emails.
+ * Version: 2.1.0
  * Author: Mad Productions
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.0.0');
+define('BRB_VER', '2.1.0');
 define('BRB_URL', plugin_dir_url(__FILE__));
 
 function brb_table() { global $wpdb; return $wpdb->prefix . 'br_bookings'; }
@@ -32,7 +32,31 @@ function brb_format_utc_mysql($mysql) {
 }
 function brb_dec($n) { return number_format(round((float) $n, 2), 2, '.', ''); }
 function brb_money($n) { return '$' . number_format((float) $n, 2); }
+function brb_whole_money($n) {
+    $n = round((float) $n, 2);
+    if (abs($n - round($n)) < 0.001) return '$' . number_format((float) round($n), 0);
+    return brb_money($n);
+}
 function brb_ref($b) { return 'BR-' . (int) $b->id; }
+function brb_price_sentence() {
+    $start = brb_whole_money(brb_opt('starting_price'));
+    $typical = trim((string) brb_opt('typical_price'));
+    $sentence = 'Pricing from ' . $start . ' per day';
+    if ($typical !== '') $sentence .= ' (' . $typical . ')';
+    $sentence .= ', final price confirmed based on date, guest count and features.';
+    return $sentence;
+}
+function brb_price_is_set($b) {
+    if (is_array($b)) {
+        if (array_key_exists('price_set', $b)) return (int) $b['price_set'] === 1;
+        return ((float) ($b['total'] ?? 0)) > 0.009;
+    }
+    if (isset($b->price_set)) return (int) $b->price_set === 1;
+    return isset($b->total) && (float) $b->total > 0.009;
+}
+function brb_price_phrase($b) {
+    return brb_price_is_set($b) ? brb_money($b->total) : 'price to be confirmed';
+}
 
 function brb_defaults() {
     $admin = function_exists('get_option') ? (string) get_option('admin_email') : '';
@@ -40,6 +64,8 @@ function brb_defaults() {
         'mode' => 'both',
         'day_rate' => '500',
         'hourly_rate' => '75',
+        'starting_price' => '600',
+        'typical_price' => 'most events around $1,200',
         'min_hours' => '2',
         'open_hour' => '9',
         'close_hour' => '23',
@@ -153,6 +179,7 @@ function brb_install_tables() {
       source varchar(20) NOT NULL DEFAULT 'online',
       hold_until datetime DEFAULT NULL,
       balance_due_on date DEFAULT NULL,
+      price_set tinyint(1) NOT NULL DEFAULT 0,
       created datetime NOT NULL,
       PRIMARY KEY  (id),
       KEY token (token),
@@ -164,6 +191,7 @@ function brb_install_tables() {
     brb_ensure_column($t, 'source', "varchar(20) NOT NULL DEFAULT 'online'");
     brb_ensure_column($t, 'hold_until', 'datetime NULL DEFAULT NULL');
     brb_ensure_column($t, 'balance_due_on', 'date NULL DEFAULT NULL');
+    brb_ensure_column($t, 'price_set', 'tinyint(1) NOT NULL DEFAULT 0');
     $p = brb_pay_table();
     dbDelta("CREATE TABLE $p (
       id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
@@ -189,7 +217,7 @@ function brb_install_tables() {
           KEY booking_id (booking_id)
         ) $c");
     }
-    foreach (['deposit_due', 'amount_paid', 'source', 'hold_until', 'balance_due_on'] as $col) {
+    foreach (['deposit_due', 'amount_paid', 'source', 'hold_until', 'balance_due_on', 'price_set'] as $col) {
         if (!$wpdb->get_var($wpdb->prepare("SHOW COLUMNS FROM `$t` LIKE %s", $col))) return false;
     }
     return $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $p)) === $p;
@@ -226,6 +254,27 @@ function brb_migrate_bookings() {
         "UPDATE $t SET deposit_due = IF(deposit_due > 0, deposit_due, amount_due), source = IF(source IS NULL OR source = '', 'online', source), hold_until = IF(hold_until IS NULL, DATE_ADD(created, INTERVAL %d HOUR), hold_until), status = 'held' WHERE status = 'pending'",
         $hours
     ));
+}
+function brb_migrate_prices() {
+    global $wpdb;
+    $t = brb_table();
+    // Rows that already have a calculated total keep it. New saves store zero until staff set a price.
+    $wpdb->query("UPDATE $t SET price_set = 1 WHERE price_set = 0 AND total > 0.009");
+}
+function brb_faq_markup() {
+    return <<<'HTML'
+<details><summary>How many guests can The Boardroom hold?</summary><p>Up to 75 people.</p></details><details><summary>Is parking available?</summary><p>Yes, on-site parking.</p></details><details><summary>Can we bring our own drinks?</summary><p>The Boardroom has a BYOB bar and ice machine. <span class="placeholder">PLACEHOLDER: alcohol rules / age policy — owner to confirm.</span></p></details><details><summary>What is there to do?</summary><p>80in television, pinball, pool and shuffleboard.</p></details><details><summary>How much does it cost?</summary><p>Pricing starts at $600 per day and can reach about $2,000, depending on the date, how many people are coming, and the features you would like. Most events come to about $1,200. We confirm the final price with you before any check is due. The website does not guess a total.</p></details><details><summary>How is the space set up?</summary><p>The space arrives not set up. Seating and layout are yours to plan, so bring the arrangement that suits your gathering. If you would like a hand, our staff can help with setup for an extra fee.</p></details><details><summary>Do you provide decorations?</summary><p>Decorations are not provided. Christmas decorations are up in December.</p></details><details><summary>What are our responsibilities before we leave?</summary><p>Please clean and tidy the space, and take the garbage out. Another event is often booked the following day, and a ready room lets the next hosts begin on time.</p></details><details><summary>How do I book and pay?</summary><p>Save your date on the <a href="/book/">Book</a> page. That holds the date for 48 hours. Bring a check in person within those 48 hours. Bookings need at least 48 hours' notice. Until we confirm your price, your confirmation says price to be confirmed.</p></details><details><summary>What is the cancellation policy?</summary><p>See our <a href="/terms-and-conditions/">Terms and Conditions</a>. <span class="placeholder">PLACEHOLDER — owner to supply.</span></p></details><details><summary>What are the hours / check-in and check-out times?</summary><p class="placeholder">PLACEHOLDER — owner to supply.</p></details>
+HTML;
+}
+function brb_refresh_faq() {
+    $page = get_page_by_path('faq');
+    if (!$page) return;
+    $c = (string) $page->post_content;
+    if (stripos($c, 'How many guests can The Boardroom hold') === false) return;
+    if (stripos($c, 'How much does it cost?') !== false && stripos($c, 'Christmas decorations are up in December') !== false) return;
+    global $wpdb;
+    $wpdb->update($wpdb->posts, ['post_content' => brb_faq_markup()], ['ID' => (int) $page->ID]);
+    clean_post_cache((int) $page->ID);
 }
 function brb_scrub_copy_string($c) {
     $c = preg_replace('/Payments are processed by \w+;?\s*we do not store card numbers\./i', 'Payment is by check brought in person. We keep your booking details and the check number our staff records.', $c);
@@ -265,7 +314,9 @@ function brb_maybe_upgrade() {
     if (get_option('brb_settings', null) === null) update_option('brb_settings', brb_defaults());
     else brb_migrate_settings();
     brb_migrate_bookings();
+    brb_migrate_prices();
     brb_scrub_public_copy();
+    brb_refresh_faq();
     brb_expire_holds();
     if (!wp_next_scheduled('brb_cron_expire')) wp_schedule_event(time() + 60, 'hourly', 'brb_cron_expire');
     update_option('brb_version', BRB_VER);
@@ -339,14 +390,31 @@ function brb_build_range($in, $args = []) {
     return ['type' => $type, 's' => $s, 'e' => $e, 'units' => $units, 'guests' => $guests];
 }
 function brb_quote($r) {
-    $o = brb_opt();
-    $rate = $r['type'] === 'day' ? (float) $o['day_rate'] : (float) $o['hourly_rate'];
-    $sub = round($rate * $r['units'], 2);
-    $clean = round((float) $o['cleaning_fee'], 2);
-    $tax = round(($sub + $clean) * (float) $o['tax_rate'] / 100, 2);
-    $total = round($sub + $clean + $tax, 2);
+    // The public save does not invent a total. Staff set one agreed price later.
+    return [
+        'rate' => 0,
+        'units' => (int) $r['units'],
+        'subtotal' => 0,
+        'cleaning' => 0,
+        'tax' => 0,
+        'total' => 0,
+        'due' => 0,
+        'price_set' => 0,
+    ];
+}
+function brb_agreed_quote($total) {
+    $total = round((float) $total, 2);
     $due = brb_deposit_due_amount($total);
-    return ['rate' => $rate, 'units' => $r['units'], 'subtotal' => $sub, 'cleaning' => $clean, 'tax' => $tax, 'total' => $total, 'due' => $due];
+    return [
+        'rate' => 0,
+        'units' => 1,
+        'subtotal' => $total,
+        'cleaning' => 0,
+        'tax' => 0,
+        'total' => $total,
+        'due' => $due,
+        'price_set' => 1,
+    ];
 }
 function brb_range_hits_blackout($s, $e) {
     $bo = brb_blackouts();
@@ -410,16 +478,23 @@ function brb_amount_to_bring($b) {
 }
 function brb_hold_lines($b) {
     $o = brb_opt();
-    $bring = brb_money(brb_amount_to_bring($b));
     $ref = brb_ref($b);
+    $set = brb_price_is_set($b);
     $lines = [];
     $lines[] = 'Your date is held until ' . brb_format_utc_mysql($b->hold_until) . '.';
-    $lines[] = 'Bring a check for ' . $bring . ' payable to ' . $o['payee'] . ', to ' . $o['pay_location'] . ' (' . $o['pay_hours'] . ').';
+    if ($set) {
+        $lines[] = 'Bring a check for ' . brb_money(brb_amount_to_bring($b)) . ' payable to ' . $o['payee'] . ', to ' . $o['pay_location'] . ' (' . $o['pay_hours'] . ').';
+    } else {
+        $lines[] = 'Price to be confirmed. We will confirm the final price based on the date, guest count, and features, then tell you the check amount.';
+        $lines[] = 'When that amount is set, bring the check payable to ' . $o['payee'] . ', to ' . $o['pay_location'] . ' (' . $o['pay_hours'] . ').';
+    }
     $lines[] = 'Write booking reference ' . $ref . ' on the memo line.';
     $lines[] = 'If the check is not received by then, the hold is released.';
-    $balance = round((float) $b->total - (float) $b->deposit_due, 2);
-    if ($balance > 0.009) {
-        $lines[] = 'After that check, the remaining balance of ' . brb_money($balance) . ' is due by ' . brb_balance_due_label($b->balance_due_on) . ' (' . (int) $o['balance_due_days'] . ' days before the event).';
+    if ($set) {
+        $balance = round((float) $b->total - (float) $b->deposit_due, 2);
+        if ($balance > 0.009) {
+            $lines[] = 'After that check, the remaining balance of ' . brb_money($balance) . ' is due by ' . brb_balance_due_label($b->balance_due_on) . ' (' . (int) $o['balance_due_days'] . ' days before the event).';
+        }
     }
     $extra = trim((string) $o['pay_instructions']);
     if ($extra !== '') $lines[] = $extra;
@@ -428,15 +503,23 @@ function brb_hold_lines($b) {
 function brb_preview_lines($q, DateTimeImmutable $start) {
     $o = brb_opt();
     $hours = brb_hold_hours();
+    $set = is_array($q) && !empty($q['price_set']);
     $lines = [];
     $lines[] = "Saving this date holds it for {$hours} hours. The next page shows the exact deadline in America/Chicago.";
-    $lines[] = 'Bring a check for ' . brb_money($q['due']) . ' payable to ' . $o['payee'] . ', to ' . $o['pay_location'] . ' (' . $o['pay_hours'] . ').';
+    if ($set) {
+        $lines[] = 'Bring a check for ' . brb_money($q['due']) . ' payable to ' . $o['payee'] . ', to ' . $o['pay_location'] . ' (' . $o['pay_hours'] . ').';
+    } else {
+        $lines[] = 'Price to be confirmed. We will confirm the final price based on the date, guest count, and features, then tell you the check amount.';
+        $lines[] = 'When that amount is set, bring the check payable to ' . $o['payee'] . ', to ' . $o['pay_location'] . ' (' . $o['pay_hours'] . ').';
+    }
     $lines[] = 'Write the booking reference (shown after you save) on the memo line.';
     $lines[] = 'If the check is not received by then, the hold is released.';
-    $balance = round((float) $q['total'] - (float) $q['due'], 2);
-    if ($balance > 0.009) {
-        $on = brb_balance_due_on($start);
-        $lines[] = 'After that check, the remaining balance of ' . brb_money($balance) . ' is due by ' . brb_balance_due_label($on) . ' (' . (int) $o['balance_due_days'] . ' days before the event).';
+    if ($set) {
+        $balance = round((float) $q['total'] - (float) $q['due'], 2);
+        if ($balance > 0.009) {
+            $on = brb_balance_due_on($start);
+            $lines[] = 'After that check, the remaining balance of ' . brb_money($balance) . ' is due by ' . brb_balance_due_label($on) . ' (' . (int) $o['balance_due_days'] . ' days before the event).';
+        }
     }
     $extra = trim((string) $o['pay_instructions']);
     if ($extra !== '') $lines[] = $extra;
@@ -457,10 +540,12 @@ function brb_send_hold_emails($b) {
     $o = brb_opt();
     $ref = brb_ref($b);
     $facts = implode("\n\n", brb_hold_lines($b));
-    $detail = "When: " . brb_when($b) . "\nGuests: {$b->guests}\nTotal: " . brb_money($b->total) . "\n";
+    $price = brb_price_phrase($b);
+    $check = brb_price_is_set($b) ? brb_money(brb_amount_to_bring($b)) : 'price to be confirmed';
+    $detail = "When: " . brb_when($b) . "\nGuests: {$b->guests}\nPrice: {$price}\n";
     $body = "Hi {$b->name},\n\n{$facts}\n\n{$detail}\nCancellation policy:\n{$o['policy']}\n\nView your booking: " . brb_guest_link($b) . "\n";
     brb_mail($b->email, 'Your Boardroom date is held (' . $ref . ')', $body, $o['admin_email']);
-    $admin = "A date was saved and is held.\n\nReference: {$ref}\nWhen: " . brb_when($b) . "\nGuest: {$b->name}\nEmail: {$b->email}\nPhone: {$b->phone}\nGuests: {$b->guests}\nTotal: " . brb_money($b->total) . "\nCheck to bring: " . brb_money(brb_amount_to_bring($b)) . "\nSource: " . brb_source_label($b->source) . "\nHeld until: " . brb_format_utc_mysql($b->hold_until) . "\nNotes: {$b->notes}\n\n" . admin_url('admin.php?page=brb&booking=' . (int) $b->id) . "\n";
+    $admin = "A date was saved and is held.\n\nReference: {$ref}\nWhen: " . brb_when($b) . "\nGuest: {$b->name}\nEmail: {$b->email}\nPhone: {$b->phone}\nGuests: {$b->guests}\nPrice: {$price}\nCheck to bring: {$check}\nSource: " . brb_source_label($b->source) . "\nHeld until: " . brb_format_utc_mysql($b->hold_until) . "\nNotes: {$b->notes}\n\n" . admin_url('admin.php?page=brb&booking=' . (int) $b->id) . "\n";
     brb_mail($o['admin_email'], 'Date held ' . $ref . ' – ' . $b->name, $admin, $b->email);
 }
 function brb_send_payment_email($b, $amount, $check_number) {
@@ -483,7 +568,7 @@ function brb_send_payment_email($b, $amount, $check_number) {
         $intro = "We received your check and your date stays reserved.\n\n{$check}\nPaid so far: {$paid}\nBalance: {$balance}" . ($due ? " due by {$due}" : '') . ".\n\nBring the remaining balance as a check payable to {$o['payee']} to {$o['pay_location']} ({$o['pay_hours']}).\nWrite booking reference {$ref} on the memo line.";
         $subject = 'We received your check for ' . $ref;
     }
-    $body = "Hi {$b->name},\n\n{$intro}\n\nReference: {$ref}\nWhen: " . brb_when($b) . "\nGuests: {$b->guests}\nTotal: " . brb_money($b->total) . "\n\nCancellation policy:\n{$o['policy']}\n\nView your booking: " . brb_guest_link($b) . "\n";
+    $body = "Hi {$b->name},\n\n{$intro}\n\nReference: {$ref}\nWhen: " . brb_when($b) . "\nGuests: {$b->guests}\nPrice: " . brb_price_phrase($b) . "\n\nCancellation policy:\n{$o['policy']}\n\nView your booking: " . brb_guest_link($b) . "\n";
     brb_mail($b->email, $subject, $body, $o['admin_email']);
     brb_mail($o['admin_email'], 'Check recorded for ' . $ref . ' – ' . $b->name, $body . "\nAdmin: " . admin_url('admin.php?page=brb&booking=' . (int) $b->id) . "\n", $b->email);
 }
@@ -560,6 +645,7 @@ function brb_insert_booking($r, $q, $guest, $source = 'online', $notify = true) 
                 'source' => $source,
                 'hold_until' => $hold_until,
                 'balance_due_on' => brb_balance_due_on($r['s']),
+                'price_set' => empty($q['price_set']) ? 0 : 1,
                 'created' => current_time('mysql', true),
             ]);
             $result = $ok ? brb_booking($wpdb->insert_id) : new WP_Error('db', 'Could not save the booking. Please try again.');
@@ -607,6 +693,9 @@ function brb_record_payment($booking_id, $amount, $check_number, $received_on, $
     if (in_array($b->status, ['cancelled', 'expired'], true)) {
         return new WP_Error('status', 'That booking is not open for a check. Extend the hold first if it expired and the date is still free.');
     }
+    if (!brb_price_is_set($b)) {
+        return new WP_Error('price', 'Set the agreed price before recording a check.');
+    }
     $amount = round((float) $amount, 2);
     if ($amount <= 0) return new WP_Error('amount', 'Enter a check amount greater than zero.');
     $remaining = round((float) $b->total - (float) $b->amount_paid, 2);
@@ -638,6 +727,7 @@ function brb_mark_paid_full($booking_id) {
     $b = brb_booking($booking_id);
     if (!$b) return new WP_Error('missing', 'Booking not found.');
     if (in_array($b->status, ['cancelled', 'expired'], true)) return new WP_Error('status', 'Cancelled or expired bookings cannot be marked paid.');
+    if (!brb_price_is_set($b)) return new WP_Error('price', 'Set the agreed price before marking the booking paid.');
     $remaining = round((float) $b->total - (float) $b->amount_paid, 2);
     if ($remaining <= 0.009) {
         global $wpdb;
@@ -647,6 +737,50 @@ function brb_mark_paid_full($booking_id) {
         return $b;
     }
     return brb_record_payment($b->id, $remaining, '', brb_now()->format('Y-m-d'), 'Marked paid in full by staff.', false);
+}
+function brb_set_agreed_price($booking_id, $amount) {
+    global $wpdb;
+    $b = brb_booking($booking_id);
+    if (!$b) return new WP_Error('missing', 'Booking not found.');
+    if ($b->status === 'cancelled') return new WP_Error('status', 'A cancelled booking cannot take a price.');
+    $amount = round((float) $amount, 2);
+    if ($amount <= 0) return new WP_Error('amount', 'Enter an agreed price greater than zero.');
+    if ((float) $b->amount_paid - $amount > 0.009) {
+        return new WP_Error('amount', 'The agreed price cannot be less than the ' . brb_money($b->amount_paid) . ' already recorded.');
+    }
+    $due = brb_deposit_due_amount($amount);
+    $status = $b->status;
+    if ((float) $b->amount_paid + 0.009 >= $amount) $status = 'paid';
+    elseif ((float) $b->amount_paid > 0.009 && in_array($status, ['held', 'pending', 'deposit_paid'], true)) $status = 'deposit_paid';
+    $ok = $wpdb->update(brb_table(), [
+        'subtotal' => brb_dec($amount),
+        'cleaning' => '0.00',
+        'tax' => '0.00',
+        'total' => brb_dec($amount),
+        'amount_due' => brb_dec($due),
+        'deposit_due' => brb_dec($due),
+        'price_set' => 1,
+        'status' => $status,
+    ], ['id' => (int) $b->id]);
+    if ($ok === false) return new WP_Error('db', 'Could not save the agreed price.');
+    $b = brb_booking($b->id);
+    brb_send_price_email($b);
+    return $b;
+}
+function brb_send_price_email($b) {
+    $o = brb_opt();
+    $ref = brb_ref($b);
+    $bring = brb_money(brb_amount_to_bring($b));
+    $body = "Hi {$b->name},\n\nThe price for your Boardroom date is confirmed.\n\nAgreed price: " . brb_money($b->total) . "\nCheck to bring: {$bring}\n\n";
+    if ($b->status === 'held') {
+        $body .= implode("\n\n", brb_hold_lines($b)) . "\n\n";
+    } else {
+        $balance = max(0, round((float) $b->total - (float) $b->amount_paid, 2));
+        $body .= 'Paid so far: ' . brb_money($b->amount_paid) . "\nBalance: " . brb_money($balance) . "\n\n";
+    }
+    $body .= 'When: ' . brb_when($b) . "\nGuests: {$b->guests}\nReference: {$ref}\n\nView your booking: " . brb_guest_link($b) . "\n";
+    brb_mail($b->email, 'Your Boardroom price is confirmed (' . $ref . ')', $body, $o['admin_email']);
+    brb_mail($o['admin_email'], 'Price set for ' . $ref . ' – ' . $b->name, $body . "\n" . admin_url('admin.php?page=brb&booking=' . (int) $b->id) . "\n", $b->email);
 }
 function brb_extend_hold($booking_id, $hours) {
     global $wpdb;
@@ -761,6 +895,7 @@ add_shortcode('boardroom_booking', function () {
     ]);
     ob_start();
     echo '<div class="brb">';
+    echo '<p class="brb-lead">' . esc_html(brb_price_sentence()) . '</p>';
     echo '<p class="brb-lead">Save your date online and bring a check in person. A saved date is held so nobody else can take it while we wait for the check.</p>';
     if (!empty($_GET['br_err'])) echo '<div class="brb-alert brb-err">' . esc_html(wp_unslash($_GET['br_err'])) . '</div>';
     if (!empty($_GET['br_token'])) brb_view_confirmation(sanitize_text_field(wp_unslash($_GET['br_token'])));
@@ -770,7 +905,7 @@ add_shortcode('boardroom_booking', function () {
     return ob_get_clean();
 });
 function brb_steps($i, $labels = null) {
-    if (!$labels) $labels = ['Choose date', 'Quote & details', 'Date held'];
+    if (!$labels) $labels = ['Choose date', 'Review', 'Date held'];
     echo '<ol class="brb-steps">';
     foreach ($labels as $n => $s) {
         echo '<li class="' . ($n === $i ? 'on' : ($n < $i ? 'done' : '')) . '">' . esc_html($s) . '</li>';
@@ -792,11 +927,14 @@ function brb_view_select() {
       </div>
       <form class="brb-card" method="get" id="brb-form">
         <p class="brb-small">Bookings must start at least <?php echo (int) $notice; ?> hours from now (America/Chicago). Dates and start times inside that window are unavailable. A full day starts at 12:00 AM.</p>
+        <?php if ($o['mode'] !== 'day'): ?>
+        <p class="brb-small">A shorter block reserves part of the day. There is no separate hourly price. The price is confirmed for the event, from the same starting price.</p>
+        <?php endif; ?>
         <label>Date<input type="date" name="date" id="brb-date" required min="<?php echo esc_attr(brb_now()->format('Y-m-d')); ?>"></label>
         <?php if ($o['mode'] === 'both'): ?>
         <fieldset class="brb-type"><legend>Booking type</legend>
-          <label><input type="radio" name="type" value="day" checked> Full day (<?php echo esc_html(brb_money($o['day_rate'])); ?>/day)</label>
-          <label><input type="radio" name="type" value="hourly"> Hourly (<?php echo esc_html(brb_money($o['hourly_rate'])); ?>/hr, <?php echo (int) $o['min_hours']; ?> hr min)</label>
+          <label><input type="radio" name="type" value="day" checked> Full day</label>
+          <label><input type="radio" name="type" value="hourly"> Shorter block (<?php echo (int) $o['min_hours']; ?> hour minimum)</label>
         </fieldset>
         <?php else: ?><input type="hidden" name="type" value="<?php echo esc_attr($o['mode']); ?>"><?php endif; ?>
         <div class="brb-day"><label>Number of days<input type="number" name="days" value="1" min="1" max="<?php echo (int) $o['max_days']; ?>"></label></div>
@@ -811,7 +949,7 @@ function brb_view_select() {
         </div>
         <p class="brb-small" id="brb-notice"></p>
         <label>Guests (max <?php echo (int) $o['max_guests']; ?>)<input type="number" name="guests" value="10" min="1" max="<?php echo (int) $o['max_guests']; ?>"></label>
-        <button class="brb-btn" type="submit">Get Quote</button>
+        <button class="brb-btn" type="submit">Continue</button>
       </form>
     </div>
     <?php
@@ -840,22 +978,13 @@ function brb_view_quote() {
     $when = $r['type'] === 'day'
         ? $r['s']->format('D M j, Y') . ($r['units'] > 1 ? ' – ' . $r['e']->modify('-1 day')->format('D M j, Y') : '') . ' (full day)'
         : $r['s']->format('D M j, Y g:i A') . ' – ' . $r['e']->format('g:i A');
-    $balance = round($q['total'] - $q['due'], 2);
     ?>
     <div class="brb-grid">
       <div class="brb-card">
-        <h3>Your quote</h3>
+        <h3>Your date</h3>
         <p><strong><?php echo esc_html($when); ?></strong><br><?php echo (int) $r['guests']; ?> guests</p>
-        <table class="brb-quote">
-          <tr><td><?php echo esc_html(brb_money($q['rate']) . ' × ' . (int) $q['units'] . ($r['type'] === 'day' ? ' day(s)' : ' hour(s)')); ?></td><td><?php echo esc_html(brb_money($q['subtotal'])); ?></td></tr>
-          <tr><td>Cleaning fee</td><td><?php echo esc_html(brb_money($q['cleaning'])); ?></td></tr>
-          <tr><td>Tax (<?php echo esc_html($o['tax_rate']); ?>%)</td><td><?php echo esc_html(brb_money($q['tax'])); ?></td></tr>
-          <tr class="tot"><td>Total</td><td><?php echo esc_html(brb_money($q['total'])); ?></td></tr>
-          <tr><td>Check to bring</td><td><?php echo esc_html(brb_money($q['due'])); ?></td></tr>
-          <?php if ($balance > 0.009): ?>
-          <tr><td>Balance after that check</td><td><?php echo esc_html(brb_money($balance)); ?></td></tr>
-          <?php endif; ?>
-        </table>
+        <p><?php echo esc_html(brb_price_sentence()); ?></p>
+        <p><strong>price to be confirmed</strong></p>
         <?php brb_echo_lines(brb_preview_lines($q, $r['s'])); ?>
         <a href="<?php echo esc_url(strtok($_SERVER['REQUEST_URI'] ?? home_url('/book/'), '?')); ?>">← Change date</a>
       </div>
@@ -883,7 +1012,8 @@ function brb_view_confirmation($token) {
         return;
     }
     $paid_off = round((float) $b->total - (float) $b->amount_paid, 2);
-    $labels = ['Choose date', 'Quote & details', $b->status === 'paid' ? 'Confirmed' : 'Date held'];
+    $priced = brb_price_is_set($b);
+    $labels = ['Choose date', 'Review', $b->status === 'paid' ? 'Confirmed' : 'Date held'];
     $step = in_array($b->status, ['cancelled', 'expired'], true) ? 1 : 2;
     brb_steps($step, $labels);
     $titles = [
@@ -899,7 +1029,11 @@ function brb_view_confirmation($token) {
       <h2><?php echo esc_html($title); ?></h2>
       <p>Reference <strong><?php echo esc_html(brb_ref($b)); ?></strong></p>
       <p><?php echo esc_html(brb_when($b)); ?> · <?php echo (int) $b->guests; ?> guests</p>
+      <?php if ($priced): ?>
       <p>Total <?php echo esc_html(brb_money($b->total)); ?> · Paid <?php echo esc_html(brb_money($b->amount_paid)); ?> · Balance <?php echo esc_html(brb_money(max(0, $paid_off))); ?></p>
+      <?php else: ?>
+      <p>price to be confirmed</p>
+      <?php endif; ?>
       <?php
       if ($b->status === 'held') {
           brb_echo_lines(brb_hold_lines($b));

@@ -43,6 +43,13 @@ function brb_admin_note() {
     echo '<div class="notice notice-info"><p>' . esc_html(wp_unslash($_GET['brb_note'])) . '</p></div>';
 }
 
+add_action('admin_post_brb_price', function () {
+    brb_admin_gate('brb_price');
+    $id = (int) ($_POST['booking'] ?? 0);
+    $res = brb_set_agreed_price($id, wp_unslash($_POST['agreed_price'] ?? ''));
+    if (is_wp_error($res)) brb_admin_back($id, $res->get_error_message());
+    brb_admin_back($id, brb_ref($res) . ' agreed price set to ' . brb_money($res->total) . '. The guest was emailed the check amount.');
+});
 add_action('admin_post_brb_payment', function () {
     brb_admin_gate('brb_payment');
     $id = (int) ($_POST['booking'] ?? 0);
@@ -89,7 +96,15 @@ add_action('admin_post_brb_manual', function () {
     if (!$name || !is_email($email)) brb_admin_back(0, 'Name and a valid email are required.', 'brb-new');
     $source = sanitize_text_field($post['source'] ?? 'phone');
     $take = !empty($post['take_check']);
-    $q = brb_quote($r);
+    $price_raw = trim((string) ($post['agreed_price'] ?? ''));
+    if ($price_raw !== '') {
+        $amount = round((float) $price_raw, 2);
+        if ($amount <= 0) brb_admin_back(0, 'Enter an agreed price greater than zero, or leave it blank.', 'brb-new');
+        $q = brb_agreed_quote($amount);
+    } else {
+        if ($take) brb_admin_back(0, 'Enter the agreed price before recording a check.', 'brb-new');
+        $q = brb_quote($r);
+    }
     $b = brb_insert_booking($r, $q, [
         'name' => $name,
         'email' => $email,
@@ -136,7 +151,8 @@ function brb_admin_list() {
     echo '</p><table class="widefat"><thead><tr><th>#</th><th>When</th><th>Guest</th><th>Source</th><th>Total</th><th>Paid</th><th>Balance</th><th>Status</th><th>Held until</th><th></th></tr></thead><tbody>';
     if (!$rows) echo '<tr><td colspan="10">No bookings yet.</td></tr>';
     foreach ($rows as $b) {
-        $balance = max(0, round((float) $b->total - (float) $b->amount_paid, 2));
+        $set = brb_price_is_set($b);
+        $balance = $set ? max(0, round((float) $b->total - (float) $b->amount_paid, 2)) : 0;
         $until = ($b->status === 'held' && $b->hold_until) ? brb_format_utc_mysql($b->hold_until) : '—';
         printf(
             '<tr><td>%s</td><td>%s</td><td>%s<br><small>%s %s</small></td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td><span class="brb-badge %s">%s</span></td><td>%s</td><td><a class="button button-small" href="%s">Open</a></td></tr>',
@@ -146,9 +162,9 @@ function brb_admin_list() {
             esc_html($b->email),
             esc_html($b->phone),
             esc_html(brb_source_label($b->source)),
-            esc_html(brb_money($b->total)),
+            esc_html($set ? brb_money($b->total) : 'Price to be confirmed'),
             esc_html(brb_money($b->amount_paid)),
-            esc_html(brb_money($balance)),
+            esc_html($set ? brb_money($balance) : 'Price to be confirmed'),
             esc_attr($b->status),
             esc_html(brb_status_label($b->status)),
             esc_html($until),
@@ -165,7 +181,8 @@ function brb_admin_detail($id) {
         echo '<p>Booking not found.</p></div>';
         return;
     }
-    $balance = max(0, round((float) $b->total - (float) $b->amount_paid, 2));
+    $set = brb_price_is_set($b);
+    $balance = $set ? max(0, round((float) $b->total - (float) $b->amount_paid, 2)) : 0;
     echo '<p><a href="' . esc_url(admin_url('admin.php?page=brb')) . '">← All bookings</a></p>';
     echo '<h2>' . esc_html(brb_ref($b)) . ' <span class="brb-badge ' . esc_attr($b->status) . '">' . esc_html(brb_status_label($b->status)) . '</span></h2>';
     echo '<table class="widefat" style="max-width:760px"><tbody>';
@@ -177,22 +194,36 @@ function brb_admin_detail($id) {
         'Email' => $b->email,
         'Phone' => $b->phone,
         'Notes' => $b->notes,
-        'Subtotal' => brb_money($b->subtotal),
-        'Cleaning' => brb_money($b->cleaning),
-        'Tax' => brb_money($b->tax),
-        'Total' => brb_money($b->total),
-        'Check expected to secure the date' => brb_money($b->deposit_due),
-        'Paid' => brb_money($b->amount_paid),
-        'Balance' => brb_money($balance),
-        'Balance due' => $b->balance_due_on ? brb_balance_due_label($b->balance_due_on) : '—',
-        'Held until' => $b->hold_until ? brb_format_utc_mysql($b->hold_until) : '—',
     ];
+    if ($set && ((float) $b->cleaning > 0.009 || (float) $b->tax > 0.009)) {
+        $rows['Subtotal'] = brb_money($b->subtotal);
+        $rows['Cleaning'] = brb_money($b->cleaning);
+        $rows['Tax'] = brb_money($b->tax);
+    }
+    $rows['Agreed price'] = $set ? brb_money($b->total) : 'Price to be confirmed';
+    $rows['Check expected to secure the date'] = $set ? brb_money($b->deposit_due) : 'Price to be confirmed';
+    $rows['Paid'] = brb_money($b->amount_paid);
+    $rows['Balance'] = $set ? brb_money($balance) : 'Price to be confirmed';
+    $rows['Balance due'] = $b->balance_due_on ? brb_balance_due_label($b->balance_due_on) : '—';
+    $rows['Held until'] = $b->hold_until ? brb_format_utc_mysql($b->hold_until) : '—';
     foreach ($rows as $label => $val) {
         echo '<tr><th style="width:280px">' . esc_html($label) . '</th><td>' . nl2br(esc_html((string) $val)) . '</td></tr>';
     }
     echo '</tbody></table>';
 
-    if (!in_array($b->status, ['cancelled', 'expired', 'paid'], true) && $balance > 0.009) {
+    if ($b->status !== 'cancelled') {
+        echo '<h2>Agreed price</h2><form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="max-width:640px">';
+        echo '<input type="hidden" name="action" value="brb_price"><input type="hidden" name="booking" value="' . (int) $b->id . '">';
+        wp_nonce_field('brb_price');
+        $suggest = $set ? brb_dec($b->total) : '';
+        echo '<table class="form-table"><tr><th><label for="agreed_price">Final price</label></th><td><input name="agreed_price" id="agreed_price" type="number" step="0.01" min="0.01" value="' . esc_attr($suggest) . '" required> <span class="description">This is the amount the hold and recorded checks use. The guest is emailed the check amount. Until you save a price, the guest sees “price to be confirmed”.</span></td></tr></table>';
+        echo '<p><button class="button button-primary">Set agreed price and email guest</button></p></form>';
+    }
+
+    if (!$set && !in_array($b->status, ['cancelled', 'expired', 'paid'], true)) {
+        echo '<h2>Record check payment</h2><p>Set the agreed price before recording a check.</p>';
+    }
+    if ($set && !in_array($b->status, ['cancelled', 'expired', 'paid'], true) && $balance > 0.009) {
         echo '<h2>Record check payment</h2><form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="max-width:640px">';
         echo '<input type="hidden" name="action" value="brb_payment"><input type="hidden" name="booking" value="' . (int) $b->id . '">';
         wp_nonce_field('brb_payment');
@@ -206,7 +237,7 @@ function brb_admin_detail($id) {
     }
 
     echo '<h2>Actions</h2><div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end">';
-    if (!in_array($b->status, ['paid', 'cancelled', 'expired'], true) && $balance > 0.009) {
+    if ($set && !in_array($b->status, ['paid', 'cancelled', 'expired'], true) && $balance > 0.009) {
         echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '"><input type="hidden" name="action" value="brb_mark_paid"><input type="hidden" name="booking" value="' . (int) $b->id . '">';
         wp_nonce_field('brb_mark_paid');
         echo '<button class="button">Mark paid in full</button></form>';
@@ -258,6 +289,7 @@ function brb_admin_new() {
     echo '<tr><th><label for="email">Email</label></th><td><input type="email" name="email" id="email" class="regular-text" required></td></tr>';
     echo '<tr><th><label for="phone">Phone</label></th><td><input name="phone" id="phone" class="regular-text"></td></tr>';
     echo '<tr><th><label for="notes">Notes</label></th><td><textarea name="notes" id="notes" rows="3" class="large-text"></textarea></td></tr>';
+    echo '<tr><th><label for="agreed_price">Agreed price ($)</label></th><td><input name="agreed_price" id="agreed_price" type="number" step="0.01" min="0"> <span class="description">Leave blank to hold the date with the price to be confirmed. Required if you record a check now. ' . esc_html(brb_price_sentence()) . '</span></td></tr>';
     echo '<tr><th>Minimum notice</th><td><label><input type="checkbox" name="override_notice" value="1"> Staff override: allow a start inside the ' . (int) brb_notice_hours() . '-hour notice. The public form cannot do this.</label></td></tr>';
     echo '<tr><th>Check now</th><td><label><input type="checkbox" name="take_check" value="1"> Record a check with this booking</label></td></tr>';
     echo '<tr><th><label for="amount">Check amount</label></th><td><input name="amount" id="amount" type="number" step="0.01" min="0"></td></tr>';
@@ -313,7 +345,11 @@ function brb_admin_settings() {
         $new = [];
         $defaults = brb_defaults();
         foreach ($defaults as $k => $v) {
-            $raw = wp_unslash($_POST[$k] ?? '');
+            if (!array_key_exists($k, $_POST)) {
+                $new[$k] = array_key_exists($k, $prev) ? $prev[$k] : $v;
+                continue;
+            }
+            $raw = wp_unslash($_POST[$k]);
             $new[$k] = in_array($k, ['policy', 'blackouts', 'pay_instructions'], true)
                 ? sanitize_textarea_field($raw)
                 : sanitize_text_field($raw);
@@ -325,6 +361,8 @@ function brb_admin_settings() {
         $new['balance_due_days'] = (string) max(0, (int) $new['balance_due_days']);
         $new['deposit_pct'] = (string) max(1, min(100, (float) $new['deposit_pct']));
         $new['deposit_fixed'] = brb_dec(max(0, (float) $new['deposit_fixed']));
+        $new['starting_price'] = brb_dec(max(0, (float) $new['starting_price']));
+        if (trim((string) $new['typical_price']) === '') $new['typical_price'] = $defaults['typical_price'];
         $new['min_hours'] = (string) max(1, (int) $new['min_hours']);
         $new['max_guests'] = (string) max(1, (int) $new['max_guests']);
         $new['max_days'] = (string) max(1, (int) $new['max_days']);
@@ -340,25 +378,25 @@ function brb_admin_settings() {
     }
     $o = brb_opt();
     $groups = [
-        'Rates and hours' => [
-            ['mode', 'Booking type offered', 'select', ['both' => 'Full day + hourly', 'day' => 'Full day only', 'hourly' => 'Hourly only'], ''],
-            ['day_rate', 'Full-day rate ($)', 'text', null, 'Placeholder until you enter the real rate.'],
-            ['hourly_rate', 'Hourly rate ($)', 'text', null, 'Placeholder until you enter the real rate.'],
+        'Pricing shown to guests' => [
+            ['starting_price', 'Starting price ($ per day)', 'text', null, 'Guests see “from” this amount per day. Default 600. Whole dollars are shown without cents.'],
+            ['typical_price', 'Typical price text', 'text', null, 'Shown in parentheses after the starting price. Default: most events around $1,200.'],
+        ],
+        'Hours and capacity' => [
+            ['mode', 'Booking type offered', 'select', ['both' => 'Full day + shorter block', 'day' => 'Full day only', 'hourly' => 'Shorter block only'], 'A shorter block reserves part of the day. Guests still see the same starting price. There is no public hourly rate. Staff set one agreed price either way.'],
             ['min_hours', 'Minimum hours', 'number', null, ''],
             ['open_hour', 'Hourly open (0–23)', 'number', null, ''],
             ['close_hour', 'Hourly close (1–24)', 'number', null, ''],
             ['max_days', 'Max consecutive days', 'number', null, ''],
             ['max_guests', 'Max guests', 'number', null, ''],
-            ['cleaning_fee', 'Cleaning fee ($)', 'text', null, 'Placeholder until you enter the real fee.'],
-            ['tax_rate', 'Tax rate (%)', 'text', null, '[VERIFY] Confirm the local rate before charging it.'],
-            ['currency', 'Currency code', 'text', null, 'Checks are US dollars. This is kept for records.'],
+            ['currency', 'Currency code', 'text', null, 'Checks are US dollars. This is kept for records. Older day rate, hourly rate, cleaning fee, and tax figures stay stored and are not shown on the website.'],
         ],
         'Notice and holds' => [
             ['min_notice_hours', 'Minimum notice (hours)', 'number', null, 'A booking must start at least this many hours from now. Default 48. The owner described the rule as not renting inside 48 hours; change this number here if that rule changes. Set 0 to allow same-day starts.'],
             ['hold_hours', 'Hold length (hours)', 'number', null, 'After a guest saves a date, it stays reserved for this long while you wait for the check. Default 48. When the hold ends, the date is released and the guest and you are emailed.'],
         ],
         'Check payment' => [
-            ['deposit_type', 'Amount of the check that secures the date', 'select', ['full' => 'Full amount', 'percent' => 'Percent of the total', 'fixed' => 'Fixed dollar amount'], 'Full amount is the default.'],
+            ['deposit_type', 'Amount of the check that secures the date', 'select', ['full' => 'Full amount', 'percent' => 'Percent of the agreed price', 'fixed' => 'Fixed dollar amount'], 'Applied to the agreed price once staff set it. Until then the guest is told the price is to be confirmed. Full amount is the default.'],
             ['deposit_pct', 'Deposit percent', 'number', null, 'Used when the choice above is percent. 100 is the same as the full amount.'],
             ['deposit_fixed', 'Fixed deposit amount ($)', 'text', null, 'Used when the choice above is a fixed dollar amount. Cannot exceed the total.'],
             ['balance_due_days', 'Balance due (days before the event)', 'number', null, '[VERIFY] Used when the first check is less than the total. 7 means the rest is due 7 days before the start date.'],
@@ -374,11 +412,10 @@ function brb_admin_settings() {
         ],
     ];
     echo '<div class="wrap"><h1>Booking Settings</h1>';
-    echo '<p>Guests save a date on the website and bring a check. Nothing is collected through the website.</p>';
+    echo '<p>Guests save a date on the website and bring a check. Nothing is collected through the website. ' . esc_html(brb_price_sentence()) . ' Staff set the final price on each booking.</p>';
     $sampleStart = brb_now()->modify('+10 days')->setTime(0, 0);
-    $sampleDue = brb_deposit_due_amount(100);
-    echo '<div class="brb-paybox"><strong>Preview of the check instructions</strong>';
-    brb_echo_lines(brb_preview_lines(['total' => 100, 'due' => $sampleDue], $sampleStart));
+    echo '<div class="brb-paybox"><strong>What guests see before a price is set</strong>';
+    brb_echo_lines(brb_preview_lines(['total' => 0, 'due' => 0, 'price_set' => 0], $sampleStart));
     echo '</div>';
     echo '<form method="post">';
     wp_nonce_field('brb_settings');
