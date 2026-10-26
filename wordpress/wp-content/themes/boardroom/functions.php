@@ -4,7 +4,7 @@ add_action('after_setup_theme', function () {
     register_nav_menus(['primary' => 'Primary', 'footer' => 'Footer']);
 });
 add_action('wp_enqueue_scripts', function () {
-    wp_enqueue_style('boardroom', get_stylesheet_uri(), [], '1.1.0');
+    wp_enqueue_style('boardroom', get_stylesheet_uri(), [], '1.2.0');
     wp_enqueue_script('boardroom', get_template_directory_uri() . '/assets/site.js', [], '1.0.0', true);
 });
 function br_img($f) { return get_template_directory_uri() . '/assets/img/' . $f; }
@@ -35,3 +35,18 @@ function br_contact_form() {
     </form><?php return ob_get_clean();
 }
 add_shortcode('boardroom_contact', 'br_contact_form');
+add_filter('body_class', function ($classes) {
+    if (is_page(['privacy', 'terms', 'rental-agreement', 'privacy-policy', 'terms-and-conditions'])) $classes[] = 'legal-page';
+    return $classes;
+});
+add_filter('wp_nav_menu_objects', function ($items, $args) {
+    if (($args->theme_location ?? '') !== 'footer') return $items;
+    $drop = ['privacy', 'privacy-policy', 'terms', 'terms-and-conditions', 'rental-agreement'];
+    $kept = [];
+    foreach ($items as $item) {
+        $path = trim((string) parse_url($item->url, PHP_URL_PATH), '/');
+        $slug = $path === '' ? '' : basename($path);
+        if (!in_array($slug, $drop, true)) $kept[] = $item;
+    }
+    return $kept;
+}, 10, 2);

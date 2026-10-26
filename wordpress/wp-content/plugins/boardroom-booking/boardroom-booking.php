@@ -2,11 +2,12 @@
 /**
  * Plugin Name: Boardroom Booking
  * Description: Self-hosted direct booking for The Boardroom — full-day and hourly blocks, availability calendar, agreed prices, in-person check holds, blackout dates, and emails.
- * Version: 2.1.0
+ * Version: 2.2.0
  * Author: Mad Productions
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.1.0');
+define('BRB_VER', '2.2.0');
+require_once __DIR__ . '/legal-content.php';
 define('BRB_URL', plugin_dir_url(__FILE__));
 
 function brb_table() { global $wpdb; return $wpdb->prefix . 'br_bookings'; }
@@ -86,7 +87,7 @@ function brb_defaults() {
         'pay_hours' => '[VERIFY] In-person hours',
         'pay_instructions' => '[VERIFY] Extra instructions for bringing the check.',
         'blackouts' => '',
-        'policy' => "PLACEHOLDER cancellation policy — owner to supply. Example: Full refund if cancelled 14+ days before the event; 50% refund 7–13 days before; no refund within 7 days.",
+        'policy' => brb_cancellation_summary(),
     ];
 }
 function brb_legacy_keys() {
@@ -242,6 +243,9 @@ function brb_migrate_settings() {
     foreach (['payee', 'pay_location', 'pay_hours', 'pay_instructions'] as $k) {
         if (!isset($stored[$k]) || trim((string) $stored[$k]) === '') $merged[$k] = $defaults[$k];
     }
+    if (!isset($stored['policy']) || brb_policy_needs_refresh($stored['policy'])) {
+        $merged['policy'] = brb_cancellation_summary();
+    }
     update_option('brb_settings', $merged);
 }
 function brb_migrate_bookings() {
@@ -263,8 +267,23 @@ function brb_migrate_prices() {
 }
 function brb_faq_markup() {
     return <<<'HTML'
-<details><summary>How many guests can The Boardroom hold?</summary><p>Up to 75 people.</p></details><details><summary>Is parking available?</summary><p>Yes, on-site parking.</p></details><details><summary>Can we bring our own drinks?</summary><p>The Boardroom has a BYOB bar and ice machine. <span class="placeholder">PLACEHOLDER: alcohol rules / age policy — owner to confirm.</span></p></details><details><summary>What is there to do?</summary><p>80in television, pinball, pool and shuffleboard.</p></details><details><summary>How much does it cost?</summary><p>Pricing starts at $600 per day and can reach about $2,000, depending on the date, how many people are coming, and the features you would like. Most events come to about $1,200. We confirm the final price with you before any check is due. The website does not guess a total.</p></details><details><summary>How is the space set up?</summary><p>The space arrives not set up. Seating and layout are yours to plan, so bring the arrangement that suits your gathering. If you would like a hand, our staff can help with setup for an extra fee.</p></details><details><summary>Do you provide decorations?</summary><p>Decorations are not provided. Christmas decorations are up in December.</p></details><details><summary>What are our responsibilities before we leave?</summary><p>Please clean and tidy the space, and take the garbage out. Another event is often booked the following day, and a ready room lets the next hosts begin on time.</p></details><details><summary>How do I book and pay?</summary><p>Save your date on the <a href="/book/">Book</a> page. That holds the date for 48 hours. Bring a check in person within those 48 hours. Bookings need at least 48 hours' notice. Until we confirm your price, your confirmation says price to be confirmed.</p></details><details><summary>What is the cancellation policy?</summary><p>See our <a href="/terms-and-conditions/">Terms and Conditions</a>. <span class="placeholder">PLACEHOLDER — owner to supply.</span></p></details><details><summary>What are the hours / check-in and check-out times?</summary><p class="placeholder">PLACEHOLDER — owner to supply.</p></details>
+<details><summary>How many guests can The Boardroom hold?</summary><p>Up to 75 people.</p></details><details><summary>Is parking available?</summary><p>Yes, on-site parking.</p></details><details><summary>Can we bring our own drinks?</summary><p>The Boardroom has a bar area and an ice machine. Do not use the stove top. Food warmers and the bar area may be used. Draft taps are not available. BYOB is allowed, and the renter must obtain a one-day liquor license. See the <a href="/terms/">Rental Terms</a>.</p></details><details><summary>What is there to do?</summary><p>80in television, pinball, pool and shuffleboard.</p></details><details><summary>How much does it cost?</summary><p>Pricing starts at $600 per day and can reach about $2,000, depending on the date, how many people are coming, and the features you would like. Most events come to about $1,200. We confirm the final price with you before any check is due. The website does not guess a total.</p></details><details><summary>How is the space set up?</summary><p>The space arrives not set up. Seating and layout are yours to plan, so bring the arrangement that suits your gathering. If you would like a hand, our staff can help with setup for an extra fee.</p></details><details><summary>Do you provide decorations?</summary><p>Decorations are not provided. Christmas decorations are up in December.</p></details><details><summary>What are our responsibilities before we leave?</summary><p>Please clean and tidy the space, and take the garbage out. Another event is often booked the following day, and a ready room lets the next hosts begin on time.</p></details><details><summary>How do I book and pay?</summary><p>Save your date on the <a href="/book/">Book</a> page. That holds the date for 48 hours. Bring a check in person within those 48 hours. Bookings need at least 48 hours' notice. Until we confirm your price, your confirmation says price to be confirmed.</p></details><details><summary>What is the cancellation policy?</summary><p>See the <a href="/terms/">Rental Terms</a>. If a summary and the signed agreement differ, the signed agreement controls.</p></details><details><summary>What are the hours / check-in and check-out times?</summary><p class="placeholder">PLACEHOLDER — owner to supply.</p></details>
 HTML;
+}
+function brb_patch_faq_drinks() {
+    $page = get_page_by_path('faq');
+    if (!$page) return;
+    $c = (string) $page->post_content;
+    $replacements = [
+        'The Boardroom has a BYOB bar and ice machine. <span class="placeholder">PLACEHOLDER: alcohol rules / age policy — owner to confirm.</span>' => 'The Boardroom has a bar area and an ice machine. Do not use the stove top. Food warmers and the bar area may be used. Draft taps are not available. BYOB is allowed, and the renter must obtain a one-day liquor license. See the <a href="/terms/">Rental Terms</a>.',
+        'See our <a href="/terms-and-conditions/">Terms and Conditions</a>. <span class="placeholder">PLACEHOLDER — owner to supply.</span>' => 'See the <a href="/terms/">Rental Terms</a>. If a summary and the signed agreement differ, the signed agreement controls.',
+    ];
+    $next = $c;
+    foreach ($replacements as $old => $new) $next = str_replace($old, $new, $next);
+    if ($next === $c) return;
+    global $wpdb;
+    $wpdb->update($wpdb->posts, ['post_content' => $next], ['ID' => (int) $page->ID]);
+    clean_post_cache((int) $page->ID);
 }
 function brb_refresh_faq() {
     $page = get_page_by_path('faq');
@@ -317,11 +336,14 @@ function brb_maybe_upgrade() {
     brb_migrate_prices();
     brb_scrub_public_copy();
     brb_refresh_faq();
+    brb_patch_faq_drinks();
+    brb_install_legal_pages();
     brb_expire_holds();
     if (!wp_next_scheduled('brb_cron_expire')) wp_schedule_event(time() + 60, 'hourly', 'brb_cron_expire');
     update_option('brb_version', BRB_VER);
 }
 add_action('plugins_loaded', 'brb_maybe_upgrade', 5);
+add_action('template_redirect', 'brb_legacy_legal_redirect');
 register_activation_hook(__FILE__, 'brb_maybe_upgrade');
 register_deactivation_hook(__FILE__, function () { wp_clear_scheduled_hook('brb_cron_expire'); });
 add_action('init', function () {
@@ -657,7 +679,7 @@ function brb_insert_booking($r, $q, $guest, $source = 'online', $notify = true) 
     return $result;
 }
 function brb_process_public_booking($post) {
-    if (empty($post['policy'])) return new WP_Error('policy', 'Please accept the cancellation policy.');
+    if (empty($post['policy'])) return new WP_Error('policy', 'Please agree to the Terms and Privacy Policy.');
     $r = brb_build_range($post);
     if (is_wp_error($r)) return $r;
     $name = sanitize_text_field($post['name'] ?? '');
@@ -998,8 +1020,8 @@ function brb_view_quote() {
         <label>Email*<input type="email" name="email" required autocomplete="email"></label>
         <label>Phone<input name="phone" autocomplete="tel"></label>
         <label>Event details / notes<textarea name="notes" rows="3"></textarea></label>
-        <div class="brb-policy"><strong>Cancellation policy</strong><p><?php echo nl2br(esc_html($o['policy'])); ?></p></div>
-        <label class="brb-check"><input type="checkbox" name="policy" value="1" required> I agree to the cancellation policy and <a href="<?php echo esc_url(home_url('/terms-and-conditions/')); ?>" target="_blank" rel="noopener">Terms and Conditions</a>.</label>
+        <div class="brb-policy"><strong>Cancellation policy</strong><p><?php echo nl2br(esc_html($o['policy'])); ?></p><p><a href="<?php echo esc_url(home_url('/terms/')); ?>" target="_blank" rel="noopener">Read the Rental Terms</a></p></div>
+        <label class="brb-check"><input type="checkbox" name="policy" value="1" required> I agree to the <a href="<?php echo esc_url(home_url('/terms/')); ?>" target="_blank" rel="noopener">Terms</a> and <a href="<?php echo esc_url(home_url('/privacy/')); ?>" target="_blank" rel="noopener">Privacy Policy</a>.</label>
         <button class="brb-btn" type="submit">Save this date</button>
       </form>
     </div>

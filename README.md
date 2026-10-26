@@ -8,7 +8,7 @@ Guests **save a date on the website and pay by check in person**. The site does 
 
 1. Pick a full day or a shorter block on the calendar. Starts inside the minimum notice (default **48 hours**, America/Chicago) are unavailable.
 2. Review the date. The page shows **Pricing from $600 per day (most events around $1,200), final price confirmed based on date, guest count and features.** The starting amount and the parenthetical text are settings. Until staff set a price, the guest sees **price to be confirmed**. There is no calculated cleaning fee, tax, or total on the website.
-3. Enter contact details, accept the cancellation policy, and press **Save this date**.
+3. Enter contact details, agree to the Terms and Privacy Policy, and press **Save this date**.
 4. The date is **held** so nobody else can book it. The confirmation page and the guest email state:
    - the exact hold deadline in America/Chicago
    - that the price is to be confirmed, or the check amount once staff have set it
@@ -46,7 +46,7 @@ Bookings → Settings. Anything still marked `[VERIFY]` is shown to guests until
 | Minimum notice (hours) | 48 | Booking must **start** at least this many hours from now. This is the “not inside 48 hours” rule. Change the number here if the rule changes. |
 | Hold length (hours) | 48 | How long an unpaid saved date stays reserved |
 | Admin notification email | WordPress admin email | Hold, price, check, and expiry mail |
-| Cancellation policy | Placeholder | Shown before save and in email |
+| Cancellation policy | Summary of the signed rental agreement | Shown before save and in email. A saved placeholder is replaced on upgrade. The Rental Terms, Privacy Policy, and printable Rental Agreement pages are the guest-facing text. |
 | Blackout dates | Whatever is already saved | **Upgrades do not wipe this list.** Emptying the box does not delete saved dates unless “Clear all blackout dates” is ticked. |
 
 Full-day bookings start at 12:00 AM America/Chicago and block the whole day. Shorter blocks use the open/close hours. Both modes, the calendar, blackout dates, and double-booking prevention stay in place. Older day-rate, hourly-rate, cleaning-fee, and tax figures remain in the saved settings and are not shown to guests. Plugin upgrades do not delete them.

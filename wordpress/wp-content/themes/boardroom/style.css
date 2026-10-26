@@ -1,7 +1,7 @@
 /*
 Theme Name: The Boardroom
 Description: Lightweight theme replicating the look of boardroomqc.com (dark + gold, EB Garamond, full-width hero slider). Pairs with the Boardroom Booking plugin.
-Version: 1.1.0
+Version: 1.2.0
 Author: Mad Productions
 Text Domain: boardroom
 */
@@ -57,4 +57,6 @@ section.block{padding:80px 0}section.alt{background:var(--bg2)}section.dark{back
 .content details{border-bottom:1px solid #ddd;padding:16px 0}.content summary{font-family:'EB Garamond',Georgia,'Times New Roman',serif;font-size:20px;font-weight:600;color:var(--ink);cursor:pointer;font-variant-numeric:lining-nums}
 .placeholder{background:#fff7e6;border:1px dashed var(--gold);padding:10px 14px;font-size:14px}
 .site-footer{background:var(--ink2);color:#aaa;text-align:center;padding:40px 24px;font-size:14px}.site-footer a{color:#ddd;margin:0 10px}
+.legal-links{margin-top:8px}.legal-page .content h2{text-align:left;font-size:clamp(22px,3vw,32px);margin:36px 0 12px}.legal-page .content h2:after{margin:10px 0 0}.legal-page .content h3{margin:28px 0 8px}.legal-page .updated{color:#777;font-size:16px}.legal-page .rules{background:var(--bg2);border-left:4px solid var(--gold);padding:8px 20px 16px;margin:8px 0 24px}.legal-page .rules li{margin:6px 0}.legal-page .content p{font-variant-numeric:lining-nums}
+@media print{.announce,.site-header,.site-footer,.noprint,.menu-toggle{display:none!important}.page-hero{padding:24px 0}.page-hero:before{display:none}.page-hero h1{color:#000}.legal-page .content{max-width:none}}
 .fmenu{list-style:none;padding:0;margin:0;display:flex;justify-content:center;gap:8px}.gallery{grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}

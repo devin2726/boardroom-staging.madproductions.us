@@ -472,9 +472,124 @@ INSERT INTO `wp_posts` VALUES
 (4,0,'2026-10-16 15:17:08','2026-10-16 20:17:08','','Home','','publish','closed','closed','','home','','','2026-10-16 15:17:08','2026-10-16 20:17:08','',0,'http://localhost:8088/home/',0,'page','',0),
 (5,0,'2026-10-16 15:17:08','2026-10-16 20:17:08','[boardroom_booking]','Book','','publish','closed','closed','','book','','','2026-10-16 15:17:08','2026-10-16 20:17:08','',0,'http://localhost:8088/book/',0,'page','',0),
 (6,0,'2026-10-16 15:17:09','2026-10-16 20:17:09','<h2>Contact the Boardroom</h2><h3>Inquire About Bookings</h3>[boardroom_contact]<p class=\"placeholder\">PLACEHOLDER: address, phone, email and map — not on the current site; owner to supply.</p>','Contact','','publish','closed','closed','','contact','','','2026-10-16 15:17:09','2026-10-16 20:17:09','',0,'http://localhost:8088/contact/',0,'page','',0),
-(7,0,'2026-10-16 15:17:09','2026-10-16 20:17:09','<details><summary>How many guests can The Boardroom hold?</summary><p>Up to 75 people.</p></details><details><summary>Is parking available?</summary><p>Yes, on-site parking.</p></details><details><summary>Can we bring our own drinks?</summary><p>The Boardroom has a BYOB bar and ice machine. <span class=\"placeholder\">PLACEHOLDER: alcohol rules / age policy — owner to confirm.</span></p></details><details><summary>What is there to do?</summary><p>80in television, pinball, pool and shuffleboard.</p></details><details><summary>How much does it cost?</summary><p>Pricing starts at $600 per day and can reach about $2,000, depending on the date, how many people are coming, and the features you would like. Most events come to about $1,200. We confirm the final price with you before any check is due. The website does not guess a total.</p></details><details><summary>How is the space set up?</summary><p>The space arrives not set up. Seating and layout are yours to plan, so bring the arrangement that suits your gathering. If you would like a hand, our staff can help with setup for an extra fee.</p></details><details><summary>Do you provide decorations?</summary><p>Decorations are not provided. Christmas decorations are up in December.</p></details><details><summary>What are our responsibilities before we leave?</summary><p>Please clean and tidy the space, and take the garbage out. Another event is often booked the following day, and a ready room lets the next hosts begin on time.</p></details><details><summary>How do I book and pay?</summary><p>Save your date on the <a href=\"/book/\">Book</a> page. That holds the date for 48 hours. Bring a check in person within those 48 hours. Bookings need at least 48 hours'' notice. Until we confirm your price, your confirmation says price to be confirmed.</p></details><details><summary>What is the cancellation policy?</summary><p>See our <a href=\"/terms-and-conditions/\">Terms and Conditions</a>. <span class=\"placeholder\">PLACEHOLDER — owner to supply.</span></p></details><details><summary>What are the hours / check-in and check-out times?</summary><p class=\"placeholder\">PLACEHOLDER — owner to supply.</p></details>','FAQ','','publish','closed','closed','','faq','','','2026-10-16 15:17:09','2026-10-16 20:17:09','',0,'http://localhost:8088/faq/',0,'page','',0),
-(8,0,'2026-10-16 15:17:10','2026-10-16 20:17:10','<p class=\"placeholder\">PLACEHOLDER — the current site says \"Privacy Policy coming soon\". Draft below must be reviewed by the owner/counsel.</p><h3>Information we collect</h3><p>When you book or contact us we collect your name, email, phone, event details and booking dates. Payment is by check brought in person. We keep your booking details and the check number our staff records.</p><h3>How we use it</h3><p>To manage your booking, send confirmations and respond to inquiries. We do not sell your information.</p><h3>Contact</h3><p>[contact details to be supplied]</p>','Privacy Policy','','publish','closed','closed','','privacy-policy','','','2026-10-16 15:17:10','2026-10-16 20:17:10','',0,'http://localhost:8088/privacy-policy/',0,'page','',0),
-(9,0,'2026-10-16 15:17:11','2026-10-16 20:17:11','<p class=\"placeholder\">PLACEHOLDER — the current site page is empty. Rental agreement and cancellation policy must be supplied/reviewed by the owner.</p><h3>Booking &amp; payment</h3><p>Saving a date holds it for a limited time. The booking is confirmed once we receive your check, or the required deposit, in person.</p><h3>Cancellation policy</h3><p>[owner to supply]</p><h3>House rules</h3><p>Maximum capacity 75 guests. [additional rules to be supplied]</p>','Terms and Conditions','','publish','closed','closed','','terms-and-conditions','','','2026-10-16 15:17:11','2026-10-16 20:17:11','',0,'http://localhost:8088/terms-and-conditions/',0,'page','',0),
+(7,0,'2026-10-16 15:17:09','2026-10-16 20:17:09','<details><summary>How many guests can The Boardroom hold?</summary><p>Up to 75 people.</p></details><details><summary>Is parking available?</summary><p>Yes, on-site parking.</p></details><details><summary>Can we bring our own drinks?</summary><p>The Boardroom has a bar area and an ice machine. Do not use the stove top. Food warmers and the bar area may be used. Draft taps are not available. BYOB is allowed, and the renter must obtain a one-day liquor license. See the <a href=\"/terms/\">Rental Terms</a>.</p></details><details><summary>What is there to do?</summary><p>80in television, pinball, pool and shuffleboard.</p></details><details><summary>How much does it cost?</summary><p>Pricing starts at $600 per day and can reach about $2,000, depending on the date, how many people are coming, and the features you would like. Most events come to about $1,200. We confirm the final price with you before any check is due. The website does not guess a total.</p></details><details><summary>How is the space set up?</summary><p>The space arrives not set up. Seating and layout are yours to plan, so bring the arrangement that suits your gathering. If you would like a hand, our staff can help with setup for an extra fee.</p></details><details><summary>Do you provide decorations?</summary><p>Decorations are not provided. Christmas decorations are up in December.</p></details><details><summary>What are our responsibilities before we leave?</summary><p>Please clean and tidy the space, and take the garbage out. Another event is often booked the following day, and a ready room lets the next hosts begin on time.</p></details><details><summary>How do I book and pay?</summary><p>Save your date on the <a href=\"/book/\">Book</a> page. That holds the date for 48 hours. Bring a check in person within those 48 hours. Bookings need at least 48 hours'' notice. Until we confirm your price, your confirmation says price to be confirmed.</p></details><details><summary>What is the cancellation policy?</summary><p>See the <a href=\"/terms/\">Rental Terms</a>. If a summary and the signed agreement differ, the signed agreement controls.</p></details><details><summary>What are the hours / check-in and check-out times?</summary><p class=\"placeholder\">PLACEHOLDER — owner to supply.</p></details>','FAQ','','publish','closed','closed','','faq','','','2026-10-16 15:17:09','2026-10-16 20:17:09','',0,'http://localhost:8088/faq/',0,'page','',0),
+(8,0,'2026-10-16 15:17:10','2026-10-16 20:17:10','<p>This policy describes what MAD Productions, LLC, doing business as The Boardroom QC, in Moline, Illinois, collects on this website and how it is used.</p>
+
+<h2>Information we collect</h2>
+<p>The booking form and the contact form ask for your name, email, phone, event date and time, party size, and notes. When a check is received, staff enter the check number and the payment record by hand. That record is stored with the booking.</p>
+
+<h2>How we use it</h2>
+<p>We use this information only to manage reservations and to communicate with you about them. Email about a booking is sent through this site’s mail system.</p>
+
+<h2>Payment</h2>
+<p>This site does not process payments online and does not collect card data. Payment is by check, brought in person.</p>
+
+<h2>Cookies</h2>
+<p>WordPress sets essential cookies for admin logins. This site does not use advertising or tracking cookies. <span class=\"placeholder\">[VERIFY if analytics added]</span></p>
+
+<h2>How long we keep it</h2>
+<p>We keep booking and payment records for as long as we need them for our records and for tax. If you ask us to delete your information, we will, unless the law requires us to keep it.</p>
+
+<h2>Sharing</h2>
+<p>We do not sell your information. We share it only with service providers that host this site or deliver email, and when the law requires it.</p>
+
+<h2>Your requests</h2>
+<p>You can ask to see or delete your information by emailing <a href=\"mailto:boardroomqc@gmail.com\">boardroomqc@gmail.com</a>. <span class=\"placeholder\">[VERIFY]</span></p>
+
+<h2>Children</h2>
+<p>This site is not directed to children, and we do not seek information from children.</p>
+
+<h2>Changes</h2>
+<p>If this policy changes, the date below will change.</p>
+<p class=\"updated\">Last updated: October 26, 2026</p>,'Privacy Policy','','publish','closed','closed','','privacy','','','2026-10-16 15:17:10','2026-10-16 20:17:10','',0,'http://localhost:8088/privacy/',0,'page','',0),
+(9,0,'2026-10-16 15:17:11','2026-10-16 20:17:11','<p>These Rental Terms are a plain-language summary of the Facility Event Space Rental Agreement between MAD Productions, LLC, the Owner of The Boardroom QC, and the person or entity renting the space. They follow that agreement section by section. They do not replace it. If this page and the signed agreement differ, the signed agreement controls. The full text, with signature lines, is on the <a href=\"/rental-agreement/\">Rental Agreement</a> page, which you can print.</p>
+
+<h2>1. Rental period and limited use</h2>
+<p>You may use the venue only during the date or dates and the times stated on the invoice, the booking confirmation, or a written approval from the Owner. That window is the rental period. You may not enter early, stay after the rental period ends, or use the venue for any purpose other than the approved event, unless the Owner agrees in writing first. Entering early, leaving late, or using the space without approval can bring additional charges, loss of the deposit, and any other remedy available to the Owner.</p>
+
+<h2>2. Access, keys, and codes</h2>
+<p>The Owner may give you one key, one access code, or another way to enter, as the Owner decides is needed. You must safeguard every key, code, and access credential. You may not duplicate them or share them except with approved event representatives. You must return every physical access item immediately when the rental period ends. You are responsible for the cost of lost keys, rekeying, lock changes, code changes, and unauthorized access caused by you or by your guests, invitees, vendors, contractors, agents, or representatives.</p>
+
+<h2>3. Payment, deposit, and fees</h2>
+<p>Before the rental period begins, you must pay all rental fees, cleaning fees, security deposits, and any other charges the Owner states. Unless the Owner agrees otherwise in writing, you must pay fifty percent (50%) of the invoice within one (1) day after signing the agreement. If you do not pay on time, the reservation may be cancelled without further notice.</p>
+
+<h2>4. Occupancy, conduct, and supervision</h2>
+<p>No more than seventy-five (75) persons may occupy the venue unless the Owner approves a different limit in writing. You must be present, or you must name a responsible adult who is present, for the entire event. You alone supervise every guest, invitee, child, vendor, contractor, and anyone else who enters during the rental period. Pets and other animals are not allowed, except a documented service animal when the law requires it.</p>
+
+<h2>5. Required event liability insurance</h2>
+<p>You must buy and keep, at your own cost, special event liability insurance or party liability insurance for the event and the rental period. It must cover bodily injury, property damage, and the activities of you and your guests. The Owner may require proof before giving you access. If alcohol is served, sold, distributed, or consumed, you must also obtain liquor liability coverage, or a special event liquor liability endorsement, if that coverage is available and applies. The Owner may require that MAD Productions, LLC, The Boardroom QC, the venue owner, and any related parties the Owner names be listed as additional insureds. If you do not provide acceptable proof of insurance, the Owner may cancel the event or refuse access. Amounts you already owe are not waived.</p>
+
+<h2>6. Outside vendors, caterers, and contractors</h2>
+<p>If you use a caterer, bartender, entertainer, decorator, rental company, vendor, contractor, or any other outside party, you must make sure each one is properly licensed, insured, and qualified for the work. At least seven (7) days before the rental period, or sooner if the Owner asks, you must give proof of insurance for any outside vendor. When the Owner asks, the Owner must be listed as an additional insured. You remain fully responsible for the acts, omissions, damage, injuries, cleanup, violations, and charges of your vendors and contractors.</p>
+
+<h2>7. Food, alcohol, kitchen, and equipment</h2>
+<p>The Owner does not provide food, beverages, alcohol, catering, bartending, food service, security, medical services, or event supervision. You are solely responsible for following every law, rule, and regulation about food, alcohol, service, consumption, sales, licensing, age limits, intoxication, and transportation after the event. You accept all risk and liability from using kitchen utensils, appliances, equipment, furniture, fixtures, décor, or any other property at the venue, whether it is used properly or improperly.</p>
+
+<h2>8. Strictly prohibited items and activities</h2>
+<p>The following are strictly prohibited inside the venue, outside the venue, on sidewalks, in parking areas, and anywhere on or around the premises: glitter; party confetti; confetti cannons; rice; birdseed; loose sequins; fireworks; sparklers; smoke bombs; pyrotechnics; explosive devices; explosive props; combustible props; open flame that the Owner has not expressly approved in writing; hazardous materials; illegal substances; weapons except as the law permits; and any activity that creates an unusual mess, a fire risk, an explosion risk, a property-damage risk, an injury risk, a nuisance, or a disturbance.</p>
+<p>Breaking this section can end the event immediately, forfeit the deposit, add cleaning or repair charges, and leave you liable for resulting damages, claims, fines, attorney fees, and costs.</p>
+
+<h2>9. Condition of the premises</h2>
+<p>You accept the venue in its existing “AS IS” condition when you take possession. Inspect it when you arrive and tell the Owner immediately about any damage or concern that was already there. You must leave the venue, fixtures, furniture, restrooms, kitchen areas, floors, walls, décor, equipment, sidewalks, entry areas, and parking-related areas in the same condition and arrangement as when you arrived, ordinary wear and tear excepted. The venue must be left clean, orderly, secure, and free of personal property, decorations, trash, food, spills, stains, debris, glitter, confetti, and anything you, your guests, or your vendors brought in.</p>
+
+<h2>10. Cleanup, trash, and personal property</h2>
+<p>Before the rental period ends, remove all personal property, decorations, trash, food, beverages, vendor property, rental items, and anything else that was not there when you took control. Take the trash out. Anything left behind may be treated as abandoned and may be thrown away or stored at your expense. Excessive cleaning, specialty cleaning, remediation, odor removal, stain removal, or disposal caused by you, your guests, your invitees, or your vendors may be charged to you, deducted from the security deposit, or billed separately.</p>
+
+<h2>11. Damage, security deposit, and legal action</h2>
+<p>You are financially responsible for all damage, loss, theft, excessive cleaning, fines, citations, violations, business interruption, loss of use, loss of reputation, and any other cost or damage from your event, your use of the venue, or the acts or omissions of your guests, invitees, vendors, contractors, agents, representatives, or anyone who enters during the rental period. Damage beyond ordinary wear and tear can mean loss of the security deposit, further charges, civil liability, and legal action. The Owner may apply the security deposit to any amount you owe. Applying the deposit does not limit what you owe above the deposit.</p>
+
+<h2>12. Assumption of risk</h2>
+<p>Event activities and use of the venue, furniture, fixtures, equipment, parking areas, sidewalks, curbs, entrances, exits, kitchen areas, and food or alcohol can involve risk, including serious injury, temporary or permanent disability, death, and property damage. You voluntarily assume all risks from the event and from use of the venue by you, your guests, invitees, vendors, contractors, agents, and representatives. The Owner is not responsible for accidents, injuries, death, loss, theft, or property damage involving you or any guest, invitee, child, vendor, contractor, agent, representative, or other person connected with your event, except where the law does not allow that limit.</p>
+
+<h2>13. Responsibility for guests</h2>
+<p>You take full responsibility for every guest, invitee, child, vendor, contractor, agent, representative, and other person who enters or tries to enter in connection with your event, whether or not you invited them or knew they were there. You are responsible for their conduct, their safety, their supervision, their compliance with the agreement, and any damage, injury, claim, or violation they cause.</p>
+
+<h2>14. Indemnification, hold harmless, and release</h2>
+<p>To the fullest extent the law allows, you will defend, indemnify, release, and hold harmless the Owner, MAD Productions, LLC, The Boardroom QC, the venue, the property owner, and their members, managers, officers, employees, agents, representatives, affiliates, successors, and assigns. This covers every claim, demand, cause of action, damage, loss, liability, injury, death, property damage, fine, citation, judgment, settlement, attorney fee, court cost, and expense arising from or related to your event, your use of the venue, the presence or conduct of any guest or vendor, alcohol or food service, prohibited items, cleanup, damage, or any breach of the agreement.</p>
+
+<h2>15. Attorney fees, costs, and collection</h2>
+<p>If the Owner has to enforce the agreement, collect what you owe, defend or pursue a claim related to your event, recover damages, respond to a third-party claim, or take legal action because you breached the agreement or because of acts or omissions by you or your guests, invitees, vendors, contractors, agents, or representatives, you are responsible for the Owner’s reasonable attorney fees, court costs, collection costs, expert fees, investigation costs, and other expenses, in addition to the damages and other amounts owed.</p>
+
+<h2>16. Cancellation by the renter</h2>
+<p>You may cancel by giving the Owner written notice. If the Owner receives that notice ninety (90) days or more before the rental period begins, you may be entitled to a refund of amounts paid, less any non-refundable processing charges or costs the Owner has already incurred. If the notice arrives less than ninety (90) days before the rental period begins, security deposits and cleaning fees already paid are non-refundable. Rental fees are non-refundable if the cancellation is received less than thirty (30) days before the rental period begins, unless the Owner agrees otherwise in writing.</p>
+
+<h2>17. Cancellation by the Owner</h2>
+<p>The Owner may cancel at any time by written notice to you. If the Owner cancels for a reason that is not your breach, the Owner will refund the amounts you paid under the agreement. If the Owner cancels because you breached the agreement, failed to pay, failed to provide proof of insurance, misrepresented something, created a safety concern, engaged in illegal or prohibited activity, or otherwise violated the agreement, the Owner may keep the amounts the agreement allows and may pursue any other available remedy.</p>
+
+<h2>18. Compliance with laws and rules</h2>
+<p>You must comply with all applicable federal, state, county, and municipal laws, and with fire, building, health, alcohol, noise, occupancy, and safety laws, rules, ordinances, and regulations. That includes the rules of the City of Moline, Rock Island County, and the State of Illinois. You must also follow reasonable rules and instructions the Owner gives before, during, or after the event.</p>
+
+<h2>19. Illinois law and Rock Island County</h2>
+<p>The agreement is governed by the laws of the State of Illinois. Any lawsuit, claim, collection action, or dispute about the agreement, the venue, the event, or the parties’ rights must be filed in a court of competent jurisdiction in Rock Island County, Illinois, unless the law requires another court.</p>
+
+<h2>20. No waiver, changes, and severability</h2>
+<p>A waiver, amendment, or change is effective only if it is in writing and signed by an authorized representative of the party against whom it would be enforced. Not enforcing a provision once is not a waiver of later enforcement. If a provision is found invalid or unenforceable, the rest stays in effect to the fullest extent the law allows.</p>
+
+<h2>21. Entire agreement and authority to sign</h2>
+<p>The agreement, together with any invoice, booking confirmation, written addendum, or written rules from the Owner, is the entire agreement about renting and using the venue. The person who signs for the renter represents that they have authority to bind the renter, and accepts personal responsibility if they do not.</p>
+
+<h2>House rules for food and drink</h2>
+<div class=\"rules\">
+<p>These house rules are in addition to section 7 of the agreement.</p>
+<ul>
+<li>Do not use the stove top.</li>
+<li>Food warmers and the bar area may be used.</li>
+<li>There are no taps. Draft taps are not available.</li>
+<li>BYOB is allowed.</li>
+<li>The renter must obtain a one-day liquor license, about $50. <span class=\"placeholder\">[VERIFY current fee and issuing office]</span></li>
+</ul>
+</div>
+
+<h2>Booking and payment on this website</h2>
+<p>Saving a date on this website holds it for 48 hours while you bring a check in person. If the check is not received within those 48 hours, the hold is released. Payment is by check only, paid in person. Make the check payable to Mad Productions and bring it to 2212 47 Ave. <span class=\"placeholder\">[VERIFY address. The rental agreement lists the venue at 2220 37th Street, Moline, IL 61265. The invoice says checks can be mailed to 2212 37th St, Moline, IL 61265.]</span></p>
+<p>As the agreement states, 50% of the invoice is due within 1 day after signing. The invoice notes require full payment 30 days before the event.</p>
+<p>The invoice notes also state that a refund of the 50% deposit is available only if the event is cancelled 90 days or more before the event, and that a cancellation inside that window may not be refunded. Section 16 above is more specific about rental fees, cleaning fees, and security deposits. The damage deposit described on the invoice is refundable after inspection. Section 11 above allows the Owner to apply the security deposit to amounts owed, and you remain responsible for anything above the deposit.</p>
+<p>The room is not set up when you arrive. Seating and layout are specific to your event. Staff can help with setup for an extra fee. Decorations are not provided, except that Christmas decorations are up in December. The maximum is 75 people unless the Owner approves a different limit in writing.</p>
+
+<h2>The signed agreement controls</h2>
+<p>This page is a summary for guests of The Boardroom QC, operated by MAD Productions, LLC. If anything here differs from the signed Rental Agreement, the signed Rental Agreement controls. The full agreement is available to print at <a href=\"/rental-agreement/\">the Rental Agreement</a>.</p>
+<p class=\"updated\">Last updated: October 26, 2026</p>
+<!-- [VERIFY: attorney review] -->,'Rental Terms','','publish','closed','closed','','terms','','','2026-10-16 15:17:11','2026-10-16 20:17:11','',0,'http://localhost:8088/terms/',0,'page','',0),
 (10,0,'2026-10-16 15:17:12','2026-10-16 20:17:12',' ','','','publish','closed','closed','','10','','','2026-10-16 15:17:12','2026-10-16 20:17:12','',0,'http://localhost:8088/10/',0,'nav_menu_item','',0),
 (11,0,'2026-10-16 15:17:12','2026-10-16 20:17:12',' ','','','publish','closed','closed','','11','','','2026-10-16 15:17:12','2026-10-16 20:17:12','',0,'http://localhost:8088/11/',2,'nav_menu_item','',0),
 (12,0,'2026-10-16 15:17:13','2026-10-16 20:17:13',' ','','','publish','closed','closed','','12','','','2026-10-16 15:17:13','2026-10-16 20:17:13','',0,'http://localhost:8088/12/',3,'nav_menu_item','',0),
