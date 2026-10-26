@@ -254,6 +254,10 @@ function brb_upsert_legal_page($slug, $legacy, $title, $html) {
         }
     }
     kses_remove_filters();
+    // Page writes must not depend on WP_POST_REVISIONS. That constant is not
+    // defined until after plugins_loaded, and a revision save there fatals the site.
+    remove_action('wp_after_insert_post', 'wp_save_post_revision_on_insert', 9);
+    remove_action('post_updated', 'wp_save_post_revision', 10);
     $fields = [
         'post_type' => 'page',
         'post_status' => 'publish',
@@ -269,12 +273,18 @@ function brb_upsert_legal_page($slug, $legacy, $title, $html) {
         $fields['ID'] = (int) $page->ID;
         $id = wp_update_post($fields, true);
     }
+    add_action('wp_after_insert_post', 'wp_save_post_revision_on_insert', 9, 3);
+    add_action('post_updated', 'wp_save_post_revision', 10, 1);
     kses_init_filters();
     if (is_wp_error($id) || !$id) return 0;
     clean_post_cache((int) $id);
     if ($old) {
         kses_remove_filters();
+        remove_action('wp_after_insert_post', 'wp_save_post_revision_on_insert', 9);
+        remove_action('post_updated', 'wp_save_post_revision', 10);
         wp_update_post(['ID' => (int) $old->ID, 'post_status' => 'draft']);
+        add_action('wp_after_insert_post', 'wp_save_post_revision_on_insert', 9, 3);
+        add_action('post_updated', 'wp_save_post_revision', 10, 1);
         kses_init_filters();
         clean_post_cache((int) $old->ID);
     }

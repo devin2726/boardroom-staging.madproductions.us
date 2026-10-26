@@ -342,7 +342,9 @@ function brb_maybe_upgrade() {
     if (!wp_next_scheduled('brb_cron_expire')) wp_schedule_event(time() + 60, 'hourly', 'brb_cron_expire');
     update_option('brb_version', BRB_VER);
 }
-add_action('plugins_loaded', 'brb_maybe_upgrade', 5);
+// init, not plugins_loaded: legal pages call wp_insert_post, which needs rewrite
+// and WP_POST_REVISIONS. Those are not ready when plugins_loaded fires.
+add_action('init', 'brb_maybe_upgrade', 1);
 add_action('template_redirect', 'brb_legacy_legal_redirect');
 register_activation_hook(__FILE__, 'brb_maybe_upgrade');
 register_deactivation_hook(__FILE__, function () { wp_clear_scheduled_hook('brb_cron_expire'); });
