@@ -247,7 +247,7 @@ INSERT INTO `wp_options` VALUES
 (47,'db_version','61833','on'),
 (48,'uploads_use_yearmonth_folders','1','on'),
 (49,'upload_path','','on'),
-(50,'blog_public','1','on'),
+(50,'blog_public','0','on'),
 (51,'default_link_category','2','on'),
 (52,'show_on_front','page','on'),
 (53,'tag_base','','on'),
@@ -485,7 +485,7 @@ INSERT INTO `wp_posts` VALUES
 <p>This site does not process payments online and does not collect card data. Payment is by check, brought in person.</p>
 
 <h2>Cookies</h2>
-<p>WordPress sets essential cookies for admin logins. This site does not use advertising or tracking cookies. <span class=\"placeholder\">[VERIFY if analytics added]</span></p>
+<p>WordPress sets essential cookies for admin logins. This site does not use advertising or tracking cookies. <span class="placeholder">[VERIFY if analytics added]</span></p>
 
 <h2>How long we keep it</h2>
 <p>We keep booking and payment records for as long as we need them for our records and for tax. If you ask us to delete your information, we will, unless the law requires us to keep it.</p>
@@ -494,15 +494,15 @@ INSERT INTO `wp_posts` VALUES
 <p>We do not sell your information. We share it only with service providers that host this site or deliver email, and when the law requires it.</p>
 
 <h2>Your requests</h2>
-<p>You can ask to see or delete your information by emailing <a href=\"mailto:boardroomqc@gmail.com\">boardroomqc@gmail.com</a>. <span class=\"placeholder\">[VERIFY]</span></p>
+<p>You can ask to see or delete your information by emailing <a href="mailto:boardroomqc@gmail.com">boardroomqc@gmail.com</a>. <span class="placeholder">[VERIFY]</span></p>
 
 <h2>Children</h2>
 <p>This site is not directed to children, and we do not seek information from children.</p>
 
 <h2>Changes</h2>
 <p>If this policy changes, the date below will change.</p>
-<p class=\"updated\">Last updated: October 26, 2026</p>,'Privacy Policy','','publish','closed','closed','','privacy','','','2026-10-16 15:17:10','2026-10-16 20:17:10','',0,'http://localhost:8088/privacy/',0,'page','',0),
-(9,0,'2026-10-16 15:17:11','2026-10-16 20:17:11','<p>These Rental Terms are a plain-language summary of the Facility Event Space Rental Agreement between MAD Productions, LLC, the Owner of The Boardroom QC, and the person or entity renting the space. They follow that agreement section by section. They do not replace it. If this page and the signed agreement differ, the signed agreement controls. The full text, with signature lines, is on the <a href=\"/rental-agreement/\">Rental Agreement</a> page, which you can print.</p>
+<p class="updated">Last updated: October 26, 2026</p>','Privacy Policy','','publish','closed','closed','','privacy','','','2026-10-16 15:17:10','2026-10-16 20:17:10','',0,'http://localhost:8088/privacy/',0,'page','',0),
+(9,0,'2026-10-16 15:17:11','2026-10-16 20:17:11','<p>These Rental Terms are a plain-language summary of the Facility Event Space Rental Agreement between MAD Productions, LLC, the Owner of The Boardroom QC, and the person or entity renting the space. They follow that agreement section by section. They do not replace it. If this page and the signed agreement differ, the signed agreement controls. The full text, with signature lines, is on the <a href="/rental-agreement/">Rental Agreement</a> page, which you can print.</p>
 
 <h2>1. Rental period and limited use</h2>
 <p>You may use the venue only during the date or dates and the times stated on the invoice, the booking confirmation, or a written approval from the Owner. That window is the rental period. You may not enter early, stay after the rental period ends, or use the venue for any purpose other than the approved event, unless the Owner agrees in writing first. Entering early, leaving late, or using the space without approval can bring additional charges, loss of the deposit, and any other remedy available to the Owner.</p>
@@ -569,27 +569,27 @@ INSERT INTO `wp_posts` VALUES
 <p>The agreement, together with any invoice, booking confirmation, written addendum, or written rules from the Owner, is the entire agreement about renting and using the venue. The person who signs for the renter represents that they have authority to bind the renter, and accepts personal responsibility if they do not.</p>
 
 <h2>House rules for food and drink</h2>
-<div class=\"rules\">
+<div class="rules">
 <p>These house rules are in addition to section 7 of the agreement.</p>
 <ul>
 <li>Do not use the stove top.</li>
 <li>Food warmers and the bar area may be used.</li>
 <li>There are no taps. Draft taps are not available.</li>
 <li>BYOB is allowed.</li>
-<li>The renter must obtain a one-day liquor license, about $50. <span class=\"placeholder\">[VERIFY current fee and issuing office]</span></li>
+<li>The renter must obtain a one-day liquor license, about $50. <span class="placeholder">[VERIFY current fee and issuing office]</span></li>
 </ul>
 </div>
 
 <h2>Booking and payment on this website</h2>
-<p>Saving a date on this website holds it for 48 hours while you bring a check in person. If the check is not received within those 48 hours, the hold is released. Payment is by check only, paid in person. Make the check payable to Mad Productions and bring it to 2212 47 Ave. <span class=\"placeholder\">[VERIFY address. The rental agreement lists the venue at 2220 37th Street, Moline, IL 61265. The invoice says checks can be mailed to 2212 37th St, Moline, IL 61265.]</span></p>
+<p>Saving a date on this website holds it for 48 hours while you bring a check in person. If the check is not received within those 48 hours, the hold is released. Payment is by check only, paid in person. Make the check payable to Mad Productions and bring it to 2212 47 Ave. <span class="placeholder">[VERIFY address. The rental agreement lists the venue at 2220 37th Street, Moline, IL 61265. The invoice says checks can be mailed to 2212 37th St, Moline, IL 61265.]</span></p>
 <p>As the agreement states, 50% of the invoice is due within 1 day after signing. The invoice notes require full payment 30 days before the event.</p>
 <p>The invoice notes also state that a refund of the 50% deposit is available only if the event is cancelled 90 days or more before the event, and that a cancellation inside that window may not be refunded. Section 16 above is more specific about rental fees, cleaning fees, and security deposits. The damage deposit described on the invoice is refundable after inspection. Section 11 above allows the Owner to apply the security deposit to amounts owed, and you remain responsible for anything above the deposit.</p>
 <p>The room is not set up when you arrive. Seating and layout are specific to your event. Staff can help with setup for an extra fee. Decorations are not provided, except that Christmas decorations are up in December. The maximum is 75 people unless the Owner approves a different limit in writing.</p>
 
 <h2>The signed agreement controls</h2>
-<p>This page is a summary for guests of The Boardroom QC, operated by MAD Productions, LLC. If anything here differs from the signed Rental Agreement, the signed Rental Agreement controls. The full agreement is available to print at <a href=\"/rental-agreement/\">the Rental Agreement</a>.</p>
-<p class=\"updated\">Last updated: October 26, 2026</p>
-<!-- [VERIFY: attorney review] -->,'Rental Terms','','publish','closed','closed','','terms','','','2026-10-16 15:17:11','2026-10-16 20:17:11','',0,'http://localhost:8088/terms/',0,'page','',0),
+<p>This page is a summary for guests of The Boardroom QC, operated by MAD Productions, LLC. If anything here differs from the signed Rental Agreement, the signed Rental Agreement controls. The full agreement is available to print at <a href="/rental-agreement/">the Rental Agreement</a>.</p>
+<p class="updated">Last updated: October 26, 2026</p>
+<!--[VERIFY: attorney review]-->','Rental Terms','','publish','closed','closed','','terms','','','2026-10-16 15:17:11','2026-10-16 20:17:11','',0,'http://localhost:8088/terms/',0,'page','',0),
 (10,0,'2026-10-16 15:17:12','2026-10-16 20:17:12',' ','','','publish','closed','closed','','10','','','2026-10-16 15:17:12','2026-10-16 20:17:12','',0,'http://localhost:8088/10/',0,'nav_menu_item','',0),
 (11,0,'2026-10-16 15:17:12','2026-10-16 20:17:12',' ','','','publish','closed','closed','','11','','','2026-10-16 15:17:12','2026-10-16 20:17:12','',0,'http://localhost:8088/11/',2,'nav_menu_item','',0),
 (12,0,'2026-10-16 15:17:13','2026-10-16 20:17:13',' ','','','publish','closed','closed','','12','','','2026-10-16 15:17:13','2026-10-16 20:17:13','',0,'http://localhost:8088/12/',3,'nav_menu_item','',0),

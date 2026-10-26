@@ -103,7 +103,7 @@ function brb_terms_html() {
 <h2>The signed agreement controls</h2>
 <p>This page is a summary for guests of The Boardroom QC, operated by MAD Productions, LLC. If anything here differs from the signed Rental Agreement, the signed Rental Agreement controls. The full agreement is available to print at <a href="/rental-agreement/">the Rental Agreement</a>.</p>
 <p class="updated">Last updated: October 26, 2026</p>
-<!-- [VERIFY: attorney review] -->
+<!--[VERIFY: attorney review]-->
 TERMS_HTML;
 }
 
