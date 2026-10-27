@@ -34,7 +34,7 @@ add_filter('pre_wp_mail', function ($short, $atts) {
 $GLOBALS['brb_mails'] = [];
 
 try {
-    brb_t(get_option('brb_version') === '2.2.6', 'plugin storage version is 2.2.6');
+    brb_t(get_option('brb_version') === '2.2.7', 'plugin storage version is 2.2.7');
     brb_t(get_option('blog_public') === '0' || get_option('blog_public') === 0, 'staging discourages search engines');
     $cols = $wpdb->get_col('SHOW COLUMNS FROM ' . brb_table(), 0);
     foreach (['deposit_due', 'amount_paid', 'source', 'hold_until', 'balance_due_on', 'price_set', 'status'] as $col) {
@@ -455,8 +455,14 @@ try {
     $contact = get_page_by_path('contact');
     $contact_html = $contact ? (string) $contact->post_content : '';
     brb_t(strpos($contact_html, '2220 37th Street, Moline, IL 61265') !== false && strpos($contact_html, '2212 37th Street') === false && strpos($contact_html, 'PLACEHOLDER: address') === false, 'contact page shows the venue address');
+    brb_t(strpos($contact_html, 'https://maps.app.goo.gl/nVqUsGTcy48nPzc18') !== false && strpos($contact_html, 'Get directions / View on Google Maps') !== false && strpos($contact_html, '<iframe') === false, 'contact page links to Google Maps without embedding it');
     $footer = file_get_contents(get_stylesheet_directory() . '/footer.php');
     brb_t(is_string($footer) && strpos($footer, '2220 37th Street, Moline, IL 61265') !== false && strpos($footer, '2212 37th Street') === false, 'footer shows the venue address');
+    brb_t(is_string($footer) && strpos($footer, 'https://maps.app.goo.gl/nVqUsGTcy48nPzc18') !== false && strpos($footer, 'Get directions / View on Google Maps') !== false, 'footer links to Google Maps');
+    ob_start();
+    brb_place_schema();
+    $schema = ob_get_clean();
+    brb_t(strpos($schema, '41.4913116') !== false && strpos($schema, '-90.4820481') !== false && strpos($schema, '2220 37th Street') !== false && strpos($schema, '2212 37th Street') === false, 'schema geo uses the map coordinates and the venue address');
     brb_t(strpos($privacy_html, 'mailto:boardroomqc@gmail.com') !== false && strpos($privacy_html, '[VERIFY]</span>') === false, 'privacy email is confirmed without a verification marker');
     brb_t(strpos($privacy_html, 'does not use advertising, analytics, or tracking cookies') !== false && strpos($privacy_html, 'not asked to accept cookies') !== false, 'privacy says guests are not given tracking cookies');
     brb_t(strpos($privacy_html, '[VERIFY if analytics added]') === false, 'analytics cookies are no longer marked for verification');

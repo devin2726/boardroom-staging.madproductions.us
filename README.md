@@ -37,6 +37,7 @@ Bookings → Settings. Anything still marked `[VERIFY]` is shown to guests until
 |---|---|---|
 | Check payable to | `[VERIFY] Name on the check` | Name on the check |
 | Venue address | 2220 37th Street, Moline, IL 61265 | The event space. Footer, Contact, the tour form, Terms, and Privacy. A blank value, a placeholder, or the check address saved here by mistake is replaced on upgrade. |
+| Map | https://maps.app.goo.gl/nVqUsGTcy48nPzc18 | Plain “Get directions / View on Google Maps” link on Contact, the footer, and the tour confirmation. Schema geo is 41.4913116, -90.4820481. The map is not embedded. |
 | Where to mail or drop off checks | 2212 37th Street, Moline, IL 61265 | Checks only. A saved placeholder, or the old 2212 47 Ave line, is replaced on upgrade. |
 | In-person hours | `[VERIFY] In-person hours` | |
 | Payment instructions | `[VERIFY] …` | Free text on the confirmation page and in email |

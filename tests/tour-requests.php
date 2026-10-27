@@ -33,7 +33,7 @@ $created = [];
 $snapshot = get_option('brb_settings');
 
 try {
-    brb_t(get_option('brb_version') === '2.2.6', 'plugin storage version is 2.2.6');
+    brb_t(get_option('brb_version') === '2.2.7', 'plugin storage version is 2.2.7');
     brb_t($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', brb_tour_table())) === brb_tour_table(), 'tour requests table exists');
     brb_t((string) brb_opt('tour_email') === 'boardroomqc@gmail.com', 'tour email defaults to boardroomqc@gmail.com');
 
@@ -147,6 +147,7 @@ try {
     unset($_GET['tour']);
     brb_t(brb_tour_message('ok') === "Thanks, we'll contact you to confirm a time." && strpos(html_entity_decode($thanks, ENT_QUOTES), "Thanks, we'll contact you to confirm a time.") !== false, 'the guest sees the confirmation sentence');
     brb_t(strpos($thanks, '2220 37th Street, Moline, IL 61265') !== false && strpos($thanks, '2212 37th Street') === false, 'the tour form names the venue address');
+    brb_t(strpos($thanks, 'https://maps.app.goo.gl/nVqUsGTcy48nPzc18') !== false && strpos($thanks, 'Get directions / View on Google Maps') !== false && strpos($thanks, '<iframe') === false, 'the tour confirmation links to Google Maps without embedding it');
     brb_t(stripos($thanks, 'your tour is confirmed') === false && stripos($thanks, 'time is confirmed') === false, 'the confirmation does not say a time is already set');
 
     $contact = get_page_by_path('contact');

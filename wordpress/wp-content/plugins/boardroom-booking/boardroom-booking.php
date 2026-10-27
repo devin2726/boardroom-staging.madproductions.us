@@ -2,13 +2,16 @@
 /**
  * Plugin Name: Boardroom Booking
  * Description: Self-hosted direct booking for The Boardroom — full-day and hourly blocks, availability calendar, agreed prices, in-person check holds, blackout dates, and emails.
- * Version: 2.2.6
+ * Version: 2.2.7
  * Author: Mad Productions
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.2.6');
+define('BRB_VER', '2.2.7');
 define('BRB_VENUE_ADDRESS', '2220 37th Street, Moline, IL 61265');
 define('BRB_CHECK_ADDRESS', '2212 37th Street, Moline, IL 61265');
+define('BRB_MAPS_URL', 'https://maps.app.goo.gl/nVqUsGTcy48nPzc18');
+define('BRB_MAPS_LAT', '41.4913116');
+define('BRB_MAPS_LNG', '-90.4820481');
 require_once __DIR__ . '/legal-content.php';
 require_once __DIR__ . '/tour.php';
 define('BRB_URL', plugin_dir_url(__FILE__));
@@ -124,6 +127,32 @@ function brb_check_sentence($item = 'checks') {
     $suffix = ($hours !== '' && $hours !== '[VERIFY] In-person hours') ? ' (' . $hours . ')' : '';
     return 'Mail or drop off ' . $item . ' payable to ' . brb_guest_payee() . ' at ' . brb_check_address() . $suffix . '.';
 }
+function brb_directions_markup() {
+    return '<p><a href="' . esc_url(BRB_MAPS_URL) . '" rel="noopener noreferrer">Get directions / View on Google Maps</a></p>';
+}
+function brb_place_schema() {
+    $data = [
+        '@context' => 'https://schema.org',
+        '@type' => 'EventVenue',
+        'name' => 'The Boardroom',
+        'address' => [
+            '@type' => 'PostalAddress',
+            'streetAddress' => '2220 37th Street',
+            'addressLocality' => 'Moline',
+            'addressRegion' => 'IL',
+            'postalCode' => '61265',
+            'addressCountry' => 'US',
+        ],
+        'geo' => [
+            '@type' => 'GeoCoordinates',
+            'latitude' => BRB_MAPS_LAT,
+            'longitude' => BRB_MAPS_LNG,
+        ],
+        'hasMap' => BRB_MAPS_URL,
+    ];
+    echo '<script type="application/ld+json">' . wp_json_encode($data, JSON_UNESCAPED_SLASHES) . "</script>\n";
+}
+add_action('wp_head', 'brb_place_schema', 20);
 function brb_blackouts() {
     $out = [];
     foreach (preg_split('/[\s,]+/', (string) brb_opt('blackouts')) as $d) {
@@ -332,18 +361,19 @@ function brb_refresh_contact() {
     $page = get_page_by_path('contact');
     if (!$page) return;
     $c = (string) $page->post_content;
+    $next = $c;
     $address = '<p>The Boardroom QC<br>' . BRB_VENUE_ADDRESS . '</p>';
-    $rest = '<p class="placeholder">PLACEHOLDER: phone, email, and map — owner to supply.</p>';
-    $old = '<p class="placeholder">PLACEHOLDER: address, phone, email and map — not on the current site; owner to supply.</p>';
-    $check_address = BRB_CHECK_ADDRESS;
-    if (strpos($c, $old) !== false) {
-        $next = str_replace($old, $address . $rest, $c);
-    } elseif (strpos($c, $check_address) !== false) {
-        $next = str_replace($check_address, BRB_VENUE_ADDRESS, $c);
-    } elseif (strpos($c, BRB_VENUE_ADDRESS) !== false) {
-        return;
-    } else {
-        return;
+    $older = '<p class="placeholder">PLACEHOLDER: address, phone, email and map — not on the current site; owner to supply.</p>';
+    $old_rest = '<p class="placeholder">PLACEHOLDER: phone, email, and map — owner to supply.</p>';
+    $rest = '<p class="placeholder">PLACEHOLDER: phone and email — owner to supply.</p>';
+    $link = brb_directions_markup();
+    if (strpos($next, $older) !== false) $next = str_replace($older, $address . $rest, $next);
+    if (strpos($next, BRB_CHECK_ADDRESS) !== false) $next = str_replace(BRB_CHECK_ADDRESS, BRB_VENUE_ADDRESS, $next);
+    if (strpos($next, $old_rest) !== false) $next = str_replace($old_rest, $rest, $next);
+    if (strpos($next, BRB_MAPS_URL) === false) {
+        if (strpos($next, $rest) !== false) $next = str_replace($rest, $link . $rest, $next);
+        elseif (strpos($next, BRB_VENUE_ADDRESS . '</p>') !== false) $next = str_replace(BRB_VENUE_ADDRESS . '</p>', BRB_VENUE_ADDRESS . '</p>' . $link, $next);
+        else $next .= $link;
     }
     if ($next === $c) return;
     global $wpdb;

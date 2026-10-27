@@ -122,7 +122,7 @@ function brb_privacy_html() {
 <p>This site does not process payments online and does not collect card data. Mail or drop off checks payable to Mad Productions at 2212 37th Street, Moline, IL 61265.</p>
 
 <h2>Cookies</h2>
-<p>This site does not use advertising, analytics, or tracking cookies. Guests are not asked to accept cookies. The tour request form does not set a cookie. The only cookies are the ones WordPress sets for staff when they log in to the admin area.</p>
+<p>This site does not use advertising, analytics, or tracking cookies. Guests are not asked to accept cookies. The tour request form does not set a cookie. Directions are a plain link to Google Maps. This page does not embed a map or load Google, so opening it does not set a Google cookie. The only cookies are the ones WordPress sets for staff when they log in to the admin area.</p>
 
 <h2>How long we keep it</h2>
 <p>We keep booking, payment, and tour request records for as long as we need them for our records and for tax. A tour request is removed only when a staff member deletes it. If you ask us to delete your information, we will, unless the law requires us to keep it.</p>
