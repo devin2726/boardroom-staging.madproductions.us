@@ -4,7 +4,7 @@ add_action('after_setup_theme', function () {
     register_nav_menus(['primary' => 'Primary', 'footer' => 'Footer']);
 });
 add_action('wp_enqueue_scripts', function () {
-    wp_enqueue_style('boardroom', get_stylesheet_uri(), [], '1.2.10');
+    wp_enqueue_style('boardroom', get_stylesheet_uri(), [], '1.2.11');
     wp_enqueue_script('boardroom', get_template_directory_uri() . '/assets/site.js', [], '1.1.0', true);
 });
 function br_img($f) { return get_template_directory_uri() . '/assets/img/' . $f; }
@@ -21,6 +21,52 @@ function br_gallery() {
 }
 function br_gallery_src($file, $thumb = false) {
     return br_img('gallery/' . ($thumb ? 'thumbs/' : '') . $file);
+}
+function br_amenity_groups() {
+    return [
+        [
+            'title' => 'Comfort and utilities',
+            'items' => ['Air conditioning', 'Heating', 'Hot water'],
+        ],
+        [
+            'title' => 'Access and parking',
+            'items' => ['Private entrance', 'Free parking on premises', 'Free street parking'],
+        ],
+        [
+            'title' => 'Tech and entertainment',
+            'items' => ['Wifi', 'TV', 'Sound system (Sonos, Aux, Bluetooth)', 'Pool table', 'Board games'],
+        ],
+        [
+            'title' => 'Furnishings',
+            'items' => ['Dining table', 'Dedicated workspace'],
+        ],
+        [
+            'title' => 'Kitchen area',
+            'lead' => 'Serving and storage only, no cooking.',
+            'items' => ['Refrigerator (large)', 'Freezer', 'Mini fridge', 'Microwave', 'Dishwasher', 'Coffee maker (drip and pour-over)', 'Hot water kettle', 'Toaster', 'Blender', 'Wine glasses'],
+            'note' => 'Kitchen area is for serving and storage. Cooking and stovetop use are not permitted.',
+        ],
+        [
+            'title' => 'Safety',
+            'items' => ['Smoke alarm', 'Carbon monoxide alarm', 'Fire extinguisher', 'First aid kit'],
+        ],
+    ];
+}
+function br_amenities_html() {
+    $html = '<p class="amenity-intro">The room comes not set up. No overnight stays. The Boardroom is an event space only.</p>';
+    $html .= '<div class="amenity-groups">';
+    foreach (br_amenity_groups() as $group) {
+        $html .= '<div class="amenity-group">';
+        $html .= '<h3>' . esc_html($group['title']) . '</h3>';
+        if (!empty($group['lead'])) $html .= '<p class="amenity-lead">' . esc_html($group['lead']) . '</p>';
+        $html .= '<ul>';
+        foreach ($group['items'] as $item) $html .= '<li>' . esc_html($item) . '</li>';
+        $html .= '</ul>';
+        if (!empty($group['note'])) $html .= '<p class="amenity-note">' . esc_html($group['note']) . '</p>';
+        $html .= '</div>';
+    }
+    $html .= '</div>';
+    return $html;
 }
 add_action('wp_head', function () { echo '<link rel="icon" href="' . esc_url(br_img('boardroom-siteicon-512.png')) . '">'; });
 function br_contact_form() {
