@@ -369,6 +369,8 @@ function brb_admin_settings() {
         $new['deposit_fixed'] = brb_dec(max(0, (float) $new['deposit_fixed']));
         $new['starting_price'] = brb_dec(max(0, (float) $new['starting_price']));
         if (trim((string) $new['typical_price']) === '') $new['typical_price'] = $defaults['typical_price'];
+        if (trim((string) $new['venue_address']) === '') $new['venue_address'] = $defaults['venue_address'];
+        if (trim((string) $new['pay_location']) === '') $new['pay_location'] = $defaults['pay_location'];
         $new['min_hours'] = (string) max(1, (int) $new['min_hours']);
         $new['max_guests'] = (string) max(1, (int) $new['max_guests']);
         $new['max_days'] = (string) max(1, (int) $new['max_days']);
@@ -406,8 +408,9 @@ function brb_admin_settings() {
             ['deposit_pct', 'Deposit percent', 'number', null, 'Used when the choice above is percent. 100 is the same as the full amount.'],
             ['deposit_fixed', 'Fixed deposit amount ($)', 'text', null, 'Used when the choice above is a fixed dollar amount. Cannot exceed the total.'],
             ['balance_due_days', 'Balance due (days before the event)', 'number', null, '[VERIFY] Used when the first check is less than the total. 7 means the rest is due 7 days before the start date.'],
-            ['payee', 'Check payable to [VERIFY]', 'text', null, 'The name guests write on the payee line. Replace the [VERIFY] text.'],
-            ['pay_location', 'Where to bring the check', 'text', null, 'Venue and check drop-off. Default is 2212 37th Street, Moline, IL 61265.'],
+            ['venue_address', 'Venue address', 'text', null, 'The event space. Shown in the footer, on Contact, on the tour form, and in Terms and Privacy. Default is 2220 37th Street, Moline, IL 61265. This is not where checks go.'],
+            ['payee', 'Check payable to [VERIFY]', 'text', null, 'The name guests write on the payee line. Until this placeholder is replaced, guest check instructions say Mad Productions.'],
+            ['pay_location', 'Where to mail or drop off checks', 'text', null, 'Check mail and drop-off only. Default is 2212 37th Street, Moline, IL 61265. A saved placeholder, or the old 2212 47 Ave line, is replaced on upgrade.'],
             ['pay_hours', 'In-person hours [VERIFY]', 'text', null, 'Days and hours a guest can drop off a check.'],
             ['pay_instructions', 'Payment instructions [VERIFY]', 'textarea', null, 'Extra text shown on the confirmation page and in the guest email.'],
             ['admin_email', 'Admin notification email', 'text', null, 'Hold, check, expiry, and tour request emails are sent here. Separate more than one address with a comma.'],
@@ -419,7 +422,7 @@ function brb_admin_settings() {
         ],
     ];
     echo '<div class="wrap"><h1>Booking Settings</h1>';
-    echo '<p>Guests save a date on the website and bring a check. Nothing is collected through the website. ' . esc_html(brb_price_sentence()) . ' Staff set the final price on each booking.</p>';
+    echo '<p>Guests save a date on the website and mail or drop off a check. Nothing is collected through the website. ' . esc_html(brb_price_sentence()) . ' Staff set the final price on each booking. The venue and the check address are separate settings.</p>';
     $sampleStart = brb_now()->modify('+10 days')->setTime(0, 0);
     echo '<div class="brb-paybox"><strong>What guests see before a price is set</strong>';
     brb_echo_lines(brb_preview_lines(['total' => 0, 'due' => 0, 'price_set' => 0], $sampleStart));

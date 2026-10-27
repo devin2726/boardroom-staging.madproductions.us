@@ -2,7 +2,7 @@
 
 WordPress site for The Boardroom event space, deployed with Docker Compose (WordPress + MariaDB). The custom theme is `boardroom` (black and gold, EB Garamond). The custom plugin is `boardroom-booking`.
 
-Guests **save a date on the website and pay by check in person**. The site does not take payment itself.
+Guests **save a date on the website and mail or drop off a check**. The site does not take payment itself. The venue is 2220 37th Street, Moline, IL 61265. Checks go to 2212 37th Street, Moline, IL 61265.
 
 ## Guest flow
 
@@ -12,7 +12,7 @@ Guests **save a date on the website and pay by check in person**. The site does 
 4. The date is **held** so nobody else can book it. The confirmation page and the guest email state:
    - the exact hold deadline in America/Chicago
    - that the price is to be confirmed, or the check amount once staff have set it
-   - who the check is payable to, and where / during which hours to bring it
+   - who the check is payable to, and where to mail or drop it off
    - the booking reference to write on the memo
    - that the hold is released if the check is not received by then
 5. A shorter block still reserves only part of the day (availability, notice, and double-booking work as before). The owner prices the event, not the hour, so both choices use the same “from” sentence. There is no public hourly rate.
@@ -36,7 +36,8 @@ Bookings → Settings. Anything still marked `[VERIFY]` is shown to guests until
 | Setting | Default | Notes |
 |---|---|---|
 | Check payable to | `[VERIFY] Name on the check` | Name on the check |
-| Where to bring the check | 2212 37th Street, Moline, IL 61265 | Venue and check drop-off. A saved placeholder, or the old 2212 47 Ave line, is replaced on upgrade. |
+| Venue address | 2220 37th Street, Moline, IL 61265 | The event space. Footer, Contact, the tour form, Terms, and Privacy. A blank value, a placeholder, or the check address saved here by mistake is replaced on upgrade. |
+| Where to mail or drop off checks | 2212 37th Street, Moline, IL 61265 | Checks only. A saved placeholder, or the old 2212 47 Ave line, is replaced on upgrade. |
 | In-person hours | `[VERIFY] In-person hours` | |
 | Payment instructions | `[VERIFY] …` | Free text on the confirmation page and in email |
 | Starting price | $600 per day | Shown to guests as “from” this amount. Whole dollars display without cents. |

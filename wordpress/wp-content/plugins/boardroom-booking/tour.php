@@ -206,7 +206,7 @@ function brb_tour_form() {
     ob_start();
     echo '<section id="tour" class="tour-block">';
     echo '<h2>Schedule a tour</h2>';
-    echo '<p>Tell us when you would like to see The Boardroom. Sending this form does not hold a date, and it does not confirm a time. We will contact you.</p>';
+    echo '<p>Tell us when you would like to see The Boardroom at ' . esc_html(brb_venue_address()) . '. Sending this form does not hold a date, and it does not confirm a time. We will contact you.</p>';
     if ($message !== '') echo '<div class="notice">' . esc_html($message) . '</div>';
     echo '<form class="form" method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
     echo '<input type="hidden" name="action" value="brb_tour">';
