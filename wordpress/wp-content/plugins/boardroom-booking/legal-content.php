@@ -86,8 +86,9 @@ function brb_terms_html() {
 <div class="rules">
 <p>These house rules are in addition to section 7 of the agreement.</p>
 <ul>
-<li>Do not use the stove top.</li>
-<li>Food warmers and the bar area may be used.</li>
+<li>No cooking is allowed in the venue.</li>
+<li>The stove top may not be used.</li>
+<li>Food warmers (for keeping prepared food warm) and the bar area may be used.</li>
 <li>There are no taps. Draft taps are not available.</li>
 <li>BYOB is allowed.</li>
 <li>The renter must obtain a one-day liquor license from the City of Moline, fee $50.</li>

@@ -34,7 +34,7 @@ add_filter('pre_wp_mail', function ($short, $atts) {
 $GLOBALS['brb_mails'] = [];
 
 try {
-    brb_t(get_option('brb_version') === '2.2.1', 'plugin storage version is 2.2.1');
+    brb_t(get_option('brb_version') === '2.2.2', 'plugin storage version is 2.2.2');
     brb_t(get_option('blog_public') === '0' || get_option('blog_public') === 0, 'staging discourages search engines');
     $cols = $wpdb->get_col('SHOW COLUMNS FROM ' . brb_table(), 0);
     foreach (['deposit_due', 'amount_paid', 'source', 'hold_until', 'balance_due_on', 'price_set', 'status'] as $col) {
@@ -378,6 +378,7 @@ try {
     brb_t(stripos($faq_html, 'take the garbage out') !== false && stripos($faq_html, 'following day') !== false, 'faq explains cleanup');
     brb_t(stripos($faq_html, '48 hours') !== false && stripos($faq_html, 'price to be confirmed') !== false, 'faq explains the hold, the notice, and an unconfirmed price');
     brb_t(stripos($faq_html, 'How many guests can The Boardroom hold') !== false && stripos($faq_html, 'Up to 75') !== false, 'faq keeps the capacity answer');
+    brb_t(strpos($faq_html, 'No cooking is allowed in the venue') !== false && strpos($faq_html, 'The stove top may not be used') !== false && strpos($faq_html, 'Food warmers (for keeping prepared food warm)') !== false, 'faq says no cooking and allows food warmers');
     brb_t(strpos($faq_html, 'one-day liquor license from the City of Moline, fee $50') !== false, 'faq names the City of Moline liquor license and the fee');
     if ($faq) {
         wp_update_post(['ID' => (int) $faq->ID, 'post_content' => '<p>Custom FAQ without the seed question.</p>']);
@@ -422,6 +423,7 @@ try {
     ] as $needle => $hay) {
         brb_t(strpos($hay, $needle) !== false, 'legal copy contains ' . $needle);
     }
+    brb_t(strpos($terms_html, 'No cooking is allowed in the venue') !== false && strpos($terms_html, 'The stove top may not be used') !== false && strpos($terms_html, 'Food warmers (for keeping prepared food warm)') !== false, 'house rules say no cooking and allow food warmers');
     brb_t(strpos($terms_html, 'one-day liquor license from the City of Moline, fee $50') !== false, 'liquor license names the City of Moline and the fee');
     brb_t(strpos($terms_html, '[VERIFY current fee and issuing office]') === false, 'liquor license fee is no longer marked for verification');
     brb_t(strpos($terms_html, '[VERIFY address.') !== false, 'check address is still marked for verification');
