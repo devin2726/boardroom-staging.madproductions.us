@@ -6,7 +6,7 @@ add_action('admin_menu', function () {
     add_submenu_page('brb', 'Bookings', 'All Bookings', 'manage_options', 'brb', 'brb_admin_router');
     add_submenu_page('brb', 'Add booking', 'Add booking', 'manage_options', 'brb-new', 'brb_admin_new');
     add_submenu_page('brb', 'Calendar', 'Calendar', 'manage_options', 'brb-cal', 'brb_admin_cal');
-    add_submenu_page('brb', 'Tour requests', 'Tour requests', 'manage_options', 'brb-tours', 'brb_admin_tours');
+    add_submenu_page('brb', 'Inquiries', 'Inquiries', 'manage_options', 'brb-tours', 'brb_admin_tours');
     add_submenu_page('brb', 'Booking Settings', 'Settings', 'manage_options', 'brb-settings', 'brb_admin_settings');
 });
 add_action('admin_enqueue_scripts', function ($h) {
@@ -408,13 +408,13 @@ function brb_admin_settings() {
             ['deposit_pct', 'Deposit percent', 'number', null, 'Used when the choice above is percent. 100 is the same as the full amount.'],
             ['deposit_fixed', 'Fixed deposit amount ($)', 'text', null, 'Used when the choice above is a fixed dollar amount. Cannot exceed the total.'],
             ['balance_due_days', 'Balance due (days before the event)', 'number', null, '[VERIFY] Used when the first check is less than the total. 7 means the rest is due 7 days before the start date.'],
-            ['venue_address', 'Venue address', 'text', null, 'The event space. Shown in the footer, on Contact, on the tour form, and in Terms and Privacy. Default is 2220 37th Street, Moline, IL 61265. This is not where checks go.'],
+            ['venue_address', 'Venue address', 'text', null, 'The event space. Shown in the footer, on Contact, and in Terms and Privacy. Default is 2220 37th Street, Moline, IL 61265. This is not where checks go.'],
             ['payee', 'Check payable to [VERIFY]', 'text', null, 'The name guests write on the payee line. Until this placeholder is replaced, guest check instructions say Mad Productions.'],
             ['pay_location', 'Where to mail or drop off checks', 'text', null, 'Check mail and drop-off only. Default is 2212 37th Street, Moline, IL 61265. A saved placeholder, or the old 2212 47 Ave line, is replaced on upgrade.'],
             ['pay_hours', 'In-person hours [VERIFY]', 'text', null, 'Days and hours a guest can drop off a check.'],
             ['pay_instructions', 'Payment instructions [VERIFY]', 'textarea', null, 'Extra text shown on the confirmation page and in the guest email.'],
-            ['admin_email', 'Admin notification email', 'text', null, 'Hold, check, expiry, and tour request emails are sent here. Separate more than one address with a comma.'],
-            ['tour_email', 'Tour request email', 'text', null, 'Tour requests are also emailed here. Default is boardroomqc@gmail.com.'],
+            ['admin_email', 'Admin notification email', 'text', null, 'Hold, check, expiry, and contact inquiry emails are sent here. Separate more than one address with a comma.'],
+            ['tour_email', 'Inquiry email', 'text', null, 'Contact inquiries are also emailed here. Default is boardroomqc@gmail.com.'],
         ],
         'Calendar and policy' => [
             ['blackouts', 'Blackout dates (YYYY-MM-DD, one per line)', 'textarea', null, 'Saved dates stay in the database when the plugin is updated. Emptying this box does not delete them unless you tick the box under it.'],
