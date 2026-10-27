@@ -2,11 +2,11 @@
 /**
  * Plugin Name: Boardroom Booking
  * Description: Self-hosted direct booking for The Boardroom — full-day and hourly blocks, availability calendar, agreed prices, in-person check holds, blackout dates, and emails.
- * Version: 2.2.8
+ * Version: 2.2.9
  * Author: Mad Productions
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.2.8');
+define('BRB_VER', '2.2.9');
 define('BRB_VENUE_ADDRESS', '2220 37th Street, Moline, IL 61265');
 define('BRB_CHECK_ADDRESS', '2212 37th Street, Moline, IL 61265');
 define('BRB_MAPS_URL', 'https://maps.app.goo.gl/nVqUsGTcy48nPzc18');
@@ -93,7 +93,7 @@ function brb_defaults() {
         'venue_address' => BRB_VENUE_ADDRESS,
         'pay_location' => BRB_CHECK_ADDRESS,
         'pay_hours' => '[VERIFY] In-person hours',
-        'pay_instructions' => '[VERIFY] Extra instructions for bringing the check.',
+        'pay_instructions' => '',
         'blackouts' => '',
         'policy' => brb_cancellation_summary(),
     ];
@@ -207,6 +207,36 @@ function brb_source_label($s) {
     $map = ['online' => 'Online', 'phone' => 'Phone', 'walk-in' => 'Walk-in'];
     return $map[$s] ?? ($s ?: 'Online');
 }
+function brb_event_types() {
+    return [
+        'wedding' => 'Wedding',
+        'birthday' => 'Birthday',
+        'corporate' => 'Corporate',
+        'fundraiser' => 'Fundraiser',
+        'other' => 'Other',
+    ];
+}
+function brb_event_type_label($value) {
+    $all = brb_event_types();
+    $value = (string) $value;
+    return $all[$value] ?? '';
+}
+function brb_event_type_line($b) {
+    $label = brb_event_type_label($b->event_type ?? '');
+    return $label !== '' ? "Event type: {$label}\n" : '';
+}
+function brb_pay_methods() {
+    return ['check' => 'Check', 'cash' => 'Cash'];
+}
+function brb_pay_method_label($method) {
+    $all = brb_pay_methods();
+    return $all[$method] ?? 'Check';
+}
+function brb_extra_instructions() {
+    $extra = trim((string) brb_opt('pay_instructions'));
+    if ($extra === '' || $extra === '[VERIFY] Extra instructions for bringing the check.') return '';
+    return $extra;
+}
 
 /* ---------- schema + upgrade (keeps existing options, including blackouts) ---------- */
 function brb_ensure_column($table, $col, $def) {
@@ -242,6 +272,7 @@ function brb_install_tables() {
       hold_until datetime DEFAULT NULL,
       balance_due_on date DEFAULT NULL,
       price_set tinyint(1) NOT NULL DEFAULT 0,
+      event_type varchar(40) NOT NULL DEFAULT '',
       created datetime NOT NULL,
       PRIMARY KEY  (id),
       KEY token (token),
@@ -254,6 +285,7 @@ function brb_install_tables() {
     brb_ensure_column($t, 'hold_until', 'datetime NULL DEFAULT NULL');
     brb_ensure_column($t, 'balance_due_on', 'date NULL DEFAULT NULL');
     brb_ensure_column($t, 'price_set', 'tinyint(1) NOT NULL DEFAULT 0');
+    brb_ensure_column($t, 'event_type', "varchar(40) NOT NULL DEFAULT ''");
     $p = brb_pay_table();
     dbDelta("CREATE TABLE $p (
       id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
@@ -262,10 +294,12 @@ function brb_install_tables() {
       check_number varchar(64) NOT NULL DEFAULT '',
       received_on date DEFAULT NULL,
       notes text,
+      method varchar(20) NOT NULL DEFAULT 'check',
       created datetime NOT NULL,
       PRIMARY KEY  (id),
       KEY booking_id (booking_id)
     ) $c;");
+    brb_ensure_column($p, 'method', "varchar(20) NOT NULL DEFAULT 'check'");
     if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $p)) !== $p) {
         $wpdb->query("CREATE TABLE IF NOT EXISTS $p (
           id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
@@ -274,15 +308,18 @@ function brb_install_tables() {
           check_number varchar(64) NOT NULL DEFAULT '',
           received_on date NULL DEFAULT NULL,
           notes text,
+          method varchar(20) NOT NULL DEFAULT 'check',
           created datetime NOT NULL,
           PRIMARY KEY (id),
           KEY booking_id (booking_id)
         ) $c");
     }
-    foreach (['deposit_due', 'amount_paid', 'source', 'hold_until', 'balance_due_on', 'price_set'] as $col) {
+    brb_ensure_column($p, 'method', "varchar(20) NOT NULL DEFAULT 'check'");
+    foreach (['deposit_due', 'amount_paid', 'source', 'hold_until', 'balance_due_on', 'price_set', 'event_type'] as $col) {
         if (!$wpdb->get_var($wpdb->prepare("SHOW COLUMNS FROM `$t` LIKE %s", $col))) return false;
     }
-    return $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $p)) === $p;
+    if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $p)) !== $p) return false;
+    return (bool) $wpdb->get_var($wpdb->prepare("SHOW COLUMNS FROM `$p` LIKE %s", 'method'));
 }
 function brb_migrate_settings() {
     $stored = get_option('brb_settings', []);
@@ -303,6 +340,9 @@ function brb_migrate_settings() {
     $defaults = brb_defaults();
     foreach (['payee', 'pay_location', 'pay_hours', 'pay_instructions'] as $k) {
         if (!isset($stored[$k]) || trim((string) $stored[$k]) === '') $merged[$k] = $defaults[$k];
+    }
+    if (trim((string) ($merged['pay_instructions'] ?? '')) === '[VERIFY] Extra instructions for bringing the check.') {
+        $merged['pay_instructions'] = '';
     }
     $tour_email = isset($stored['tour_email']) ? sanitize_email((string) $stored['tour_email']) : '';
     if (!is_email($tour_email)) $merged['tour_email'] = $defaults['tour_email'];
@@ -605,6 +645,7 @@ function brb_hold_lines($b) {
     $ref = brb_ref($b);
     $set = brb_price_is_set($b);
     $lines = [];
+    $lines[] = 'Your date is held for ' . brb_hold_hours() . ' hours.';
     $lines[] = 'Your date is held until ' . brb_format_utc_mysql($b->hold_until) . '.';
     if ($set) {
         $lines[] = brb_check_sentence('a check for ' . brb_money(brb_amount_to_bring($b)));
@@ -620,7 +661,7 @@ function brb_hold_lines($b) {
             $lines[] = 'After that check, the remaining balance of ' . brb_money($balance) . ' is due by ' . brb_balance_due_label($b->balance_due_on) . ' (' . (int) $o['balance_due_days'] . ' days before the event).';
         }
     }
-    $extra = trim((string) $o['pay_instructions']);
+    $extra = brb_extra_instructions();
     if ($extra !== '') $lines[] = $extra;
     return $lines;
 }
@@ -645,7 +686,7 @@ function brb_preview_lines($q, DateTimeImmutable $start) {
             $lines[] = 'After that check, the remaining balance of ' . brb_money($balance) . ' is due by ' . brb_balance_due_label($on) . ' (' . (int) $o['balance_due_days'] . ' days before the event).';
         }
     }
-    $extra = trim((string) $o['pay_instructions']);
+    $extra = brb_extra_instructions();
     if ($extra !== '') $lines[] = $extra;
     return $lines;
 }
@@ -666,35 +707,47 @@ function brb_send_hold_emails($b) {
     $facts = implode("\n\n", brb_hold_lines($b));
     $price = brb_price_phrase($b);
     $check = brb_price_is_set($b) ? brb_money(brb_amount_to_bring($b)) : 'price to be confirmed';
-    $detail = "When: " . brb_when($b) . "\nGuests: {$b->guests}\nPrice: {$price}\n";
+    $detail = "When: " . brb_when($b) . "\n" . brb_event_type_line($b) . "Guests: {$b->guests}\nPrice: {$price}\n";
     $body = "Hi {$b->name},\n\n{$facts}\n\n{$detail}\nCancellation policy:\n{$o['policy']}\n\nView your booking: " . brb_guest_link($b) . "\n";
     brb_mail($b->email, 'Your Boardroom date is held (' . $ref . ')', $body, $o['admin_email']);
-    $admin = "A date was saved and is held.\n\nReference: {$ref}\nWhen: " . brb_when($b) . "\nGuest: {$b->name}\nEmail: {$b->email}\nPhone: {$b->phone}\nGuests: {$b->guests}\nPrice: {$price}\nCheck to bring: {$check}\nSource: " . brb_source_label($b->source) . "\nHeld until: " . brb_format_utc_mysql($b->hold_until) . "\nNotes: {$b->notes}\n\n" . admin_url('admin.php?page=brb&booking=' . (int) $b->id) . "\n";
+    $admin = "A date was saved and is held.\n\nReference: {$ref}\nWhen: " . brb_when($b) . "\nGuest: {$b->name}\nEmail: {$b->email}\nPhone: {$b->phone}\n" . brb_event_type_line($b) . "Guests: {$b->guests}\nPrice: {$price}\nCheck to bring: {$check}\nSource: " . brb_source_label($b->source) . "\nHeld until: " . brb_format_utc_mysql($b->hold_until) . "\nNotes: {$b->notes}\n\n" . admin_url('admin.php?page=brb&booking=' . (int) $b->id) . "\n";
     brb_mail($o['admin_email'], 'Date held ' . $ref . ' – ' . $b->name, $admin, $b->email);
 }
-function brb_send_payment_email($b, $amount, $check_number) {
+function brb_send_payment_email($b, $amount, $check_number, $method = 'check') {
     $o = brb_opt();
     $ref = brb_ref($b);
     $paid = brb_money($b->amount_paid);
     $balance = brb_money(max(0, round((float) $b->total - (float) $b->amount_paid, 2)));
+    $method = isset(brb_pay_methods()[$method]) ? $method : 'check';
     if ((float) $amount > 0) {
-        $check = 'We recorded a check for ' . brb_money($amount);
-        if ($check_number !== '') $check .= ' (check ' . $check_number . ')';
-        $check .= '.';
+        if ($method === 'cash') {
+            $check = 'We recorded cash for ' . brb_money($amount) . '.';
+        } else {
+            $check = 'We recorded a check for ' . brb_money($amount);
+            if ($check_number !== '') $check .= ' (check ' . $check_number . ')';
+            $check .= '.';
+        }
     } else {
         $check = 'This booking is marked paid in full.';
     }
     if ($b->status === 'paid') {
         $intro = "Your Boardroom booking is confirmed.\n\n{$check}\nPaid: {$paid}\nBalance: {$balance}";
         $subject = 'Your Boardroom booking is confirmed (' . $ref . ')';
+        $admin_subject = 'Payment recorded for ' . $ref . ' – ' . $b->name;
+    } elseif ($method === 'cash') {
+        $due = brb_balance_due_label($b->balance_due_on);
+        $intro = "We received your cash and your date stays reserved.\n\n{$check}\nPaid so far: {$paid}\nBalance: {$balance}" . ($due ? " due by {$due}" : '') . ".\n\n" . brb_check_sentence('the remaining balance as a check') . "\nWrite booking reference {$ref} on the memo line.";
+        $subject = 'We received your cash for ' . $ref;
+        $admin_subject = 'Cash recorded for ' . $ref . ' – ' . $b->name;
     } else {
         $due = brb_balance_due_label($b->balance_due_on);
         $intro = "We received your check and your date stays reserved.\n\n{$check}\nPaid so far: {$paid}\nBalance: {$balance}" . ($due ? " due by {$due}" : '') . ".\n\n" . brb_check_sentence('the remaining balance as a check') . "\nWrite booking reference {$ref} on the memo line.";
         $subject = 'We received your check for ' . $ref;
+        $admin_subject = 'Check recorded for ' . $ref . ' – ' . $b->name;
     }
-    $body = "Hi {$b->name},\n\n{$intro}\n\nReference: {$ref}\nWhen: " . brb_when($b) . "\nGuests: {$b->guests}\nPrice: " . brb_price_phrase($b) . "\n\nCancellation policy:\n{$o['policy']}\n\nView your booking: " . brb_guest_link($b) . "\n";
+    $body = "Hi {$b->name},\n\n{$intro}\n\nReference: {$ref}\nWhen: " . brb_when($b) . "\n" . brb_event_type_line($b) . "Guests: {$b->guests}\nPrice: " . brb_price_phrase($b) . "\n\nCancellation policy:\n{$o['policy']}\n\nView your booking: " . brb_guest_link($b) . "\n";
     brb_mail($b->email, $subject, $body, $o['admin_email']);
-    brb_mail($o['admin_email'], 'Check recorded for ' . $ref . ' – ' . $b->name, $body . "\nAdmin: " . admin_url('admin.php?page=brb&booking=' . (int) $b->id) . "\n", $b->email);
+    brb_mail($o['admin_email'], $admin_subject, $body . "\nAdmin: " . admin_url('admin.php?page=brb&booking=' . (int) $b->id) . "\n", $b->email);
 }
 function brb_send_expired_emails($b) {
     $o = brb_opt();
@@ -758,6 +811,7 @@ function brb_insert_booking($r, $q, $guest, $source = 'online', $notify = true) 
                 'email' => $guest['email'],
                 'phone' => $guest['phone'],
                 'notes' => $guest['notes'],
+                'event_type' => $guest['event_type'] ?? '',
                 'subtotal' => brb_dec($q['subtotal']),
                 'cleaning' => brb_dec($q['cleaning']),
                 'tax' => brb_dec($q['tax']),
@@ -781,18 +835,21 @@ function brb_insert_booking($r, $q, $guest, $source = 'online', $notify = true) 
     return $result;
 }
 function brb_process_public_booking($post) {
-    if (empty($post['policy'])) return new WP_Error('policy', 'Please agree to the Terms and Privacy Policy.');
+    if (empty($post['policy'])) return new WP_Error('policy', 'Please agree to the Terms, the Rental Agreement and the Privacy Policy.');
     $r = brb_build_range($post);
     if (is_wp_error($r)) return $r;
     $name = sanitize_text_field($post['name'] ?? '');
     $email = sanitize_email($post['email'] ?? '');
     if (!$name || !is_email($email)) return new WP_Error('contact', 'Name and a valid email are required.');
+    $event_type = sanitize_key($post['event_type'] ?? '');
+    if (!isset(brb_event_types()[$event_type])) return new WP_Error('event_type', 'Please choose an event type.');
     $q = brb_quote($r);
     return brb_insert_booking($r, $q, [
         'name' => $name,
         'email' => $email,
         'phone' => '',
         'notes' => sanitize_textarea_field($post['notes'] ?? ''),
+        'event_type' => $event_type,
     ], 'online', true);
 }
 add_action('admin_post_nopriv_brb_book', 'brb_handle_book');
@@ -810,22 +867,25 @@ function brb_handle_book() {
     exit;
 }
 
-function brb_record_payment($booking_id, $amount, $check_number, $received_on, $notes, $require_check = true) {
+function brb_record_payment($booking_id, $amount, $check_number, $received_on, $notes, $require_check = true, $method = 'check') {
     global $wpdb;
     $b = brb_booking($booking_id);
     if (!$b) return new WP_Error('missing', 'Booking not found.');
     if (in_array($b->status, ['cancelled', 'expired'], true)) {
-        return new WP_Error('status', 'That booking is not open for a check. Extend the hold first if it expired and the date is still free.');
+        return new WP_Error('status', 'That booking is not open for a payment. Extend the hold first if it expired and the date is still free.');
     }
     if (!brb_price_is_set($b)) {
-        return new WP_Error('price', 'Set the agreed price before recording a check.');
+        return new WP_Error('price', 'Set the agreed price before recording a payment.');
     }
     $amount = round((float) $amount, 2);
-    if ($amount <= 0) return new WP_Error('amount', 'Enter a check amount greater than zero.');
+    if ($amount <= 0) return new WP_Error('amount', 'Enter an amount greater than zero.');
     $remaining = round((float) $b->total - (float) $b->amount_paid, 2);
     if ($amount - $remaining > 0.009) return new WP_Error('amount', 'That amount is more than the balance of ' . brb_money($remaining) . '.');
+    $method = sanitize_key((string) $method);
+    if (!isset(brb_pay_methods()[$method])) $method = 'check';
     $check_number = sanitize_text_field($check_number);
-    if ($require_check && $check_number === '') return new WP_Error('check', 'Enter the check number.');
+    if ($method === 'cash') $check_number = '';
+    elseif ($require_check && $check_number === '') return new WP_Error('check', 'Enter the check number.');
     if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $received_on)) $received_on = brb_now()->format('Y-m-d');
     $notes = sanitize_textarea_field($notes);
     $ok = $wpdb->insert(brb_pay_table(), [
@@ -834,9 +894,10 @@ function brb_record_payment($booking_id, $amount, $check_number, $received_on, $
         'check_number' => $check_number,
         'received_on' => $received_on,
         'notes' => $notes,
+        'method' => $method,
         'created' => current_time('mysql', true),
     ]);
-    if (!$ok) return new WP_Error('db', 'Could not record the check.');
+    if (!$ok) return new WP_Error('db', 'Could not record the payment.');
     $paid = round((float) $b->amount_paid + $amount, 2);
     $status = ($paid + 0.009 >= (float) $b->total) ? 'paid' : 'deposit_paid';
     $wpdb->update(brb_table(), [
@@ -844,7 +905,7 @@ function brb_record_payment($booking_id, $amount, $check_number, $received_on, $
         'status' => $status,
     ], ['id' => (int) $b->id]);
     $b = brb_booking($b->id);
-    brb_send_payment_email($b, $amount, $check_number);
+    brb_send_payment_email($b, $amount, $check_number, $method);
     return $b;
 }
 function brb_mark_paid_full($booking_id) {
@@ -902,7 +963,7 @@ function brb_send_price_email($b) {
         $balance = max(0, round((float) $b->total - (float) $b->amount_paid, 2));
         $body .= 'Paid so far: ' . brb_money($b->amount_paid) . "\nBalance: " . brb_money($balance) . "\n\n";
     }
-    $body .= 'When: ' . brb_when($b) . "\nGuests: {$b->guests}\nReference: {$ref}\n\nView your booking: " . brb_guest_link($b) . "\n";
+    $body .= 'When: ' . brb_when($b) . "\n" . brb_event_type_line($b) . "Guests: {$b->guests}\nReference: {$ref}\n\nView your booking: " . brb_guest_link($b) . "\n";
     brb_mail($b->email, 'Your Boardroom price is confirmed (' . $ref . ')', $body, $o['admin_email']);
     brb_mail($o['admin_email'], 'Price set for ' . $ref . ' – ' . $b->name, $body . "\n" . admin_url('admin.php?page=brb&booking=' . (int) $b->id) . "\n", $b->email);
 }
@@ -934,6 +995,16 @@ function brb_cancel_booking($booking_id) {
     $b->status = 'cancelled';
     brb_send_cancel_email($b);
     return $b;
+}
+function brb_delete_booking($booking_id) {
+    global $wpdb;
+    $b = brb_booking($booking_id);
+    if (!$b) return new WP_Error('missing', 'Booking not found.');
+    if ($b->status !== 'cancelled') return new WP_Error('status', 'Only a cancelled booking can be deleted.');
+    $wpdb->delete(brb_pay_table(), ['booking_id' => (int) $b->id], ['%d']);
+    $ok = $wpdb->delete(brb_table(), ['id' => (int) $b->id], ['%d']);
+    if (!$ok) return new WP_Error('db', 'Could not delete that booking.');
+    return true;
 }
 
 /* ---------- REST ---------- */
@@ -1120,9 +1191,15 @@ function brb_view_quote() {
         } ?>
         <label>Full name*<input name="name" required autocomplete="name"></label>
         <label>Email*<input type="email" name="email" required autocomplete="email"></label>
+        <label>Event type*<select name="event_type" required>
+          <option value="">Choose one</option>
+          <?php foreach (brb_event_types() as $key => $label): ?>
+          <option value="<?php echo esc_attr($key); ?>"><?php echo esc_html($label); ?></option>
+          <?php endforeach; ?>
+        </select></label>
         <label>Event details / notes<textarea name="notes" rows="3"></textarea></label>
         <div class="brb-policy"><strong>Cancellation policy</strong><p><?php echo nl2br(esc_html($o['policy'])); ?></p><p><a href="<?php echo esc_url(home_url('/terms/')); ?>" target="_blank" rel="noopener">Read the Rental Terms</a></p></div>
-        <label class="brb-check"><input type="checkbox" name="policy" value="1" required> I agree to the <a href="<?php echo esc_url(home_url('/terms/')); ?>" target="_blank" rel="noopener">Terms</a> and <a href="<?php echo esc_url(home_url('/privacy/')); ?>" target="_blank" rel="noopener">Privacy Policy</a>.</label>
+        <label class="brb-check"><input type="checkbox" name="policy" value="1" required> I agree to the <a href="<?php echo esc_url(home_url('/terms/')); ?>" target="_blank" rel="noopener">Terms</a>, the <a href="<?php echo esc_url(home_url('/rental-agreement/')); ?>" target="_blank" rel="noopener">Rental Agreement</a> and the <a href="<?php echo esc_url(home_url('/privacy/')); ?>" target="_blank" rel="noopener">Privacy Policy</a>.</label>
         <button class="brb-btn" type="submit">Save this date</button>
       </form>
     </div>
@@ -1139,9 +1216,12 @@ function brb_view_confirmation($token) {
     $labels = ['Choose date', 'Review', $b->status === 'paid' ? 'Confirmed' : 'Date held'];
     $step = in_array($b->status, ['cancelled', 'expired'], true) ? 1 : 2;
     brb_steps($step, $labels);
+    $recorded = brb_payments($b->id);
+    $latest = $recorded ? end($recorded) : null;
+    $latest_cash = $latest && (($latest->method ?? 'check') === 'cash');
     $titles = [
         'held' => 'Your date is held',
-        'deposit_paid' => 'Deposit check recorded',
+        'deposit_paid' => $latest_cash ? 'Cash payment recorded' : 'Deposit check recorded',
         'paid' => 'Booking confirmed',
         'cancelled' => 'Booking cancelled',
         'expired' => 'Hold released',
@@ -1151,7 +1231,12 @@ function brb_view_confirmation($token) {
     <div class="brb-card brb-confirm">
       <h2><?php echo esc_html($title); ?></h2>
       <p>Reference <strong><?php echo esc_html(brb_ref($b)); ?></strong></p>
-      <p><?php echo esc_html(brb_when($b)); ?> · <?php echo (int) $b->guests; ?> guests</p>
+      <p><?php
+        $summary = brb_when($b) . ' · ' . (int) $b->guests . ' guests';
+        $event_label = brb_event_type_label($b->event_type ?? '');
+        if ($event_label !== '') $summary .= ' · ' . $event_label;
+        echo esc_html($summary);
+      ?></p>
       <?php if ($priced): ?>
       <p>Total <?php echo esc_html(brb_money($b->total)); ?> · Paid <?php echo esc_html(brb_money($b->amount_paid)); ?> · Balance <?php echo esc_html(brb_money(max(0, $paid_off))); ?></p>
       <?php else: ?>
@@ -1163,7 +1248,10 @@ function brb_view_confirmation($token) {
           echo '<p>A copy of these instructions was sent to ' . esc_html($b->email) . '.</p>';
       } elseif ($b->status === 'deposit_paid') {
           $due = brb_balance_due_label($b->balance_due_on);
-          echo '<div class="brb-paybox"><p>We have recorded a check toward this booking. Your date stays reserved.</p>';
+          $received = $latest_cash
+              ? 'We have recorded a cash payment toward this booking. Your date stays reserved.'
+              : 'We have recorded a check toward this booking. Your date stays reserved.';
+          echo '<div class="brb-paybox"><p>' . esc_html($received) . '</p>';
           echo '<p>Balance of ' . esc_html(brb_money(max(0, $paid_off))) . ($due ? ' is due by ' . esc_html($due) : '') . '.</p>';
           echo '<p>' . esc_html(brb_check_sentence('the remaining balance as a check')) . ' Write booking reference ' . esc_html(brb_ref($b)) . ' on the memo line.</p></div>';
       } elseif ($b->status === 'paid') {
