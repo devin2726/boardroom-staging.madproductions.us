@@ -1,7 +1,7 @@
 /*
 Theme Name: The Boardroom
 Description: Lightweight theme replicating the look of boardroomqc.com (dark + gold, EB Garamond, full-width hero slider). Pairs with the Boardroom Booking plugin.
-Version: 1.2.9
+Version: 1.2.10
 Author: Mad Productions
 Text Domain: boardroom
 */
@@ -45,8 +45,11 @@ section.block{padding:80px 0}section.alt{background:var(--bg2)}section.dark{back
 .amen .card{background:#fff;text-align:center;box-shadow:0 4px 18px rgba(0,0,0,.08);font-variant-numeric:lining-nums}.amen .card img{aspect-ratio:4/3;object-fit:cover;width:100%}
 .amen .card h3{margin:0;padding:22px 18px;font-size:20px;letter-spacing:.04em}
 .cta{text-align:center}.cta p{font-size:18px;max-width:640px;margin:0 auto 28px}
-.gallery{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px}.gallery a{display:block;overflow:hidden}
-.gallery img{aspect-ratio:1;object-fit:cover;width:100%;transition:transform .4s}.gallery a:hover img{transform:scale(1.05)}
+.gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}.gallery a{display:block;overflow:hidden}
+.gallery img{aspect-ratio:4/3;object-fit:cover;width:100%;transition:transform .4s}.gallery a:hover img{transform:scale(1.05)}
+.gallery-strip{grid-template-columns:repeat(6,1fr)}.gallery-more{text-align:center;margin:28px 0 0}
+@media(max-width:900px){.gallery-strip{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:520px){.gallery-strip{grid-template-columns:repeat(2,1fr)}}
 .lightbox{position:fixed;inset:0;background:rgba(0,0,0,.9);display:none;align-items:center;justify-content:center;z-index:99}.lightbox.on{display:flex}.lightbox img{max-height:90vh;max-width:92vw}
 .contact-grid{display:grid;grid-template-columns:1fr 1fr;gap:48px}@media(max-width:800px){.contact-grid{grid-template-columns:1fr}}
 .form label{display:block;font-weight:600;margin-bottom:14px;color:var(--ink)}.form input,.form textarea,.form select{display:block;width:100%;padding:12px;border:1px solid #bbb;margin-top:4px;font:inherit;background:#fff;color:var(--ink)}
@@ -62,4 +65,4 @@ section.block{padding:80px 0}section.alt{background:var(--bg2)}section.dark{back
 .site-footer{background:var(--ink2);color:#aaa;text-align:center;padding:40px 24px;font-size:14px}.site-footer a{color:#ddd;margin:0 10px}
 .legal-links{margin-top:8px}.legal-page .content h2{text-align:left;font-size:clamp(22px,3vw,32px);margin:36px 0 12px}.legal-page .content h2:after{margin:10px 0 0}.legal-page .content h3{margin:28px 0 8px}.legal-page .updated{color:#777;font-size:16px}.legal-page .rules{background:var(--bg2);border-left:4px solid var(--gold);padding:8px 20px 16px;margin:8px 0 24px}.legal-page .rules li{margin:6px 0}.legal-page .content p{font-variant-numeric:lining-nums}
 @media print{.announce,.site-header,.site-footer,.noprint,.menu-toggle{display:none!important}.page-hero{padding:24px 0}.page-hero:before{display:none}.page-hero h1{color:#000}.legal-page .content{max-width:none}}
-.fmenu{list-style:none;padding:0;margin:0;display:flex;justify-content:center;gap:8px}.gallery{grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
+.fmenu{list-style:none;padding:0;margin:0;display:flex;justify-content:center;gap:8px}
