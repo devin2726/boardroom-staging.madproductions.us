@@ -530,11 +530,14 @@ try {
         brb_t($page && stripos($content, $needle) !== false, "$slug says \"$needle\"");
         foreach ($banned as $w) brb_t(stripos($content, $w) === false, "$slug content has no $w");
     }
+    $review_settings = brb_opt();
+    $review_settings['pay_instructions'] = '[VERIFY] Test instructions.';
+    update_option('brb_settings', $review_settings);
     $_GET = ['date' => $later, 'type' => 'day', 'days' => 1, 'guests' => 4];
     $quote_html = do_shortcode('[boardroom_booking]');
     brb_t(strpos($quote_html, 'Save this date') !== false, 'review page submit button is Save this date');
     brb_t(strpos($quote_html, 'name="phone"') === false && stripos($quote_html, 'autocomplete="tel"') === false, 'the public booking form does not ask for a phone number');
-    brb_t(strpos($quote_html, 'I agree to the Terms, the Rental Agreement and the Privacy Policy') !== false && strpos($quote_html, home_url('/terms/')) !== false && strpos($quote_html, home_url('/rental-agreement/')) !== false && strpos($quote_html, home_url('/privacy/')) !== false, 'review page links the terms, rental agreement, and privacy policy');
+    brb_t(strpos($quote_html, 'I agree to the') !== false && strpos($quote_html, '>Terms<') !== false && strpos($quote_html, '>Rental Agreement<') !== false && strpos($quote_html, '>Privacy Policy<') !== false && strpos($quote_html, home_url('/terms/')) !== false && strpos($quote_html, home_url('/rental-agreement/')) !== false && strpos($quote_html, home_url('/privacy/')) !== false, 'review page links the terms, rental agreement, and privacy policy');
     brb_t(strpos($quote_html, 'name="event_type"') !== false && strpos($quote_html, 'Wedding') !== false && strpos($quote_html, 'Birthday') !== false && strpos($quote_html, 'Corporate') !== false && strpos($quote_html, 'Fundraiser') !== false && strpos($quote_html, 'Other') !== false, 'review page asks for an event type');
     brb_t(strpos($quote_html, '[VERIFY] Test instructions.') !== false && strpos($quote_html, 'Extra instructions for bringing the check') === false, 'review page shows custom instructions and hides the default placeholder');
     brb_t(stripos($quote_html, 'cash') === false, 'the public review step stays check-only');
