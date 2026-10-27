@@ -4,7 +4,7 @@ add_action('after_setup_theme', function () {
     register_nav_menus(['primary' => 'Primary', 'footer' => 'Footer']);
 });
 add_action('wp_enqueue_scripts', function () {
-    wp_enqueue_style('boardroom', get_stylesheet_uri(), [], '1.2.0');
+    wp_enqueue_style('boardroom', get_stylesheet_uri(), [], '1.2.3');
     wp_enqueue_script('boardroom', get_template_directory_uri() . '/assets/site.js', [], '1.0.0', true);
 });
 function br_img($f) { return get_template_directory_uri() . '/assets/img/' . $f; }

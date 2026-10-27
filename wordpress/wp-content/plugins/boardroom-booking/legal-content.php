@@ -86,11 +86,12 @@ function brb_terms_html() {
 <div class="rules">
 <p>These house rules are in addition to section 7 of the agreement.</p>
 <ul>
-<li>Do not use the stove top.</li>
-<li>Food warmers and the bar area may be used.</li>
+<li>No cooking is allowed in the venue.</li>
+<li>The stove top may not be used.</li>
+<li>Food warmers (for keeping prepared food warm) and the bar area may be used.</li>
 <li>There are no taps. Draft taps are not available.</li>
 <li>BYOB is allowed.</li>
-<li>The renter must obtain a one-day liquor license, about $50. <span class="placeholder">[VERIFY current fee and issuing office]</span></li>
+<li>The renter must obtain a one-day liquor license from the City of Moline, fee $50.</li>
 </ul>
 </div>
 
@@ -121,7 +122,7 @@ function brb_privacy_html() {
 <p>This site does not process payments online and does not collect card data. Payment is by check, brought in person.</p>
 
 <h2>Cookies</h2>
-<p>WordPress sets essential cookies for admin logins. This site does not use advertising or tracking cookies. <span class="placeholder">[VERIFY if analytics added]</span></p>
+<p>This site does not use advertising, analytics, or tracking cookies. Guests are not asked to accept cookies. The only cookies are the ones WordPress sets for staff when they log in to the admin area.</p>
 
 <h2>How long we keep it</h2>
 <p>We keep booking and payment records for as long as we need them for our records and for tax. If you ask us to delete your information, we will, unless the law requires us to keep it.</p>
@@ -130,14 +131,14 @@ function brb_privacy_html() {
 <p>We do not sell your information. We share it only with service providers that host this site or deliver email, and when the law requires it.</p>
 
 <h2>Your requests</h2>
-<p>You can ask to see or delete your information by emailing <a href="mailto:boardroomqc@gmail.com">boardroomqc@gmail.com</a>. <span class="placeholder">[VERIFY]</span></p>
+<p>You can ask to see or delete your information by emailing <a href="mailto:boardroomqc@gmail.com">boardroomqc@gmail.com</a>.</p>
 
 <h2>Children</h2>
 <p>This site is not directed to children, and we do not seek information from children.</p>
 
 <h2>Changes</h2>
 <p>If this policy changes, the date below will change.</p>
-<p class="updated">Last updated: October 26, 2026</p>
+<p class="updated">Last updated: October 27, 2026</p>
 PRIVACY_HTML;
 }
 
