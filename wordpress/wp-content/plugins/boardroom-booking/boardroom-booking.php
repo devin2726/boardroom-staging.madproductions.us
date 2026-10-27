@@ -85,7 +85,7 @@ function brb_defaults() {
         'admin_email' => $admin,
         'tour_email' => 'boardroomqc@gmail.com',
         'payee' => '[VERIFY] Name on the check',
-        'pay_location' => '[VERIFY] In-person location',
+        'pay_location' => '2212 37th Street, Moline, IL 61265',
         'pay_hours' => '[VERIFY] In-person hours',
         'pay_instructions' => '[VERIFY] Extra instructions for bringing the check.',
         'blackouts' => '',
@@ -248,6 +248,10 @@ function brb_migrate_settings() {
     $tour_email = isset($stored['tour_email']) ? sanitize_email((string) $stored['tour_email']) : '';
     if (!is_email($tour_email)) $merged['tour_email'] = $defaults['tour_email'];
     else $merged['tour_email'] = $tour_email;
+    $location = trim((string) ($merged['pay_location'] ?? ''));
+    if ($location === '' || stripos($location, '[VERIFY]') !== false || stripos($location, '2212 47') !== false) {
+        $merged['pay_location'] = $defaults['pay_location'];
+    }
     if (!isset($stored['policy']) || brb_policy_needs_refresh($stored['policy'])) {
         $merged['policy'] = brb_cancellation_summary();
     }
@@ -288,6 +292,25 @@ function brb_patch_faq_drinks() {
     ];
     $next = $c;
     foreach ($replacements as $old => $new) $next = str_replace($old, $new, $next);
+    if ($next === $c) return;
+    global $wpdb;
+    $wpdb->update($wpdb->posts, ['post_content' => $next], ['ID' => (int) $page->ID]);
+    clean_post_cache((int) $page->ID);
+}
+function brb_refresh_contact() {
+    $page = get_page_by_path('contact');
+    if (!$page) return;
+    $c = (string) $page->post_content;
+    $address = '<p>The Boardroom QC<br>2212 37th Street, Moline, IL 61265</p>';
+    $rest = '<p class="placeholder">PLACEHOLDER: phone, email, and map — owner to supply.</p>';
+    $old = '<p class="placeholder">PLACEHOLDER: address, phone, email and map — not on the current site; owner to supply.</p>';
+    if (strpos($c, $old) !== false) {
+        $next = str_replace($old, $address . $rest, $c);
+    } elseif (strpos($c, '2212 37th Street, Moline, IL 61265') !== false) {
+        return;
+    } else {
+        return;
+    }
     if ($next === $c) return;
     global $wpdb;
     $wpdb->update($wpdb->posts, ['post_content' => $next], ['ID' => (int) $page->ID]);
@@ -345,6 +368,7 @@ function brb_maybe_upgrade() {
     brb_migrate_prices();
     brb_scrub_public_copy();
     brb_refresh_faq();
+    brb_refresh_contact();
     brb_patch_faq_drinks();
     brb_install_legal_pages();
     brb_ensure_tour_on_contact();

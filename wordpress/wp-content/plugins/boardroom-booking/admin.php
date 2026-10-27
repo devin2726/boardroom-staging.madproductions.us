@@ -407,7 +407,7 @@ function brb_admin_settings() {
             ['deposit_fixed', 'Fixed deposit amount ($)', 'text', null, 'Used when the choice above is a fixed dollar amount. Cannot exceed the total.'],
             ['balance_due_days', 'Balance due (days before the event)', 'number', null, '[VERIFY] Used when the first check is less than the total. 7 means the rest is due 7 days before the start date.'],
             ['payee', 'Check payable to [VERIFY]', 'text', null, 'The name guests write on the payee line. Replace the [VERIFY] text.'],
-            ['pay_location', 'Where to bring the check [VERIFY]', 'text', null, 'Do not leave the placeholder in place.'],
+            ['pay_location', 'Where to bring the check', 'text', null, 'Venue and check drop-off. Default is 2212 37th Street, Moline, IL 61265.'],
             ['pay_hours', 'In-person hours [VERIFY]', 'text', null, 'Days and hours a guest can drop off a check.'],
             ['pay_instructions', 'Payment instructions [VERIFY]', 'textarea', null, 'Extra text shown on the confirmation page and in the guest email.'],
             ['admin_email', 'Admin notification email', 'text', null, 'Hold, check, expiry, and tour request emails are sent here. Separate more than one address with a comma.'],

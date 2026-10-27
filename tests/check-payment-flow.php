@@ -49,8 +49,25 @@ try {
     brb_t((string) brb_opt('min_notice_hours') === '48', 'minimum notice defaults to 48');
     brb_t((string) brb_opt('hold_hours') === '48', 'hold length defaults to 48');
     brb_t(strpos((string) brb_opt('payee'), '[VERIFY]') !== false, 'payee placeholder is marked [VERIFY]');
-    brb_t(strpos((string) brb_opt('pay_location'), '[VERIFY]') !== false, 'location placeholder is marked [VERIFY]');
+    brb_t((string) brb_opt('pay_location') === '2212 37th Street, Moline, IL 61265', 'drop-off address defaults to 2212 37th Street');
     brb_t(strpos((string) brb_opt('pay_hours'), '[VERIFY]') !== false, 'hours placeholder is marked [VERIFY]');
+    $kept = brb_opt();
+    $kept['pay_location'] = '[VERIFY] In-person location';
+    update_option('brb_settings', $kept);
+    brb_migrate_settings();
+    brb_t((string) brb_opt('pay_location') === '2212 37th Street, Moline, IL 61265', 'a placeholder drop-off address is replaced on upgrade');
+    $kept = brb_opt();
+    $kept['pay_location'] = '2212 47 Ave';
+    update_option('brb_settings', $kept);
+    brb_migrate_settings();
+    brb_t((string) brb_opt('pay_location') === '2212 37th Street, Moline, IL 61265', 'the old 2212 47 Ave drop-off is replaced on upgrade');
+    $kept = brb_opt();
+    $kept['pay_location'] = 'Side door';
+    update_option('brb_settings', $kept);
+    brb_migrate_settings();
+    brb_t((string) brb_opt('pay_location') === 'Side door', 'a custom drop-off location is kept');
+    $kept['pay_location'] = '2212 37th Street, Moline, IL 61265';
+    update_option('brb_settings', $kept);
 
     $dates = [];
     for ($i = 1; $i <= 24; $i++) $dates[] = sprintf('2030-01-%02d', $i);
@@ -408,12 +425,10 @@ try {
         'House rules for food and drink' => $terms_html,
         'stove top' => $terms_html,
         'one-day liquor license' => $terms_html,
-        '2212 47 Ave' => $terms_html,
-        '2220 37th Street' => $terms_html,
-        '2212 37th St' => $terms_html,
+        '2212 37th Street, Moline, IL 61265' => $terms_html,
         'Christmas decorations are up in December' => $terms_html,
         'not set up' => $terms_html,
-        'Last updated: October 26, 2026' => $terms_html,
+        'Last updated: October 27, 2026' => $terms_html,
         '[VERIFY: attorney review]' => $terms_html,
         'MAD Productions, LLC' => $privacy_html,
         'boardroomqc@gmail.com' => $privacy_html,
@@ -426,7 +441,15 @@ try {
     brb_t(strpos($terms_html, 'No cooking is allowed in the venue') !== false && strpos($terms_html, 'The stove top may not be used') !== false && strpos($terms_html, 'Food warmers (for keeping prepared food warm)') !== false, 'house rules say no cooking and allow food warmers');
     brb_t(strpos($terms_html, 'one-day liquor license from the City of Moline, fee $50') !== false, 'liquor license names the City of Moline and the fee');
     brb_t(strpos($terms_html, '[VERIFY current fee and issuing office]') === false, 'liquor license fee is no longer marked for verification');
-    brb_t(strpos($terms_html, '[VERIFY address.') !== false, 'check address is still marked for verification');
+    brb_t(strpos($terms_html, '[VERIFY address.') === false && strpos($terms_html, '2212 47 Ave') === false && strpos($terms_html, '2220 37th') === false && strpos($terms_html, '2212 37th St,') === false, 'terms use the confirmed address and drop the old ones');
+    brb_t(strpos($privacy_html, '2212 37th Street, Moline, IL 61265') !== false, 'privacy names the confirmed address');
+    brb_t(strpos($agreement_html, '2220 37th Street, Moline, Illinois 61265') !== false && strpos($agreement_html, '2220 37th Street, Moline, IL 61265') !== false, 'signed agreement body keeps 2220 37th Street');
+    brb_t(strpos($agreement_html, '2212 37th Street') === false && strpos($agreement_html, '2212 47 Ave') === false, 'signed agreement body is not rewritten to the site address');
+    $contact = get_page_by_path('contact');
+    $contact_html = $contact ? (string) $contact->post_content : '';
+    brb_t(strpos($contact_html, '2212 37th Street, Moline, IL 61265') !== false && strpos($contact_html, 'PLACEHOLDER: address') === false, 'contact page shows the venue address');
+    $footer = file_get_contents(get_stylesheet_directory() . '/footer.php');
+    brb_t(is_string($footer) && strpos($footer, '2212 37th Street, Moline, IL 61265') !== false, 'footer shows the venue address');
     brb_t(strpos($privacy_html, 'mailto:boardroomqc@gmail.com') !== false && strpos($privacy_html, '[VERIFY]</span>') === false, 'privacy email is confirmed without a verification marker');
     brb_t(strpos($privacy_html, 'does not use advertising, analytics, or tracking cookies') !== false && strpos($privacy_html, 'not asked to accept cookies') !== false, 'privacy says guests are not given tracking cookies');
     brb_t(strpos($privacy_html, '[VERIFY if analytics added]') === false, 'analytics cookies are no longer marked for verification');
