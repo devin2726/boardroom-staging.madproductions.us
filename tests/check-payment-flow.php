@@ -34,7 +34,7 @@ add_filter('pre_wp_mail', function ($short, $atts) {
 $GLOBALS['brb_mails'] = [];
 
 try {
-    brb_t(get_option('brb_version') === '2.1.0', 'plugin storage version is 2.1.0');
+    brb_t(get_option('brb_version') === '2.2.0', 'plugin storage version is 2.2.0');
     brb_t(get_option('blog_public') === '0' || get_option('blog_public') === 0, 'staging discourages search engines');
     $cols = $wpdb->get_col('SHOW COLUMNS FROM ' . brb_table(), 0);
     foreach (['deposit_due', 'amount_paid', 'source', 'hold_until', 'balance_due_on', 'price_set', 'status'] as $col) {
@@ -390,10 +390,57 @@ try {
         brb_t(false, 'a rewritten faq is not replaced');
     }
 
+    brb_t(!get_page_by_path('privacy-policy') && !get_page_by_path('terms-and-conditions'), 'old privacy and terms slugs are not still published');
+    $terms = get_page_by_path('terms');
+    $privacy = get_page_by_path('privacy');
+    $agreement = get_page_by_path('rental-agreement');
+    brb_t($terms && $terms->post_title === 'Rental Terms', 'terms page is titled Rental Terms');
+    brb_t($privacy && (int) get_option('wp_page_for_privacy_policy') === (int) $privacy->ID, 'privacy page is the site privacy policy');
+    $terms_html = $terms ? (string) $terms->post_content : '';
+    $privacy_html = $privacy ? (string) $privacy->post_content : '';
+    $agreement_html = $agreement ? (string) $agreement->post_content : '';
+    foreach ([
+        'Rock Island County' => $terms_html,
+        'seventy-five (75)' => $terms_html,
+        'glitter' => $terms_html,
+        'House rules for food and drink' => $terms_html,
+        'stove top' => $terms_html,
+        'one-day liquor license' => $terms_html,
+        '2212 47 Ave' => $terms_html,
+        '2220 37th Street' => $terms_html,
+        '2212 37th St' => $terms_html,
+        'Christmas decorations are up in December' => $terms_html,
+        'not set up' => $terms_html,
+        'Last updated: October 26, 2026' => $terms_html,
+        '[VERIFY: attorney review]' => $terms_html,
+        'MAD Productions, LLC' => $privacy_html,
+        'boardroomqc@gmail.com' => $privacy_html,
+        'does not collect card data' => $privacy_html,
+        'FACILITY EVENT SPACE RENTAL AGREEMENT' => $agreement_html,
+        'Rental Date:' => $agreement_html,
+    ] as $needle => $hay) {
+        brb_t(strpos($hay, $needle) !== false, 'legal copy contains ' . $needle);
+    }
+    brb_t(strpos($terms_html, '[VERIFY current fee and issuing office]') !== false, 'liquor license fee is marked for verification');
+    brb_t(strpos($privacy_html, '[VERIFY if analytics added]') !== false, 'analytics cookies are marked for verification');
+    foreach ([$terms_html, $privacy_html, $agreement_html] as $hay) {
+        foreach ($banned as $w) brb_t(stripos($hay, $w) === false, 'legal copy has no ' . $w);
+    }
+    $refused = brb_process_public_booking([
+        'date' => $later,
+        'type' => 'day',
+        'days' => 1,
+        'guests' => 4,
+        'name' => 'Flow Test',
+        'email' => 'flow-test@example.com',
+    ]);
+    brb_t(is_wp_error($refused) && $refused->get_error_code() === 'policy', 'saving a date requires agreement to the terms and privacy policy');
+
     foreach ([
         'faq' => 'price to be confirmed',
-        'privacy-policy' => 'check brought in person',
-        'terms-and-conditions' => 'your check',
+        'privacy' => 'does not collect card data',
+        'terms' => 'signed Rental Agreement controls',
+        'rental-agreement' => 'IN WITNESS WHEREOF',
     ] as $slug => $needle) {
         $page = get_page_by_path($slug);
         $content = $page ? (string) $page->post_content : '';
@@ -403,6 +450,7 @@ try {
     $_GET = ['date' => $later, 'type' => 'day', 'days' => 1, 'guests' => 4];
     $quote_html = do_shortcode('[boardroom_booking]');
     brb_t(strpos($quote_html, 'Save this date') !== false, 'review page submit button is Save this date');
+    brb_t(strpos($quote_html, 'I agree to the') !== false && strpos($quote_html, home_url('/terms/')) !== false && strpos($quote_html, home_url('/privacy/')) !== false, 'review page requires the terms and privacy policy');
     brb_t(strpos($quote_html, 'Pricing from $600 per day (most events around $1,200), final price confirmed based on date, guest count and features.') !== false, 'review page shows the from price');
     brb_t(stripos($quote_html, 'price to be confirmed') !== false, 'review page says price to be confirmed');
     brb_t(strpos($quote_html, '$500') === false && strpos($quote_html, '$75') === false && strpos($quote_html, '$100') === false && strpos($quote_html, '7%') === false && strpos($quote_html, 'Cleaning fee') === false, 'review page has no placeholder rate, fee, or tax');
