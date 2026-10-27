@@ -34,7 +34,7 @@ add_filter('pre_wp_mail', function ($short, $atts) {
 $GLOBALS['brb_mails'] = [];
 
 try {
-    brb_t(get_option('brb_version') === '2.2.2', 'plugin storage version is 2.2.2');
+    brb_t(get_option('brb_version') === '2.2.3', 'plugin storage version is 2.2.3');
     brb_t(get_option('blog_public') === '0' || get_option('blog_public') === 0, 'staging discourages search engines');
     $cols = $wpdb->get_col('SHOW COLUMNS FROM ' . brb_table(), 0);
     foreach (['deposit_due', 'amount_paid', 'source', 'hold_until', 'balance_due_on', 'price_set', 'status'] as $col) {
@@ -428,7 +428,8 @@ try {
     brb_t(strpos($terms_html, '[VERIFY current fee and issuing office]') === false, 'liquor license fee is no longer marked for verification');
     brb_t(strpos($terms_html, '[VERIFY address.') !== false, 'check address is still marked for verification');
     brb_t(strpos($privacy_html, 'mailto:boardroomqc@gmail.com') !== false && strpos($privacy_html, '[VERIFY]</span>') === false, 'privacy email is confirmed without a verification marker');
-    brb_t(strpos($privacy_html, '[VERIFY if analytics added]') !== false, 'analytics cookies are marked for verification');
+    brb_t(strpos($privacy_html, 'does not use advertising, analytics, or tracking cookies') !== false && strpos($privacy_html, 'not asked to accept cookies') !== false, 'privacy says guests are not given tracking cookies');
+    brb_t(strpos($privacy_html, '[VERIFY if analytics added]') === false, 'analytics cookies are no longer marked for verification');
     foreach ([$terms_html, $privacy_html, $agreement_html] as $hay) {
         foreach ($banned as $w) brb_t(stripos($hay, $w) === false, 'legal copy has no ' . $w);
     }

@@ -485,7 +485,7 @@ INSERT INTO `wp_posts` VALUES
 <p>This site does not process payments online and does not collect card data. Payment is by check, brought in person.</p>
 
 <h2>Cookies</h2>
-<p>WordPress sets essential cookies for admin logins. This site does not use advertising or tracking cookies. <span class="placeholder">[VERIFY if analytics added]</span></p>
+<p>This site does not use advertising, analytics, or tracking cookies. Guests are not asked to accept cookies. The only cookies are the ones WordPress sets for staff when they log in to the admin area.</p>
 
 <h2>How long we keep it</h2>
 <p>We keep booking and payment records for as long as we need them for our records and for tax. If you ask us to delete your information, we will, unless the law requires us to keep it.</p>
@@ -501,7 +501,7 @@ INSERT INTO `wp_posts` VALUES
 
 <h2>Changes</h2>
 <p>If this policy changes, the date below will change.</p>
-<p class="updated">Last updated: October 26, 2026</p>','Privacy Policy','','publish','closed','closed','','privacy','','','2026-10-16 15:17:10','2026-10-16 20:17:10','',0,'http://localhost:8088/privacy/',0,'page','',0),
+<p class="updated">Last updated: October 27, 2026</p>','Privacy Policy','','publish','closed','closed','','privacy','','','2026-10-16 15:17:10','2026-10-16 20:17:10','',0,'http://localhost:8088/privacy/',0,'page','',0),
 (9,0,'2026-10-16 15:17:11','2026-10-16 20:17:11','<p>These Rental Terms are a plain-language summary of the Facility Event Space Rental Agreement between MAD Productions, LLC, the Owner of The Boardroom QC, and the person or entity renting the space. They follow that agreement section by section. They do not replace it. If this page and the signed agreement differ, the signed agreement controls. The full text, with signature lines, is on the <a href="/rental-agreement/">Rental Agreement</a> page, which you can print.</p>
 
 <h2>1. Rental period and limited use</h2>

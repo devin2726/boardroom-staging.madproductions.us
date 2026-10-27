@@ -2,11 +2,11 @@
 /**
  * Plugin Name: Boardroom Booking
  * Description: Self-hosted direct booking for The Boardroom — full-day and hourly blocks, availability calendar, agreed prices, in-person check holds, blackout dates, and emails.
- * Version: 2.2.2
+ * Version: 2.2.3
  * Author: Mad Productions
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.2.2');
+define('BRB_VER', '2.2.3');
 require_once __DIR__ . '/legal-content.php';
 define('BRB_URL', plugin_dir_url(__FILE__));
 
