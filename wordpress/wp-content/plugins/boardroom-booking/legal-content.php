@@ -113,19 +113,19 @@ function brb_privacy_html() {
 <p>This policy describes what MAD Productions, LLC, doing business as The Boardroom QC, at 2220 37th Street, Moline, IL 61265, collects on this website and how it is used.</p>
 
 <h2>Information we collect</h2>
-<p>The booking form and the contact form ask for your name, email, phone, event date and time, party size, and notes. The tour request form asks for your name, an email or a phone number, a preferred date, a time of day, how many people, and notes about the event. When a check is received, staff enter the check number and the payment record by hand. That record is stored with the booking. A tour request is stored with the request.</p>
+<p>The booking form asks for your name, email, event date and time, party size, and notes. The contact form asks for your name, email, and a message. You can also say what the message is about, and a preferred date or time. When a check is received, staff enter the check number and the payment record by hand. That record is stored with the booking. A contact inquiry is stored with the inquiry.</p>
 
 <h2>How we use it</h2>
-<p>We use this information only to manage reservations and tour requests, and to communicate with you about them. Email about a booking or a tour request is sent through this site’s mail system.</p>
+<p>We use this information only to manage reservations and contact inquiries, and to communicate with you about them. Email about a booking or a contact inquiry is sent through this site’s mail system.</p>
 
 <h2>Payment</h2>
 <p>This site does not process payments online and does not collect card data. Mail or drop off checks payable to Mad Productions at 2212 37th Street, Moline, IL 61265.</p>
 
 <h2>Cookies</h2>
-<p>This site does not use advertising, analytics, or tracking cookies. Guests are not asked to accept cookies. The tour request form does not set a cookie. Directions are a plain link to Google Maps. This page does not embed a map or load Google, so opening it does not set a Google cookie. The only cookies are the ones WordPress sets for staff when they log in to the admin area.</p>
+<p>This site sets no advertising, analytics, or tracking cookies of its own, but the embedded Google Map on the Contact page may set cookies from Google, and Google's privacy policy applies to those cookies. Guests are not asked to accept cookies. The contact form does not set a cookie. WordPress sets cookies for staff when they log in to the admin area.</p>
 
 <h2>How long we keep it</h2>
-<p>We keep booking, payment, and tour request records for as long as we need them for our records and for tax. A tour request is removed only when a staff member deletes it. If you ask us to delete your information, we will, unless the law requires us to keep it.</p>
+<p>We keep booking, payment, and contact inquiry records for as long as we need them for our records and for tax. A contact inquiry is removed only when a staff member deletes it. If you ask us to delete your information, we will, unless the law requires us to keep it.</p>
 
 <h2>Sharing</h2>
 <p>We do not sell your information. We share it only with service providers that host this site or deliver email, and when the law requires it.</p>

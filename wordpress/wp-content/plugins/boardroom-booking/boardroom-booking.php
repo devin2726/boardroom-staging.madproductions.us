@@ -2,11 +2,11 @@
 /**
  * Plugin Name: Boardroom Booking
  * Description: Self-hosted direct booking for The Boardroom — full-day and hourly blocks, availability calendar, agreed prices, in-person check holds, blackout dates, and emails.
- * Version: 2.2.7
+ * Version: 2.2.8
  * Author: Mad Productions
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.2.7');
+define('BRB_VER', '2.2.8');
 define('BRB_VENUE_ADDRESS', '2220 37th Street, Moline, IL 61265');
 define('BRB_CHECK_ADDRESS', '2212 37th Street, Moline, IL 61265');
 define('BRB_MAPS_URL', 'https://maps.app.goo.gl/nVqUsGTcy48nPzc18');
@@ -129,6 +129,15 @@ function brb_check_sentence($item = 'checks') {
 }
 function brb_directions_markup() {
     return '<p><a href="' . esc_url(BRB_MAPS_URL) . '" rel="noopener noreferrer">Get directions / View on Google Maps</a></p>';
+}
+function brb_map_embed_src() {
+    return 'https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2988!2d' . BRB_MAPS_LNG . '!3d' . BRB_MAPS_LAT . '!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x87e231a14fb72783:0x7d868c8b37ef86ac!2sthe%20Boardroom!5e0!3m2!1sen!2sus';
+}
+function brb_map_embed() {
+    return '<iframe class="venue-map" src="' . esc_url(brb_map_embed_src()) . '" loading="lazy" title="Map of The Boardroom" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe>';
+}
+function brb_contact_stored_markup() {
+    return '<h2>Contact the Boardroom</h2><p>The Boardroom QC<br>' . BRB_VENUE_ADDRESS . '</p><p><a href="mailto:boardroomqc@gmail.com">boardroomqc@gmail.com</a></p>' . brb_directions_markup();
 }
 function brb_place_schema() {
     $data = [
@@ -361,20 +370,7 @@ function brb_refresh_contact() {
     $page = get_page_by_path('contact');
     if (!$page) return;
     $c = (string) $page->post_content;
-    $next = $c;
-    $address = '<p>The Boardroom QC<br>' . BRB_VENUE_ADDRESS . '</p>';
-    $older = '<p class="placeholder">PLACEHOLDER: address, phone, email and map — not on the current site; owner to supply.</p>';
-    $old_rest = '<p class="placeholder">PLACEHOLDER: phone, email, and map — owner to supply.</p>';
-    $rest = '<p class="placeholder">PLACEHOLDER: phone and email — owner to supply.</p>';
-    $link = brb_directions_markup();
-    if (strpos($next, $older) !== false) $next = str_replace($older, $address . $rest, $next);
-    if (strpos($next, BRB_CHECK_ADDRESS) !== false) $next = str_replace(BRB_CHECK_ADDRESS, BRB_VENUE_ADDRESS, $next);
-    if (strpos($next, $old_rest) !== false) $next = str_replace($old_rest, $rest, $next);
-    if (strpos($next, BRB_MAPS_URL) === false) {
-        if (strpos($next, $rest) !== false) $next = str_replace($rest, $link . $rest, $next);
-        elseif (strpos($next, BRB_VENUE_ADDRESS . '</p>') !== false) $next = str_replace(BRB_VENUE_ADDRESS . '</p>', BRB_VENUE_ADDRESS . '</p>' . $link, $next);
-        else $next .= $link;
-    }
+    $next = brb_contact_stored_markup();
     if ($next === $c) return;
     global $wpdb;
     $wpdb->update($wpdb->posts, ['post_content' => $next], ['ID' => (int) $page->ID]);
@@ -795,7 +791,7 @@ function brb_process_public_booking($post) {
     return brb_insert_booking($r, $q, [
         'name' => $name,
         'email' => $email,
-        'phone' => sanitize_text_field($post['phone'] ?? ''),
+        'phone' => '',
         'notes' => sanitize_textarea_field($post['notes'] ?? ''),
     ], 'online', true);
 }
@@ -1124,7 +1120,6 @@ function brb_view_quote() {
         } ?>
         <label>Full name*<input name="name" required autocomplete="name"></label>
         <label>Email*<input type="email" name="email" required autocomplete="email"></label>
-        <label>Phone<input name="phone" autocomplete="tel"></label>
         <label>Event details / notes<textarea name="notes" rows="3"></textarea></label>
         <div class="brb-policy"><strong>Cancellation policy</strong><p><?php echo nl2br(esc_html($o['policy'])); ?></p><p><a href="<?php echo esc_url(home_url('/terms/')); ?>" target="_blank" rel="noopener">Read the Rental Terms</a></p></div>
         <label class="brb-check"><input type="checkbox" name="policy" value="1" required> I agree to the <a href="<?php echo esc_url(home_url('/terms/')); ?>" target="_blank" rel="noopener">Terms</a> and <a href="<?php echo esc_url(home_url('/privacy/')); ?>" target="_blank" rel="noopener">Privacy Policy</a>.</label>

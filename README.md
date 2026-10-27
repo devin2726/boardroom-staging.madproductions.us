@@ -4,6 +4,8 @@ WordPress site for The Boardroom event space, deployed with Docker Compose (Word
 
 Guests **save a date on the website and mail or drop off a check**. The site does not take payment itself. The venue is 2220 37th Street, Moline, IL 61265. Checks go to 2212 37th Street, Moline, IL 61265.
 
+Contact is one form on `/contact/`: name, email, message, an optional “What’s this about?” choice, and an optional preferred date or time. It does not hold a date. Bookings → Inquiries lists those messages. The notification subject is “New contact inquiry”. The Contact page also shows the venue address, `boardroomqc@gmail.com`, a Google Map that loads on its own, and the directions link. The privacy page says this site sets no advertising, analytics, or tracking cookies of its own, and that the embedded map may set cookies from Google. There is no cookie banner.
+
 ## Guest flow
 
 1. Pick a full day or a shorter block on the calendar. Starts inside the minimum notice (default **48 hours**, America/Chicago) are unavailable.
@@ -36,8 +38,8 @@ Bookings → Settings. Anything still marked `[VERIFY]` is shown to guests until
 | Setting | Default | Notes |
 |---|---|---|
 | Check payable to | `[VERIFY] Name on the check` | Name on the check |
-| Venue address | 2220 37th Street, Moline, IL 61265 | The event space. Footer, Contact, the tour form, Terms, and Privacy. A blank value, a placeholder, or the check address saved here by mistake is replaced on upgrade. |
-| Map | https://maps.app.goo.gl/nVqUsGTcy48nPzc18 | Plain “Get directions / View on Google Maps” link on Contact, the footer, and the tour confirmation. Schema geo is 41.4913116, -90.4820481. The map is not embedded. |
+| Venue address | 2220 37th Street, Moline, IL 61265 | The event space. Footer, Contact, Terms, and Privacy. A blank value, a placeholder, or the check address saved here by mistake is replaced on upgrade. |
+| Map | https://maps.app.goo.gl/nVqUsGTcy48nPzc18 | Contact embeds a Google Map for the Boardroom (41.4913116, -90.4820481) with `loading="lazy"`. The same short link is the “Get directions / View on Google Maps” fallback on Contact and in the footer. Schema geo uses those coordinates. |
 | Where to mail or drop off checks | 2212 37th Street, Moline, IL 61265 | Checks only. A saved placeholder, or the old 2212 47 Ave line, is replaced on upgrade. |
 | In-person hours | `[VERIFY] In-person hours` | |
 | Payment instructions | `[VERIFY] …` | Free text on the confirmation page and in email |
@@ -47,8 +49,8 @@ Bookings → Settings. Anything still marked `[VERIFY]` is shown to guests until
 | Balance due | 7 days before the event | `[VERIFY]` Used only when the first check is less than the agreed price |
 | Minimum notice (hours) | 48 | Booking must **start** at least this many hours from now. This is the “not inside 48 hours” rule. Change the number here if the rule changes. |
 | Hold length (hours) | 48 | How long an unpaid saved date stays reserved |
-| Admin notification email | WordPress admin email | Hold, price, check, expiry, and tour request mail. Separate extra addresses with commas. |
-| Tour request email | boardroomqc@gmail.com | Tour requests are emailed here as well. A blank or invalid saved value is replaced on upgrade. |
+| Admin notification email | WordPress admin email | Hold, price, check, expiry, and contact inquiry mail. Separate extra addresses with commas. |
+| Inquiry email | boardroomqc@gmail.com | Contact inquiries are emailed here as well. A blank or invalid saved value is replaced on upgrade. |
 | Cancellation policy | Summary of the signed rental agreement | Shown before save and in email. A saved placeholder is replaced on upgrade. The Rental Terms, Privacy Policy, and printable Rental Agreement pages are the guest-facing text. |
 | Blackout dates | Whatever is already saved | **Upgrades do not wipe this list.** Emptying the box does not delete saved dates unless “Clear all blackout dates” is ticked. |
 
