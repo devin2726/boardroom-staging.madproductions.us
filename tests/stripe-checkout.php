@@ -233,7 +233,7 @@ try {
     foreach ($GLOBALS['brb_mails'] as $m) {
         if (stripos($m['to'], 'stripe-flow@example.com') !== false) $price_mail = $m;
     }
-    brb_t($price_mail && strpos($price_mail['message'], 'Pay online: ') !== false && strpos($price_mail['message'], 'Mail or drop off checks payable to Mad Productions') !== false, 'the price email includes the pay link and the check instructions');
+    brb_t($price_mail && strpos($price_mail['message'], 'Pay online: ') !== false && strpos($price_mail['message'], 'Mail or drop off a check for') !== false && strpos($price_mail['message'], 'processing fee') !== false, 'the price email includes the pay link and the check instructions');
     $_GET = ['br_token' => $priced->token];
     $confirm = do_shortcode('[boardroom_booking]');
     brb_t(strpos($confirm, '>Pay online<') !== false && strpos($confirm, 'br_pay=' . $priced->token) !== false, 'the confirmation page shows Pay online once the price is set');
