@@ -14,6 +14,12 @@ services:
       - WP_ADMIN_PASSWORD=${WP_ADMIN_PASSWORD:-}
       - WP_ADMIN_EMAIL=${WP_ADMIN_EMAIL:-}
       - DISCOURAGE_SEARCH=${DISCOURAGE_SEARCH:-1}
+      - BRB_SMTP_HOST=${BRB_SMTP_HOST:-smtp.gmail.com}
+      - BRB_SMTP_PORT=${BRB_SMTP_PORT:-587}
+      - BRB_SMTP_USER=${BRB_SMTP_USER:-}
+      - BRB_SMTP_PASS=${BRB_SMTP_PASS:-}
+      - BRB_SMTP_FROM=${BRB_SMTP_FROM:-boardroomqc@gmail.com}
+      - "BRB_SMTP_FROM_NAME=${BRB_SMTP_FROM_NAME:-The Boardroom}"
       - |
         WORDPRESS_CONFIG_EXTRA=
         if (isset($$_SERVER['HTTP_X_FORWARDED_PROTO']) && $$_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') { $$_SERVER['HTTPS'] = 'on'; }

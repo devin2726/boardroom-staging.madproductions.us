@@ -33,7 +33,7 @@ $created = [];
 $snapshot = get_option('brb_settings');
 
 try {
-    brb_t(get_option('brb_version') === '2.2.8', 'plugin storage version is 2.2.8');
+    brb_t(get_option('brb_version') === '2.2.9', 'plugin storage version is 2.2.9');
     brb_t($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', brb_tour_table())) === brb_tour_table(), 'inquiry table still exists');
     $cols = $wpdb->get_col('SHOW COLUMNS FROM ' . brb_tour_table(), 0);
     brb_t(in_array('phone', $cols, true) && in_array('topic', $cols, true) && in_array('preferred', $cols, true), 'topic and preferred were added and phone was kept');
@@ -114,6 +114,10 @@ try {
         sort($tos);
         brb_t($tos === ['boardroomqc@gmail.com'], 'the notice is emailed to the inquiry address');
         brb_t(($GLOBALS['brb_mails'][0]['subject'] ?? '') === 'New contact inquiry', 'the subject is New contact inquiry');
+        $headers = $GLOBALS['brb_mails'][0]['headers'] ?? [];
+        $header_text = is_array($headers) ? implode("\n", $headers) : (string) $headers;
+        brb_t(strpos($header_text, 'From: The Boardroom <boardroomqc@gmail.com>') !== false, 'inquiry mail is from boardroomqc@gmail.com');
+        brb_t(strpos($header_text, 'Reply-To: inquiry-guest@example.com') !== false, 'inquiry mail replies to the guest');
         $body = (string) ($GLOBALS['brb_mails'][0]['message'] ?? '');
         brb_t(strpos($body, 'A contact inquiry was received.') !== false && strpos($body, 'No date is held.') !== false && strpos($body, 'Inquiry Guest') !== false && strpos($body, 'Can we see the room?') !== false && strpos($body, 'Tour the venue') !== false && strpos($body, 'Saturday afternoon') !== false, 'the notice describes the inquiry and does not hold a date');
         brb_t(strpos($body, 'Phone:') === false && stripos($body, 'tour was requested') === false && strpos($body, '309-555-0100') === false, 'the inquiry email omits a phone number');

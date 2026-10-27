@@ -113,7 +113,7 @@ function brb_privacy_html() {
 <p>This policy describes what MAD Productions, LLC, doing business as The Boardroom QC, at 2220 37th Street, Moline, IL 61265, collects on this website and how it is used.</p>
 
 <h2>Information we collect</h2>
-<p>The booking form asks for your name, email, event date and time, party size, and notes. The contact form asks for your name, email, and a message. You can also say what the message is about, and a preferred date or time. When a check is received, staff enter the check number and the payment record by hand. That record is stored with the booking. A contact inquiry is stored with the inquiry.</p>
+<p>The booking form asks for your name, email, event type, event date and time, party size, and notes. The contact form asks for your name, email, and a message. You can also say what the message is about, and a preferred date or time. When a check is received, staff enter the check number and the payment record by hand. That record is stored with the booking. A contact inquiry is stored with the inquiry.</p>
 
 <h2>How we use it</h2>
 <p>We use this information only to manage reservations and contact inquiries, and to communicate with you about them. Email about a booking or a contact inquiry is sent through this site’s mail system.</p>

@@ -10,9 +10,9 @@ Contact is one form on `/contact/`: name, email, message, an optional “What’
 
 1. Pick a full day or a shorter block on the calendar. Starts inside the minimum notice (default **48 hours**, America/Chicago) are unavailable.
 2. Review the date. The page shows **Pricing from $600 per day (most events around $1,200), final price confirmed based on date, guest count and features.** The starting amount and the parenthetical text are settings. Until staff set a price, the guest sees **price to be confirmed**. There is no calculated cleaning fee, tax, or total on the website.
-3. Enter contact details, agree to the Terms and Privacy Policy, and press **Save this date**.
+3. Enter contact details, choose an event type (Wedding, Birthday, Corporate, Fundraiser, or Other), agree to the Terms, the Rental Agreement, and the Privacy Policy, and press **Save this date**.
 4. The date is **held** so nobody else can book it. The confirmation page and the guest email state:
-   - the exact hold deadline in America/Chicago
+   - that the date is held for 48 hours (or the hold length in settings), and the exact deadline time in America/Chicago
    - that the price is to be confirmed, or the check amount once staff have set it
    - who the check is payable to, and where to mail or drop it off
    - the booking reference to write on the memo
@@ -25,7 +25,8 @@ Contact is one form on `/contact/`: name, email, message, an optional “What’
 Bookings → All Bookings shows **Held (awaiting check)**, **Deposit paid**, **Paid in full**, **Cancelled**, and **Expired**.
 
 - **Set agreed price** stores the final price for that booking and emails the guest the check amount. The hold and recorded checks use this price. Recording a check or marking paid is refused until a price is set.
-- **Record check payment** stores the amount, check number, date received, and notes. A deposit and the later balance are two records. Each one emails the guest. The row shows paid and balance.
+- **Record payment** stores the amount, method (Check or Cash), date received, and notes. The check number is optional and is kept only for a check. Cash is an in-person staff record; the public pages still tell guests to mail or drop off a check. A deposit and the later balance are two records. Each one emails the guest, and that receipt names the method. Paid and balance use the same totals either way.
+- **Delete booking** is available only after a booking is Cancelled. It asks for confirmation, checks the staff nonce and capability, and removes that booking’s payment rows.
 - **Mark paid in full** records the remaining balance and emails the guest.
 - **Extend hold** pushes the deadline out (or puts an expired hold back if the date is still free).
 - **Add booking** is for phone and walk-in requests. It has a source field and an agreed-price field (leave the price blank to hold the date as price to be confirmed). Staff can override the minimum notice; the public form cannot.
@@ -42,7 +43,7 @@ Bookings → Settings. Anything still marked `[VERIFY]` is shown to guests until
 | Map | https://maps.app.goo.gl/nVqUsGTcy48nPzc18 | Contact embeds a Google Map for the Boardroom (41.4913116, -90.4820481) with `loading="lazy"`. The same short link is the “Get directions / View on Google Maps” fallback on Contact and in the footer. Schema geo uses those coordinates. |
 | Where to mail or drop off checks | 2212 37th Street, Moline, IL 61265 | Checks only. A saved placeholder, or the old 2212 47 Ave line, is replaced on upgrade. |
 | In-person hours | `[VERIFY] In-person hours` | |
-| Payment instructions | `[VERIFY] …` | Free text on the confirmation page and in email |
+| Payment instructions | blank | Optional extra text on the review step, confirmation page, and hold email. The old “[VERIFY] Extra instructions for bringing the check.” placeholder is cleared on upgrade and the line stays hidden while this is blank. |
 | Starting price | $600 per day | Shown to guests as “from” this amount. Whole dollars display without cents. |
 | Typical price text | most events around $1,200 | Shown in parentheses. Edit the words here. |
 | Amount that secures the date | Full amount of the agreed price | Or a percent, or a fixed dollar amount. Applied only after staff set the price. |
@@ -59,6 +60,8 @@ Full-day bookings start at 12:00 AM America/Chicago and block the whole day. Sho
 ## Deploy
 
 Coolify deploys the **`main`** branch from `docker-compose.yml`. See [README-COOLIFY.md](README-COOLIFY.md). Redeploying syncs the theme and plugin. It does not replace the database volume, so bookings and blackout dates stay.
+
+Outbound mail uses SMTP only when `BRB_SMTP_USER` and `BRB_SMTP_PASS` are set on the wordpress service (`BRB_SMTP_HOST` defaults to smtp.gmail.com, `BRB_SMTP_PORT` to 587, STARTTLS). `BRB_SMTP_FROM` defaults to boardroomqc@gmail.com and `BRB_SMTP_FROM_NAME` to The Boardroom. Do not commit the password. Inquiry mail keeps Reply-To set to the guest. Bookings → Settings → Send test email delivers to the admin notification email.
 
 Staging stays out of search indexes while `DISCOURAGE_SEARCH=1` (the default).
 

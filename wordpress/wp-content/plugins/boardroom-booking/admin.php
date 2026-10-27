@@ -20,7 +20,6 @@ add_action('admin_notices', function () {
         'payee' => 'check payable-to name',
         'pay_location' => 'in-person payment location',
         'pay_hours' => 'in-person hours',
-        'pay_instructions' => 'payment instructions',
     ] as $k => $label) {
         if (strpos((string) $o[$k], '[VERIFY]') !== false) $missing[] = $label;
     }
@@ -54,13 +53,15 @@ add_action('admin_post_brb_price', function () {
 add_action('admin_post_brb_payment', function () {
     brb_admin_gate('brb_payment');
     $id = (int) ($_POST['booking'] ?? 0);
+    $method = sanitize_key(wp_unslash($_POST['method'] ?? 'check'));
     $res = brb_record_payment(
         $id,
         wp_unslash($_POST['amount'] ?? ''),
         wp_unslash($_POST['check_number'] ?? ''),
         sanitize_text_field(wp_unslash($_POST['received_on'] ?? '')),
         wp_unslash($_POST['pay_notes'] ?? ''),
-        true
+        false,
+        $method
     );
     if (is_wp_error($res)) brb_admin_back($id, $res->get_error_message());
     brb_admin_back($id, brb_ref($res) . ' updated: ' . brb_status_label($res->status) . '. The guest was emailed.');
@@ -86,6 +87,19 @@ add_action('admin_post_brb_cancel', function () {
     if (is_wp_error($res)) brb_admin_back($id, $res->get_error_message());
     brb_admin_back($id, brb_ref($res) . ' cancelled. The guest was emailed.');
 });
+add_action('admin_post_brb_delete', function () {
+    brb_admin_gate('brb_delete');
+    $id = (int) ($_POST['booking'] ?? 0);
+    $res = brb_delete_booking($id);
+    if (is_wp_error($res)) brb_admin_back($id, $res->get_error_message());
+    brb_admin_back(0, 'Cancelled booking deleted.');
+});
+add_action('admin_post_brb_test_email', function () {
+    brb_admin_gate('brb_test_email');
+    $res = brb_send_test_email();
+    if (is_wp_error($res)) brb_admin_back(0, 'Test email failed: ' . brb_redact_secret($res->get_error_message()), 'brb-settings');
+    brb_admin_back(0, 'Test email sent to ' . implode(', ', $res) . '.', 'brb-settings');
+});
 add_action('admin_post_brb_manual', function () {
     brb_admin_gate('brb_manual');
     $post = wp_unslash($_POST);
@@ -106,11 +120,14 @@ add_action('admin_post_brb_manual', function () {
         if ($take) brb_admin_back(0, 'Enter the agreed price before recording a check.', 'brb-new');
         $q = brb_quote($r);
     }
+    $event_type = sanitize_key($post['event_type'] ?? '');
+    if (!isset(brb_event_types()[$event_type])) $event_type = '';
     $b = brb_insert_booking($r, $q, [
         'name' => $name,
         'email' => $email,
         'phone' => sanitize_text_field($post['phone'] ?? ''),
         'notes' => sanitize_textarea_field($post['notes'] ?? ''),
+        'event_type' => $event_type,
     ], $source, !$take);
     if (is_wp_error($b)) brb_admin_back(0, $b->get_error_message(), 'brb-new');
     if ($take) {
@@ -190,6 +207,7 @@ function brb_admin_detail($id) {
     $rows = [
         'When' => brb_when($b),
         'Guests' => (string) (int) $b->guests,
+        'Event type' => brb_event_type_label($b->event_type ?? '') ?: '—',
         'Source' => brb_source_label($b->source),
         'Name' => $b->name,
         'Email' => $b->email,
@@ -222,19 +240,24 @@ function brb_admin_detail($id) {
     }
 
     if (!$set && !in_array($b->status, ['cancelled', 'expired', 'paid'], true)) {
-        echo '<h2>Record check payment</h2><p>Set the agreed price before recording a check.</p>';
+        echo '<h2>Record payment</h2><p>Set the agreed price before recording a payment.</p>';
     }
     if ($set && !in_array($b->status, ['cancelled', 'expired', 'paid'], true) && $balance > 0.009) {
-        echo '<h2>Record check payment</h2><form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="max-width:640px">';
+        echo '<h2>Record payment</h2><form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="max-width:640px">';
         echo '<input type="hidden" name="action" value="brb_payment"><input type="hidden" name="booking" value="' . (int) $b->id . '">';
         wp_nonce_field('brb_payment');
         $toward = round((float) $b->deposit_due - (float) $b->amount_paid, 2);
         $suggest = ($toward > 0.009) ? min($balance, $toward) : $balance;
-        echo '<table class="form-table"><tr><th><label for="amount">Amount</label></th><td><input name="amount" id="amount" type="number" step="0.01" min="0.01" max="' . esc_attr(brb_dec($balance)) . '" value="' . esc_attr(brb_dec($suggest)) . '" required> <span class="description">Balance is ' . esc_html(brb_money($balance)) . '. Record the deposit, then record the balance when the second check arrives.</span></td></tr>';
-        echo '<tr><th><label for="check_number">Check number</label></th><td><input name="check_number" id="check_number" class="regular-text" required></td></tr>';
+        echo '<table class="form-table"><tr><th><label for="amount">Amount</label></th><td><input name="amount" id="amount" type="number" step="0.01" min="0.01" max="' . esc_attr(brb_dec($balance)) . '" value="' . esc_attr(brb_dec($suggest)) . '" required> <span class="description">Balance is ' . esc_html(brb_money($balance)) . '. Record the deposit, then record the balance when the rest arrives.</span></td></tr>';
+        echo '<tr><th><label for="method">Method</label></th><td><select name="method" id="method">';
+        foreach (brb_pay_methods() as $key => $label) {
+            printf('<option value="%s">%s</option>', esc_attr($key), esc_html($label));
+        }
+        echo '</select></td></tr>';
+        echo '<tr><th><label for="check_number">Check number</label></th><td><input name="check_number" id="check_number" class="regular-text"> <span class="description">Only for a check. Leave this blank for cash.</span></td></tr>';
         echo '<tr><th><label for="received_on">Date received</label></th><td><input name="received_on" id="received_on" type="date" value="' . esc_attr(brb_now()->format('Y-m-d')) . '" required></td></tr>';
         echo '<tr><th><label for="pay_notes">Notes</label></th><td><textarea name="pay_notes" id="pay_notes" rows="3" class="large-text"></textarea></td></tr></table>';
-        echo '<p><button class="button button-primary">Record check and email guest</button></p></form>';
+        echo '<p><button class="button button-primary">Record payment and email guest</button></p></form>';
     }
 
     echo '<h2>Actions</h2><div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end">';
@@ -254,16 +277,21 @@ function brb_admin_detail($id) {
         wp_nonce_field('brb_cancel');
         echo '<button class="button">Cancel booking</button></form>';
     }
+    if ($b->status === 'cancelled') {
+        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" onsubmit="return confirm(\'Delete this cancelled booking and its payment records? This cannot be undone.\');"><input type="hidden" name="action" value="brb_delete"><input type="hidden" name="booking" value="' . (int) $b->id . '">';
+        wp_nonce_field('brb_delete');
+        echo '<button class="button">Delete booking</button></form>';
+    }
     echo '</div>';
 
     $pays = brb_payments($b->id);
-    echo '<h2>Checks recorded</h2>';
+    echo '<h2>Payments recorded</h2>';
     if (!$pays) {
-        echo '<p>No checks recorded yet.</p>';
+        echo '<p>No payments recorded yet.</p>';
     } else {
-        echo '<table class="widefat" style="max-width:760px"><thead><tr><th>Date received</th><th>Amount</th><th>Check number</th><th>Notes</th></tr></thead><tbody>';
+        echo '<table class="widefat" style="max-width:760px"><thead><tr><th>Date received</th><th>Amount</th><th>Method</th><th>Check number</th><th>Notes</th></tr></thead><tbody>';
         foreach ($pays as $p) {
-            printf('<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>', esc_html($p->received_on), esc_html(brb_money($p->amount)), esc_html($p->check_number), esc_html($p->notes));
+            printf('<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>', esc_html($p->received_on), esc_html(brb_money($p->amount)), esc_html(brb_pay_method_label($p->method ?? 'check')), esc_html($p->check_number), esc_html($p->notes));
         }
         echo '</tbody></table>';
     }
@@ -286,6 +314,11 @@ function brb_admin_new() {
     echo '<tr><th><label for="start_hour">Start hour (hourly)</label></th><td><input type="number" name="start_hour" id="start_hour" min="' . (int) $o['open_hour'] . '" max="' . ((int) $o['close_hour'] - 1) . '" value="' . (int) $o['open_hour'] . '"> <span class="description">0–23, venue hours ' . (int) $o['open_hour'] . ':00–' . (int) $o['close_hour'] . ':00</span></td></tr>';
     echo '<tr><th><label for="hours">Hours</label></th><td><input type="number" name="hours" id="hours" min="' . (int) $o['min_hours'] . '" value="' . (int) $o['min_hours'] . '"></td></tr>';
     echo '<tr><th><label for="guests">Guests</label></th><td><input type="number" name="guests" id="guests" min="1" max="' . (int) $o['max_guests'] . '" value="10"></td></tr>';
+    echo '<tr><th><label for="event_type">Event type</label></th><td><select name="event_type" id="event_type"><option value="">Not specified</option>';
+    foreach (brb_event_types() as $key => $label) {
+        printf('<option value="%s">%s</option>', esc_attr($key), esc_html($label));
+    }
+    echo '</select></td></tr>';
     echo '<tr><th><label for="name">Name</label></th><td><input name="name" id="name" class="regular-text" required></td></tr>';
     echo '<tr><th><label for="email">Email</label></th><td><input type="email" name="email" id="email" class="regular-text" required></td></tr>';
     echo '<tr><th><label for="phone">Phone</label></th><td><input name="phone" id="phone" class="regular-text"></td></tr>';
@@ -412,7 +445,7 @@ function brb_admin_settings() {
             ['payee', 'Check payable to [VERIFY]', 'text', null, 'The name guests write on the payee line. Until this placeholder is replaced, guest check instructions say Mad Productions.'],
             ['pay_location', 'Where to mail or drop off checks', 'text', null, 'Check mail and drop-off only. Default is 2212 37th Street, Moline, IL 61265. A saved placeholder, or the old 2212 47 Ave line, is replaced on upgrade.'],
             ['pay_hours', 'In-person hours [VERIFY]', 'text', null, 'Days and hours a guest can drop off a check.'],
-            ['pay_instructions', 'Payment instructions [VERIFY]', 'textarea', null, 'Extra text shown on the confirmation page and in the guest email.'],
+            ['pay_instructions', 'Payment instructions', 'textarea', null, 'Optional extra text on the review step, the confirmation page, and in the hold email. Leave blank and this line stays hidden.'],
             ['admin_email', 'Admin notification email', 'text', null, 'Hold, check, expiry, and contact inquiry emails are sent here. Separate more than one address with a comma.'],
             ['tour_email', 'Inquiry email', 'text', null, 'Contact inquiries are also emailed here. Default is boardroomqc@gmail.com.'],
         ],
@@ -422,6 +455,7 @@ function brb_admin_settings() {
         ],
     ];
     echo '<div class="wrap"><h1>Booking Settings</h1>';
+    brb_admin_note();
     echo '<p>Guests save a date on the website and mail or drop off a check. Nothing is collected through the website. ' . esc_html(brb_price_sentence()) . ' Staff set the final price on each booking. The venue and the check address are separate settings.</p>';
     $sampleStart = brb_now()->modify('+10 days')->setTime(0, 0);
     echo '<div class="brb-paybox"><strong>What guests see before a price is set</strong>';
@@ -449,5 +483,18 @@ function brb_admin_settings() {
         }
         echo '</table>';
     }
-    echo '<p><button class="button button-primary" name="brb_save" value="1">Save settings</button></p></form></div>';
+    echo '<p><button class="button button-primary" name="brb_save" value="1">Save settings</button></p></form>';
+    echo '<h2>Send test email</h2>';
+    $smtp = brb_smtp_config();
+    if ($smtp) {
+        echo '<p>SMTP is on: ' . esc_html($smtp['host'] . ':' . $smtp['port']) . ' with STARTTLS, from ' . esc_html($smtp['from_name'] . ' <' . $smtp['from'] . '>') . '. The password stays on the server.</p>';
+    } else {
+        echo '<p>SMTP is off until BRB_SMTP_USER and BRB_SMTP_PASS are set on the server. Mail then uses smtp.gmail.com port 587 with STARTTLS unless BRB_SMTP_HOST or BRB_SMTP_PORT say otherwise.</p>';
+    }
+    echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
+    echo '<input type="hidden" name="action" value="brb_test_email">';
+    wp_nonce_field('brb_test_email');
+    echo '<p><button class="button">Send test email</button></p>';
+    echo '<p class="description">Sends to the admin notification email and shows the mail error if it fails.</p>';
+    echo '</form></div>';
 }

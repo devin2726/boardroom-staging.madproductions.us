@@ -34,13 +34,15 @@ add_filter('pre_wp_mail', function ($short, $atts) {
 $GLOBALS['brb_mails'] = [];
 
 try {
-    brb_t(get_option('brb_version') === '2.2.8', 'plugin storage version is 2.2.8');
+    brb_t(get_option('brb_version') === '2.2.9', 'plugin storage version is 2.2.9');
     brb_t(get_option('blog_public') === '0' || get_option('blog_public') === 0, 'staging discourages search engines');
     $cols = $wpdb->get_col('SHOW COLUMNS FROM ' . brb_table(), 0);
-    foreach (['deposit_due', 'amount_paid', 'source', 'hold_until', 'balance_due_on', 'price_set', 'status'] as $col) {
+    foreach (['deposit_due', 'amount_paid', 'source', 'hold_until', 'balance_due_on', 'price_set', 'status', 'event_type'] as $col) {
         brb_t(in_array($col, $cols, true), "column $col exists");
     }
     brb_t($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', brb_pay_table())) === brb_pay_table(), 'checks table exists');
+    $pay_cols = $wpdb->get_col('SHOW COLUMNS FROM ' . brb_pay_table(), 0);
+    brb_t(in_array('method', $pay_cols, true), 'payments table stores a method');
     brb_t((bool) wp_next_scheduled('brb_cron_expire'), 'hourly hold expiry is scheduled');
 
     $stored = get_option('brb_settings');
@@ -53,6 +55,13 @@ try {
     brb_t((string) brb_opt('pay_location') === '2212 37th Street, Moline, IL 61265', 'check address defaults to 2212 37th Street');
     brb_t(brb_check_sentence() === 'Mail or drop off checks payable to Mad Productions at 2212 37th Street, Moline, IL 61265.', 'the default check sentence names Mad Productions and 2212 37th Street');
     brb_t(strpos((string) brb_opt('pay_hours'), '[VERIFY]') !== false, 'hours placeholder is marked [VERIFY]');
+    $blank_instructions = brb_opt();
+    $blank_instructions['pay_instructions'] = '[VERIFY] Extra instructions for bringing the check.';
+    update_option('brb_settings', $blank_instructions);
+    brb_migrate_settings();
+    brb_t((string) brb_opt('pay_instructions') === '', 'the extra-instructions placeholder is cleared on upgrade');
+    $hidden_preview = implode("\n", brb_preview_lines(['total' => 0, 'due' => 0], brb_now()->modify('+10 days')));
+    brb_t(strpos($hidden_preview, 'Extra instructions for bringing the check') === false, 'an empty extra-instructions setting is hidden on the review step');
     $kept = brb_opt();
     $kept['pay_location'] = '[VERIFY] In-person location';
     update_option('brb_settings', $kept);
@@ -192,6 +201,16 @@ try {
         'guests' => 4,
     ], ['override_notice' => true]);
     brb_t(!is_wp_error($staff), 'staff can override the notice rule');
+    $missing_type = brb_process_public_booking([
+        'date' => brb_now()->modify('+18 days')->format('Y-m-d'),
+        'type' => 'day',
+        'days' => 1,
+        'guests' => 4,
+        'name' => 'Flow Test',
+        'email' => 'flow-test@example.com',
+        'policy' => '1',
+    ]);
+    brb_t(is_wp_error($missing_type) && $missing_type->get_error_code() === 'event_type', 'a public save requires an event type');
 
     $day = brb_now()->modify('+14 days')->format('Y-m-d');
     $post = [
@@ -204,6 +223,7 @@ try {
         'phone' => '555-0100',
         'notes' => 'Flow',
         'policy' => '1',
+        'event_type' => 'wedding',
     ];
     $GLOBALS['brb_mails'] = [];
     $b = brb_process_public_booking($post);
@@ -222,7 +242,11 @@ try {
         brb_t((bool) $guest_mail, 'guest hold email was sent');
         if ($guest_mail) {
             $body = $guest_mail['message'];
+            brb_t(strpos($body, 'Your date is held for 48 hours.') !== false, 'email says the date is held for 48 hours');
             brb_t(strpos($body, 'Your date is held until ' . $deadline) !== false, 'email states the exact hold deadline');
+            brb_t(strpos($body, 'Event type: Wedding') !== false, 'hold email names the event type');
+            brb_t(strpos($body, '[VERIFY] Test instructions.') !== false, 'a custom payment instruction is included');
+            brb_t(strpos($body, 'Extra instructions for bringing the check') === false, 'the default extra-instructions placeholder is not in the hold email');
             brb_t(strpos($body, 'payable to [VERIFY] Test Payee') !== false, 'email names the payee');
             brb_t(strpos($body, '[VERIFY] Test Window') !== false && strpos($body, '[VERIFY] Test Hours') !== false, 'email names the drop-off place and hours');
             brb_t(strpos($body, 'Write booking reference ' . brb_ref($b) . ' on the memo line.') !== false, 'email tells the guest what to write on the memo');
@@ -230,6 +254,8 @@ try {
             brb_t(stripos($body, 'price to be confirmed') !== false, 'email says price to be confirmed');
             brb_t(strpos($body, '$0.00') === false && strpos($body, '$500') === false && strpos($body, '$75') === false && strpos($body, '$100') === false, 'hold email has no placeholder or zero total');
             brb_t((int) $b->price_set === 0 && (float) $b->total == 0.0, 'a public save does not store a guessed total');
+            brb_t($b->event_type === 'wedding', 'the event type is stored with the booking');
+            brb_t($b->phone === '', 'a public save does not store a phone number');
         }
         brb_t(count(array_filter($GLOBALS['brb_mails'], function ($m) {
             return stripos($m['to'], 'admin@example.com') !== false;
@@ -242,7 +268,10 @@ try {
 
         $_GET = ['br_token' => $b->token];
         $html = do_shortcode('[boardroom_booking]');
+        brb_t(strpos($html, 'Your date is held for 48 hours.') !== false, 'confirmation page says the date is held for 48 hours');
         brb_t(strpos($html, 'Your date is held until ' . $deadline) !== false, 'confirmation page states the exact deadline');
+        brb_t(strpos($html, 'Wedding') !== false, 'confirmation page shows the event type');
+        brb_t(strpos($html, '[VERIFY] Test instructions.') !== false && strpos($html, 'Extra instructions for bringing the check') === false, 'confirmation shows custom instructions and hides the default placeholder');
         brb_t(strpos($html, 'Save your date') !== false, 'confirmation page is the booking shortcode');
         brb_t(strpos($html, brb_ref($b)) !== false && strpos($html, 'memo line') !== false, 'confirmation page shows the memo reference');
         brb_t(stripos($html, 'price to be confirmed') !== false, 'confirmation says price to be confirmed');
@@ -298,6 +327,9 @@ try {
             $admin_html = ob_get_clean();
             brb_t(strpos($admin_html, 'Paid in full') !== false, 'admin detail shows paid in full');
             brb_t(strpos($admin_html, '1001') !== false && strpos($admin_html, '1002') !== false, 'admin detail lists both checks');
+            brb_t(strpos($admin_html, 'Event type') !== false && strpos($admin_html, 'Wedding') !== false, 'admin detail shows the event type');
+            brb_t(strpos($admin_html, 'Payments recorded') !== false && strpos($admin_html, '>Check<') !== false, 'payments list shows the check method');
+            brb_t(strpos($admin_html, 'Delete booking') === false, 'a paid booking has no delete action');
             foreach ($banned as $w) brb_t(stripos($admin_html, $w) === false, "admin detail has no $w");
             ob_start();
             brb_admin_settings();
@@ -319,6 +351,7 @@ try {
         'name' => 'Flow Test',
         'email' => 'flow-test@example.com',
         'policy' => '1',
+        'event_type' => 'corporate',
     ]);
     brb_t(!is_wp_error($exp) && $exp && $exp->status === 'held' && $exp->mode === 'hourly', 'hourly save is held');
     if ($exp && !is_wp_error($exp)) {
@@ -497,11 +530,17 @@ try {
         brb_t($page && stripos($content, $needle) !== false, "$slug says \"$needle\"");
         foreach ($banned as $w) brb_t(stripos($content, $w) === false, "$slug content has no $w");
     }
+    $review_settings = brb_opt();
+    $review_settings['pay_instructions'] = '[VERIFY] Test instructions.';
+    update_option('brb_settings', $review_settings);
     $_GET = ['date' => $later, 'type' => 'day', 'days' => 1, 'guests' => 4];
     $quote_html = do_shortcode('[boardroom_booking]');
     brb_t(strpos($quote_html, 'Save this date') !== false, 'review page submit button is Save this date');
     brb_t(strpos($quote_html, 'name="phone"') === false && stripos($quote_html, 'autocomplete="tel"') === false, 'the public booking form does not ask for a phone number');
-    brb_t(strpos($quote_html, 'I agree to the') !== false && strpos($quote_html, home_url('/terms/')) !== false && strpos($quote_html, home_url('/privacy/')) !== false, 'review page requires the terms and privacy policy');
+    brb_t(strpos($quote_html, 'I agree to the') !== false && strpos($quote_html, '>Terms<') !== false && strpos($quote_html, '>Rental Agreement<') !== false && strpos($quote_html, '>Privacy Policy<') !== false && strpos($quote_html, home_url('/terms/')) !== false && strpos($quote_html, home_url('/rental-agreement/')) !== false && strpos($quote_html, home_url('/privacy/')) !== false, 'review page links the terms, rental agreement, and privacy policy');
+    brb_t(strpos($quote_html, 'name="event_type"') !== false && strpos($quote_html, 'Wedding') !== false && strpos($quote_html, 'Birthday') !== false && strpos($quote_html, 'Corporate') !== false && strpos($quote_html, 'Fundraiser') !== false && strpos($quote_html, 'Other') !== false, 'review page asks for an event type');
+    brb_t(strpos($quote_html, '[VERIFY] Test instructions.') !== false && strpos($quote_html, 'Extra instructions for bringing the check') === false, 'review page shows custom instructions and hides the default placeholder');
+    brb_t(stripos($quote_html, 'cash') === false, 'the public review step stays check-only');
     brb_t(strpos($quote_html, 'Pricing from $600 per day (most events around $1,200), final price confirmed based on date, guest count and features.') !== false, 'review page shows the from price');
     brb_t(stripos($quote_html, 'price to be confirmed') !== false, 'review page says price to be confirmed');
     brb_t(strpos($quote_html, '$500') === false && strpos($quote_html, '$75') === false && strpos($quote_html, '$100') === false && strpos($quote_html, '7%') === false && strpos($quote_html, 'Cleaning fee') === false, 'review page has no placeholder rate, fee, or tax');
@@ -540,6 +579,162 @@ try {
         $kept = brb_booking($legacy_id);
         brb_t($kept && (int) $kept->price_set === 1 && abs((float) $kept->total - 642) < 0.01, 'an existing priced booking keeps its total');
     }
+
+    $cash_day = brb_now()->modify('+21 days')->format('Y-m-d');
+    $cash_b = brb_process_public_booking([
+        'date' => $cash_day,
+        'type' => 'day',
+        'days' => 1,
+        'guests' => 8,
+        'name' => 'Cash Test',
+        'email' => 'flow-test@example.com',
+        'policy' => '1',
+        'event_type' => 'birthday',
+    ]);
+    brb_t(!is_wp_error($cash_b) && $cash_b && $cash_b->event_type === 'birthday', 'a birthday booking stores its event type');
+    if ($cash_b && !is_wp_error($cash_b)) {
+        $created_ids[] = (int) $cash_b->id;
+        $priced_cash = brb_set_agreed_price($cash_b->id, 800);
+        brb_t(!is_wp_error($priced_cash), 'staff can price a booking before recording cash');
+        $GLOBALS['brb_mails'] = [];
+        $cash_after = brb_record_payment($cash_b->id, 400, '9999', brb_now()->format('Y-m-d'), 'Walk-in cash', true, 'cash');
+        brb_t(!is_wp_error($cash_after) && $cash_after->status === 'deposit_paid' && abs((float) $cash_after->amount_paid - 400) < 0.01, 'cash uses the same deposit and balance rules');
+        $cash_rows = brb_payments($cash_b->id);
+        brb_t(count($cash_rows) === 1 && $cash_rows[0]->method === 'cash' && $cash_rows[0]->check_number === '', 'cash stores no check number');
+        $cash_mail = null;
+        foreach ($GLOBALS['brb_mails'] as $m) {
+            if (stripos($m['to'], 'flow-test@example.com') !== false) $cash_mail = $m;
+        }
+        brb_t($cash_mail && strpos($cash_mail['message'], 'We recorded cash for') !== false && strpos($cash_mail['message'], '9999') === false, 'the guest receipt says cash and omits a check number');
+        brb_t($cash_mail && strpos($cash_mail['message'], 'Event type: Birthday') !== false, 'the cash receipt names the event type');
+        if ($user) {
+            ob_start();
+            brb_admin_detail((int) $cash_b->id);
+            $cash_admin = ob_get_clean();
+            brb_t(strpos($cash_admin, 'Record payment') !== false && strpos($cash_admin, 'name="method"') !== false && strpos($cash_admin, '>Cash<') !== false && strpos($cash_admin, 'Delete booking') === false, 'staff can record cash and cannot delete an open booking');
+            brb_t(strpos($cash_admin, 'name="check_number" id="check_number" class="regular-text"') !== false && strpos($cash_admin, 'name="check_number" id="check_number" class="regular-text" required') === false, 'the check number field is present and not required');
+        }
+        $_GET = ['br_token' => $cash_after && !is_wp_error($cash_after) ? $cash_after->token : ''];
+        $cash_html = do_shortcode('[boardroom_booking]');
+        brb_t(strpos($cash_html, 'We have recorded a cash payment') !== false && strpos($cash_html, 'remaining balance as a check') !== false, 'the confirmation names the cash payment and still asks for the balance by check');
+    }
+
+    $del_day = brb_now()->modify('+22 days')->format('Y-m-d');
+    $del = brb_process_public_booking([
+        'date' => $del_day,
+        'type' => 'day',
+        'days' => 1,
+        'guests' => 5,
+        'name' => 'Delete Test',
+        'email' => 'flow-test@example.com',
+        'policy' => '1',
+        'event_type' => 'other',
+    ]);
+    brb_t(!is_wp_error($del) && $del, 'a booking can be created for the delete test');
+    if ($del && !is_wp_error($del)) {
+        $created_ids[] = (int) $del->id;
+        $priced_del = brb_set_agreed_price($del->id, 500);
+        $paid_del = brb_record_payment($del->id, 100, '4242', brb_now()->format('Y-m-d'), 'Partial', true);
+        brb_t(!is_wp_error($priced_del) && !is_wp_error($paid_del), 'the delete test booking has a payment row');
+        $denied = brb_delete_booking($del->id);
+        brb_t(is_wp_error($denied) && $denied->get_error_code() === 'status', 'a booking that is not cancelled cannot be deleted');
+        if ($user) {
+            ob_start();
+            brb_admin_detail((int) $del->id);
+            $open_html = ob_get_clean();
+            brb_t(strpos($open_html, 'Delete booking') === false, 'delete stays off the page until the booking is cancelled');
+        }
+        $cancelled = brb_cancel_booking($del->id);
+        brb_t(!is_wp_error($cancelled) && $cancelled->status === 'cancelled', 'staff can cancel before deleting');
+        if ($user) {
+            ob_start();
+            brb_admin_detail((int) $del->id);
+            $cancelled_html = ob_get_clean();
+            brb_t(strpos($cancelled_html, 'Delete booking') !== false && strpos($cancelled_html, 'value="brb_delete"') !== false && strpos($cancelled_html, 'This cannot be undone') !== false && strpos($cancelled_html, '_wpnonce') !== false, 'a cancelled booking offers a confirmed delete');
+        }
+        $removed = brb_delete_booking($del->id);
+        brb_t($removed === true && !brb_booking($del->id) && brb_payments($del->id) === [], 'deleting a cancelled booking removes it and its payment rows');
+    }
+
+    $smtp_keys = ['BRB_SMTP_HOST', 'BRB_SMTP_PORT', 'BRB_SMTP_USER', 'BRB_SMTP_PASS', 'BRB_SMTP_FROM', 'BRB_SMTP_FROM_NAME'];
+    $smtp_clear = function () use ($smtp_keys) {
+        foreach ($smtp_keys as $key) {
+            putenv($key);
+            unset($_ENV[$key], $_SERVER[$key]);
+        }
+    };
+    $smtp_clear();
+    if (!class_exists('PHPMailer\\PHPMailer\\PHPMailer')) {
+        require_once ABSPATH . WPINC . '/PHPMailer/PHPMailer.php';
+        require_once ABSPATH . WPINC . '/PHPMailer/SMTP.php';
+        require_once ABSPATH . WPINC . '/PHPMailer/Exception.php';
+    }
+    $plain = new PHPMailer\PHPMailer\PHPMailer(true);
+    brb_configure_phpmailer($plain);
+    brb_t($plain->Mailer !== 'smtp', 'smtp stays off until the mail user and password are set');
+    $secret = 'smtp-secret-not-real';
+    putenv('BRB_SMTP_USER=boardroomqc@gmail.com');
+    putenv('BRB_SMTP_PASS=' . $secret);
+    $mailer = new PHPMailer\PHPMailer\PHPMailer(true);
+    brb_configure_phpmailer($mailer);
+    brb_t($mailer->Mailer === 'smtp' && $mailer->Host === 'smtp.gmail.com' && (int) $mailer->Port === 587, 'smtp defaults to smtp.gmail.com port 587');
+    brb_t($mailer->SMTPAuth === true && $mailer->SMTPSecure === PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS, 'smtp uses STARTTLS authentication');
+    brb_t($mailer->From === 'boardroomqc@gmail.com' && $mailer->FromName === 'The Boardroom', 'smtp from defaults to The Boardroom at boardroomqc@gmail.com');
+    brb_t($mailer->Password === $secret && $mailer->SMTPDebug === 0, 'smtp keeps the password on the mailer and turns debug off');
+    putenv('BRB_SMTP_HOST=smtp.example.test');
+    putenv('BRB_SMTP_PORT=2525');
+    putenv('BRB_SMTP_FROM=desk@example.com');
+    putenv('BRB_SMTP_FROM_NAME=Desk');
+    $custom = new PHPMailer\PHPMailer\PHPMailer(true);
+    brb_configure_phpmailer($custom);
+    brb_t($custom->Host === 'smtp.example.test' && (int) $custom->Port === 2525 && $custom->From === 'desk@example.com' && $custom->FromName === 'Desk', 'smtp host, port, and from follow the env vars');
+    $mail_settings = brb_opt();
+    $mail_settings['admin_email'] = 'admin@example.com';
+    update_option('brb_settings', $mail_settings);
+    unset($_POST['brb_save']);
+    if ($user) {
+        ob_start();
+        brb_admin_settings();
+        $mail_html = ob_get_clean();
+        brb_t(strpos($mail_html, 'Send test email') !== false && strpos($mail_html, 'value="brb_test_email"') !== false && strpos($mail_html, '_wpnonce') !== false, 'settings include a test email button and nonce');
+        brb_t(strpos($mail_html, $secret) === false, 'settings do not show the smtp password');
+        $previous_user = get_current_user_id();
+        wp_set_current_user(0);
+        ob_start();
+        brb_admin_settings();
+        $guest_html = ob_get_clean();
+        brb_t($guest_html === '', 'settings and the test email button are admin only');
+        add_filter('wp_die_handler', function () {
+            return function ($message) {
+                throw new RuntimeException(is_string($message) ? $message : 'die');
+            };
+        });
+        $refused = false;
+        try { brb_admin_gate('brb_test_email'); } catch (RuntimeException $e) { $refused = true; }
+        brb_t($refused, 'the test email action refuses a guest');
+        wp_set_current_user($previous_user);
+        $bad_nonce = false;
+        try { brb_admin_gate('brb_test_email'); } catch (RuntimeException $e) { $bad_nonce = true; }
+        brb_t($bad_nonce, 'the test email action requires its nonce');
+        $_REQUEST['_wpnonce'] = wp_create_nonce('brb_test_email');
+        $allowed = true;
+        try { brb_admin_gate('brb_test_email'); } catch (RuntimeException $e) { $allowed = false; }
+        brb_t($allowed, 'an admin with the nonce can send a test email');
+        remove_all_filters('wp_die_handler');
+    }
+    $GLOBALS['brb_mails'] = [];
+    $sent = brb_send_test_email();
+    brb_t($sent === ['admin@example.com'], 'the test email goes to the admin notification email');
+    brb_t(isset($GLOBALS['brb_mails'][0]['subject']) && $GLOBALS['brb_mails'][0]['subject'] === 'Boardroom email test', 'the test email has a fixed subject');
+    add_filter('pre_wp_mail', function ($short, $atts) {
+        do_action('wp_mail_failed', new WP_Error('wp_mail_failed', 'SMTP Error: Could not authenticate using ' . brb_env('BRB_SMTP_PASS')));
+        return false;
+    }, 20, 2);
+    $failed = brb_send_test_email();
+    remove_all_filters('pre_wp_mail', 20);
+    brb_t(is_wp_error($failed) && strpos($failed->get_error_message(), 'SMTP Error: Could not authenticate') !== false, 'a failed test email shows the PHPMailer error');
+    brb_t(is_wp_error($failed) && strpos($failed->get_error_message(), '[redacted]') !== false && strpos($failed->get_error_message(), $secret) === false, 'a failed test email does not include the password');
+    $smtp_clear();
 } finally {
     if ($created_ids) {
         $in = implode(',', array_map('intval', $created_ids));
@@ -550,6 +745,10 @@ try {
     $wpdb->query($wpdb->prepare('DELETE FROM ' . brb_table() . ' WHERE email=%s', 'flow-test@example.com'));
     if ($snapshot !== false && $snapshot !== null) update_option('brb_settings', $snapshot);
     else delete_option('brb_settings');
+    foreach (['BRB_SMTP_HOST', 'BRB_SMTP_PORT', 'BRB_SMTP_USER', 'BRB_SMTP_PASS', 'BRB_SMTP_FROM', 'BRB_SMTP_FROM_NAME'] as $key) {
+        putenv($key);
+        unset($_ENV[$key], $_SERVER[$key]);
+    }
 }
 
 echo "\n{$GLOBALS['brb_ok']} passed, {$GLOBALS['brb_fail']} failed\n";

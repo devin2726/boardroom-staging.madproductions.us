@@ -165,9 +165,10 @@ function brb_send_tour_notice($row) {
         . admin_url('admin.php?page=brb-tours&id=' . (int) $row->id) . "\n";
     $subject = 'New contact inquiry';
     $reply = is_email($row->email) ? $row->email : '';
+    $from = brb_smtp_from_address();
     $sent = false;
     foreach (brb_tour_recipients() as $to) {
-        if (brb_mail($to, $subject, $body, $reply)) $sent = true;
+        if (brb_mail($to, $subject, $body, $reply, $from)) $sent = true;
     }
     return $sent;
 }
