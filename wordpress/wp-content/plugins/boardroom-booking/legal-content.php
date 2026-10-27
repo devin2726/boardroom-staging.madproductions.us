@@ -96,21 +96,21 @@ function brb_terms_html() {
 </div>
 
 <h2>Booking and payment on this website</h2>
-<p>Saving a date on this website holds it for 48 hours while you bring a check in person. If the check is not received within those 48 hours, the hold is released. Payment is by check only, paid in person. Make the check payable to Mad Productions and bring it to 2212 47 Ave. <span class="placeholder">[VERIFY address. The rental agreement lists the venue at 2220 37th Street, Moline, IL 61265. The invoice says checks can be mailed to 2212 37th St, Moline, IL 61265.]</span></p>
+<p>Saving a date on this website holds it for 48 hours while you bring a check in person. If the check is not received within those 48 hours, the hold is released. Payment is by check only, paid in person. Make the check payable to Mad Productions and bring it to 2212 37th Street, Moline, IL 61265.</p>
 <p>As the agreement states, 50% of the invoice is due within 1 day after signing. The invoice notes require full payment 30 days before the event.</p>
 <p>The invoice notes also state that a refund of the 50% deposit is available only if the event is cancelled 90 days or more before the event, and that a cancellation inside that window may not be refunded. Section 16 above is more specific about rental fees, cleaning fees, and security deposits. The damage deposit described on the invoice is refundable after inspection. Section 11 above allows the Owner to apply the security deposit to amounts owed, and you remain responsible for anything above the deposit.</p>
 <p>The room is not set up when you arrive. Seating and layout are specific to your event. Staff can help with setup for an extra fee. Decorations are not provided, except that Christmas decorations are up in December. The maximum is 75 people unless the Owner approves a different limit in writing.</p>
 
 <h2>The signed agreement controls</h2>
 <p>This page is a summary for guests of The Boardroom QC, operated by MAD Productions, LLC. If anything here differs from the signed Rental Agreement, the signed Rental Agreement controls. The full agreement is available to print at <a href="/rental-agreement/">the Rental Agreement</a>.</p>
-<p class="updated">Last updated: October 26, 2026</p>
+<p class="updated">Last updated: October 27, 2026</p>
 <!--[VERIFY: attorney review]-->
 TERMS_HTML;
 }
 
 function brb_privacy_html() {
     return <<<'PRIVACY_HTML'
-<p>This policy describes what MAD Productions, LLC, doing business as The Boardroom QC, in Moline, Illinois, collects on this website and how it is used.</p>
+<p>This policy describes what MAD Productions, LLC, doing business as The Boardroom QC, at 2212 37th Street, Moline, IL 61265, collects on this website and how it is used.</p>
 
 <h2>Information we collect</h2>
 <p>The booking form and the contact form ask for your name, email, phone, event date and time, party size, and notes. When a check is received, staff enter the check number and the payment record by hand. That record is stored with the booking.</p>

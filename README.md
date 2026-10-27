@@ -36,7 +36,7 @@ Bookings → Settings. Anything still marked `[VERIFY]` is shown to guests until
 | Setting | Default | Notes |
 |---|---|---|
 | Check payable to | `[VERIFY] Name on the check` | Name on the check |
-| Where to bring the check | `[VERIFY] In-person location` | |
+| Where to bring the check | 2212 37th Street, Moline, IL 61265 | Venue and check drop-off. A saved placeholder, or the old 2212 47 Ave line, is replaced on upgrade. |
 | In-person hours | `[VERIFY] In-person hours` | |
 | Payment instructions | `[VERIFY] …` | Free text on the confirmation page and in email |
 | Starting price | $600 per day | Shown to guests as “from” this amount. Whole dollars display without cents. |
