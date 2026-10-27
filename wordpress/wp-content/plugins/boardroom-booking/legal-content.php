@@ -2,7 +2,7 @@
 if (!defined('ABSPATH')) exit;
 
 function brb_cancellation_summary() {
-    return 'A date saved on the website is held for 48 hours. Mail or drop off checks payable to Mad Productions at 2212 37th Street, Moline, IL 61265. If the check is not received by then, the hold is released. Under the Rental Agreement, 50% of the invoice is due within 1 day after signing unless the Owner agrees otherwise in writing. The invoice notes require full payment 30 days before the event. If you cancel in writing 90 days or more before the rental period, amounts paid may be refunded, less any non-refundable processing charges or costs already incurred. If you cancel less than 90 days before the rental period, security deposits and cleaning fees already paid are non-refundable. Rental fees are non-refundable if cancellation is received less than 30 days before the rental period, unless the Owner agrees otherwise in writing. The signed Rental Agreement controls if it differs from this summary.';
+    return 'A date saved on the website is held for 48 hours. Mail or drop off checks payable to Mad Productions at 2212 37th Street, Moline, IL 61265. If the check is not received by then, the hold is released. You can pay by check or in person, or online by card with a 3% processing fee. Under the Rental Agreement, 50% of the invoice is due within 1 day after signing unless the Owner agrees otherwise in writing. The invoice notes require full payment 30 days before the event. If you cancel in writing 90 days or more before the rental period, amounts paid may be refunded, less any non-refundable processing charges or costs already incurred. If you cancel less than 90 days before the rental period, security deposits and cleaning fees already paid are non-refundable. Rental fees are non-refundable if cancellation is received less than 30 days before the rental period, unless the Owner agrees otherwise in writing. Cancellation and refunds follow the Rental Agreement. The card processing fee is non-refundable [VERIFY with attorney]. The signed Rental Agreement controls if it differs from this summary.';
 }
 
 function brb_policy_needs_refresh($text) {
@@ -96,7 +96,8 @@ function brb_terms_html() {
 </div>
 
 <h2>Booking and payment on this website</h2>
-<p>Saving a date on this website holds it for 48 hours. If the check is not received within those 48 hours, the hold is released. Mail or drop off checks payable to Mad Productions at 2212 37th Street, Moline, IL 61265.</p>
+<p>Saving a date on this website holds it for 48 hours. If the check is not received within those 48 hours, the hold is released. You can pay by check or in person, or online by card with a 3% processing fee. Mail or drop off checks payable to Mad Productions at 2212 37th Street, Moline, IL 61265.</p>
+<p>The card processing fee is added on top of the amount being paid and is not part of the booking balance. Cancellation and refunds follow the Rental Agreement. The card processing fee is non-refundable [VERIFY with attorney].</p>
 <p>As the agreement states, 50% of the invoice is due within 1 day after signing. The invoice notes require full payment 30 days before the event.</p>
 <p>The invoice notes also state that a refund of the 50% deposit is available only if the event is cancelled 90 days or more before the event, and that a cancellation inside that window may not be refunded. Section 16 above is more specific about rental fees, cleaning fees, and security deposits. The damage deposit described on the invoice is refundable after inspection. Section 11 above allows the Owner to apply the security deposit to amounts owed, and you remain responsible for anything above the deposit.</p>
 <p>The room is not set up when you arrive. Seating and layout are specific to your event. Staff can help with setup for an extra fee. Decorations are not provided, except that Christmas decorations are up in December. The maximum is 75 people unless the Owner approves a different limit in writing.</p>
@@ -113,22 +114,22 @@ function brb_privacy_html() {
 <p>This policy describes what MAD Productions, LLC, doing business as The Boardroom QC, at 2220 37th Street, Moline, IL 61265, collects on this website and how it is used.</p>
 
 <h2>Information we collect</h2>
-<p>The booking form asks for your name, email, event type, event date and time, party size, and notes. The contact form asks for your name, email, and a message. You can also say what the message is about, and a preferred date or time. When a check is received, staff enter the check number and the payment record by hand. That record is stored with the booking. A contact inquiry is stored with the inquiry.</p>
+<p>The booking form asks for your name, email, event type, event date and time, party size, and notes. The contact form asks for your name, email, and a message. You can also say what the message is about, and a preferred date or time. When a check is received, staff enter the check number and the payment record by hand. When a card is used, Stripe processes the payment and this site stores the amount, the processing fee, and the payment id. We never see or store card numbers. That record is stored with the booking. A contact inquiry is stored with the inquiry.</p>
 
 <h2>How we use it</h2>
 <p>We use this information only to manage reservations and contact inquiries, and to communicate with you about them. Email about a booking or a contact inquiry is sent through this site’s mail system.</p>
 
 <h2>Payment</h2>
-<p>This site does not process payments online and does not collect card data. Mail or drop off checks payable to Mad Productions at 2212 37th Street, Moline, IL 61265.</p>
+<p>You can pay by check or in person, or online by card with a 3% processing fee. Mail or drop off checks payable to Mad Productions at 2212 37th Street, Moline, IL 61265. Stripe processes card payments. We never see or store card numbers. Cancellation and refunds follow the Rental Agreement. The card processing fee is non-refundable [VERIFY with attorney].</p>
 
 <h2>Cookies</h2>
-<p>This site sets no advertising, analytics, or tracking cookies of its own, but the embedded Google Map on the Contact page may set cookies from Google, and Google's privacy policy applies to those cookies. Guests are not asked to accept cookies. The contact form does not set a cookie. WordPress sets cookies for staff when they log in to the admin area.</p>
+<p>This site sets no advertising, analytics, or tracking cookies of its own, but the embedded Google Map on the Contact page may set cookies from Google, and Google's privacy policy applies to those cookies. Stripe may set cookies on its own checkout page, and Stripe's privacy policy applies to those cookies. Guests are not asked to accept cookies. The contact form does not set a cookie. WordPress sets cookies for staff when they log in to the admin area.</p>
 
 <h2>How long we keep it</h2>
 <p>We keep booking, payment, and contact inquiry records for as long as we need them for our records and for tax. A contact inquiry is removed only when a staff member deletes it. If you ask us to delete your information, we will, unless the law requires us to keep it.</p>
 
 <h2>Sharing</h2>
-<p>We do not sell your information. We share it only with service providers that host this site or deliver email, and when the law requires it.</p>
+<p>We do not sell your information. We share it only with service providers that host this site or deliver email, with Stripe when you pay by card, and when the law requires it.</p>
 
 <h2>Your requests</h2>
 <p>You can ask to see or delete your information by emailing <a href="mailto:boardroomqc@gmail.com">boardroomqc@gmail.com</a>.</p>

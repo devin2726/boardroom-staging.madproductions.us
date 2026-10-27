@@ -2,11 +2,11 @@
 /**
  * Plugin Name: Boardroom Booking
  * Description: Self-hosted direct booking for The Boardroom — full-day and hourly blocks, availability calendar, agreed prices, in-person check holds, blackout dates, and emails.
- * Version: 2.2.9
+ * Version: 2.3.0
  * Author: Mad Productions
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.2.9');
+define('BRB_VER', '2.3.0');
 define('BRB_VENUE_ADDRESS', '2220 37th Street, Moline, IL 61265');
 define('BRB_CHECK_ADDRESS', '2212 37th Street, Moline, IL 61265');
 define('BRB_MAPS_URL', 'https://maps.app.goo.gl/nVqUsGTcy48nPzc18');
@@ -14,6 +14,7 @@ define('BRB_MAPS_LAT', '41.4913116');
 define('BRB_MAPS_LNG', '-90.4820481');
 require_once __DIR__ . '/legal-content.php';
 require_once __DIR__ . '/tour.php';
+require_once __DIR__ . '/stripe.php';
 define('BRB_URL', plugin_dir_url(__FILE__));
 
 function brb_table() { global $wpdb; return $wpdb->prefix . 'br_bookings'; }
@@ -94,6 +95,7 @@ function brb_defaults() {
         'pay_location' => BRB_CHECK_ADDRESS,
         'pay_hours' => '[VERIFY] In-person hours',
         'pay_instructions' => '',
+        'card_fee_percent' => '3',
         'blackouts' => '',
         'policy' => brb_cancellation_summary(),
     ];
@@ -229,8 +231,12 @@ function brb_pay_methods() {
     return ['check' => 'Check', 'cash' => 'Cash'];
 }
 function brb_pay_method_label($method) {
+    if ($method === 'card') return 'Card (Stripe)';
     $all = brb_pay_methods();
     return $all[$method] ?? 'Check';
+}
+function brb_pay_method_known($method) {
+    return $method === 'card' || isset(brb_pay_methods()[$method]);
 }
 function brb_extra_instructions() {
     $extra = trim((string) brb_opt('pay_instructions'));
@@ -273,6 +279,7 @@ function brb_install_tables() {
       balance_due_on date DEFAULT NULL,
       price_set tinyint(1) NOT NULL DEFAULT 0,
       event_type varchar(40) NOT NULL DEFAULT '',
+      attention varchar(255) NOT NULL DEFAULT '',
       created datetime NOT NULL,
       PRIMARY KEY  (id),
       KEY token (token),
@@ -286,6 +293,7 @@ function brb_install_tables() {
     brb_ensure_column($t, 'balance_due_on', 'date NULL DEFAULT NULL');
     brb_ensure_column($t, 'price_set', 'tinyint(1) NOT NULL DEFAULT 0');
     brb_ensure_column($t, 'event_type', "varchar(40) NOT NULL DEFAULT ''");
+    brb_ensure_column($t, 'attention', "varchar(255) NOT NULL DEFAULT ''");
     $p = brb_pay_table();
     dbDelta("CREATE TABLE $p (
       id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
@@ -295,11 +303,17 @@ function brb_install_tables() {
       received_on date DEFAULT NULL,
       notes text,
       method varchar(20) NOT NULL DEFAULT 'check',
+      fee decimal(10,2) NOT NULL DEFAULT 0.00,
+      stripe_id varchar(80) NOT NULL DEFAULT '',
+      stripe_session varchar(80) NOT NULL DEFAULT '',
       created datetime NOT NULL,
       PRIMARY KEY  (id),
       KEY booking_id (booking_id)
     ) $c;");
     brb_ensure_column($p, 'method', "varchar(20) NOT NULL DEFAULT 'check'");
+    brb_ensure_column($p, 'fee', 'decimal(10,2) NOT NULL DEFAULT 0.00');
+    brb_ensure_column($p, 'stripe_id', "varchar(80) NOT NULL DEFAULT ''");
+    brb_ensure_column($p, 'stripe_session', "varchar(80) NOT NULL DEFAULT ''");
     if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $p)) !== $p) {
         $wpdb->query("CREATE TABLE IF NOT EXISTS $p (
           id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
@@ -309,17 +323,26 @@ function brb_install_tables() {
           received_on date NULL DEFAULT NULL,
           notes text,
           method varchar(20) NOT NULL DEFAULT 'check',
+          fee decimal(10,2) NOT NULL DEFAULT 0.00,
+          stripe_id varchar(80) NOT NULL DEFAULT '',
+          stripe_session varchar(80) NOT NULL DEFAULT '',
           created datetime NOT NULL,
           PRIMARY KEY (id),
           KEY booking_id (booking_id)
         ) $c");
     }
     brb_ensure_column($p, 'method', "varchar(20) NOT NULL DEFAULT 'check'");
-    foreach (['deposit_due', 'amount_paid', 'source', 'hold_until', 'balance_due_on', 'price_set', 'event_type'] as $col) {
+    brb_ensure_column($p, 'fee', 'decimal(10,2) NOT NULL DEFAULT 0.00');
+    brb_ensure_column($p, 'stripe_id', "varchar(80) NOT NULL DEFAULT ''");
+    brb_ensure_column($p, 'stripe_session', "varchar(80) NOT NULL DEFAULT ''");
+    foreach (['deposit_due', 'amount_paid', 'source', 'hold_until', 'balance_due_on', 'price_set', 'event_type', 'attention'] as $col) {
         if (!$wpdb->get_var($wpdb->prepare("SHOW COLUMNS FROM `$t` LIKE %s", $col))) return false;
     }
     if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $p)) !== $p) return false;
-    return (bool) $wpdb->get_var($wpdb->prepare("SHOW COLUMNS FROM `$p` LIKE %s", 'method'));
+    foreach (['method', 'fee', 'stripe_id', 'stripe_session'] as $col) {
+        if (!$wpdb->get_var($wpdb->prepare("SHOW COLUMNS FROM `$p` LIKE %s", $col))) return false;
+    }
+    return true;
 }
 function brb_migrate_settings() {
     $stored = get_option('brb_settings', []);
@@ -344,6 +367,9 @@ function brb_migrate_settings() {
     if (trim((string) ($merged['pay_instructions'] ?? '')) === '[VERIFY] Extra instructions for bringing the check.') {
         $merged['pay_instructions'] = '';
     }
+    if (!isset($stored['card_fee_percent']) || trim((string) $stored['card_fee_percent']) === '') $merged['card_fee_percent'] = '3';
+    $old_summary = 'A date saved on the website is held for 48 hours. Mail or drop off checks payable to Mad Productions at 2212 37th Street, Moline, IL 61265. If the check is not received by then, the hold is released. Under the Rental Agreement, 50% of the invoice is due within 1 day after signing unless the Owner agrees otherwise in writing. The invoice notes require full payment 30 days before the event. If you cancel in writing 90 days or more before the rental period, amounts paid may be refunded, less any non-refundable processing charges or costs already incurred. If you cancel less than 90 days before the rental period, security deposits and cleaning fees already paid are non-refundable. Rental fees are non-refundable if cancellation is received less than 30 days before the rental period, unless the Owner agrees otherwise in writing. The signed Rental Agreement controls if it differs from this summary.';
+    if (trim((string) ($merged['policy'] ?? '')) === $old_summary) $merged['policy'] = brb_cancellation_summary();
     $tour_email = isset($stored['tour_email']) ? sanitize_email((string) $stored['tour_email']) : '';
     if (!is_email($tour_email)) $merged['tour_email'] = $defaults['tour_email'];
     else $merged['tour_email'] = $tour_email;
@@ -385,7 +411,7 @@ function brb_migrate_prices() {
 }
 function brb_faq_markup() {
     return <<<'HTML'
-<details><summary>How many guests can The Boardroom hold?</summary><p>Up to 75 people.</p></details><details><summary>Is parking available?</summary><p>Yes, on-site parking.</p></details><details><summary>Can we bring our own drinks?</summary><p>The Boardroom has a bar area and an ice machine. No cooking is allowed in the venue. The stove top may not be used. Food warmers (for keeping prepared food warm) and the bar area may be used. There are no taps. Draft taps are not available. BYOB is allowed, and the renter must obtain a one-day liquor license from the City of Moline, fee $50. See the <a href="/terms/">Rental Terms</a>.</p></details><details><summary>What is there to do?</summary><p>80in television, pinball, pool and shuffleboard.</p></details><details><summary>How much does it cost?</summary><p>Pricing starts at $600 per day and can reach about $2,000, depending on the date, how many people are coming, and the features you would like. Most events come to about $1,200. We confirm the final price with you before any check is due. The website does not guess a total.</p></details><details><summary>How is the space set up?</summary><p>The space arrives not set up. Seating and layout are yours to plan, so bring the arrangement that suits your gathering. If you would like a hand, our staff can help with setup for an extra fee.</p></details><details><summary>Do you provide decorations?</summary><p>Decorations are not provided. Christmas decorations are up in December.</p></details><details><summary>What are our responsibilities before we leave?</summary><p>Please clean and tidy the space, and take the garbage out. Another event is often booked the following day, and a ready room lets the next hosts begin on time.</p></details><details><summary>How do I book and pay?</summary><p>Save your date on the <a href="/book/">Book</a> page. That holds the date for 48 hours. Mail or drop off checks payable to Mad Productions at 2212 37th Street, Moline, IL 61265. Bookings need at least 48 hours' notice. Until we confirm your price, your confirmation says price to be confirmed.</p></details><details><summary>What is the cancellation policy?</summary><p>See the <a href="/terms/">Rental Terms</a>. If a summary and the signed agreement differ, the signed agreement controls.</p></details><details><summary>What are the hours / check-in and check-out times?</summary><p class="placeholder">PLACEHOLDER — owner to supply.</p></details>
+<details><summary>How many guests can The Boardroom hold?</summary><p>Up to 75 people.</p></details><details><summary>Is parking available?</summary><p>Yes, on-site parking.</p></details><details><summary>Can we bring our own drinks?</summary><p>The Boardroom has a bar area and an ice machine. No cooking is allowed in the venue. The stove top may not be used. Food warmers (for keeping prepared food warm) and the bar area may be used. There are no taps. Draft taps are not available. BYOB is allowed, and the renter must obtain a one-day liquor license from the City of Moline, fee $50. See the <a href="/terms/">Rental Terms</a>.</p></details><details><summary>What is there to do?</summary><p>80in television, pinball, pool and shuffleboard.</p></details><details><summary>How much does it cost?</summary><p>Pricing starts at $600 per day and can reach about $2,000, depending on the date, how many people are coming, and the features you would like. Most events come to about $1,200. We confirm the final price with you before any check is due. The website does not guess a total.</p></details><details><summary>How is the space set up?</summary><p>The space arrives not set up. Seating and layout are yours to plan, so bring the arrangement that suits your gathering. If you would like a hand, our staff can help with setup for an extra fee.</p></details><details><summary>Do you provide decorations?</summary><p>Decorations are not provided. Christmas decorations are up in December.</p></details><details><summary>What are our responsibilities before we leave?</summary><p>Please clean and tidy the space, and take the garbage out. Another event is often booked the following day, and a ready room lets the next hosts begin on time.</p></details><details><summary>How do I book and pay?</summary><p>Save your date on the <a href="/book/">Book</a> page. That holds the date for 48 hours. Pay by check or in person, or online by card with a 3% processing fee. Mail or drop off checks payable to Mad Productions at 2212 37th Street, Moline, IL 61265. Bookings need at least 48 hours' notice. Until we confirm your price, your confirmation says price to be confirmed. Cancellation and refunds follow the Rental Agreement. The card processing fee is non-refundable [VERIFY with attorney].</p></details><details><summary>What is the cancellation policy?</summary><p>See the <a href="/terms/">Rental Terms</a>. If a summary and the signed agreement differ, the signed agreement controls.</p></details><details><summary>What are the hours / check-in and check-out times?</summary><p class="placeholder">PLACEHOLDER — owner to supply.</p></details>
 HTML;
 }
 function brb_patch_faq_drinks() {
@@ -424,6 +450,16 @@ function brb_refresh_faq() {
     $old_pay = 'Bring a check in person within those 48 hours.';
     $new_pay = 'Mail or drop off checks payable to Mad Productions at ' . BRB_CHECK_ADDRESS . '.';
     $next = str_replace($old_pay, $new_pay, $c);
+    $old_card = 'That holds the date for 48 hours. Mail or drop off checks payable to Mad Productions at ' . BRB_CHECK_ADDRESS . '.';
+    $new_card = 'That holds the date for 48 hours. Pay by check or in person, or online by card with a 3% processing fee. Mail or drop off checks payable to Mad Productions at ' . BRB_CHECK_ADDRESS . '.';
+    $next = str_replace($old_card, $new_card, $next);
+    if (strpos($next, 'card processing fee is non-refundable') === false) {
+        $next = str_replace(
+            'your confirmation says price to be confirmed.',
+            'your confirmation says price to be confirmed. Cancellation and refunds follow the Rental Agreement. The card processing fee is non-refundable [VERIFY with attorney].',
+            $next
+        );
+    }
     if (stripos($c, 'How much does it cost?') === false || stripos($c, 'Christmas decorations are up in December') === false) {
         $next = brb_faq_markup();
     }
@@ -433,10 +469,12 @@ function brb_refresh_faq() {
     clean_post_cache((int) $page->ID);
 }
 function brb_scrub_copy_string($c) {
-    $c = preg_replace('/Payments are processed by \w+;?\s*we do not store card numbers\./i', 'Mail or drop off checks payable to Mad Productions at ' . BRB_CHECK_ADDRESS . '. We keep your booking details and the check number our staff records.', $c);
-    $c = preg_replace('/pay securely online/i', 'save the date and mail or drop off a check', $c);
-    $c = preg_replace('/Bookings are confirmed once payment \(or the required deposit\) is received\./i', 'Saving a date holds it for a limited time. The booking is confirmed once we receive your check, or the required deposit.', $c);
-    $c = preg_replace('/\b(str' . 'ipe|ze' . 'lle|air' . 'bnb)\b/i', '', $c);
+    $card = 'Pay by check or in person, or online by card with a 3% processing fee. Mail or drop off checks payable to Mad Productions at ' . BRB_CHECK_ADDRESS . '. We never see or store card numbers. Cancellation and refunds follow the Rental Agreement. The card processing fee is non-refundable [VERIFY with attorney].';
+    $c = preg_replace('/Payments are processed by \w+;?\s*we do not store card numbers\./i', $card, $c);
+    $c = preg_replace('/This site does not process payments online and does not collect card data\./i', 'Stripe processes card payments. We never see or store card numbers.', $c);
+    $c = preg_replace('/pay securely online/i', 'pay by check or in person, or online by card', $c);
+    $c = preg_replace('/Bookings are confirmed once payment \(or the required deposit\) is received\./i', 'Saving a date holds it for a limited time. The booking is confirmed once we receive your check, your card payment, or the required deposit.', $c);
+    $c = preg_replace('/\b(ze' . 'lle|air' . 'bnb)\b/i', '', $c);
     $c = preg_replace('/[ \t]{2,}/', ' ', $c);
     return $c;
 }
@@ -663,6 +701,8 @@ function brb_hold_lines($b) {
     }
     $extra = brb_extra_instructions();
     if ($extra !== '') $lines[] = $extra;
+    $pay = brb_pay_online_line($b);
+    if ($pay !== '') $lines[] = $pay;
     return $lines;
 }
 function brb_preview_lines($q, DateTimeImmutable $start) {
@@ -817,10 +857,17 @@ function brb_send_payment_email($b, $amount, $check_number, $method = 'check') {
     $ref = brb_ref($b);
     $paid = brb_money($b->amount_paid);
     $balance = brb_money(max(0, round((float) $b->total - (float) $b->amount_paid, 2)));
-    $method = isset(brb_pay_methods()[$method]) ? $method : 'check';
+    $method = brb_pay_method_known($method) ? $method : 'check';
+    $pays = brb_payments($b->id);
+    $last_pay = $pays ? end($pays) : null;
+    $fee = ($method === 'card' && $last_pay) ? (float) ($last_pay->fee ?? 0) : 0;
     if ((float) $amount > 0) {
         if ($method === 'cash') {
             $check = 'We recorded cash for ' . brb_money($amount) . '.';
+        } elseif ($method === 'card') {
+            $check = 'We recorded a card payment for ' . brb_money($amount) . '.';
+            if ($fee > 0.009) $check .= ' A card processing fee of ' . brb_money($fee) . ' was charged on top and is not part of the booking balance. The processing fee is non-refundable [VERIFY with attorney].';
+            $check .= ' Cancellation and refunds follow the Rental Agreement.';
         } else {
             $check = 'We recorded a check for ' . brb_money($amount);
             if ($check_number !== '') $check .= ' (check ' . $check_number . ')';
@@ -838,6 +885,11 @@ function brb_send_payment_email($b, $amount, $check_number, $method = 'check') {
         $intro = "We received your cash and your date stays reserved.\n\n{$check}\nPaid so far: {$paid}\nBalance: {$balance}" . ($due ? " due by {$due}" : '') . ".\n\n" . brb_check_sentence('the remaining balance as a check') . "\nWrite booking reference {$ref} on the memo line.";
         $subject = 'We received your cash for ' . $ref;
         $admin_subject = 'Cash recorded for ' . $ref . ' – ' . $b->name;
+    } elseif ($method === 'card') {
+        $due = brb_balance_due_label($b->balance_due_on);
+        $intro = "We received your card payment and your date stays reserved.\n\n{$check}\nPaid so far: {$paid}\nBalance: {$balance}" . ($due ? " due by {$due}" : '') . ".\n\n" . brb_check_sentence('the remaining balance as a check') . "\nYou can also pay the rest online from your booking page.\nWrite booking reference {$ref} on the memo line if you pay by check.";
+        $subject = 'We received your card payment for ' . $ref;
+        $admin_subject = 'Card payment recorded for ' . $ref . ' – ' . $b->name;
     } else {
         $due = brb_balance_due_label($b->balance_due_on);
         $intro = "We received your check and your date stays reserved.\n\n{$check}\nPaid so far: {$paid}\nBalance: {$balance}" . ($due ? " due by {$due}" : '') . ".\n\n" . brb_check_sentence('the remaining balance as a check') . "\nWrite booking reference {$ref} on the memo line.";
@@ -966,7 +1018,7 @@ function brb_handle_book() {
     exit;
 }
 
-function brb_record_payment($booking_id, $amount, $check_number, $received_on, $notes, $require_check = true, $method = 'check') {
+function brb_record_payment($booking_id, $amount, $check_number, $received_on, $notes, $require_check = true, $method = 'check', $extra = []) {
     global $wpdb;
     $b = brb_booking($booking_id);
     if (!$b) return new WP_Error('missing', 'Booking not found.');
@@ -981,9 +1033,14 @@ function brb_record_payment($booking_id, $amount, $check_number, $received_on, $
     $remaining = round((float) $b->total - (float) $b->amount_paid, 2);
     if ($amount - $remaining > 0.009) return new WP_Error('amount', 'That amount is more than the balance of ' . brb_money($remaining) . '.');
     $method = sanitize_key((string) $method);
-    if (!isset(brb_pay_methods()[$method])) $method = 'check';
+    if (!brb_pay_method_known($method)) $method = 'check';
+    if (!is_array($extra)) $extra = [];
+    $fee = round((float) ($extra['fee'] ?? 0), 2);
+    if ($fee < 0) $fee = 0;
+    $stripe_id = sanitize_text_field($extra['stripe_id'] ?? '');
+    $stripe_session = sanitize_text_field($extra['stripe_session'] ?? '');
     $check_number = sanitize_text_field($check_number);
-    if ($method === 'cash') $check_number = '';
+    if ($method === 'cash' || $method === 'card') $check_number = '';
     elseif ($require_check && $check_number === '') return new WP_Error('check', 'Enter the check number.');
     if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $received_on)) $received_on = brb_now()->format('Y-m-d');
     $notes = sanitize_textarea_field($notes);
@@ -994,6 +1051,9 @@ function brb_record_payment($booking_id, $amount, $check_number, $received_on, $
         'received_on' => $received_on,
         'notes' => $notes,
         'method' => $method,
+        'fee' => brb_dec($fee),
+        'stripe_id' => $stripe_id,
+        'stripe_session' => $stripe_session,
         'created' => current_time('mysql', true),
     ]);
     if (!$ok) return new WP_Error('db', 'Could not record the payment.');
@@ -1190,9 +1250,10 @@ add_shortcode('boardroom_booking', function () {
     ob_start();
     echo '<div class="brb">';
     echo '<p class="brb-lead">' . esc_html(brb_price_sentence()) . '</p>';
-    echo '<p class="brb-lead">Save your date online. ' . esc_html(brb_check_sentence()) . ' A saved date is held so nobody else can take it while we wait for the check.</p>';
+    echo '<p class="brb-lead">Save your date online. Pay by check or in person, or online by card with a ' . esc_html(brb_fee_percent_label()) . ' processing fee once the price is confirmed. ' . esc_html(brb_check_sentence()) . ' A saved date is held so nobody else can take it.</p>';
     if (!empty($_GET['br_err'])) echo '<div class="brb-alert brb-err">' . esc_html(wp_unslash($_GET['br_err'])) . '</div>';
-    if (!empty($_GET['br_token'])) brb_view_confirmation(sanitize_text_field(wp_unslash($_GET['br_token'])));
+    if (!empty($_GET['br_pay'])) brb_view_pay(sanitize_text_field(wp_unslash($_GET['br_pay'])), sanitize_text_field(wp_unslash($_GET['br_sig'] ?? '')));
+    elseif (!empty($_GET['br_token'])) brb_view_confirmation(sanitize_text_field(wp_unslash($_GET['br_token'])));
     elseif (!empty($_GET['date'])) brb_view_quote();
     else brb_view_select();
     echo '</div>';
@@ -1317,10 +1378,10 @@ function brb_view_confirmation($token) {
     brb_steps($step, $labels);
     $recorded = brb_payments($b->id);
     $latest = $recorded ? end($recorded) : null;
-    $latest_cash = $latest && (($latest->method ?? 'check') === 'cash');
+    $latest_method = $latest ? (string) ($latest->method ?? 'check') : 'check';
     $titles = [
         'held' => 'Your date is held',
-        'deposit_paid' => $latest_cash ? 'Cash payment recorded' : 'Deposit check recorded',
+        'deposit_paid' => $latest_method === 'cash' ? 'Cash payment recorded' : ($latest_method === 'card' ? 'Card payment recorded' : 'Deposit check recorded'),
         'paid' => 'Booking confirmed',
         'cancelled' => 'Booking cancelled',
         'expired' => 'Hold released',
@@ -1342,17 +1403,20 @@ function brb_view_confirmation($token) {
       <p>price to be confirmed</p>
       <?php endif; ?>
       <?php
+      if (!empty($_GET['card']) && $_GET['card'] === 'pending' && $b->status !== 'paid') {
+          echo '<div class="brb-alert">If you just paid by card, the receipt is sent when the payment is confirmed. Your balance updates after that confirmation.</div>';
+      }
       if ($b->status === 'held') {
           brb_echo_lines(brb_hold_lines($b));
           echo '<p>A copy of these instructions was sent to ' . esc_html($b->email) . '.</p>';
       } elseif ($b->status === 'deposit_paid') {
           $due = brb_balance_due_label($b->balance_due_on);
-          $received = $latest_cash
-              ? 'We have recorded a cash payment toward this booking. Your date stays reserved.'
-              : 'We have recorded a check toward this booking. Your date stays reserved.';
+          if ($latest_method === 'cash') $received = 'We have recorded a cash payment toward this booking. Your date stays reserved.';
+          elseif ($latest_method === 'card') $received = 'We have recorded a card payment toward this booking. Your date stays reserved.';
+          else $received = 'We have recorded a check toward this booking. Your date stays reserved.';
           echo '<div class="brb-paybox"><p>' . esc_html($received) . '</p>';
           echo '<p>Balance of ' . esc_html(brb_money(max(0, $paid_off))) . ($due ? ' is due by ' . esc_html($due) : '') . '.</p>';
-          echo '<p>' . esc_html(brb_check_sentence('the remaining balance as a check')) . ' Write booking reference ' . esc_html(brb_ref($b)) . ' on the memo line.</p></div>';
+          echo '<p>' . esc_html(brb_check_sentence('the remaining balance as a check')) . ' You can also pay the rest online when card payment is offered. Write booking reference ' . esc_html(brb_ref($b)) . ' on the memo line.</p></div>';
       } elseif ($b->status === 'paid') {
           echo '<div class="brb-paybox"><p>This booking is paid in full and confirmed.</p></div>';
           echo '<p>A confirmation email was sent to ' . esc_html($b->email) . '.</p>';
@@ -1361,6 +1425,8 @@ function brb_view_confirmation($token) {
       } else {
           echo '<div class="brb-alert">This booking is cancelled. The date is not reserved.</div>';
       }
+      $pay_url = brb_pay_link($b);
+      if ($pay_url !== '') echo '<p><a class="brb-btn" href="' . esc_url($pay_url) . '">Pay online</a></p>';
       ?>
     </div>
     <?php

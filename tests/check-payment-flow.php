@@ -22,7 +22,7 @@ function brb_t($cond, $msg) {
 $brand = 'str' . 'ipe';
 $wire = 'ze' . 'lle';
 $other = 'air' . 'bnb';
-$banned = [$brand, $wire, $other];
+$banned = [$wire, $other];
 
 global $wpdb;
 $snapshot = get_option('brb_settings');
@@ -34,7 +34,7 @@ add_filter('pre_wp_mail', function ($short, $atts) {
 $GLOBALS['brb_mails'] = [];
 
 try {
-    brb_t(get_option('brb_version') === '2.2.9', 'plugin storage version is 2.2.9');
+    brb_t(get_option('brb_version') === '2.3.0', 'plugin storage version is 2.3.0');
     brb_t(get_option('blog_public') === '0' || get_option('blog_public') === 0, 'staging discourages search engines');
     $cols = $wpdb->get_col('SHOW COLUMNS FROM ' . brb_table(), 0);
     foreach (['deposit_due', 'amount_paid', 'source', 'hold_until', 'balance_due_on', 'price_set', 'status', 'event_type'] as $col) {
@@ -415,11 +415,20 @@ try {
     }
     brb_t(!empty($data['days'][$later]['day_ok']) && $data['days'][$later]['status'] === 'free', 'a date outside the notice window is free');
     $routes = rest_get_server()->get_routes();
-    brb_t(!isset($routes['/brb/v1/' . $brand . '-webhook']), 'the old checkout route is not registered');
+    $hook = '/brb/v1/' . $brand . '-webhook';
+    $post_only = isset($routes[$hook]);
+    if ($post_only) {
+        foreach ($routes[$hook] as $endpoint) {
+            $methods = isset($endpoint['methods']) && is_array($endpoint['methods']) ? $endpoint['methods'] : [];
+            if (!empty($methods['GET']) || empty($methods['POST'])) $post_only = false;
+        }
+    }
+    brb_t($post_only, 'the card webhook route is registered for POST only');
 
     $dirty = 'Payments are processed by ' . ucfirst($brand) . '; we do not store card numbers. Please pay securely online.';
     $clean = brb_scrub_copy_string($dirty);
     foreach ($banned as $w) brb_t(stripos($clean, $w) === false, "scrubbed copy has no $w");
+    brb_t(stripos($clean, $brand) === false, 'scrubbed processor sentence does not keep the old processor name');
     brb_t(stripos($clean, 'check') !== false, 'scrubbed copy talks about a check');
 
     $faq = get_page_by_path('faq');
@@ -430,6 +439,7 @@ try {
     brb_t(stripos($faq_html, 'take the garbage out') !== false && stripos($faq_html, 'following day') !== false, 'faq explains cleanup');
     brb_t(stripos($faq_html, '48 hours') !== false && stripos($faq_html, 'price to be confirmed') !== false, 'faq explains the hold, the notice, and an unconfirmed price');
     brb_t(strpos($faq_html, 'Mail or drop off checks payable to Mad Productions at 2212 37th Street, Moline, IL 61265.') !== false && strpos($faq_html, '2220 37th Street') === false, 'faq tells guests where to mail or drop off checks');
+    brb_t(strpos($faq_html, 'online by card with a 3% processing fee') !== false && strpos($faq_html, 'non-refundable [VERIFY with attorney]') !== false, 'faq describes card payment and the non-refundable fee');
     brb_t(stripos($faq_html, 'How many guests can The Boardroom hold') !== false && stripos($faq_html, 'Up to 75') !== false, 'faq keeps the capacity answer');
     brb_t(strpos($faq_html, 'No cooking is allowed in the venue') !== false && strpos($faq_html, 'The stove top may not be used') !== false && strpos($faq_html, 'Food warmers (for keeping prepared food warm)') !== false, 'faq says no cooking and allows food warmers');
     brb_t(strpos($faq_html, 'one-day liquor license from the City of Moline, fee $50') !== false, 'faq names the City of Moline liquor license and the fee');
@@ -469,7 +479,7 @@ try {
         '[VERIFY: attorney review]' => $terms_html,
         'MAD Productions, LLC' => $privacy_html,
         'boardroomqc@gmail.com' => $privacy_html,
-        'does not collect card data' => $privacy_html,
+        'We never see or store card numbers' => $privacy_html,
         'FACILITY EVENT SPACE RENTAL AGREEMENT' => $agreement_html,
         'Rental Date:' => $agreement_html,
     ] as $needle => $hay) {
@@ -504,6 +514,8 @@ try {
     brb_t(strpos($schema, '41.4913116') !== false && strpos($schema, '-90.4820481') !== false && strpos($schema, '2220 37th Street') !== false && strpos($schema, '2212 37th Street') === false, 'schema geo uses the map coordinates and the venue address');
     brb_t(strpos($privacy_html, 'mailto:boardroomqc@gmail.com') !== false && strpos($privacy_html, '[VERIFY]</span>') === false, 'privacy email is confirmed without a verification marker');
     brb_t(strpos($privacy_html, 'sets no advertising, analytics, or tracking cookies of its own') !== false && strpos($privacy_html, 'embedded Google Map on the Contact page may set cookies from Google') !== false && strpos($privacy_html, "Google's privacy policy applies") !== false && strpos($privacy_html, 'not asked to accept cookies') !== false, 'privacy explains our cookies and the Google map');
+    brb_t(strpos($privacy_html, 'does not process payments online') === false && strpos($privacy_html, 'Stripe processes card payments') !== false && strpos($privacy_html, 'Stripe may set cookies on its own checkout page') !== false, 'privacy says Stripe processes cards and may set cookies on its checkout page');
+    brb_t(strpos($terms_html, 'online by card with a 3% processing fee') !== false && strpos($terms_html, 'non-refundable [VERIFY with attorney]') !== false, 'terms describe the card fee and that it is non-refundable');
     brb_t(strpos($privacy_html, 'does not embed a map') === false && strpos($privacy_html, 'does not load Google') === false && strpos($privacy_html, 'does not use advertising, analytics, or tracking cookies.') === false && stripos($privacy_html, 'phone') === false, 'privacy no longer says the site uses no cookies or collects a phone number');
     brb_t(strpos($privacy_html, '[VERIFY if analytics added]') === false, 'analytics cookies are no longer marked for verification');
     foreach ([$terms_html, $privacy_html, $agreement_html] as $hay) {
@@ -521,7 +533,7 @@ try {
 
     foreach ([
         'faq' => 'price to be confirmed',
-        'privacy' => 'does not collect card data',
+        'privacy' => 'We never see or store card numbers',
         'terms' => 'signed Rental Agreement controls',
         'rental-agreement' => 'IN WITNESS WHEREOF',
     ] as $slug => $needle) {
