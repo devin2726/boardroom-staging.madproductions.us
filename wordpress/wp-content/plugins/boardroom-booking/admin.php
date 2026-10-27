@@ -229,6 +229,15 @@ function brb_admin_detail($id) {
         echo '<tr><th style="width:280px">' . esc_html($label) . '</th><td>' . nl2br(esc_html((string) $val)) . '</td></tr>';
     }
     echo '</tbody></table>';
+    if (!empty($b->attention)) {
+        echo '<div class="notice notice-warning"><p>' . esc_html($b->attention) . '</p></div>';
+    }
+    $card_rows = array_filter(brb_payments($b->id), function ($p) {
+        return ($p->method ?? '') === 'card';
+    });
+    if ($card_rows || !empty($b->attention)) {
+        echo '<p>Refunds follow the rental agreement and are issued manually in the Stripe dashboard. The card processing fee is non-refundable [VERIFY with attorney].</p>';
+    }
 
     if ($b->status !== 'cancelled') {
         echo '<h2>Agreed price</h2><form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="max-width:640px">';
@@ -289,9 +298,20 @@ function brb_admin_detail($id) {
     if (!$pays) {
         echo '<p>No payments recorded yet.</p>';
     } else {
-        echo '<table class="widefat" style="max-width:760px"><thead><tr><th>Date received</th><th>Amount</th><th>Method</th><th>Check number</th><th>Notes</th></tr></thead><tbody>';
+        echo '<table class="widefat" style="max-width:960px"><thead><tr><th>Date received</th><th>Amount</th><th>Method</th><th>Fee</th><th>Check number</th><th>Stripe payment</th><th>Notes</th></tr></thead><tbody>';
         foreach ($pays as $p) {
-            printf('<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>', esc_html($p->received_on), esc_html(brb_money($p->amount)), esc_html(brb_pay_method_label($p->method ?? 'check')), esc_html($p->check_number), esc_html($p->notes));
+            $fee = (float) ($p->fee ?? 0);
+            $stripe_id = (string) ($p->stripe_id ?? '');
+            printf(
+                '<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>',
+                esc_html($p->received_on),
+                esc_html(brb_money($p->amount)),
+                esc_html(brb_pay_method_label($p->method ?? 'check')),
+                esc_html($fee > 0.009 ? brb_money($fee) : '—'),
+                esc_html($p->check_number),
+                esc_html($stripe_id !== '' ? $stripe_id : '—'),
+                esc_html($p->notes)
+            );
         }
         echo '</tbody></table>';
     }
@@ -399,6 +419,7 @@ function brb_admin_settings() {
         $new['hold_hours'] = (string) max(1, (int) $new['hold_hours']);
         $new['balance_due_days'] = (string) max(0, (int) $new['balance_due_days']);
         $new['deposit_pct'] = (string) max(1, min(100, (float) $new['deposit_pct']));
+        $new['card_fee_percent'] = (string) max(0, min(100, round((float) ($new['card_fee_percent'] ?? 3), 2)));
         $new['deposit_fixed'] = brb_dec(max(0, (float) $new['deposit_fixed']));
         $new['starting_price'] = brb_dec(max(0, (float) $new['starting_price']));
         if (trim((string) $new['typical_price']) === '') $new['typical_price'] = $defaults['typical_price'];
@@ -446,6 +467,7 @@ function brb_admin_settings() {
             ['pay_location', 'Where to mail or drop off checks', 'text', null, 'Check mail and drop-off only. Default is 2212 37th Street, Moline, IL 61265. A saved placeholder, or the old 2212 47 Ave line, is replaced on upgrade.'],
             ['pay_hours', 'In-person hours [VERIFY]', 'text', null, 'Days and hours a guest can drop off a check.'],
             ['pay_instructions', 'Payment instructions', 'textarea', null, 'Optional extra text on the review step, the confirmation page, and in the hold email. Leave blank and this line stays hidden.'],
+            ['card_fee_percent', 'Card processing fee (%)', 'number', null, 'Added on top of an online card payment. Default 3. It is not applied to the booking balance. Card payment stays off until the Stripe secret key is set on the server.'],
             ['admin_email', 'Admin notification email', 'text', null, 'Hold, check, expiry, and contact inquiry emails are sent here. Separate more than one address with a comma.'],
             ['tour_email', 'Inquiry email', 'text', null, 'Contact inquiries are also emailed here. Default is boardroomqc@gmail.com.'],
         ],
@@ -456,7 +478,8 @@ function brb_admin_settings() {
     ];
     echo '<div class="wrap"><h1>Booking Settings</h1>';
     brb_admin_note();
-    echo '<p>Guests save a date on the website and mail or drop off a check. Nothing is collected through the website. ' . esc_html(brb_price_sentence()) . ' Staff set the final price on each booking. The venue and the check address are separate settings.</p>';
+    echo '<p>Guests save a date on the website. They can pay by check or in person, or online by card when the Stripe secret key is set. ' . esc_html(brb_price_sentence()) . ' Staff set the final price on each booking. The venue and the check address are separate settings.</p>';
+    echo '<p>No overnight stays. The Boardroom is an event space only. Latest end time: [VERIFY] latest end time. Do not publish an end time until that is confirmed. Guests are not shown this note.</p>';
     $sampleStart = brb_now()->modify('+10 days')->setTime(0, 0);
     echo '<div class="brb-paybox"><strong>What guests see before a price is set</strong>';
     brb_echo_lines(brb_preview_lines(['total' => 0, 'due' => 0, 'price_set' => 0], $sampleStart));
@@ -496,5 +519,11 @@ function brb_admin_settings() {
     wp_nonce_field('brb_test_email');
     echo '<p><button class="button">Send test email</button></p>';
     echo '<p class="description">Sends to the admin notification email and shows the mail error if it fails.</p>';
-    echo '</form></div>';
+    echo '</form>';
+    $stripe_mode = brb_stripe_mode();
+    echo '<h2>Card payments</h2>';
+    echo '<p>Stripe connected: ' . (brb_stripe_enabled() ? 'yes' : 'no') . '</p>';
+    echo '<p>Mode: ' . esc_html($stripe_mode !== '' ? $stripe_mode : '—') . '</p>';
+    echo '<p class="description">Online card payment is off until the secret key is set on the server. Refunds are issued manually in the Stripe dashboard and follow the rental agreement.</p>';
+    echo '</div>';
 }

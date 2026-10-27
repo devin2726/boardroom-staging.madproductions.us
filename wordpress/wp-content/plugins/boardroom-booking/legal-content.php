@@ -2,7 +2,7 @@
 if (!defined('ABSPATH')) exit;
 
 function brb_cancellation_summary() {
-    return 'A date saved on the website is held for 48 hours. Mail or drop off checks payable to Mad Productions at 2212 37th Street, Moline, IL 61265. If the check is not received by then, the hold is released. Under the Rental Agreement, 50% of the invoice is due within 1 day after signing unless the Owner agrees otherwise in writing. The invoice notes require full payment 30 days before the event. If you cancel in writing 90 days or more before the rental period, amounts paid may be refunded, less any non-refundable processing charges or costs already incurred. If you cancel less than 90 days before the rental period, security deposits and cleaning fees already paid are non-refundable. Rental fees are non-refundable if cancellation is received less than 30 days before the rental period, unless the Owner agrees otherwise in writing. The signed Rental Agreement controls if it differs from this summary.';
+    return 'A date saved on the website is held for 48 hours. Mail or drop off checks payable to Mad Productions at 2212 37th Street, Moline, IL 61265. If the check is not received by then, the hold is released. You can pay by check or in person, or online by card with a 3% processing fee. Under the Rental Agreement, 50% of the invoice is due within 1 day after signing unless the Owner agrees otherwise in writing. The invoice notes require full payment 30 days before the event. If you cancel in writing 90 days or more before the rental period, amounts paid may be refunded, less any non-refundable processing charges or costs already incurred. If you cancel less than 90 days before the rental period, security deposits and cleaning fees already paid are non-refundable. Rental fees are non-refundable if cancellation is received less than 30 days before the rental period, unless the Owner agrees otherwise in writing. Cancellation and refunds follow the Rental Agreement. The card processing fee is non-refundable [VERIFY with attorney]. The signed Rental Agreement controls if it differs from this summary.';
 }
 
 function brb_policy_needs_refresh($text) {
@@ -19,7 +19,7 @@ function brb_terms_html() {
 <p>These Rental Terms are a plain-language summary of the Facility Event Space Rental Agreement between MAD Productions, LLC, the Owner of The Boardroom QC, and the person or entity renting the space. They follow that agreement section by section. They do not replace it. If this page and the signed agreement differ, the signed agreement controls. The full text, with signature lines, is on the <a href="/rental-agreement/">Rental Agreement</a> page, which you can print. The venue is at 2220 37th Street, Moline, IL 61265.</p>
 
 <h2>1. Rental period and limited use</h2>
-<p>You may use the venue only during the date or dates and the times stated on the invoice, the booking confirmation, or a written approval from the Owner. That window is the rental period. You may not enter early, stay after the rental period ends, or use the venue for any purpose other than the approved event, unless the Owner agrees in writing first. Entering early, leaving late, or using the space without approval can bring additional charges, loss of the deposit, and any other remedy available to the Owner.</p>
+<p>You may use the venue only during the date or dates and the times stated on the invoice, the booking confirmation, or a written approval from the Owner. That window is the rental period. You may not enter early, stay after the rental period ends, or use the venue for any purpose other than the approved event, unless the Owner agrees in writing first. Overnight stays are not allowed. The Boardroom is an event space only. Entering early, leaving late, or using the space without approval can bring additional charges, loss of the deposit, and any other remedy available to the Owner.</p>
 
 <h2>2. Access, keys, and codes</h2>
 <p>The Owner may give you one key, one access code, or another way to enter, as the Owner decides is needed. You must safeguard every key, code, and access credential. You may not duplicate them or share them except with approved event representatives. You must return every physical access item immediately when the rental period ends. You are responsible for the cost of lost keys, rekeying, lock changes, code changes, and unauthorized access caused by you or by your guests, invitees, vendors, contractors, agents, or representatives.</p>
@@ -86,6 +86,7 @@ function brb_terms_html() {
 <div class="rules">
 <p>These house rules are in addition to section 7 of the agreement.</p>
 <ul>
+<li>No overnight stays. The Boardroom is an event space only.</li>
 <li>No cooking is allowed in the venue.</li>
 <li>The stove top may not be used.</li>
 <li>Food warmers (for keeping prepared food warm) and the bar area may be used.</li>
@@ -96,7 +97,8 @@ function brb_terms_html() {
 </div>
 
 <h2>Booking and payment on this website</h2>
-<p>Saving a date on this website holds it for 48 hours. If the check is not received within those 48 hours, the hold is released. Mail or drop off checks payable to Mad Productions at 2212 37th Street, Moline, IL 61265.</p>
+<p>Saving a date on this website holds it for 48 hours. If the check is not received within those 48 hours, the hold is released. You can pay by check or in person, or online by card with a 3% processing fee. Mail or drop off checks payable to Mad Productions at 2212 37th Street, Moline, IL 61265.</p>
+<p>The card processing fee is added on top of the amount being paid and is not part of the booking balance. Cancellation and refunds follow the Rental Agreement. The card processing fee is non-refundable [VERIFY with attorney].</p>
 <p>As the agreement states, 50% of the invoice is due within 1 day after signing. The invoice notes require full payment 30 days before the event.</p>
 <p>The invoice notes also state that a refund of the 50% deposit is available only if the event is cancelled 90 days or more before the event, and that a cancellation inside that window may not be refunded. Section 16 above is more specific about rental fees, cleaning fees, and security deposits. The damage deposit described on the invoice is refundable after inspection. Section 11 above allows the Owner to apply the security deposit to amounts owed, and you remain responsible for anything above the deposit.</p>
 <p>The room is not set up when you arrive. Seating and layout are specific to your event. Staff can help with setup for an extra fee. Decorations are not provided, except that Christmas decorations are up in December. The maximum is 75 people unless the Owner approves a different limit in writing.</p>
@@ -113,22 +115,22 @@ function brb_privacy_html() {
 <p>This policy describes what MAD Productions, LLC, doing business as The Boardroom QC, at 2220 37th Street, Moline, IL 61265, collects on this website and how it is used.</p>
 
 <h2>Information we collect</h2>
-<p>The booking form asks for your name, email, event type, event date and time, party size, and notes. The contact form asks for your name, email, and a message. You can also say what the message is about, and a preferred date or time. When a check is received, staff enter the check number and the payment record by hand. That record is stored with the booking. A contact inquiry is stored with the inquiry.</p>
+<p>The booking form asks for your name, email, event type, event date and time, party size, and notes. The contact form asks for your name, email, and a message. You can also say what the message is about, and a preferred date or time. When a check is received, staff enter the check number and the payment record by hand. When a card is used, Stripe processes the payment and this site stores the amount, the processing fee, and the payment id. We never see or store card numbers. That record is stored with the booking. A contact inquiry is stored with the inquiry.</p>
 
 <h2>How we use it</h2>
 <p>We use this information only to manage reservations and contact inquiries, and to communicate with you about them. Email about a booking or a contact inquiry is sent through this site’s mail system.</p>
 
 <h2>Payment</h2>
-<p>This site does not process payments online and does not collect card data. Mail or drop off checks payable to Mad Productions at 2212 37th Street, Moline, IL 61265.</p>
+<p>You can pay by check or in person, or online by card with a 3% processing fee. Mail or drop off checks payable to Mad Productions at 2212 37th Street, Moline, IL 61265. Stripe processes card payments. We never see or store card numbers. Cancellation and refunds follow the Rental Agreement. The card processing fee is non-refundable [VERIFY with attorney].</p>
 
 <h2>Cookies</h2>
-<p>This site sets no advertising, analytics, or tracking cookies of its own, but the embedded Google Map on the Contact page may set cookies from Google, and Google's privacy policy applies to those cookies. Guests are not asked to accept cookies. The contact form does not set a cookie. WordPress sets cookies for staff when they log in to the admin area.</p>
+<p>This site sets no advertising, analytics, or tracking cookies of its own, but the embedded Google Map on the Contact page may set cookies from Google, and Google's privacy policy applies to those cookies. Stripe may set cookies on its own checkout page, and Stripe's privacy policy applies to those cookies. Guests are not asked to accept cookies. The contact form does not set a cookie. WordPress sets cookies for staff when they log in to the admin area.</p>
 
 <h2>How long we keep it</h2>
 <p>We keep booking, payment, and contact inquiry records for as long as we need them for our records and for tax. A contact inquiry is removed only when a staff member deletes it. If you ask us to delete your information, we will, unless the law requires us to keep it.</p>
 
 <h2>Sharing</h2>
-<p>We do not sell your information. We share it only with service providers that host this site or deliver email, and when the law requires it.</p>
+<p>We do not sell your information. We share it only with service providers that host this site or deliver email, with Stripe when you pay by card, and when the law requires it.</p>
 
 <h2>Your requests</h2>
 <p>You can ask to see or delete your information by emailing <a href="mailto:boardroomqc@gmail.com">boardroomqc@gmail.com</a>.</p>
@@ -158,7 +160,7 @@ WHEREAS, Owner agrees to allow such temporary use only under the terms, conditio
 
 NOW, THEREFORE, in consideration of the mutual promises and covenants stated herein, the Parties agree as follows:
 
-1. Rental Period and Limited Use. Renter shall have access to and use of the Venue only during the date(s) and time(s) stated on the invoice, booking confirmation, or written approval issued by Owner (the "Rental Period"). Renter shall not enter early, remain after the end of the Rental Period, or use the Venue for any purpose other than the approved event without Owner's prior written consent. Any unauthorized early entry, late departure, or unapproved use may result in additional charges, loss of deposit, and any other remedies available to Owner.
+1. Rental Period and Limited Use. Renter shall have access to and use of the Venue only during the date(s) and time(s) stated on the invoice, booking confirmation, or written approval issued by Owner (the "Rental Period"). Renter shall not enter early, remain after the end of the Rental Period, or use the Venue for any purpose other than the approved event without Owner's prior written consent. Overnight stays are not permitted. The Venue is an event space only. Any unauthorized early entry, late departure, or unapproved use may result in additional charges, loss of deposit, and any other remedies available to Owner.
 
 2. Access, Keys, and Codes. Owner may provide Renter with one (1) key, access code, or other entry method as deemed necessary by Owner. Renter shall safeguard all keys, codes, and access credentials, shall not duplicate or share them except with approved event representatives, and shall return all physical access items immediately at the end of the Rental Period. Renter is responsible for all costs related to lost keys, rekeying, lock changes, code changes, or unauthorized access caused by Renter or Renter's guests, invitees, vendors, contractors, agents, or representatives.
 
