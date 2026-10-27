@@ -13,8 +13,8 @@
 <section class="block" id="gallery"><div class="wrap"><h2>Photo Gallery</h2><div class="gallery">
   <?php foreach ($p as $f) printf('<a href="%1$s"><img src="%1$s" alt="The Boardroom" loading="lazy"></a>', esc_url(br_img($f))); ?>
 </div></div></section>
-<section class="block alt" id="contact"><div class="wrap"><h2>Contact the Boardroom</h2><div class="contact-grid">
-  <div><h3>Inquire About Bookings</h3><p>Questions about your event or dates? Send us a message.</p>
-    <?php the_post(); the_content(); ?></div>
-  <div><?php echo br_contact_form(); ?></div></div></div></section>
+<section class="block alt" id="contact"><div class="wrap"><h2>Contact the Boardroom</h2>
+  <p>Questions about the venue or a date? <a href="<?php echo esc_url(home_url('/contact/')); ?>">Contact us</a>.</p>
+  <p>Ready to reserve? <a href="<?php echo esc_url($book); ?>">Book your date</a>.</p>
+</div></section>
 <?php get_footer();

@@ -34,7 +34,7 @@ add_filter('pre_wp_mail', function ($short, $atts) {
 $GLOBALS['brb_mails'] = [];
 
 try {
-    brb_t(get_option('brb_version') === '2.2.7', 'plugin storage version is 2.2.7');
+    brb_t(get_option('brb_version') === '2.2.8', 'plugin storage version is 2.2.8');
     brb_t(get_option('blog_public') === '0' || get_option('blog_public') === 0, 'staging discourages search engines');
     $cols = $wpdb->get_col('SHOW COLUMNS FROM ' . brb_table(), 0);
     foreach (['deposit_due', 'amount_paid', 'source', 'hold_until', 'balance_due_on', 'price_set', 'status'] as $col) {
@@ -454,8 +454,14 @@ try {
     brb_t(strpos($agreement_html, '2212 37th Street') === false && strpos($agreement_html, '2212 47 Ave') === false, 'signed agreement body is not rewritten to the site address');
     $contact = get_page_by_path('contact');
     $contact_html = $contact ? (string) $contact->post_content : '';
-    brb_t(strpos($contact_html, '2220 37th Street, Moline, IL 61265') !== false && strpos($contact_html, '2212 37th Street') === false && strpos($contact_html, 'PLACEHOLDER: address') === false, 'contact page shows the venue address');
-    brb_t(strpos($contact_html, 'https://maps.app.goo.gl/nVqUsGTcy48nPzc18') !== false && strpos($contact_html, 'Get directions / View on Google Maps') !== false && strpos($contact_html, '<iframe') === false, 'contact page links to Google Maps without embedding it');
+    brb_t(strpos($contact_html, '2220 37th Street, Moline, IL 61265') !== false && strpos($contact_html, '2212 37th Street') === false && strpos($contact_html, 'PLACEHOLDER') === false, 'contact page shows the venue address');
+    brb_t(strpos($contact_html, 'mailto:boardroomqc@gmail.com') !== false, 'contact page stores the venue email');
+    brb_t(strpos($contact_html, 'https://maps.app.goo.gl/nVqUsGTcy48nPzc18') !== false && strpos($contact_html, 'Get directions / View on Google Maps') !== false, 'contact page keeps the directions link');
+    brb_t(strpos($contact_html, '[boardroom_tour]') === false && strpos($contact_html, '[boardroom_contact]') === false && stripos($contact_html, 'Schedule a tour') === false, 'stored contact content no longer includes the old forms');
+    $map = brb_map_embed();
+    $contact_template = file_get_contents(get_stylesheet_directory() . '/page-contact.php');
+    brb_t(strpos($map, '<iframe') !== false && strpos($map, 'loading="lazy"') !== false && strpos($map, 'google.com/maps/embed') !== false && strpos($map, '41.4913116') !== false && strpos($map, '-90.4820481') !== false && stripos($map, 'Load map') === false, 'the contact map iframe loads from Google with the venue coordinates');
+    brb_t(is_string($contact_template) && strpos($contact_template, 'brb_map_embed') !== false && strpos($contact_template, 'mailto:boardroomqc@gmail.com') !== false && strpos($contact_template, 'brb_directions_markup') !== false, 'the contact template shows the email, map, and directions link');
     $footer = file_get_contents(get_stylesheet_directory() . '/footer.php');
     brb_t(is_string($footer) && strpos($footer, '2220 37th Street, Moline, IL 61265') !== false && strpos($footer, '2212 37th Street') === false, 'footer shows the venue address');
     brb_t(is_string($footer) && strpos($footer, 'https://maps.app.goo.gl/nVqUsGTcy48nPzc18') !== false && strpos($footer, 'Get directions / View on Google Maps') !== false, 'footer links to Google Maps');
@@ -464,7 +470,8 @@ try {
     $schema = ob_get_clean();
     brb_t(strpos($schema, '41.4913116') !== false && strpos($schema, '-90.4820481') !== false && strpos($schema, '2220 37th Street') !== false && strpos($schema, '2212 37th Street') === false, 'schema geo uses the map coordinates and the venue address');
     brb_t(strpos($privacy_html, 'mailto:boardroomqc@gmail.com') !== false && strpos($privacy_html, '[VERIFY]</span>') === false, 'privacy email is confirmed without a verification marker');
-    brb_t(strpos($privacy_html, 'does not use advertising, analytics, or tracking cookies') !== false && strpos($privacy_html, 'not asked to accept cookies') !== false, 'privacy says guests are not given tracking cookies');
+    brb_t(strpos($privacy_html, 'sets no advertising, analytics, or tracking cookies of its own') !== false && strpos($privacy_html, 'embedded Google Map on the Contact page may set cookies from Google') !== false && strpos($privacy_html, "Google's privacy policy applies") !== false && strpos($privacy_html, 'not asked to accept cookies') !== false, 'privacy explains our cookies and the Google map');
+    brb_t(strpos($privacy_html, 'does not embed a map') === false && strpos($privacy_html, 'does not load Google') === false && strpos($privacy_html, 'does not use advertising, analytics, or tracking cookies.') === false && stripos($privacy_html, 'phone') === false, 'privacy no longer says the site uses no cookies or collects a phone number');
     brb_t(strpos($privacy_html, '[VERIFY if analytics added]') === false, 'analytics cookies are no longer marked for verification');
     foreach ([$terms_html, $privacy_html, $agreement_html] as $hay) {
         foreach ($banned as $w) brb_t(stripos($hay, $w) === false, 'legal copy has no ' . $w);
@@ -493,6 +500,7 @@ try {
     $_GET = ['date' => $later, 'type' => 'day', 'days' => 1, 'guests' => 4];
     $quote_html = do_shortcode('[boardroom_booking]');
     brb_t(strpos($quote_html, 'Save this date') !== false, 'review page submit button is Save this date');
+    brb_t(strpos($quote_html, 'name="phone"') === false && stripos($quote_html, 'autocomplete="tel"') === false, 'the public booking form does not ask for a phone number');
     brb_t(strpos($quote_html, 'I agree to the') !== false && strpos($quote_html, home_url('/terms/')) !== false && strpos($quote_html, home_url('/privacy/')) !== false, 'review page requires the terms and privacy policy');
     brb_t(strpos($quote_html, 'Pricing from $600 per day (most events around $1,200), final price confirmed based on date, guest count and features.') !== false, 'review page shows the from price');
     brb_t(stripos($quote_html, 'price to be confirmed') !== false, 'review page says price to be confirmed');
