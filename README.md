@@ -61,6 +61,8 @@ Full-day bookings start at 12:00 AM America/Chicago and block the whole day. Sho
 
 Coolify deploys the **`main`** branch from `docker-compose.yml`. See [README-COOLIFY.md](README-COOLIFY.md). Redeploying syncs the theme and plugin. It does not replace the database volume, so bookings and blackout dates stay.
 
+Outbound mail uses SMTP only when `BRB_SMTP_USER` and `BRB_SMTP_PASS` are set on the wordpress service (`BRB_SMTP_HOST` defaults to smtp.gmail.com, `BRB_SMTP_PORT` to 587, STARTTLS). `BRB_SMTP_FROM` defaults to boardroomqc@gmail.com and `BRB_SMTP_FROM_NAME` to The Boardroom. Do not commit the password. Inquiry mail keeps Reply-To set to the guest. Bookings → Settings → Send test email delivers to the admin notification email.
+
 Staging stays out of search indexes while `DISCOURAGE_SEARCH=1` (the default).
 
 Local test:

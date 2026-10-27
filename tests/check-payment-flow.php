@@ -655,6 +655,86 @@ try {
         $removed = brb_delete_booking($del->id);
         brb_t($removed === true && !brb_booking($del->id) && brb_payments($del->id) === [], 'deleting a cancelled booking removes it and its payment rows');
     }
+
+    $smtp_keys = ['BRB_SMTP_HOST', 'BRB_SMTP_PORT', 'BRB_SMTP_USER', 'BRB_SMTP_PASS', 'BRB_SMTP_FROM', 'BRB_SMTP_FROM_NAME'];
+    $smtp_clear = function () use ($smtp_keys) {
+        foreach ($smtp_keys as $key) {
+            putenv($key);
+            unset($_ENV[$key], $_SERVER[$key]);
+        }
+    };
+    $smtp_clear();
+    if (!class_exists('PHPMailer\\PHPMailer\\PHPMailer')) {
+        require_once ABSPATH . WPINC . '/PHPMailer/PHPMailer.php';
+        require_once ABSPATH . WPINC . '/PHPMailer/SMTP.php';
+        require_once ABSPATH . WPINC . '/PHPMailer/Exception.php';
+    }
+    $plain = new PHPMailer\PHPMailer\PHPMailer(true);
+    brb_configure_phpmailer($plain);
+    brb_t($plain->Mailer !== 'smtp', 'smtp stays off until the mail user and password are set');
+    $secret = 'smtp-secret-not-real';
+    putenv('BRB_SMTP_USER=boardroomqc@gmail.com');
+    putenv('BRB_SMTP_PASS=' . $secret);
+    $mailer = new PHPMailer\PHPMailer\PHPMailer(true);
+    brb_configure_phpmailer($mailer);
+    brb_t($mailer->Mailer === 'smtp' && $mailer->Host === 'smtp.gmail.com' && (int) $mailer->Port === 587, 'smtp defaults to smtp.gmail.com port 587');
+    brb_t($mailer->SMTPAuth === true && $mailer->SMTPSecure === PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS, 'smtp uses STARTTLS authentication');
+    brb_t($mailer->From === 'boardroomqc@gmail.com' && $mailer->FromName === 'The Boardroom', 'smtp from defaults to The Boardroom at boardroomqc@gmail.com');
+    brb_t($mailer->Password === $secret && $mailer->SMTPDebug === 0, 'smtp keeps the password on the mailer and turns debug off');
+    putenv('BRB_SMTP_HOST=smtp.example.test');
+    putenv('BRB_SMTP_PORT=2525');
+    putenv('BRB_SMTP_FROM=desk@example.com');
+    putenv('BRB_SMTP_FROM_NAME=Desk');
+    $custom = new PHPMailer\PHPMailer\PHPMailer(true);
+    brb_configure_phpmailer($custom);
+    brb_t($custom->Host === 'smtp.example.test' && (int) $custom->Port === 2525 && $custom->From === 'desk@example.com' && $custom->FromName === 'Desk', 'smtp host, port, and from follow the env vars');
+    $mail_settings = brb_opt();
+    $mail_settings['admin_email'] = 'admin@example.com';
+    update_option('brb_settings', $mail_settings);
+    unset($_POST['brb_save']);
+    if ($user) {
+        ob_start();
+        brb_admin_settings();
+        $mail_html = ob_get_clean();
+        brb_t(strpos($mail_html, 'Send test email') !== false && strpos($mail_html, 'value="brb_test_email"') !== false && strpos($mail_html, '_wpnonce') !== false, 'settings include a test email button and nonce');
+        brb_t(strpos($mail_html, $secret) === false, 'settings do not show the smtp password');
+        $previous_user = get_current_user_id();
+        wp_set_current_user(0);
+        ob_start();
+        brb_admin_settings();
+        $guest_html = ob_get_clean();
+        brb_t($guest_html === '', 'settings and the test email button are admin only');
+        add_filter('wp_die_handler', function () {
+            return function ($message) {
+                throw new RuntimeException(is_string($message) ? $message : 'die');
+            };
+        });
+        $refused = false;
+        try { brb_admin_gate('brb_test_email'); } catch (RuntimeException $e) { $refused = true; }
+        brb_t($refused, 'the test email action refuses a guest');
+        wp_set_current_user($previous_user);
+        $bad_nonce = false;
+        try { brb_admin_gate('brb_test_email'); } catch (RuntimeException $e) { $bad_nonce = true; }
+        brb_t($bad_nonce, 'the test email action requires its nonce');
+        $_REQUEST['_wpnonce'] = wp_create_nonce('brb_test_email');
+        $allowed = true;
+        try { brb_admin_gate('brb_test_email'); } catch (RuntimeException $e) { $allowed = false; }
+        brb_t($allowed, 'an admin with the nonce can send a test email');
+        remove_all_filters('wp_die_handler');
+    }
+    $GLOBALS['brb_mails'] = [];
+    $sent = brb_send_test_email();
+    brb_t($sent === ['admin@example.com'], 'the test email goes to the admin notification email');
+    brb_t(isset($GLOBALS['brb_mails'][0]['subject']) && $GLOBALS['brb_mails'][0]['subject'] === 'Boardroom email test', 'the test email has a fixed subject');
+    add_filter('pre_wp_mail', function ($short, $atts) {
+        do_action('wp_mail_failed', new WP_Error('wp_mail_failed', 'SMTP Error: Could not authenticate using ' . brb_env('BRB_SMTP_PASS')));
+        return false;
+    }, 20, 2);
+    $failed = brb_send_test_email();
+    remove_all_filters('pre_wp_mail', 20);
+    brb_t(is_wp_error($failed) && strpos($failed->get_error_message(), 'SMTP Error: Could not authenticate') !== false, 'a failed test email shows the PHPMailer error');
+    brb_t(is_wp_error($failed) && strpos($failed->get_error_message(), '[redacted]') !== false && strpos($failed->get_error_message(), $secret) === false, 'a failed test email does not include the password');
+    $smtp_clear();
 } finally {
     if ($created_ids) {
         $in = implode(',', array_map('intval', $created_ids));
@@ -665,6 +745,10 @@ try {
     $wpdb->query($wpdb->prepare('DELETE FROM ' . brb_table() . ' WHERE email=%s', 'flow-test@example.com'));
     if ($snapshot !== false && $snapshot !== null) update_option('brb_settings', $snapshot);
     else delete_option('brb_settings');
+    foreach (['BRB_SMTP_HOST', 'BRB_SMTP_PORT', 'BRB_SMTP_USER', 'BRB_SMTP_PASS', 'BRB_SMTP_FROM', 'BRB_SMTP_FROM_NAME'] as $key) {
+        putenv($key);
+        unset($_ENV[$key], $_SERVER[$key]);
+    }
 }
 
 echo "\n{$GLOBALS['brb_ok']} passed, {$GLOBALS['brb_fail']} failed\n";

@@ -691,12 +691,111 @@ function brb_preview_lines($q, DateTimeImmutable $start) {
     return $lines;
 }
 
-function brb_mail($to, $subject, $body, $reply = '') {
+function brb_env($name) {
+    $value = getenv($name);
+    if (!is_string($value) || $value === '') {
+        if (isset($_SERVER[$name]) && is_string($_SERVER[$name])) $value = $_SERVER[$name];
+        elseif (isset($_ENV[$name]) && is_string($_ENV[$name])) $value = $_ENV[$name];
+        else $value = '';
+    }
+    return trim(str_replace(["\r", "\n"], '', $value));
+}
+function brb_smtp_from_name() {
+    $name = brb_env('BRB_SMTP_FROM_NAME');
+    return $name !== '' ? $name : 'The Boardroom';
+}
+function brb_smtp_from_address() {
+    $from = sanitize_email(brb_env('BRB_SMTP_FROM'));
+    return is_email($from) ? $from : 'boardroomqc@gmail.com';
+}
+function brb_smtp_config() {
+    $user = brb_env('BRB_SMTP_USER');
+    $pass = brb_env('BRB_SMTP_PASS');
+    if ($user === '' || $pass === '') return null;
+    $host = brb_env('BRB_SMTP_HOST');
+    if ($host === '') $host = 'smtp.gmail.com';
+    $port = (int) brb_env('BRB_SMTP_PORT');
+    if ($port <= 0) $port = 587;
+    return [
+        'host' => $host,
+        'port' => $port,
+        'user' => $user,
+        'pass' => $pass,
+        'from' => brb_smtp_from_address(),
+        'from_name' => brb_smtp_from_name(),
+    ];
+}
+function brb_configure_phpmailer($phpmailer) {
+    $cfg = brb_smtp_config();
+    if (!$cfg) return;
+    $phpmailer->isSMTP();
+    $phpmailer->Host = $cfg['host'];
+    $phpmailer->Port = (int) $cfg['port'];
+    $phpmailer->SMTPAuth = true;
+    $phpmailer->Username = $cfg['user'];
+    $phpmailer->Password = $cfg['pass'];
+    $phpmailer->SMTPSecure = PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
+    $phpmailer->SMTPAutoTLS = true;
+    $phpmailer->SMTPDebug = 0;
+    $phpmailer->Debugoutput = static function () {};
+    $phpmailer->From = $cfg['from'];
+    $phpmailer->FromName = $cfg['from_name'];
+    $phpmailer->Sender = $cfg['from'];
+}
+add_action('phpmailer_init', 'brb_configure_phpmailer');
+function brb_redact_secret($text) {
+    $text = (string) $text;
+    $pass = brb_env('BRB_SMTP_PASS');
+    if ($pass !== '') $text = str_replace($pass, '[redacted]', $text);
+    return $text;
+}
+function brb_admin_emails() {
+    $out = [];
+    foreach (preg_split('/[,;\s]+/', (string) brb_opt('admin_email')) as $part) {
+        $part = sanitize_email(trim($part));
+        if (is_email($part)) $out[strtolower($part)] = $part;
+    }
+    if (!$out) {
+        $fallback = sanitize_email((string) get_option('admin_email'));
+        if (is_email($fallback)) $out[strtolower($fallback)] = $fallback;
+    }
+    return array_values($out);
+}
+function brb_mail($to, $subject, $body, $reply = '', $from = '') {
     $to = sanitize_email($to);
     if (!$to || !is_email($to)) return false;
     $headers = ['Content-Type: text/plain; charset=UTF-8'];
+    if ($from && is_email($from)) $headers[] = 'From: ' . brb_smtp_from_name() . ' <' . $from . '>';
     if ($reply && is_email($reply)) $headers[] = 'Reply-To: ' . $reply;
     return wp_mail($to, $subject, $body, $headers);
+}
+function brb_send_test_email() {
+    $tos = brb_admin_emails();
+    if (!$tos) return new WP_Error('mail', 'No admin notification email is set.');
+    $subject = 'Boardroom email test';
+    $body = "This is a test email from Bookings → Settings.\nIf you can read this, outbound mail is working.\n";
+    $from = brb_smtp_from_address();
+    $errors = [];
+    $sent = [];
+    foreach ($tos as $to) {
+        $GLOBALS['brb_last_mail_error'] = null;
+        $capture = static function ($err) {
+            $GLOBALS['brb_last_mail_error'] = $err;
+        };
+        add_action('wp_mail_failed', $capture);
+        $ok = brb_mail($to, $subject, $body, '', $from);
+        remove_action('wp_mail_failed', $capture);
+        if ($ok) {
+            $sent[] = $to;
+            continue;
+        }
+        $msg = 'Mail could not be sent.';
+        $err = $GLOBALS['brb_last_mail_error'] ?? null;
+        if ($err instanceof WP_Error && $err->get_error_message() !== '') $msg = $err->get_error_message();
+        $errors[] = $to . ': ' . brb_redact_secret($msg);
+    }
+    if ($errors) return new WP_Error('mail', implode(' ', $errors));
+    return $sent;
 }
 function brb_guest_link($b) {
     return add_query_arg('br_token', $b->token, home_url('/book/'));

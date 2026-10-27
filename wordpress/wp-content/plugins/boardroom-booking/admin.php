@@ -94,6 +94,12 @@ add_action('admin_post_brb_delete', function () {
     if (is_wp_error($res)) brb_admin_back($id, $res->get_error_message());
     brb_admin_back(0, 'Cancelled booking deleted.');
 });
+add_action('admin_post_brb_test_email', function () {
+    brb_admin_gate('brb_test_email');
+    $res = brb_send_test_email();
+    if (is_wp_error($res)) brb_admin_back(0, 'Test email failed: ' . brb_redact_secret($res->get_error_message()), 'brb-settings');
+    brb_admin_back(0, 'Test email sent to ' . implode(', ', $res) . '.', 'brb-settings');
+});
 add_action('admin_post_brb_manual', function () {
     brb_admin_gate('brb_manual');
     $post = wp_unslash($_POST);
@@ -449,6 +455,7 @@ function brb_admin_settings() {
         ],
     ];
     echo '<div class="wrap"><h1>Booking Settings</h1>';
+    brb_admin_note();
     echo '<p>Guests save a date on the website and mail or drop off a check. Nothing is collected through the website. ' . esc_html(brb_price_sentence()) . ' Staff set the final price on each booking. The venue and the check address are separate settings.</p>';
     $sampleStart = brb_now()->modify('+10 days')->setTime(0, 0);
     echo '<div class="brb-paybox"><strong>What guests see before a price is set</strong>';
@@ -476,5 +483,18 @@ function brb_admin_settings() {
         }
         echo '</table>';
     }
-    echo '<p><button class="button button-primary" name="brb_save" value="1">Save settings</button></p></form></div>';
+    echo '<p><button class="button button-primary" name="brb_save" value="1">Save settings</button></p></form>';
+    echo '<h2>Send test email</h2>';
+    $smtp = brb_smtp_config();
+    if ($smtp) {
+        echo '<p>SMTP is on: ' . esc_html($smtp['host'] . ':' . $smtp['port']) . ' with STARTTLS, from ' . esc_html($smtp['from_name'] . ' <' . $smtp['from'] . '>') . '. The password stays on the server.</p>';
+    } else {
+        echo '<p>SMTP is off until BRB_SMTP_USER and BRB_SMTP_PASS are set on the server. Mail then uses smtp.gmail.com port 587 with STARTTLS unless BRB_SMTP_HOST or BRB_SMTP_PORT say otherwise.</p>';
+    }
+    echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
+    echo '<input type="hidden" name="action" value="brb_test_email">';
+    wp_nonce_field('brb_test_email');
+    echo '<p><button class="button">Send test email</button></p>';
+    echo '<p class="description">Sends to the admin notification email and shows the mail error if it fails.</p>';
+    echo '</form></div>';
 }
