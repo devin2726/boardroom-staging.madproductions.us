@@ -479,6 +479,7 @@ function brb_admin_settings() {
     echo '<div class="wrap"><h1>Booking Settings</h1>';
     brb_admin_note();
     echo '<p>Guests save a date on the website. They can pay by check or in person, or online by card when the Stripe secret key is set. ' . esc_html(brb_price_sentence()) . ' Staff set the final price on each booking. The venue and the check address are separate settings.</p>';
+    echo '<p>No overnight stays. The Boardroom is an event space only. Latest end time: [VERIFY] latest end time. Do not publish an end time until that is confirmed. Guests are not shown this note.</p>';
     $sampleStart = brb_now()->modify('+10 days')->setTime(0, 0);
     echo '<div class="brb-paybox"><strong>What guests see before a price is set</strong>';
     brb_echo_lines(brb_preview_lines(['total' => 0, 'due' => 0, 'price_set' => 0], $sampleStart));

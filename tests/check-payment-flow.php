@@ -34,7 +34,7 @@ add_filter('pre_wp_mail', function ($short, $atts) {
 $GLOBALS['brb_mails'] = [];
 
 try {
-    brb_t(get_option('brb_version') === '2.3.0', 'plugin storage version is 2.3.0');
+    brb_t(get_option('brb_version') === '2.3.1', 'plugin storage version is 2.3.1');
     brb_t(get_option('blog_public') === '0' || get_option('blog_public') === 0, 'staging discourages search engines');
     $cols = $wpdb->get_col('SHOW COLUMNS FROM ' . brb_table(), 0);
     foreach (['deposit_due', 'amount_paid', 'source', 'hold_until', 'balance_due_on', 'price_set', 'status', 'event_type'] as $col) {
@@ -252,6 +252,8 @@ try {
             brb_t(strpos($body, 'Write booking reference ' . brb_ref($b) . ' on the memo line.') !== false, 'email tells the guest what to write on the memo');
             brb_t(strpos($body, 'If the check is not received by then, the hold is released.') !== false, 'email says the hold is released');
             brb_t(stripos($body, 'price to be confirmed') !== false, 'email says price to be confirmed');
+            brb_t(strpos($body, 'No overnight stays. The Boardroom is an event space only.') !== false, 'hold email states the no-overnight rule');
+            brb_t(stripos($body, 'check-in') === false && stripos($body, 'check-out') === false && stripos($body, 'per night') === false && stripos($body, 'per-night') === false && stripos($body, 'guests staying') === false && strpos($body, '[VERIFY] latest end time') === false, 'hold email uses event wording');
             brb_t(strpos($body, '$0.00') === false && strpos($body, '$500') === false && strpos($body, '$75') === false && strpos($body, '$100') === false, 'hold email has no placeholder or zero total');
             brb_t((int) $b->price_set === 0 && (float) $b->total == 0.0, 'a public save does not store a guessed total');
             brb_t($b->event_type === 'wedding', 'the event type is stored with the booking');
@@ -273,6 +275,8 @@ try {
         brb_t(strpos($html, 'Wedding') !== false, 'confirmation page shows the event type');
         brb_t(strpos($html, '[VERIFY] Test instructions.') !== false && strpos($html, 'Extra instructions for bringing the check') === false, 'confirmation shows custom instructions and hides the default placeholder');
         brb_t(strpos($html, 'Save your date') !== false, 'confirmation page is the booking shortcode');
+        brb_t(strpos($html, 'No overnight stays. The Boardroom is an event space only.') !== false && strpos($html, 'guests attending') !== false, 'confirmation states the no-overnight rule and guests attending');
+        brb_t(stripos($html, 'check-in') === false && stripos($html, 'check-out') === false && stripos($html, 'per night') === false && stripos($html, 'guests staying') === false && strpos($html, '[VERIFY] latest end time') === false, 'confirmation uses event wording');
         brb_t(strpos($html, brb_ref($b)) !== false && strpos($html, 'memo line') !== false, 'confirmation page shows the memo reference');
         brb_t(stripos($html, 'price to be confirmed') !== false, 'confirmation says price to be confirmed');
         brb_t(strpos($html, '$0.00') === false && strpos($html, '$500') === false && strpos($html, '$75') === false && strpos($html, '$100') === false && strpos($html, '7%') === false, 'confirmation has no placeholder amounts');
@@ -335,6 +339,7 @@ try {
             brb_admin_settings();
             $settings_html = ob_get_clean();
             brb_t(strpos($settings_html, 'Minimum notice') !== false && strpos($settings_html, 'Hold length') !== false, 'settings explain notice and hold length');
+            brb_t(strpos($settings_html, '[VERIFY] latest end time') !== false, 'the latest end time is marked for staff only');
             brb_t(strpos($settings_html, 'Starting price') !== false && strpos($settings_html, 'Typical price text') !== false, 'settings show starting and typical price');
             brb_t(strpos($settings_html, 'Full-day rate') === false && strpos($settings_html, '$500') === false && strpos($settings_html, '$75') === false, 'settings do not show the old public rates');
             foreach ($banned as $w) brb_t(stripos($settings_html, $w) === false, "settings HTML has no $w");
@@ -440,6 +445,7 @@ try {
     brb_t(stripos($faq_html, '48 hours') !== false && stripos($faq_html, 'price to be confirmed') !== false, 'faq explains the hold, the notice, and an unconfirmed price');
     brb_t(strpos($faq_html, 'Mail or drop off checks payable to Mad Productions at 2212 37th Street, Moline, IL 61265.') !== false && strpos($faq_html, '2220 37th Street') === false, 'faq tells guests where to mail or drop off checks');
     brb_t(strpos($faq_html, 'online by card with a 3% processing fee') !== false && strpos($faq_html, 'non-refundable [VERIFY with attorney]') !== false, 'faq describes card payment and the non-refundable fee');
+    brb_t(strpos($faq_html, 'Are overnight stays allowed?') !== false && strpos($faq_html, 'No overnight stays. The Boardroom is an event space only.') !== false && stripos($faq_html, 'check-in') === false && stripos($faq_html, 'check-out') === false && strpos($faq_html, '[VERIFY] latest end time') === false, 'faq states the no-overnight rule without a public end time');
     brb_t(stripos($faq_html, 'How many guests can The Boardroom hold') !== false && stripos($faq_html, 'Up to 75') !== false, 'faq keeps the capacity answer');
     brb_t(strpos($faq_html, 'No cooking is allowed in the venue') !== false && strpos($faq_html, 'The stove top may not be used') !== false && strpos($faq_html, 'Food warmers (for keeping prepared food warm)') !== false, 'faq says no cooking and allows food warmers');
     brb_t(strpos($faq_html, 'one-day liquor license from the City of Moline, fee $50') !== false, 'faq names the City of Moline liquor license and the fee');
@@ -516,6 +522,8 @@ try {
     brb_t(strpos($privacy_html, 'sets no advertising, analytics, or tracking cookies of its own') !== false && strpos($privacy_html, 'embedded Google Map on the Contact page may set cookies from Google') !== false && strpos($privacy_html, "Google's privacy policy applies") !== false && strpos($privacy_html, 'not asked to accept cookies') !== false, 'privacy explains our cookies and the Google map');
     brb_t(strpos($privacy_html, 'does not process payments online') === false && strpos($privacy_html, 'Stripe processes card payments') !== false && strpos($privacy_html, 'Stripe may set cookies on its own checkout page') !== false, 'privacy says Stripe processes cards and may set cookies on its checkout page');
     brb_t(strpos($terms_html, 'online by card with a 3% processing fee') !== false && strpos($terms_html, 'non-refundable [VERIFY with attorney]') !== false, 'terms describe the card fee and that it is non-refundable');
+    brb_t(strpos($terms_html, 'No overnight stays. The Boardroom is an event space only.') !== false && strpos($agreement_html, 'Overnight stays are not permitted. The Venue is an event space only.') !== false, 'terms and the rental agreement forbid overnight stays');
+    brb_t(strpos($terms_html, '[VERIFY] latest end time') === false && strpos($agreement_html, '[VERIFY] latest end time') === false && stripos($terms_html, 'check-in') === false && stripos($agreement_html, 'check-in') === false, 'terms and the rental agreement do not publish an end time or check-in wording');
     brb_t(strpos($privacy_html, 'does not embed a map') === false && strpos($privacy_html, 'does not load Google') === false && strpos($privacy_html, 'does not use advertising, analytics, or tracking cookies.') === false && stripos($privacy_html, 'phone') === false, 'privacy no longer says the site uses no cookies or collects a phone number');
     brb_t(strpos($privacy_html, '[VERIFY if analytics added]') === false, 'analytics cookies are no longer marked for verification');
     foreach ([$terms_html, $privacy_html, $agreement_html] as $hay) {
@@ -550,6 +558,8 @@ try {
     brb_t(strpos($quote_html, 'Save this date') !== false, 'review page submit button is Save this date');
     brb_t(strpos($quote_html, 'name="phone"') === false && stripos($quote_html, 'autocomplete="tel"') === false, 'the public booking form does not ask for a phone number');
     brb_t(strpos($quote_html, 'I agree to the') !== false && strpos($quote_html, '>Terms<') !== false && strpos($quote_html, '>Rental Agreement<') !== false && strpos($quote_html, '>Privacy Policy<') !== false && strpos($quote_html, home_url('/terms/')) !== false && strpos($quote_html, home_url('/rental-agreement/')) !== false && strpos($quote_html, home_url('/privacy/')) !== false, 'review page links the terms, rental agreement, and privacy policy');
+    brb_t(strpos($quote_html, 'No overnight stays. The Boardroom is an event space only.') !== false && strpos($quote_html, 'guests attending') !== false, 'review step states the no-overnight rule and guests attending');
+    brb_t(stripos($quote_html, 'check-in') === false && stripos($quote_html, 'check-out') === false && stripos($quote_html, 'per night') === false && stripos($quote_html, 'per-night') === false && stripos($quote_html, 'guests staying') === false && strpos($quote_html, '[VERIFY] latest end time') === false, 'review step uses event wording');
     brb_t(strpos($quote_html, 'name="event_type"') !== false && strpos($quote_html, 'Wedding') !== false && strpos($quote_html, 'Birthday') !== false && strpos($quote_html, 'Corporate') !== false && strpos($quote_html, 'Fundraiser') !== false && strpos($quote_html, 'Other') !== false, 'review page asks for an event type');
     brb_t(strpos($quote_html, '[VERIFY] Test instructions.') !== false && strpos($quote_html, 'Extra instructions for bringing the check') === false, 'review page shows custom instructions and hides the default placeholder');
     brb_t(stripos($quote_html, 'cash') === false, 'the public review step stays check-only');

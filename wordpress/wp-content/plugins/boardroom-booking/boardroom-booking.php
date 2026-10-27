@@ -2,11 +2,11 @@
 /**
  * Plugin Name: Boardroom Booking
  * Description: Self-hosted direct booking for The Boardroom — full-day and hourly blocks, availability calendar, agreed prices, in-person check holds, blackout dates, and emails.
- * Version: 2.3.0
+ * Version: 2.3.1
  * Author: Mad Productions
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.3.0');
+define('BRB_VER', '2.3.1');
 define('BRB_VENUE_ADDRESS', '2220 37th Street, Moline, IL 61265');
 define('BRB_CHECK_ADDRESS', '2212 37th Street, Moline, IL 61265');
 define('BRB_MAPS_URL', 'https://maps.app.goo.gl/nVqUsGTcy48nPzc18');
@@ -411,7 +411,7 @@ function brb_migrate_prices() {
 }
 function brb_faq_markup() {
     return <<<'HTML'
-<details><summary>How many guests can The Boardroom hold?</summary><p>Up to 75 people.</p></details><details><summary>Is parking available?</summary><p>Yes, on-site parking.</p></details><details><summary>Can we bring our own drinks?</summary><p>The Boardroom has a bar area and an ice machine. No cooking is allowed in the venue. The stove top may not be used. Food warmers (for keeping prepared food warm) and the bar area may be used. There are no taps. Draft taps are not available. BYOB is allowed, and the renter must obtain a one-day liquor license from the City of Moline, fee $50. See the <a href="/terms/">Rental Terms</a>.</p></details><details><summary>What is there to do?</summary><p>80in television, pinball, pool and shuffleboard.</p></details><details><summary>How much does it cost?</summary><p>Pricing starts at $600 per day and can reach about $2,000, depending on the date, how many people are coming, and the features you would like. Most events come to about $1,200. We confirm the final price with you before any check is due. The website does not guess a total.</p></details><details><summary>How is the space set up?</summary><p>The space arrives not set up. Seating and layout are yours to plan, so bring the arrangement that suits your gathering. If you would like a hand, our staff can help with setup for an extra fee.</p></details><details><summary>Do you provide decorations?</summary><p>Decorations are not provided. Christmas decorations are up in December.</p></details><details><summary>What are our responsibilities before we leave?</summary><p>Please clean and tidy the space, and take the garbage out. Another event is often booked the following day, and a ready room lets the next hosts begin on time.</p></details><details><summary>How do I book and pay?</summary><p>Save your date on the <a href="/book/">Book</a> page. That holds the date for 48 hours. Pay by check or in person, or online by card with a 3% processing fee. Mail or drop off checks payable to Mad Productions at 2212 37th Street, Moline, IL 61265. Bookings need at least 48 hours' notice. Until we confirm your price, your confirmation says price to be confirmed. Cancellation and refunds follow the Rental Agreement. The card processing fee is non-refundable [VERIFY with attorney].</p></details><details><summary>What is the cancellation policy?</summary><p>See the <a href="/terms/">Rental Terms</a>. If a summary and the signed agreement differ, the signed agreement controls.</p></details><details><summary>What are the hours / check-in and check-out times?</summary><p class="placeholder">PLACEHOLDER — owner to supply.</p></details>
+<details><summary>How many guests can The Boardroom hold?</summary><p>Up to 75 people.</p></details><details><summary>Is parking available?</summary><p>Yes, on-site parking.</p></details><details><summary>Can we bring our own drinks?</summary><p>The Boardroom has a bar area and an ice machine. No cooking is allowed in the venue. The stove top may not be used. Food warmers (for keeping prepared food warm) and the bar area may be used. There are no taps. Draft taps are not available. BYOB is allowed, and the renter must obtain a one-day liquor license from the City of Moline, fee $50. See the <a href="/terms/">Rental Terms</a>.</p></details><details><summary>What is there to do?</summary><p>80in television, pinball, pool and shuffleboard.</p></details><details><summary>How much does it cost?</summary><p>Pricing starts at $600 per day and can reach about $2,000, depending on the date, how many people are coming, and the features you would like. Most events come to about $1,200. We confirm the final price with you before any check is due. The website does not guess a total.</p></details><details><summary>How is the space set up?</summary><p>The space arrives not set up. Seating and layout are yours to plan, so bring the arrangement that suits your gathering. If you would like a hand, our staff can help with setup for an extra fee.</p></details><details><summary>Do you provide decorations?</summary><p>Decorations are not provided. Christmas decorations are up in December.</p></details><details><summary>What are our responsibilities before we leave?</summary><p>Please clean and tidy the space, and take the garbage out. Another event is often booked the following day, and a ready room lets the next hosts begin on time.</p></details><details><summary>How do I book and pay?</summary><p>Save your date on the <a href="/book/">Book</a> page. That holds the date for 48 hours. Pay by check or in person, or online by card with a 3% processing fee. Mail or drop off checks payable to Mad Productions at 2212 37th Street, Moline, IL 61265. Bookings need at least 48 hours' notice. Until we confirm your price, your confirmation says price to be confirmed. Cancellation and refunds follow the Rental Agreement. The card processing fee is non-refundable [VERIFY with attorney].</p></details><details><summary>What is the cancellation policy?</summary><p>See the <a href="/terms/">Rental Terms</a>. If a summary and the signed agreement differ, the signed agreement controls.</p></details><details><summary>Are overnight stays allowed?</summary><p>No overnight stays. The Boardroom is an event space only.</p></details>
 HTML;
 }
 function brb_patch_faq_drinks() {
@@ -460,6 +460,14 @@ function brb_refresh_faq() {
             $next
         );
     }
+    $old_hours = '<details><summary>What are the hours / check-in and check-out times?</summary><p class="placeholder">PLACEHOLDER — owner to supply.</p></details>';
+    $new_hours = '<details><summary>Are overnight stays allowed?</summary><p>' . brb_no_overnight_line() . '</p></details>';
+    if (strpos($next, $old_hours) !== false) {
+        $next = str_replace($old_hours, $new_hours, $next);
+    } else {
+        $next = preg_replace('/<details><summary>[^<]*(check-in|check-out)[^<]*<\/summary>.*?<\/details>/is', '', $next);
+    }
+    if (strpos($next, 'No overnight stays') === false) $next .= $new_hours;
     if (stripos($c, 'How much does it cost?') === false || stripos($c, 'Christmas decorations are up in December') === false) {
         $next = brb_faq_markup();
     }
@@ -673,6 +681,9 @@ function brb_when($b) {
     }
     return $s->format('D M j, Y g:i A') . ' – ' . $e->format('g:i A');
 }
+function brb_no_overnight_line() {
+    return 'No overnight stays. The Boardroom is an event space only.';
+}
 function brb_amount_to_bring($b) {
     $deposit_left = round((float) $b->deposit_due - (float) $b->amount_paid, 2);
     if ($deposit_left > 0) return $deposit_left;
@@ -701,6 +712,7 @@ function brb_hold_lines($b) {
     }
     $extra = brb_extra_instructions();
     if ($extra !== '') $lines[] = $extra;
+    $lines[] = brb_no_overnight_line();
     $pay = brb_pay_online_line($b);
     if ($pay !== '') $lines[] = $pay;
     return $lines;
@@ -728,6 +740,7 @@ function brb_preview_lines($q, DateTimeImmutable $start) {
     }
     $extra = brb_extra_instructions();
     if ($extra !== '') $lines[] = $extra;
+    $lines[] = brb_no_overnight_line();
     return $lines;
 }
 
@@ -846,7 +859,7 @@ function brb_send_hold_emails($b) {
     $facts = implode("\n\n", brb_hold_lines($b));
     $price = brb_price_phrase($b);
     $check = brb_price_is_set($b) ? brb_money(brb_amount_to_bring($b)) : 'price to be confirmed';
-    $detail = "When: " . brb_when($b) . "\n" . brb_event_type_line($b) . "Guests: {$b->guests}\nPrice: {$price}\n";
+    $detail = "When: " . brb_when($b) . "\n" . brb_event_type_line($b) . "Guests attending: {$b->guests}\nPrice: {$price}\n";
     $body = "Hi {$b->name},\n\n{$facts}\n\n{$detail}\nCancellation policy:\n{$o['policy']}\n\nView your booking: " . brb_guest_link($b) . "\n";
     brb_mail($b->email, 'Your Boardroom date is held (' . $ref . ')', $body, $o['admin_email']);
     $admin = "A date was saved and is held.\n\nReference: {$ref}\nWhen: " . brb_when($b) . "\nGuest: {$b->name}\nEmail: {$b->email}\nPhone: {$b->phone}\n" . brb_event_type_line($b) . "Guests: {$b->guests}\nPrice: {$price}\nCheck to bring: {$check}\nSource: " . brb_source_label($b->source) . "\nHeld until: " . brb_format_utc_mysql($b->hold_until) . "\nNotes: {$b->notes}\n\n" . admin_url('admin.php?page=brb&booking=' . (int) $b->id) . "\n";
@@ -896,7 +909,7 @@ function brb_send_payment_email($b, $amount, $check_number, $method = 'check') {
         $subject = 'We received your check for ' . $ref;
         $admin_subject = 'Check recorded for ' . $ref . ' – ' . $b->name;
     }
-    $body = "Hi {$b->name},\n\n{$intro}\n\nReference: {$ref}\nWhen: " . brb_when($b) . "\n" . brb_event_type_line($b) . "Guests: {$b->guests}\nPrice: " . brb_price_phrase($b) . "\n\nCancellation policy:\n{$o['policy']}\n\nView your booking: " . brb_guest_link($b) . "\n";
+    $body = "Hi {$b->name},\n\n{$intro}\n\n" . brb_no_overnight_line() . "\n\nReference: {$ref}\nWhen: " . brb_when($b) . "\n" . brb_event_type_line($b) . "Guests attending: {$b->guests}\nPrice: " . brb_price_phrase($b) . "\n\nCancellation policy:\n{$o['policy']}\n\nView your booking: " . brb_guest_link($b) . "\n";
     brb_mail($b->email, $subject, $body, $o['admin_email']);
     brb_mail($o['admin_email'], $admin_subject, $body . "\nAdmin: " . admin_url('admin.php?page=brb&booking=' . (int) $b->id) . "\n", $b->email);
 }
@@ -1122,7 +1135,7 @@ function brb_send_price_email($b) {
         $balance = max(0, round((float) $b->total - (float) $b->amount_paid, 2));
         $body .= 'Paid so far: ' . brb_money($b->amount_paid) . "\nBalance: " . brb_money($balance) . "\n\n";
     }
-    $body .= 'When: ' . brb_when($b) . "\n" . brb_event_type_line($b) . "Guests: {$b->guests}\nReference: {$ref}\n\nView your booking: " . brb_guest_link($b) . "\n";
+    $body .= 'When: ' . brb_when($b) . "\n" . brb_event_type_line($b) . "Guests attending: {$b->guests}\nReference: {$ref}\n\nView your booking: " . brb_guest_link($b) . "\n";
     brb_mail($b->email, 'Your Boardroom price is confirmed (' . $ref . ')', $body, $o['admin_email']);
     brb_mail($o['admin_email'], 'Price set for ' . $ref . ' – ' . $b->name, $body . "\n" . admin_url('admin.php?page=brb&booking=' . (int) $b->id) . "\n", $b->email);
 }
@@ -1282,6 +1295,7 @@ function brb_view_select() {
       </div>
       <form class="brb-card" method="get" id="brb-form">
         <p class="brb-small">Bookings must start at least <?php echo (int) $notice; ?> hours from now (America/Chicago). Dates and start times inside that window are unavailable. A full day starts at 12:00 AM.</p>
+        <p class="brb-small"><?php echo esc_html(brb_no_overnight_line()); ?></p>
         <?php if ($o['mode'] !== 'day'): ?>
         <p class="brb-small">A shorter block reserves part of the day. There is no separate hourly price. The price is confirmed for the event, from the same starting price.</p>
         <?php endif; ?>
@@ -1303,7 +1317,7 @@ function brb_view_select() {
           <p class="brb-small" id="brb-busy"></p>
         </div>
         <p class="brb-small" id="brb-notice"></p>
-        <label>Guests (max <?php echo (int) $o['max_guests']; ?>)<input type="number" name="guests" value="10" min="1" max="<?php echo (int) $o['max_guests']; ?>"></label>
+        <label>Guests attending (max <?php echo (int) $o['max_guests']; ?>)<input type="number" name="guests" value="10" min="1" max="<?php echo (int) $o['max_guests']; ?>"></label>
         <button class="brb-btn" type="submit">Continue</button>
       </form>
     </div>
@@ -1337,7 +1351,7 @@ function brb_view_quote() {
     <div class="brb-grid">
       <div class="brb-card">
         <h3>Your date</h3>
-        <p><strong><?php echo esc_html($when); ?></strong><br><?php echo (int) $r['guests']; ?> guests</p>
+        <p><strong><?php echo esc_html($when); ?></strong><br><?php echo (int) $r['guests']; ?> guests attending</p>
         <p><?php echo esc_html(brb_price_sentence()); ?></p>
         <p><strong>price to be confirmed</strong></p>
         <?php brb_echo_lines(brb_preview_lines($q, $r['s'])); ?>
@@ -1392,7 +1406,7 @@ function brb_view_confirmation($token) {
       <h2><?php echo esc_html($title); ?></h2>
       <p>Reference <strong><?php echo esc_html(brb_ref($b)); ?></strong></p>
       <p><?php
-        $summary = brb_when($b) . ' · ' . (int) $b->guests . ' guests';
+        $summary = brb_when($b) . ' · ' . (int) $b->guests . ' guests attending';
         $event_label = brb_event_type_label($b->event_type ?? '');
         if ($event_label !== '') $summary .= ' · ' . $event_label;
         echo esc_html($summary);
@@ -1425,6 +1439,7 @@ function brb_view_confirmation($token) {
       } else {
           echo '<div class="brb-alert">This booking is cancelled. The date is not reserved.</div>';
       }
+      if ($b->status !== 'held') echo '<p>' . esc_html(brb_no_overnight_line()) . '</p>';
       $pay_url = brb_pay_link($b);
       if ($pay_url !== '') echo '<p><a class="brb-btn" href="' . esc_url($pay_url) . '">Pay online</a></p>';
       ?>
