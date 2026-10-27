@@ -2,7 +2,7 @@
 if (!defined('ABSPATH')) exit;
 
 function brb_cancellation_summary() {
-    return 'A date saved on the website is held for 48 hours while you bring a check in person. If the check is not received by then, the hold is released. Under the Rental Agreement, 50% of the invoice is due within 1 day after signing unless the Owner agrees otherwise in writing. The invoice notes require full payment 30 days before the event. If you cancel in writing 90 days or more before the rental period, amounts paid may be refunded, less any non-refundable processing charges or costs already incurred. If you cancel less than 90 days before the rental period, security deposits and cleaning fees already paid are non-refundable. Rental fees are non-refundable if cancellation is received less than 30 days before the rental period, unless the Owner agrees otherwise in writing. The signed Rental Agreement controls if it differs from this summary.';
+    return 'A date saved on the website is held for 48 hours. Mail or drop off checks payable to Mad Productions at 2212 37th Street, Moline, IL 61265. If the check is not received by then, the hold is released. Under the Rental Agreement, 50% of the invoice is due within 1 day after signing unless the Owner agrees otherwise in writing. The invoice notes require full payment 30 days before the event. If you cancel in writing 90 days or more before the rental period, amounts paid may be refunded, less any non-refundable processing charges or costs already incurred. If you cancel less than 90 days before the rental period, security deposits and cleaning fees already paid are non-refundable. Rental fees are non-refundable if cancellation is received less than 30 days before the rental period, unless the Owner agrees otherwise in writing. The signed Rental Agreement controls if it differs from this summary.';
 }
 
 function brb_policy_needs_refresh($text) {
@@ -16,7 +16,7 @@ function brb_policy_needs_refresh($text) {
 
 function brb_terms_html() {
     return <<<'TERMS_HTML'
-<p>These Rental Terms are a plain-language summary of the Facility Event Space Rental Agreement between MAD Productions, LLC, the Owner of The Boardroom QC, and the person or entity renting the space. They follow that agreement section by section. They do not replace it. If this page and the signed agreement differ, the signed agreement controls. The full text, with signature lines, is on the <a href="/rental-agreement/">Rental Agreement</a> page, which you can print.</p>
+<p>These Rental Terms are a plain-language summary of the Facility Event Space Rental Agreement between MAD Productions, LLC, the Owner of The Boardroom QC, and the person or entity renting the space. They follow that agreement section by section. They do not replace it. If this page and the signed agreement differ, the signed agreement controls. The full text, with signature lines, is on the <a href="/rental-agreement/">Rental Agreement</a> page, which you can print. The venue is at 2220 37th Street, Moline, IL 61265.</p>
 
 <h2>1. Rental period and limited use</h2>
 <p>You may use the venue only during the date or dates and the times stated on the invoice, the booking confirmation, or a written approval from the Owner. That window is the rental period. You may not enter early, stay after the rental period ends, or use the venue for any purpose other than the approved event, unless the Owner agrees in writing first. Entering early, leaving late, or using the space without approval can bring additional charges, loss of the deposit, and any other remedy available to the Owner.</p>
@@ -96,7 +96,7 @@ function brb_terms_html() {
 </div>
 
 <h2>Booking and payment on this website</h2>
-<p>Saving a date on this website holds it for 48 hours while you bring a check in person. If the check is not received within those 48 hours, the hold is released. Payment is by check only, paid in person. Make the check payable to Mad Productions and bring it to 2212 37th Street, Moline, IL 61265.</p>
+<p>Saving a date on this website holds it for 48 hours. If the check is not received within those 48 hours, the hold is released. Mail or drop off checks payable to Mad Productions at 2212 37th Street, Moline, IL 61265.</p>
 <p>As the agreement states, 50% of the invoice is due within 1 day after signing. The invoice notes require full payment 30 days before the event.</p>
 <p>The invoice notes also state that a refund of the 50% deposit is available only if the event is cancelled 90 days or more before the event, and that a cancellation inside that window may not be refunded. Section 16 above is more specific about rental fees, cleaning fees, and security deposits. The damage deposit described on the invoice is refundable after inspection. Section 11 above allows the Owner to apply the security deposit to amounts owed, and you remain responsible for anything above the deposit.</p>
 <p>The room is not set up when you arrive. Seating and layout are specific to your event. Staff can help with setup for an extra fee. Decorations are not provided, except that Christmas decorations are up in December. The maximum is 75 people unless the Owner approves a different limit in writing.</p>
@@ -110,22 +110,22 @@ TERMS_HTML;
 
 function brb_privacy_html() {
     return <<<'PRIVACY_HTML'
-<p>This policy describes what MAD Productions, LLC, doing business as The Boardroom QC, at 2212 37th Street, Moline, IL 61265, collects on this website and how it is used.</p>
+<p>This policy describes what MAD Productions, LLC, doing business as The Boardroom QC, at 2220 37th Street, Moline, IL 61265, collects on this website and how it is used.</p>
 
 <h2>Information we collect</h2>
-<p>The booking form and the contact form ask for your name, email, phone, event date and time, party size, and notes. When a check is received, staff enter the check number and the payment record by hand. That record is stored with the booking.</p>
+<p>The booking form and the contact form ask for your name, email, phone, event date and time, party size, and notes. The tour request form asks for your name, an email or a phone number, a preferred date, a time of day, how many people, and notes about the event. When a check is received, staff enter the check number and the payment record by hand. That record is stored with the booking. A tour request is stored with the request.</p>
 
 <h2>How we use it</h2>
-<p>We use this information only to manage reservations and to communicate with you about them. Email about a booking is sent through this site’s mail system.</p>
+<p>We use this information only to manage reservations and tour requests, and to communicate with you about them. Email about a booking or a tour request is sent through this site’s mail system.</p>
 
 <h2>Payment</h2>
-<p>This site does not process payments online and does not collect card data. Payment is by check, brought in person.</p>
+<p>This site does not process payments online and does not collect card data. Mail or drop off checks payable to Mad Productions at 2212 37th Street, Moline, IL 61265.</p>
 
 <h2>Cookies</h2>
-<p>This site does not use advertising, analytics, or tracking cookies. Guests are not asked to accept cookies. The only cookies are the ones WordPress sets for staff when they log in to the admin area.</p>
+<p>This site does not use advertising, analytics, or tracking cookies. Guests are not asked to accept cookies. The tour request form does not set a cookie. Directions are a plain link to Google Maps. This page does not embed a map or load Google, so opening it does not set a Google cookie. The only cookies are the ones WordPress sets for staff when they log in to the admin area.</p>
 
 <h2>How long we keep it</h2>
-<p>We keep booking and payment records for as long as we need them for our records and for tax. If you ask us to delete your information, we will, unless the law requires us to keep it.</p>
+<p>We keep booking, payment, and tour request records for as long as we need them for our records and for tax. A tour request is removed only when a staff member deletes it. If you ask us to delete your information, we will, unless the law requires us to keep it.</p>
 
 <h2>Sharing</h2>
 <p>We do not sell your information. We share it only with service providers that host this site or deliver email, and when the law requires it.</p>

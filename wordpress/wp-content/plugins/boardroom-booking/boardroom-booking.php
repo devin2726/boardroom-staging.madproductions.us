@@ -2,12 +2,18 @@
 /**
  * Plugin Name: Boardroom Booking
  * Description: Self-hosted direct booking for The Boardroom — full-day and hourly blocks, availability calendar, agreed prices, in-person check holds, blackout dates, and emails.
- * Version: 2.2.4
+ * Version: 2.2.7
  * Author: Mad Productions
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.2.4');
+define('BRB_VER', '2.2.7');
+define('BRB_VENUE_ADDRESS', '2220 37th Street, Moline, IL 61265');
+define('BRB_CHECK_ADDRESS', '2212 37th Street, Moline, IL 61265');
+define('BRB_MAPS_URL', 'https://maps.app.goo.gl/nVqUsGTcy48nPzc18');
+define('BRB_MAPS_LAT', '41.4913116');
+define('BRB_MAPS_LNG', '-90.4820481');
 require_once __DIR__ . '/legal-content.php';
+require_once __DIR__ . '/tour.php';
 define('BRB_URL', plugin_dir_url(__FILE__));
 
 function brb_table() { global $wpdb; return $wpdb->prefix . 'br_bookings'; }
@@ -82,8 +88,10 @@ function brb_defaults() {
         'hold_hours' => '48',
         'currency' => 'usd',
         'admin_email' => $admin,
+        'tour_email' => 'boardroomqc@gmail.com',
         'payee' => '[VERIFY] Name on the check',
-        'pay_location' => '2212 37th Street, Moline, IL 61265',
+        'venue_address' => BRB_VENUE_ADDRESS,
+        'pay_location' => BRB_CHECK_ADDRESS,
         'pay_hours' => '[VERIFY] In-person hours',
         'pay_instructions' => '[VERIFY] Extra instructions for bringing the check.',
         'blackouts' => '',
@@ -101,6 +109,50 @@ function brb_opt($k = null) {
     if ($k === null) return $o;
     return $o[$k] ?? '';
 }
+function brb_venue_address() {
+    $v = trim((string) brb_opt('venue_address'));
+    return $v !== '' ? $v : BRB_VENUE_ADDRESS;
+}
+function brb_check_address() {
+    $v = trim((string) brb_opt('pay_location'));
+    return $v !== '' ? $v : BRB_CHECK_ADDRESS;
+}
+function brb_guest_payee() {
+    $payee = trim((string) brb_opt('payee'));
+    if ($payee === '' || $payee === '[VERIFY] Name on the check') return 'Mad Productions';
+    return $payee;
+}
+function brb_check_sentence($item = 'checks') {
+    $hours = trim((string) brb_opt('pay_hours'));
+    $suffix = ($hours !== '' && $hours !== '[VERIFY] In-person hours') ? ' (' . $hours . ')' : '';
+    return 'Mail or drop off ' . $item . ' payable to ' . brb_guest_payee() . ' at ' . brb_check_address() . $suffix . '.';
+}
+function brb_directions_markup() {
+    return '<p><a href="' . esc_url(BRB_MAPS_URL) . '" rel="noopener noreferrer">Get directions / View on Google Maps</a></p>';
+}
+function brb_place_schema() {
+    $data = [
+        '@context' => 'https://schema.org',
+        '@type' => 'EventVenue',
+        'name' => 'The Boardroom',
+        'address' => [
+            '@type' => 'PostalAddress',
+            'streetAddress' => '2220 37th Street',
+            'addressLocality' => 'Moline',
+            'addressRegion' => 'IL',
+            'postalCode' => '61265',
+            'addressCountry' => 'US',
+        ],
+        'geo' => [
+            '@type' => 'GeoCoordinates',
+            'latitude' => BRB_MAPS_LAT,
+            'longitude' => BRB_MAPS_LNG,
+        ],
+        'hasMap' => BRB_MAPS_URL,
+    ];
+    echo '<script type="application/ld+json">' . wp_json_encode($data, JSON_UNESCAPED_SLASHES) . "</script>\n";
+}
+add_action('wp_head', 'brb_place_schema', 20);
 function brb_blackouts() {
     $out = [];
     foreach (preg_split('/[\s,]+/', (string) brb_opt('blackouts')) as $d) {
@@ -243,9 +295,22 @@ function brb_migrate_settings() {
     foreach (['payee', 'pay_location', 'pay_hours', 'pay_instructions'] as $k) {
         if (!isset($stored[$k]) || trim((string) $stored[$k]) === '') $merged[$k] = $defaults[$k];
     }
+    $tour_email = isset($stored['tour_email']) ? sanitize_email((string) $stored['tour_email']) : '';
+    if (!is_email($tour_email)) $merged['tour_email'] = $defaults['tour_email'];
+    else $merged['tour_email'] = $tour_email;
     $location = trim((string) ($merged['pay_location'] ?? ''));
     if ($location === '' || stripos($location, '[VERIFY]') !== false || stripos($location, '2212 47') !== false) {
         $merged['pay_location'] = $defaults['pay_location'];
+    }
+    $venue = trim((string) ($stored['venue_address'] ?? ''));
+    if ($venue === '' || stripos($venue, '[VERIFY]') !== false || stripos($venue, '2212 47') !== false || $venue === BRB_CHECK_ADDRESS) {
+        $merged['venue_address'] = BRB_VENUE_ADDRESS;
+    }
+    $old_policy = 'A date saved on the website is held for 48 hours while you bring a check in person.';
+    if (strpos((string) $merged['policy'], $old_policy) !== false) {
+        $where = trim((string) $merged['pay_location']);
+        if ($where === '') $where = BRB_CHECK_ADDRESS;
+        $merged['policy'] = str_replace($old_policy, 'A date saved on the website is held for 48 hours. Mail or drop off checks payable to Mad Productions at ' . $where . '.', $merged['policy']);
     }
     if (!isset($stored['policy']) || brb_policy_needs_refresh($stored['policy'])) {
         $merged['policy'] = brb_cancellation_summary();
@@ -271,7 +336,7 @@ function brb_migrate_prices() {
 }
 function brb_faq_markup() {
     return <<<'HTML'
-<details><summary>How many guests can The Boardroom hold?</summary><p>Up to 75 people.</p></details><details><summary>Is parking available?</summary><p>Yes, on-site parking.</p></details><details><summary>Can we bring our own drinks?</summary><p>The Boardroom has a bar area and an ice machine. No cooking is allowed in the venue. The stove top may not be used. Food warmers (for keeping prepared food warm) and the bar area may be used. There are no taps. Draft taps are not available. BYOB is allowed, and the renter must obtain a one-day liquor license from the City of Moline, fee $50. See the <a href="/terms/">Rental Terms</a>.</p></details><details><summary>What is there to do?</summary><p>80in television, pinball, pool and shuffleboard.</p></details><details><summary>How much does it cost?</summary><p>Pricing starts at $600 per day and can reach about $2,000, depending on the date, how many people are coming, and the features you would like. Most events come to about $1,200. We confirm the final price with you before any check is due. The website does not guess a total.</p></details><details><summary>How is the space set up?</summary><p>The space arrives not set up. Seating and layout are yours to plan, so bring the arrangement that suits your gathering. If you would like a hand, our staff can help with setup for an extra fee.</p></details><details><summary>Do you provide decorations?</summary><p>Decorations are not provided. Christmas decorations are up in December.</p></details><details><summary>What are our responsibilities before we leave?</summary><p>Please clean and tidy the space, and take the garbage out. Another event is often booked the following day, and a ready room lets the next hosts begin on time.</p></details><details><summary>How do I book and pay?</summary><p>Save your date on the <a href="/book/">Book</a> page. That holds the date for 48 hours. Bring a check in person within those 48 hours. Bookings need at least 48 hours' notice. Until we confirm your price, your confirmation says price to be confirmed.</p></details><details><summary>What is the cancellation policy?</summary><p>See the <a href="/terms/">Rental Terms</a>. If a summary and the signed agreement differ, the signed agreement controls.</p></details><details><summary>What are the hours / check-in and check-out times?</summary><p class="placeholder">PLACEHOLDER — owner to supply.</p></details>
+<details><summary>How many guests can The Boardroom hold?</summary><p>Up to 75 people.</p></details><details><summary>Is parking available?</summary><p>Yes, on-site parking.</p></details><details><summary>Can we bring our own drinks?</summary><p>The Boardroom has a bar area and an ice machine. No cooking is allowed in the venue. The stove top may not be used. Food warmers (for keeping prepared food warm) and the bar area may be used. There are no taps. Draft taps are not available. BYOB is allowed, and the renter must obtain a one-day liquor license from the City of Moline, fee $50. See the <a href="/terms/">Rental Terms</a>.</p></details><details><summary>What is there to do?</summary><p>80in television, pinball, pool and shuffleboard.</p></details><details><summary>How much does it cost?</summary><p>Pricing starts at $600 per day and can reach about $2,000, depending on the date, how many people are coming, and the features you would like. Most events come to about $1,200. We confirm the final price with you before any check is due. The website does not guess a total.</p></details><details><summary>How is the space set up?</summary><p>The space arrives not set up. Seating and layout are yours to plan, so bring the arrangement that suits your gathering. If you would like a hand, our staff can help with setup for an extra fee.</p></details><details><summary>Do you provide decorations?</summary><p>Decorations are not provided. Christmas decorations are up in December.</p></details><details><summary>What are our responsibilities before we leave?</summary><p>Please clean and tidy the space, and take the garbage out. Another event is often booked the following day, and a ready room lets the next hosts begin on time.</p></details><details><summary>How do I book and pay?</summary><p>Save your date on the <a href="/book/">Book</a> page. That holds the date for 48 hours. Mail or drop off checks payable to Mad Productions at 2212 37th Street, Moline, IL 61265. Bookings need at least 48 hours' notice. Until we confirm your price, your confirmation says price to be confirmed.</p></details><details><summary>What is the cancellation policy?</summary><p>See the <a href="/terms/">Rental Terms</a>. If a summary and the signed agreement differ, the signed agreement controls.</p></details><details><summary>What are the hours / check-in and check-out times?</summary><p class="placeholder">PLACEHOLDER — owner to supply.</p></details>
 HTML;
 }
 function brb_patch_faq_drinks() {
@@ -296,15 +361,19 @@ function brb_refresh_contact() {
     $page = get_page_by_path('contact');
     if (!$page) return;
     $c = (string) $page->post_content;
-    $address = '<p>The Boardroom QC<br>2212 37th Street, Moline, IL 61265</p>';
-    $rest = '<p class="placeholder">PLACEHOLDER: phone, email, and map — owner to supply.</p>';
-    $old = '<p class="placeholder">PLACEHOLDER: address, phone, email and map — not on the current site; owner to supply.</p>';
-    if (strpos($c, $old) !== false) {
-        $next = str_replace($old, $address . $rest, $c);
-    } elseif (strpos($c, '2212 37th Street, Moline, IL 61265') !== false) {
-        return;
-    } else {
-        return;
+    $next = $c;
+    $address = '<p>The Boardroom QC<br>' . BRB_VENUE_ADDRESS . '</p>';
+    $older = '<p class="placeholder">PLACEHOLDER: address, phone, email and map — not on the current site; owner to supply.</p>';
+    $old_rest = '<p class="placeholder">PLACEHOLDER: phone, email, and map — owner to supply.</p>';
+    $rest = '<p class="placeholder">PLACEHOLDER: phone and email — owner to supply.</p>';
+    $link = brb_directions_markup();
+    if (strpos($next, $older) !== false) $next = str_replace($older, $address . $rest, $next);
+    if (strpos($next, BRB_CHECK_ADDRESS) !== false) $next = str_replace(BRB_CHECK_ADDRESS, BRB_VENUE_ADDRESS, $next);
+    if (strpos($next, $old_rest) !== false) $next = str_replace($old_rest, $rest, $next);
+    if (strpos($next, BRB_MAPS_URL) === false) {
+        if (strpos($next, $rest) !== false) $next = str_replace($rest, $link . $rest, $next);
+        elseif (strpos($next, BRB_VENUE_ADDRESS . '</p>') !== false) $next = str_replace(BRB_VENUE_ADDRESS . '</p>', BRB_VENUE_ADDRESS . '</p>' . $link, $next);
+        else $next .= $link;
     }
     if ($next === $c) return;
     global $wpdb;
@@ -316,15 +385,21 @@ function brb_refresh_faq() {
     if (!$page) return;
     $c = (string) $page->post_content;
     if (stripos($c, 'How many guests can The Boardroom hold') === false) return;
-    if (stripos($c, 'How much does it cost?') !== false && stripos($c, 'Christmas decorations are up in December') !== false) return;
+    $old_pay = 'Bring a check in person within those 48 hours.';
+    $new_pay = 'Mail or drop off checks payable to Mad Productions at ' . BRB_CHECK_ADDRESS . '.';
+    $next = str_replace($old_pay, $new_pay, $c);
+    if (stripos($c, 'How much does it cost?') === false || stripos($c, 'Christmas decorations are up in December') === false) {
+        $next = brb_faq_markup();
+    }
+    if ($next === $c) return;
     global $wpdb;
-    $wpdb->update($wpdb->posts, ['post_content' => brb_faq_markup()], ['ID' => (int) $page->ID]);
+    $wpdb->update($wpdb->posts, ['post_content' => $next], ['ID' => (int) $page->ID]);
     clean_post_cache((int) $page->ID);
 }
 function brb_scrub_copy_string($c) {
-    $c = preg_replace('/Payments are processed by \w+;?\s*we do not store card numbers\./i', 'Payment is by check brought in person. We keep your booking details and the check number our staff records.', $c);
-    $c = preg_replace('/pay securely online/i', 'save the date and bring a check in person', $c);
-    $c = preg_replace('/Bookings are confirmed once payment \(or the required deposit\) is received\./i', 'Saving a date holds it for a limited time. The booking is confirmed once we receive your check, or the required deposit, in person.', $c);
+    $c = preg_replace('/Payments are processed by \w+;?\s*we do not store card numbers\./i', 'Mail or drop off checks payable to Mad Productions at ' . BRB_CHECK_ADDRESS . '. We keep your booking details and the check number our staff records.', $c);
+    $c = preg_replace('/pay securely online/i', 'save the date and mail or drop off a check', $c);
+    $c = preg_replace('/Bookings are confirmed once payment \(or the required deposit\) is received\./i', 'Saving a date holds it for a limited time. The booking is confirmed once we receive your check, or the required deposit.', $c);
     $c = preg_replace('/\b(str' . 'ipe|ze' . 'lle|air' . 'bnb)\b/i', '', $c);
     $c = preg_replace('/[ \t]{2,}/', ' ', $c);
     return $c;
@@ -356,6 +431,7 @@ function brb_scrub_public_copy() {
 function brb_maybe_upgrade() {
     if (get_option('brb_version') === BRB_VER) return;
     if (!brb_install_tables()) return;
+    if (!brb_install_tour_table()) return;
     if (get_option('brb_settings', null) === null) update_option('brb_settings', brb_defaults());
     else brb_migrate_settings();
     brb_migrate_bookings();
@@ -365,6 +441,7 @@ function brb_maybe_upgrade() {
     brb_refresh_contact();
     brb_patch_faq_drinks();
     brb_install_legal_pages();
+    brb_ensure_tour_on_contact();
     brb_expire_holds();
     if (!wp_next_scheduled('brb_cron_expire')) wp_schedule_event(time() + 60, 'hourly', 'brb_cron_expire');
     update_option('brb_version', BRB_VER);
@@ -534,10 +611,10 @@ function brb_hold_lines($b) {
     $lines = [];
     $lines[] = 'Your date is held until ' . brb_format_utc_mysql($b->hold_until) . '.';
     if ($set) {
-        $lines[] = 'Bring a check for ' . brb_money(brb_amount_to_bring($b)) . ' payable to ' . $o['payee'] . ', to ' . $o['pay_location'] . ' (' . $o['pay_hours'] . ').';
+        $lines[] = brb_check_sentence('a check for ' . brb_money(brb_amount_to_bring($b)));
     } else {
         $lines[] = 'Price to be confirmed. We will confirm the final price based on the date, guest count, and features, then tell you the check amount.';
-        $lines[] = 'When that amount is set, bring the check payable to ' . $o['payee'] . ', to ' . $o['pay_location'] . ' (' . $o['pay_hours'] . ').';
+        $lines[] = brb_check_sentence('the check');
     }
     $lines[] = 'Write booking reference ' . $ref . ' on the memo line.';
     $lines[] = 'If the check is not received by then, the hold is released.';
@@ -558,10 +635,10 @@ function brb_preview_lines($q, DateTimeImmutable $start) {
     $lines = [];
     $lines[] = "Saving this date holds it for {$hours} hours. The next page shows the exact deadline in America/Chicago.";
     if ($set) {
-        $lines[] = 'Bring a check for ' . brb_money($q['due']) . ' payable to ' . $o['payee'] . ', to ' . $o['pay_location'] . ' (' . $o['pay_hours'] . ').';
+        $lines[] = brb_check_sentence('a check for ' . brb_money($q['due']));
     } else {
         $lines[] = 'Price to be confirmed. We will confirm the final price based on the date, guest count, and features, then tell you the check amount.';
-        $lines[] = 'When that amount is set, bring the check payable to ' . $o['payee'] . ', to ' . $o['pay_location'] . ' (' . $o['pay_hours'] . ').';
+        $lines[] = brb_check_sentence('the check');
     }
     $lines[] = 'Write the booking reference (shown after you save) on the memo line.';
     $lines[] = 'If the check is not received by then, the hold is released.';
@@ -616,7 +693,7 @@ function brb_send_payment_email($b, $amount, $check_number) {
         $subject = 'Your Boardroom booking is confirmed (' . $ref . ')';
     } else {
         $due = brb_balance_due_label($b->balance_due_on);
-        $intro = "We received your check and your date stays reserved.\n\n{$check}\nPaid so far: {$paid}\nBalance: {$balance}" . ($due ? " due by {$due}" : '') . ".\n\nBring the remaining balance as a check payable to {$o['payee']} to {$o['pay_location']} ({$o['pay_hours']}).\nWrite booking reference {$ref} on the memo line.";
+        $intro = "We received your check and your date stays reserved.\n\n{$check}\nPaid so far: {$paid}\nBalance: {$balance}" . ($due ? " due by {$due}" : '') . ".\n\n" . brb_check_sentence('the remaining balance as a check') . "\nWrite booking reference {$ref} on the memo line.";
         $subject = 'We received your check for ' . $ref;
     }
     $body = "Hi {$b->name},\n\n{$intro}\n\nReference: {$ref}\nWhen: " . brb_when($b) . "\nGuests: {$b->guests}\nPrice: " . brb_price_phrase($b) . "\n\nCancellation policy:\n{$o['policy']}\n\nView your booking: " . brb_guest_link($b) . "\n";
@@ -947,7 +1024,7 @@ add_shortcode('boardroom_booking', function () {
     ob_start();
     echo '<div class="brb">';
     echo '<p class="brb-lead">' . esc_html(brb_price_sentence()) . '</p>';
-    echo '<p class="brb-lead">Save your date online and bring a check in person. A saved date is held so nobody else can take it while we wait for the check.</p>';
+    echo '<p class="brb-lead">Save your date online. ' . esc_html(brb_check_sentence()) . ' A saved date is held so nobody else can take it while we wait for the check.</p>';
     if (!empty($_GET['br_err'])) echo '<div class="brb-alert brb-err">' . esc_html(wp_unslash($_GET['br_err'])) . '</div>';
     if (!empty($_GET['br_token'])) brb_view_confirmation(sanitize_text_field(wp_unslash($_GET['br_token'])));
     elseif (!empty($_GET['date'])) brb_view_quote();
@@ -1093,7 +1170,7 @@ function brb_view_confirmation($token) {
           $due = brb_balance_due_label($b->balance_due_on);
           echo '<div class="brb-paybox"><p>We have recorded a check toward this booking. Your date stays reserved.</p>';
           echo '<p>Balance of ' . esc_html(brb_money(max(0, $paid_off))) . ($due ? ' is due by ' . esc_html($due) : '') . '.</p>';
-          echo '<p>Bring the balance as a check payable to ' . esc_html(brb_opt('payee')) . ' to ' . esc_html(brb_opt('pay_location')) . ' (' . esc_html(brb_opt('pay_hours')) . '). Write booking reference ' . esc_html(brb_ref($b)) . ' on the memo line.</p></div>';
+          echo '<p>' . esc_html(brb_check_sentence('the remaining balance as a check')) . ' Write booking reference ' . esc_html(brb_ref($b)) . ' on the memo line.</p></div>';
       } elseif ($b->status === 'paid') {
           echo '<div class="brb-paybox"><p>This booking is paid in full and confirmed.</p></div>';
           echo '<p>A confirmation email was sent to ' . esc_html($b->email) . '.</p>';
