@@ -1,7 +1,7 @@
 /*
 Theme Name: The Boardroom
 Description: Lightweight theme replicating the look of boardroomqc.com (dark + gold, EB Garamond, full-width hero slider). Pairs with the Boardroom Booking plugin.
-Version: 1.2.3
+Version: 1.2.5
 Author: Mad Productions
 Text Domain: boardroom
 */
@@ -49,7 +49,9 @@ section.block{padding:80px 0}section.alt{background:var(--bg2)}section.dark{back
 .gallery img{aspect-ratio:1;object-fit:cover;width:100%;transition:transform .4s}.gallery a:hover img{transform:scale(1.05)}
 .lightbox{position:fixed;inset:0;background:rgba(0,0,0,.9);display:none;align-items:center;justify-content:center;z-index:99}.lightbox.on{display:flex}.lightbox img{max-height:90vh;max-width:92vw}
 .contact-grid{display:grid;grid-template-columns:1fr 1fr;gap:48px}@media(max-width:800px){.contact-grid{grid-template-columns:1fr}}
-.form label{display:block;font-weight:600;margin-bottom:14px;color:var(--ink)}.form input,.form textarea{display:block;width:100%;padding:12px;border:1px solid #bbb;margin-top:4px;font:inherit}
+.form label{display:block;font-weight:600;margin-bottom:14px;color:var(--ink)}.form input,.form textarea,.form select{display:block;width:100%;padding:12px;border:1px solid #bbb;margin-top:4px;font:inherit;background:#fff;color:var(--ink)}
+.form .split{display:grid;grid-template-columns:1fr 1fr;gap:0 16px}@media(max-width:700px){.form .split{grid-template-columns:1fr}}
+.tour-block{margin-top:56px;padding-top:8px;border-top:3px solid var(--gold)}.tour-hint{margin:-6px 0 14px;font-size:16px}
 .form .hp{position:absolute;left:-9999px}.notice{padding:12px 16px;background:#fff7e6;border-left:4px solid var(--gold);margin-bottom:16px}
 .page-hero{background:var(--ink) center/cover;padding:90px 0;text-align:center;position:relative}.page-hero:before{content:"";position:absolute;inset:0;background:rgba(0,0,0,.55)}
 .page-hero h1{position:relative;color:#fff;margin:0;font-size:clamp(30px,5vw,54px)}

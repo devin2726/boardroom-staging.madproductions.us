@@ -113,19 +113,19 @@ function brb_privacy_html() {
 <p>This policy describes what MAD Productions, LLC, doing business as The Boardroom QC, in Moline, Illinois, collects on this website and how it is used.</p>
 
 <h2>Information we collect</h2>
-<p>The booking form and the contact form ask for your name, email, phone, event date and time, party size, and notes. When a check is received, staff enter the check number and the payment record by hand. That record is stored with the booking.</p>
+<p>The booking form and the contact form ask for your name, email, phone, event date and time, party size, and notes. The tour request form asks for your name, an email or a phone number, a preferred date, a time of day, how many people, and notes about the event. When a check is received, staff enter the check number and the payment record by hand. That record is stored with the booking. A tour request is stored with the request.</p>
 
 <h2>How we use it</h2>
-<p>We use this information only to manage reservations and to communicate with you about them. Email about a booking is sent through this site’s mail system.</p>
+<p>We use this information only to manage reservations and tour requests, and to communicate with you about them. Email about a booking or a tour request is sent through this site’s mail system.</p>
 
 <h2>Payment</h2>
 <p>This site does not process payments online and does not collect card data. Payment is by check, brought in person.</p>
 
 <h2>Cookies</h2>
-<p>This site does not use advertising, analytics, or tracking cookies. Guests are not asked to accept cookies. The only cookies are the ones WordPress sets for staff when they log in to the admin area.</p>
+<p>This site does not use advertising, analytics, or tracking cookies. Guests are not asked to accept cookies. The tour request form does not set a cookie. The only cookies are the ones WordPress sets for staff when they log in to the admin area.</p>
 
 <h2>How long we keep it</h2>
-<p>We keep booking and payment records for as long as we need them for our records and for tax. If you ask us to delete your information, we will, unless the law requires us to keep it.</p>
+<p>We keep booking, payment, and tour request records for as long as we need them for our records and for tax. A tour request is removed only when a staff member deletes it. If you ask us to delete your information, we will, unless the law requires us to keep it.</p>
 
 <h2>Sharing</h2>
 <p>We do not sell your information. We share it only with service providers that host this site or deliver email, and when the law requires it.</p>

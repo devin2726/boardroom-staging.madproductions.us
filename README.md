@@ -45,7 +45,8 @@ Bookings → Settings. Anything still marked `[VERIFY]` is shown to guests until
 | Balance due | 7 days before the event | `[VERIFY]` Used only when the first check is less than the agreed price |
 | Minimum notice (hours) | 48 | Booking must **start** at least this many hours from now. This is the “not inside 48 hours” rule. Change the number here if the rule changes. |
 | Hold length (hours) | 48 | How long an unpaid saved date stays reserved |
-| Admin notification email | WordPress admin email | Hold, price, check, and expiry mail |
+| Admin notification email | WordPress admin email | Hold, price, check, expiry, and tour request mail. Separate extra addresses with commas. |
+| Tour request email | boardroomqc@gmail.com | Tour requests are emailed here as well. A blank or invalid saved value is replaced on upgrade. |
 | Cancellation policy | Summary of the signed rental agreement | Shown before save and in email. A saved placeholder is replaced on upgrade. The Rental Terms, Privacy Policy, and printable Rental Agreement pages are the guest-facing text. |
 | Blackout dates | Whatever is already saved | **Upgrades do not wipe this list.** Emptying the box does not delete saved dates unless “Clear all blackout dates” is ticked. |
 

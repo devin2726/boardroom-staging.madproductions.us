@@ -2,12 +2,13 @@
 /**
  * Plugin Name: Boardroom Booking
  * Description: Self-hosted direct booking for The Boardroom — full-day and hourly blocks, availability calendar, agreed prices, in-person check holds, blackout dates, and emails.
- * Version: 2.2.3
+ * Version: 2.2.5
  * Author: Mad Productions
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.2.3');
+define('BRB_VER', '2.2.5');
 require_once __DIR__ . '/legal-content.php';
+require_once __DIR__ . '/tour.php';
 define('BRB_URL', plugin_dir_url(__FILE__));
 
 function brb_table() { global $wpdb; return $wpdb->prefix . 'br_bookings'; }
@@ -82,6 +83,7 @@ function brb_defaults() {
         'hold_hours' => '48',
         'currency' => 'usd',
         'admin_email' => $admin,
+        'tour_email' => 'boardroomqc@gmail.com',
         'payee' => '[VERIFY] Name on the check',
         'pay_location' => '[VERIFY] In-person location',
         'pay_hours' => '[VERIFY] In-person hours',
@@ -243,6 +245,9 @@ function brb_migrate_settings() {
     foreach (['payee', 'pay_location', 'pay_hours', 'pay_instructions'] as $k) {
         if (!isset($stored[$k]) || trim((string) $stored[$k]) === '') $merged[$k] = $defaults[$k];
     }
+    $tour_email = isset($stored['tour_email']) ? sanitize_email((string) $stored['tour_email']) : '';
+    if (!is_email($tour_email)) $merged['tour_email'] = $defaults['tour_email'];
+    else $merged['tour_email'] = $tour_email;
     if (!isset($stored['policy']) || brb_policy_needs_refresh($stored['policy'])) {
         $merged['policy'] = brb_cancellation_summary();
     }
@@ -333,6 +338,7 @@ function brb_scrub_public_copy() {
 function brb_maybe_upgrade() {
     if (get_option('brb_version') === BRB_VER) return;
     if (!brb_install_tables()) return;
+    if (!brb_install_tour_table()) return;
     if (get_option('brb_settings', null) === null) update_option('brb_settings', brb_defaults());
     else brb_migrate_settings();
     brb_migrate_bookings();
@@ -341,6 +347,7 @@ function brb_maybe_upgrade() {
     brb_refresh_faq();
     brb_patch_faq_drinks();
     brb_install_legal_pages();
+    brb_ensure_tour_on_contact();
     brb_expire_holds();
     if (!wp_next_scheduled('brb_cron_expire')) wp_schedule_event(time() + 60, 'hourly', 'brb_cron_expire');
     update_option('brb_version', BRB_VER);

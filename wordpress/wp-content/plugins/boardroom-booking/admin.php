@@ -6,6 +6,7 @@ add_action('admin_menu', function () {
     add_submenu_page('brb', 'Bookings', 'All Bookings', 'manage_options', 'brb', 'brb_admin_router');
     add_submenu_page('brb', 'Add booking', 'Add booking', 'manage_options', 'brb-new', 'brb_admin_new');
     add_submenu_page('brb', 'Calendar', 'Calendar', 'manage_options', 'brb-cal', 'brb_admin_cal');
+    add_submenu_page('brb', 'Tour requests', 'Tour requests', 'manage_options', 'brb-tours', 'brb_admin_tours');
     add_submenu_page('brb', 'Booking Settings', 'Settings', 'manage_options', 'brb-settings', 'brb_admin_settings');
 });
 add_action('admin_enqueue_scripts', function ($h) {
@@ -350,9 +351,14 @@ function brb_admin_settings() {
                 continue;
             }
             $raw = wp_unslash($_POST[$k]);
-            $new[$k] = in_array($k, ['policy', 'blackouts', 'pay_instructions'], true)
-                ? sanitize_textarea_field($raw)
-                : sanitize_text_field($raw);
+            if ($k === 'tour_email') {
+                $email = sanitize_email($raw);
+                $new[$k] = is_email($email) ? $email : $defaults['tour_email'];
+            } else {
+                $new[$k] = in_array($k, ['policy', 'blackouts', 'pay_instructions'], true)
+                    ? sanitize_textarea_field($raw)
+                    : sanitize_text_field($raw);
+            }
         }
         if (!in_array($new['mode'], ['both', 'day', 'hourly'], true)) $new['mode'] = 'both';
         if (!in_array($new['deposit_type'], ['full', 'percent', 'fixed'], true)) $new['deposit_type'] = 'full';
@@ -404,7 +410,8 @@ function brb_admin_settings() {
             ['pay_location', 'Where to bring the check [VERIFY]', 'text', null, 'Do not leave the placeholder in place.'],
             ['pay_hours', 'In-person hours [VERIFY]', 'text', null, 'Days and hours a guest can drop off a check.'],
             ['pay_instructions', 'Payment instructions [VERIFY]', 'textarea', null, 'Extra text shown on the confirmation page and in the guest email.'],
-            ['admin_email', 'Admin notification email', 'text', null, 'Hold, check, and expiry emails are sent here.'],
+            ['admin_email', 'Admin notification email', 'text', null, 'Hold, check, expiry, and tour request emails are sent here. Separate more than one address with a comma.'],
+            ['tour_email', 'Tour request email', 'text', null, 'Tour requests are also emailed here. Default is boardroomqc@gmail.com.'],
         ],
         'Calendar and policy' => [
             ['blackouts', 'Blackout dates (YYYY-MM-DD, one per line)', 'textarea', null, 'Saved dates stay in the database when the plugin is updated. Emptying this box does not delete them unless you tick the box under it.'],
