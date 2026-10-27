@@ -2,4 +2,4 @@
 s.forEach(function(_,n){var b=document.createElement('button');b.setAttribute('aria-label','Slide '+(n+1));b.onclick=function(){go(n)};d.appendChild(b)});
 function go(n){s[i].classList.remove('on');d.children[i].classList.remove('on');i=(n+s.length)%s.length;s[i].classList.add('on');d.children[i].classList.add('on');clearInterval(t);t=setInterval(function(){go(i+1)},5000)}
 h.querySelector('.prev').onclick=function(){go(i-1)};h.querySelector('.next').onclick=function(){go(i+1)};go(0);}
-var lb=document.querySelector('.lightbox');document.querySelectorAll('.gallery a').forEach(function(a){a.onclick=function(e){e.preventDefault();lb.querySelector('img').src=a.href;lb.classList.add('on')}});})();
+var lb=document.querySelector('.lightbox');if(lb){document.querySelectorAll('.gallery a').forEach(function(a){a.onclick=function(e){e.preventDefault();var img=lb.querySelector('img'),thumb=a.querySelector('img');img.src=a.href;img.alt=thumb?thumb.alt:'The Boardroom';lb.classList.add('on')}});document.addEventListener('keydown',function(e){if(e.key==='Escape')lb.classList.remove('on')});}})();
