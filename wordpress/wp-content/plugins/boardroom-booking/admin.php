@@ -14,6 +14,7 @@ add_action('admin_enqueue_scripts', function ($h) {
 });
 add_action('admin_notices', function () {
     if (!current_user_can('manage_options')) return;
+    echo '<div class="notice notice-warning"><p>' . esc_html(brb_attorney_notice()) . '</p></div>';
     $o = brb_opt();
     $missing = [];
     foreach ([
@@ -73,12 +74,19 @@ add_action('admin_post_brb_mark_paid', function () {
     if (is_wp_error($res)) brb_admin_back($id, $res->get_error_message());
     brb_admin_back($id, brb_ref($res) . ' marked paid in full. The guest was emailed.');
 });
-add_action('admin_post_brb_extend', function () {
-    brb_admin_gate('brb_extend');
+add_action('admin_post_brb_approve', function () {
+    brb_admin_gate('brb_approve');
     $id = (int) ($_POST['booking'] ?? 0);
-    $res = brb_extend_hold($id, (int) ($_POST['hours'] ?? 0));
+    $res = brb_approve_booking($id);
     if (is_wp_error($res)) brb_admin_back($id, $res->get_error_message());
-    brb_admin_back($id, brb_ref($res) . ' is held until ' . brb_format_utc_mysql($res->hold_until) . '.');
+    brb_admin_back($id, brb_ref($res) . ' approved. The guest was emailed that the date is not held until the deposit is received.');
+});
+add_action('admin_post_brb_decline', function () {
+    brb_admin_gate('brb_decline');
+    $id = (int) ($_POST['booking'] ?? 0);
+    $res = brb_decline_booking($id);
+    if (is_wp_error($res)) brb_admin_back($id, $res->get_error_message());
+    brb_admin_back($id, brb_ref($res) . ' declined. The date is not reserved.');
 });
 add_action('admin_post_brb_cancel', function () {
     brb_admin_gate('brb_cancel');
@@ -122,12 +130,20 @@ add_action('admin_post_brb_manual', function () {
     }
     $event_type = sanitize_key($post['event_type'] ?? '');
     if (!isset(brb_event_types()[$event_type])) $event_type = '';
+    $screen = brb_collect_screening($post, false);
+    if (is_wp_error($screen)) $screen = ['public_event' => '', 'alcohol' => '', 'end_time' => '', 'host_age' => '', 'event_about' => ''];
+    $about = $screen['event_about'] !== '' ? $screen['event_about'] : sanitize_textarea_field($post['notes'] ?? '');
     $b = brb_insert_booking($r, $q, [
         'name' => $name,
         'email' => $email,
         'phone' => sanitize_text_field($post['phone'] ?? ''),
-        'notes' => sanitize_textarea_field($post['notes'] ?? ''),
+        'notes' => $about,
         'event_type' => $event_type,
+        'public_event' => $screen['public_event'],
+        'alcohol' => $screen['alcohol'],
+        'end_time' => $screen['end_time'],
+        'host_age' => $screen['host_age'],
+        'event_about' => $about,
     ], $source, !$take);
     if (is_wp_error($b)) brb_admin_back(0, $b->get_error_message(), 'brb-new');
     if ($take) {
@@ -140,12 +156,12 @@ add_action('admin_post_brb_manual', function () {
             true
         );
         if (is_wp_error($pay)) {
-            brb_send_hold_emails(brb_booking($b->id));
-            brb_admin_back($b->id, 'Booking saved as held, but the check was not recorded: ' . $pay->get_error_message());
+            brb_send_request_emails(brb_booking($b->id));
+            brb_admin_back($b->id, 'Request saved as pending review, but the check was not recorded: ' . $pay->get_error_message());
         }
         brb_admin_back($pay->id, brb_ref($pay) . ' saved (' . brb_source_label($source) . '). ' . brb_status_label($pay->status) . '. The guest was emailed.');
     }
-    brb_admin_back($b->id, brb_ref($b) . ' saved as held (' . brb_source_label($source) . '). The guest was emailed.');
+    brb_admin_back($b->id, brb_ref($b) . ' saved as pending review (' . brb_source_label($source) . '). The date is not held. The guest was emailed.');
 });
 
 function brb_admin_router() {
@@ -154,7 +170,7 @@ function brb_admin_router() {
 }
 function brb_admin_list() {
     global $wpdb;
-    $allowed = ['held', 'deposit_paid', 'paid', 'cancelled', 'expired'];
+    $allowed = ['review', 'approved', 'deposit_paid', 'paid', 'declined', 'cancelled', 'expired', 'held'];
     $f = sanitize_key($_GET['status'] ?? '');
     if (!in_array($f, $allowed, true)) $f = '';
     if ($f) $rows = $wpdb->get_results($wpdb->prepare('SELECT * FROM ' . brb_table() . ' WHERE status=%s ORDER BY start_dt DESC LIMIT 500', $f));
@@ -162,16 +178,16 @@ function brb_admin_list() {
     echo '<div class="wrap"><h1 class="wp-heading-inline">Bookings</h1> <a class="page-title-action" href="' . esc_url(admin_url('admin.php?page=brb-new')) . '">Add booking</a>';
     brb_admin_note();
     echo '<p style="margin-top:12px">';
-    $filters = ['' => 'All', 'held' => 'Held (awaiting check)', 'deposit_paid' => 'Deposit paid', 'paid' => 'Paid in full', 'cancelled' => 'Cancelled', 'expired' => 'Expired'];
+    $filters = ['' => 'All', 'review' => 'Pending review', 'approved' => 'Approved, deposit due', 'deposit_paid' => 'Deposit paid', 'paid' => 'Paid in full', 'declined' => 'Declined', 'cancelled' => 'Cancelled'];
     foreach ($filters as $k => $l) {
         printf('<a class="button%s" href="%s">%s</a> ', $f === $k ? ' button-primary' : '', esc_url(admin_url('admin.php?page=brb&status=' . $k)), esc_html($l));
     }
-    echo '</p><table class="widefat"><thead><tr><th>#</th><th>When</th><th>Guest</th><th>Source</th><th>Total</th><th>Paid</th><th>Balance</th><th>Status</th><th>Held until</th><th></th></tr></thead><tbody>';
+    echo '</p><table class="widefat"><thead><tr><th>#</th><th>When</th><th>Guest</th><th>Source</th><th>Total</th><th>Paid</th><th>Balance</th><th>Status</th><th>Reserved</th><th></th></tr></thead><tbody>';
     if (!$rows) echo '<tr><td colspan="10">No bookings yet.</td></tr>';
     foreach ($rows as $b) {
         $set = brb_price_is_set($b);
         $balance = $set ? max(0, round((float) $b->total - (float) $b->amount_paid, 2)) : 0;
-        $until = ($b->status === 'held' && $b->hold_until) ? brb_format_utc_mysql($b->hold_until) : '—';
+        $until = in_array($b->status, ['deposit_paid', 'paid', 'confirmed'], true) ? 'Yes' : 'No';
         printf(
             '<tr><td>%s</td><td>%s</td><td>%s<br><small>%s %s</small></td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td><span class="brb-badge %s">%s</span></td><td>%s</td><td><a class="button button-small" href="%s">Open</a></td></tr>',
             esc_html(brb_ref($b)),
@@ -194,6 +210,7 @@ function brb_admin_list() {
 function brb_admin_detail($id) {
     $b = brb_booking($id);
     echo '<div class="wrap"><h1>Booking</h1>';
+    echo '<div class="notice notice-warning"><p>' . esc_html(brb_attorney_notice()) . '</p></div>';
     brb_admin_note();
     if (!$b) {
         echo '<p>Booking not found.</p></div>';
@@ -208,6 +225,11 @@ function brb_admin_detail($id) {
         'When' => brb_when($b),
         'Guests' => (string) (int) $b->guests,
         'Event type' => brb_event_type_label($b->event_type ?? '') ?: '—',
+        'Open to the public or ticketed' => brb_yes_no_label($b->public_event ?? '') ?: '—',
+        'Alcohol served' => brb_yes_no_label($b->alcohol ?? '') ?: '—',
+        'Planned end time' => ($b->end_time ?? '') !== '' ? brb_end_time_label($b->end_time) : '—',
+        'Host age bracket' => (brb_host_ages()[$b->host_age ?? ''] ?? '') ?: '—',
+        'About the event' => ($b->event_about ?? '') !== '' ? $b->event_about : '—',
         'Source' => brb_source_label($b->source),
         'Name' => $b->name,
         'Email' => $b->email,
@@ -220,11 +242,11 @@ function brb_admin_detail($id) {
         $rows['Tax'] = brb_money($b->tax);
     }
     $rows['Agreed price'] = $set ? brb_money($b->total) : 'Price to be confirmed';
-    $rows['Check expected to secure the date'] = $set ? brb_money($b->deposit_due) : 'Price to be confirmed';
+    $rows['Deposit that reserves the date'] = $set ? brb_money($b->deposit_due) : 'Price to be confirmed';
     $rows['Paid'] = brb_money($b->amount_paid);
     $rows['Balance'] = $set ? brb_money($balance) : 'Price to be confirmed';
     $rows['Balance due'] = $b->balance_due_on ? brb_balance_due_label($b->balance_due_on) : '—';
-    $rows['Held until'] = $b->hold_until ? brb_format_utc_mysql($b->hold_until) : '—';
+    $rows['Date reserved'] = in_array($b->status, ['deposit_paid', 'paid', 'confirmed'], true) ? 'Yes, a deposit has been received' : 'No, not until the deposit is received';
     foreach ($rows as $label => $val) {
         echo '<tr><th style="width:280px">' . esc_html($label) . '</th><td>' . nl2br(esc_html((string) $val)) . '</td></tr>';
     }
@@ -236,7 +258,7 @@ function brb_admin_detail($id) {
         return ($p->method ?? '') === 'card';
     });
     if ($card_rows || !empty($b->attention)) {
-        echo '<p>Refunds follow the rental agreement and are issued manually in the Stripe dashboard. The card processing fee is non-refundable [VERIFY with attorney].</p>';
+        echo '<p>The deposit is non-refundable. The card processing fee is non-refundable. Card payments are resolved manually in the Stripe dashboard. [VERIFY: attorney review]</p>';
     }
 
     if ($b->status !== 'cancelled') {
@@ -244,7 +266,7 @@ function brb_admin_detail($id) {
         echo '<input type="hidden" name="action" value="brb_price"><input type="hidden" name="booking" value="' . (int) $b->id . '">';
         wp_nonce_field('brb_price');
         $suggest = $set ? brb_dec($b->total) : '';
-        echo '<table class="form-table"><tr><th><label for="agreed_price">Final price</label></th><td><input name="agreed_price" id="agreed_price" type="number" step="0.01" min="0.01" value="' . esc_attr($suggest) . '" required> <span class="description">This is the amount the hold and recorded checks use. The guest is emailed the check amount. Until you save a price, the guest sees “price to be confirmed”.</span></td></tr></table>';
+        echo '<table class="form-table"><tr><th><label for="agreed_price">Final price</label></th><td><input name="agreed_price" id="agreed_price" type="number" step="0.01" min="0.01" value="' . esc_attr($suggest) . '" required> <span class="description">The guest is emailed this price. Payment instructions go out when the request is approved. Until you save a price, the guest sees “price to be confirmed”.</span></td></tr></table>';
         echo '<p><button class="button button-primary">Set agreed price and email guest</button></p></form>';
     }
 
@@ -270,16 +292,20 @@ function brb_admin_detail($id) {
     }
 
     echo '<h2>Actions</h2><div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end">';
-    if ($set && !in_array($b->status, ['paid', 'cancelled', 'expired'], true) && $balance > 0.009) {
+    if (in_array($b->status, ['review', 'pending'], true)) {
+        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '"><input type="hidden" name="action" value="brb_approve"><input type="hidden" name="booking" value="' . (int) $b->id . '">';
+        wp_nonce_field('brb_approve');
+        echo '<button class="button button-primary">Approve</button></form>';
+    }
+    if (in_array($b->status, ['review', 'approved', 'pending', 'held', 'deposit_paid'], true)) {
+        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" onsubmit="return confirm(\'Decline this request? The date is not reserved.\');"><input type="hidden" name="action" value="brb_decline"><input type="hidden" name="booking" value="' . (int) $b->id . '">';
+        wp_nonce_field('brb_decline');
+        echo '<button class="button">Decline</button></form>';
+    }
+    if ($set && !in_array($b->status, ['paid', 'cancelled', 'expired', 'declined'], true) && $balance > 0.009) {
         echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '"><input type="hidden" name="action" value="brb_mark_paid"><input type="hidden" name="booking" value="' . (int) $b->id . '">';
         wp_nonce_field('brb_mark_paid');
         echo '<button class="button">Mark paid in full</button></form>';
-    }
-    if (in_array($b->status, ['held', 'expired'], true)) {
-        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '"><input type="hidden" name="action" value="brb_extend"><input type="hidden" name="booking" value="' . (int) $b->id . '">';
-        wp_nonce_field('brb_extend');
-        echo '<label>Extend hold by <input type="number" name="hours" min="1" max="720" value="' . (int) brb_hold_hours() . '" style="width:80px"> hours</label> ';
-        echo '<button class="button">Extend hold</button></form>';
     }
     if ($b->status !== 'cancelled') {
         echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" onsubmit="return confirm(\'Cancel this booking and release the date?\');"><input type="hidden" name="action" value="brb_cancel"><input type="hidden" name="booking" value="' . (int) $b->id . '">';
@@ -323,7 +349,7 @@ function brb_admin_new() {
     $o = brb_opt();
     echo '<div class="wrap"><h1>Add booking</h1>';
     brb_admin_note();
-    echo '<p>Use this for a phone call or a walk-in. The date is held the same way as a date saved on the website, unless you record a check now.</p>';
+    echo '<p>Use this for a phone call or a walk-in. A request does not hold the date. The date is reserved once a deposit is recorded.</p>';
     echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="max-width:720px"><input type="hidden" name="action" value="brb_manual">';
     wp_nonce_field('brb_manual');
     echo '<table class="form-table">';
@@ -343,7 +369,7 @@ function brb_admin_new() {
     echo '<tr><th><label for="email">Email</label></th><td><input type="email" name="email" id="email" class="regular-text" required></td></tr>';
     echo '<tr><th><label for="phone">Phone</label></th><td><input name="phone" id="phone" class="regular-text"></td></tr>';
     echo '<tr><th><label for="notes">Notes</label></th><td><textarea name="notes" id="notes" rows="3" class="large-text"></textarea></td></tr>';
-    echo '<tr><th><label for="agreed_price">Agreed price ($)</label></th><td><input name="agreed_price" id="agreed_price" type="number" step="0.01" min="0"> <span class="description">Leave blank to hold the date with the price to be confirmed. Required if you record a check now. ' . esc_html(brb_price_sentence()) . '</span></td></tr>';
+    echo '<tr><th><label for="agreed_price">Agreed price ($)</label></th><td><input name="agreed_price" id="agreed_price" type="number" step="0.01" min="0"> <span class="description">Leave blank to save a pending request with the price to be confirmed. Required if you record a check now. ' . esc_html(brb_price_sentence()) . '</span></td></tr>';
     echo '<tr><th>Minimum notice</th><td><label><input type="checkbox" name="override_notice" value="1"> Staff override: allow a start inside the ' . (int) brb_notice_hours() . '-hour notice. The public form cannot do this.</label></td></tr>';
     echo '<tr><th>Check now</th><td><label><input type="checkbox" name="take_check" value="1"> Record a check with this booking</label></td></tr>';
     echo '<tr><th><label for="amount">Check amount</label></th><td><input name="amount" id="amount" type="number" step="0.01" min="0"></td></tr>';
@@ -453,22 +479,21 @@ function brb_admin_settings() {
             ['max_guests', 'Max guests', 'number', null, ''],
             ['currency', 'Currency code', 'text', null, 'Checks are US dollars. This is kept for records. Older day rate, hourly rate, cleaning fee, and tax figures stay stored and are not shown on the website.'],
         ],
-        'Notice and holds' => [
-            ['min_notice_hours', 'Minimum notice (hours)', 'number', null, 'A booking must start at least this many hours from now. Default 48. The owner described the rule as not renting inside 48 hours; change this number here if that rule changes. Set 0 to allow same-day starts.'],
-            ['hold_hours', 'Hold length (hours)', 'number', null, 'After a guest saves a date, it stays reserved for this long while you wait for the check. Default 48. When the hold ends, the date is released and the guest and you are emailed.'],
+        'Notice' => [
+            ['min_notice_hours', 'Minimum notice (hours)', 'number', null, 'A booking must start at least this many hours from now. Default 48. The owner described the rule as not renting inside 48 hours; change this number here if that rule changes. Set 0 to allow same-day starts. A request does not hold the date.'],
         ],
         'Check payment' => [
-            ['deposit_type', 'Amount of the check that secures the date', 'select', ['full' => 'Full amount', 'percent' => 'Percent of the agreed price', 'fixed' => 'Fixed dollar amount'], 'Applied to the agreed price once staff set it. Until then the guest is told the price is to be confirmed. Full amount is the default.'],
-            ['deposit_pct', 'Deposit percent', 'number', null, 'Used when the choice above is percent. 100 is the same as the full amount.'],
+            ['deposit_type', 'Deposit that reserves the date', 'select', ['full' => 'Full amount', 'percent' => 'Percent of the agreed price', 'fixed' => 'Fixed dollar amount'], 'The deposit is non-refundable and holds the date. Default is 50% of the agreed price. Until staff set a price, the guest is told the price is to be confirmed.'],
+            ['deposit_pct', 'Deposit percent', 'number', null, 'Used when the choice above is percent. Default 50.'],
             ['deposit_fixed', 'Fixed deposit amount ($)', 'text', null, 'Used when the choice above is a fixed dollar amount. Cannot exceed the total.'],
             ['balance_due_days', 'Balance due (days before the event)', 'number', null, '[VERIFY] Used when the first check is less than the total. 7 means the rest is due 7 days before the start date.'],
             ['venue_address', 'Venue address', 'text', null, 'The event space. Shown in the footer, on Contact, and in Terms and Privacy. Default is 2220 37th Street, Moline, IL 61265. This is not where checks go.'],
             ['payee', 'Check payable to [VERIFY]', 'text', null, 'The name guests write on the payee line. Until this placeholder is replaced, guest check instructions say Mad Productions.'],
             ['pay_location', 'Where to mail or drop off checks', 'text', null, 'Check mail and drop-off only. Default is 2212 37th Street, Moline, IL 61265. A saved placeholder, or the old 2212 47 Ave line, is replaced on upgrade.'],
             ['pay_hours', 'In-person hours [VERIFY]', 'text', null, 'Days and hours a guest can drop off a check.'],
-            ['pay_instructions', 'Payment instructions', 'textarea', null, 'Optional extra text on the review step, the confirmation page, and in the hold email. Leave blank and this line stays hidden.'],
+            ['pay_instructions', 'Payment instructions', 'textarea', null, 'Optional extra text in the approval email and on an approved booking. Leave blank and this line stays hidden. It is not shown before the request is approved.'],
             ['card_fee_percent', 'Card processing fee (%)', 'number', null, 'Added on top of an online card payment. Default 3. It is not applied to the booking balance. Card payment stays off until the Stripe secret key is set on the server.'],
-            ['admin_email', 'Admin notification email', 'text', null, 'Hold, check, expiry, and contact inquiry emails are sent here. Separate more than one address with a comma.'],
+            ['admin_email', 'Admin notification email', 'text', null, 'Request, payment, and contact inquiry emails are sent here. Separate more than one address with a comma.'],
             ['tour_email', 'Inquiry email', 'text', null, 'Contact inquiries are also emailed here. Default is boardroomqc@gmail.com.'],
         ],
         'Calendar and policy' => [
@@ -477,6 +502,7 @@ function brb_admin_settings() {
         ],
     ];
     echo '<div class="wrap"><h1>Booking Settings</h1>';
+    echo '<div class="notice notice-warning"><p>' . esc_html(brb_attorney_notice()) . '</p></div>';
     brb_admin_note();
     echo '<p>Guests save a date on the website. They can pay by check or in person, or online by card when the Stripe secret key is set. ' . esc_html(brb_price_sentence()) . ' Staff set the final price on each booking. The venue and the check address are separate settings.</p>';
     echo '<p>No overnight stays. The Boardroom is an event space only. Latest end time: [VERIFY] latest end time. Do not publish an end time until that is confirmed. Guests are not shown this note.</p>';

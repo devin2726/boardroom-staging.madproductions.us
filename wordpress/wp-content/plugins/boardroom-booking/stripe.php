@@ -48,7 +48,7 @@ function brb_card_fee_cents($base_cents, $percent = null) {
 }
 function brb_amount_due_now($b) {
     if (!$b || !brb_price_is_set($b)) return 0.0;
-    if (!in_array($b->status, ['held', 'deposit_paid'], true)) return 0.0;
+    if (!in_array($b->status, ['approved', 'held', 'deposit_paid'], true)) return 0.0;
     $due = round((float) brb_amount_to_bring($b), 2);
     return $due > 0 ? $due : 0.0;
 }
@@ -76,7 +76,7 @@ function brb_pay_online_line($b) {
     if ($url === '') return '';
     $due = brb_amount_due_now($b);
     $fee = brb_card_fee_cents(brb_cents_from_amount($due)) / 100;
-    return 'Pay online: ' . $url . ' The card charge is ' . brb_money($due) . ' plus a ' . brb_fee_percent_label() . ' processing fee of ' . brb_money($fee) . '. That fee is not part of the booking balance. You can still pay by check or in person. Cancellation and refunds follow the Rental Agreement. The card processing fee is non-refundable [VERIFY with attorney].';
+    return 'Pay online: ' . $url . ' The card charge is ' . brb_money($due) . ' plus a ' . brb_fee_percent_label() . ' processing fee of ' . brb_money($fee) . '. That fee is not part of the booking balance. You can still pay by check or in person. ' . brb_deposit_line() . ' ' . brb_fee_public_line();
 }
 
 function brb_stripe_create_session($b) {
@@ -187,13 +187,13 @@ function brb_view_pay($token, $sig) {
         <p>Amount applied to your booking: <?php echo esc_html(brb_money($base_cents / 100)); ?></p>
         <p>Card processing fee (<?php echo esc_html($label); ?>): <?php echo esc_html(brb_money($fee_cents / 100)); ?></p>
         <p><strong>Total charged to your card: <?php echo esc_html(brb_money($total_cents / 100)); ?></strong></p>
-        <p>The processing fee is not part of the booking balance. You can still pay by check or in person. Cancellation and refunds follow the Rental Agreement. The card processing fee is non-refundable [VERIFY with attorney].</p>
+        <p>The processing fee is not part of the booking balance. You can still pay by check or in person. <?php echo esc_html(brb_deposit_line()); ?> <?php echo esc_html(brb_fee_public_line()); ?></p>
       </div>
       <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
         <input type="hidden" name="action" value="brb_stripe_checkout">
         <input type="hidden" name="br_token" value="<?php echo esc_attr($token); ?>">
         <input type="hidden" name="br_sig" value="<?php echo esc_attr($sig); ?>">
-        <label class="brb-check"><input type="checkbox" name="card_fee_agree" value="1" required> I understand a <?php echo esc_html($label); ?> card processing fee applies and I agree to the <a href="<?php echo esc_url(home_url('/terms/')); ?>" target="_blank" rel="noopener">Terms</a> and <a href="<?php echo esc_url(home_url('/rental-agreement/')); ?>" target="_blank" rel="noopener">Rental Agreement</a>.</label>
+        <label class="brb-check"><input type="checkbox" name="card_fee_agree" value="1" required> I understand a <?php echo esc_html($label); ?> card processing fee applies, <?php echo esc_html(lcfirst(brb_deposit_line())); ?> and I agree to the <a href="<?php echo esc_url(home_url('/terms/')); ?>" target="_blank" rel="noopener">Terms</a> and <a href="<?php echo esc_url(home_url('/rental-agreement/')); ?>" target="_blank" rel="noopener">Rental Agreement</a>.</label>
         <p><button class="brb-btn" type="submit">Continue to card payment</button></p>
       </form>
       <p><a href="<?php echo esc_url(brb_guest_link($b)); ?>">Back to your booking</a></p>

@@ -1,4 +1,4 @@
-.brb{--g:#c4912e;--gd:#996f1d;--k:#161616;font-size:16px}
+.brb{--g:#c4912e;--gd:#996f1d;--k:#161616;font-size:16px;font-family:"EB Garamond",Georgia,"Times New Roman",serif;color:#161616}
 .brb-steps{display:flex;flex-wrap:wrap;gap:8px;list-style:none;padding:0;margin:0 0 24px;counter-reset:s}
 .brb-steps li{counter-increment:s;padding:8px 14px;background:#eee;color:#555;font-size:14px;letter-spacing:.05em;text-transform:uppercase}
 .brb-steps li:before{content:counter(s) ". "}.brb-steps li.on{background:var(--k);color:#fff}.brb-steps li.done{background:var(--g);color:#fff}
@@ -18,5 +18,5 @@
 .brb-btn:disabled{opacity:.45;cursor:not-allowed}
 .brb-quote{width:100%;border-collapse:collapse;margin:12px 0}.brb-quote td{padding:8px 0;border-bottom:1px solid #eee}.brb-quote td:last-child{text-align:right}.brb-quote .tot td{font-weight:700;font-size:18px}
 .brb-policy{background:#f7f7f7;padding:12px;font-size:14px;margin-bottom:12px}.brb-small{font-size:13px;color:#777}.brb-confirm{max-width:680px;margin:auto}.brb-confirm h2{text-align:center}
-.brb-badge{display:inline-block;padding:2px 6px;font-size:11px;margin:2px;background:#eee;border-radius:3px;text-decoration:none}.brb-badge.confirmed,.brb-badge.paid{background:#d4edda}.brb-badge.pending,.brb-badge.held{background:#fff3cd}.brb-badge.deposit_paid{background:#cce5ff}.brb-badge.expired{background:#e2e3e5}.brb-badge.cancelled{background:#f8d7da}.brb-badge.blackout{background:#333;color:#fff}
+.brb-badge{display:inline-block;padding:2px 6px;font-size:11px;margin:2px;background:#eee;border-radius:3px;text-decoration:none}.brb-badge.confirmed,.brb-badge.paid{background:#d4edda}.brb-badge.pending,.brb-badge.held,.brb-badge.review{background:#fff3cd}.brb-badge.approved{background:#f3e2bf}.brb-badge.deposit_paid{background:#cce5ff}.brb-badge.expired{background:#e2e3e5}.brb-badge.cancelled,.brb-badge.declined{background:#f8d7da}.brb-badge.blackout{background:#333;color:#fff}
 .brb-admincal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;max-width:1100px}.brb-admincal>div{background:#fff;border:1px solid #ddd;min-height:90px;padding:4px}.brb-admincal .h{min-height:auto;font-weight:700;text-align:center}.brb-admincal .e{background:transparent;border:0}

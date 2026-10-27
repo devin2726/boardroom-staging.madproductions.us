@@ -1,7 +1,7 @@
 <?php
 /**
  * Run inside WordPress: wp eval-file tests/check-payment-flow.php
- * Exercises save → held → deposit → balance → paid, expiry, the 48h rule, and blackout preservation.
+ * Exercises a request → approval → deposit → balance → paid, the 48h notice rule, and blackout preservation.
  */
 if (!defined('ABSPATH')) {
     fwrite(STDERR, "Load this with wp eval-file\n");
@@ -10,6 +10,15 @@ if (!defined('ABSPATH')) {
 
 $GLOBALS['brb_fail'] = 0;
 $GLOBALS['brb_ok'] = 0;
+function brb_screen($overrides = []) {
+    return array_merge([
+        'public_event' => 'no',
+        'alcohol' => 'yes',
+        'end_time' => '21:30',
+        'host_age' => 'age_25',
+        'event_about' => 'A private dinner for family.',
+    ], $overrides);
+}
 function brb_t($cond, $msg) {
     if ($cond) {
         $GLOBALS['brb_ok']++;
@@ -34,7 +43,7 @@ add_filter('pre_wp_mail', function ($short, $atts) {
 $GLOBALS['brb_mails'] = [];
 
 try {
-    brb_t(get_option('brb_version') === '2.3.1', 'plugin storage version is 2.3.1');
+    brb_t(get_option('brb_version') === '2.4.0', 'plugin storage version is 2.4.0');
     brb_t(get_option('blog_public') === '0' || get_option('blog_public') === 0, 'staging discourages search engines');
     $cols = $wpdb->get_col('SHOW COLUMNS FROM ' . brb_table(), 0);
     foreach (['deposit_due', 'amount_paid', 'source', 'hold_until', 'balance_due_on', 'price_set', 'status', 'event_type'] as $col) {
@@ -43,11 +52,11 @@ try {
     brb_t($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', brb_pay_table())) === brb_pay_table(), 'checks table exists');
     $pay_cols = $wpdb->get_col('SHOW COLUMNS FROM ' . brb_pay_table(), 0);
     brb_t(in_array('method', $pay_cols, true), 'payments table stores a method');
-    brb_t((bool) wp_next_scheduled('brb_cron_expire'), 'hourly hold expiry is scheduled');
+    brb_t(!wp_next_scheduled('brb_cron_expire'), 'unpaid requests are not expired on a timer');
 
     $stored = get_option('brb_settings');
     brb_t(is_array($stored) && !array_key_exists($brand . '_pk', $stored) && !array_key_exists($brand . '_sk', $stored), 'saved settings no longer keep processor keys');
-    brb_t((brb_opt('deposit_type') === 'full'), 'a 100 percent legacy deposit becomes full amount');
+    brb_t(brb_opt('deposit_type') === 'percent' && (string) brb_opt('deposit_pct') === '50', 'the deposit default is 50 percent of the agreed total');
     brb_t((string) brb_opt('min_notice_hours') === '48', 'minimum notice defaults to 48');
     brb_t((string) brb_opt('hold_hours') === '48', 'hold length defaults to 48');
     brb_t(strpos((string) brb_opt('payee'), '[VERIFY]') !== false, 'payee placeholder is marked [VERIFY]');
@@ -115,7 +124,7 @@ try {
     brb_t(($migrated['policy'] ?? '') === 'Keep this policy text.', 'policy text is kept');
     brb_t(($migrated['admin_email'] ?? '') === 'admin@example.com', 'admin email is kept');
     brb_t(!array_key_exists($brand . '_sk', $migrated) && !isset($migrated['hold_minutes']), 'legacy keys are dropped');
-    brb_t(($migrated['deposit_type'] ?? '') === 'full', 'full amount stays the default when the old percent was 100');
+    brb_t(($migrated['deposit_type'] ?? '') === 'percent' && (string) ($migrated['deposit_pct'] ?? '') === '50', 'a legacy full deposit becomes a 50 percent deposit');
     brb_t(($migrated['hold_hours'] ?? '') === '48' && ($migrated['min_notice_hours'] ?? '') === '48', 'new hour settings default to 48');
 
     $blocked = new DateTimeImmutable('2030-01-03 00:00:00', brb_tz());
@@ -225,59 +234,56 @@ try {
         'policy' => '1',
         'event_type' => 'wedding',
     ];
+    $post = array_merge($post, brb_screen());
     $GLOBALS['brb_mails'] = [];
     $b = brb_process_public_booking($post);
-    brb_t(!is_wp_error($b) && $b && $b->status === 'held', 'saving a date creates a held booking');
+    brb_t(!is_wp_error($b) && $b && $b->status === 'review', 'a request is pending review and does not hold the date');
     if ($b && !is_wp_error($b)) {
         $created_ids[] = (int) $b->id;
-        $until = strtotime($b->hold_until . ' UTC');
-        $created = strtotime($b->created . ' UTC');
-        brb_t(abs(($until - $created) - 48 * 3600) < 180, 'hold deadline is 48 hours after it was saved');
-        $deadline = brb_format_utc_mysql($b->hold_until);
-        brb_t(strpos($deadline, 'America/Chicago') !== false, 'deadline names America/Chicago');
+        brb_t($b->public_event === 'no' && $b->alcohol === 'yes' && $b->end_time === '21:30' && $b->host_age === 'age_25' && strpos((string) $b->event_about, 'private dinner') !== false, 'screening answers are stored on the booking');
         $guest_mail = null;
+        $admin_mail = null;
         foreach ($GLOBALS['brb_mails'] as $m) {
-            if (stripos($m['to'], 'flow-test@example.com') !== false && stripos($m['subject'], 'held') !== false) $guest_mail = $m;
+            if (stripos($m['to'], 'flow-test@example.com') !== false && stripos($m['subject'], 'request') !== false) $guest_mail = $m;
+            if (stripos($m['to'], 'admin@example.com') !== false) $admin_mail = $m;
         }
-        brb_t((bool) $guest_mail, 'guest hold email was sent');
+        brb_t((bool) $guest_mail, 'guest request email was sent');
         if ($guest_mail) {
             $body = $guest_mail['message'];
-            brb_t(strpos($body, 'Your date is held for 48 hours.') !== false, 'email says the date is held for 48 hours');
-            brb_t(strpos($body, 'Your date is held until ' . $deadline) !== false, 'email states the exact hold deadline');
-            brb_t(strpos($body, 'Event type: Wedding') !== false, 'hold email names the event type');
-            brb_t(strpos($body, '[VERIFY] Test instructions.') !== false, 'a custom payment instruction is included');
-            brb_t(strpos($body, 'Extra instructions for bringing the check') === false, 'the default extra-instructions placeholder is not in the hold email');
-            brb_t(strpos($body, 'payable to [VERIFY] Test Payee') !== false, 'email names the payee');
-            brb_t(strpos($body, '[VERIFY] Test Window') !== false && strpos($body, '[VERIFY] Test Hours') !== false, 'email names the drop-off place and hours');
-            brb_t(strpos($body, 'Write booking reference ' . brb_ref($b) . ' on the memo line.') !== false, 'email tells the guest what to write on the memo');
-            brb_t(strpos($body, 'If the check is not received by then, the hold is released.') !== false, 'email says the hold is released');
+            brb_t(strpos($body, 'held for 48 hours') === false && strpos($body, 'Your date is held until') === false, 'request email does not describe a 48 hour hold');
+            brb_t(strpos($body, 'Your date is reserved once your deposit is received.') !== false, 'request email says the date is reserved once the deposit is received');
+            brb_t(strpos($body, 'A request does not hold the date.') !== false, 'request email says a request does not hold the date');
+            brb_t(strpos($body, 'subject to approval') !== false && strpos($body, 'No payment is due until the request is approved.') !== false, 'request email says payment waits for approval');
+            brb_t(strpos($body, 'Event type: Wedding') !== false, 'request email names the event type');
+            brb_t(strpos($body, 'Open to the public or ticketed: No') !== false && strpos($body, 'Alcohol served: Yes') !== false && strpos($body, 'Host age bracket: 25 or older') !== false && strpos($body, 'Planned end time: 9:30 PM') !== false && strpos($body, 'A private dinner for family.') !== false, 'request email includes the screening answers');
+            brb_t(strpos($body, '[VERIFY] Test instructions.') === false && strpos($body, 'payable to [VERIFY] Test Payee') === false, 'request email does not include payment instructions');
+            brb_t(strpos($body, 'Extra instructions for bringing the check') === false, 'the default extra-instructions placeholder is not in the request email');
             brb_t(stripos($body, 'price to be confirmed') !== false, 'email says price to be confirmed');
-            brb_t(strpos($body, 'No overnight stays. The Boardroom is an event space only.') !== false, 'hold email states the no-overnight rule');
-            brb_t(stripos($body, 'check-in') === false && stripos($body, 'check-out') === false && stripos($body, 'per night') === false && stripos($body, 'per-night') === false && stripos($body, 'guests staying') === false && strpos($body, '[VERIFY] latest end time') === false, 'hold email uses event wording');
-            brb_t(strpos($body, '$0.00') === false && strpos($body, '$500') === false && strpos($body, '$75') === false && strpos($body, '$100') === false, 'hold email has no placeholder or zero total');
-            brb_t((int) $b->price_set === 0 && (float) $b->total == 0.0, 'a public save does not store a guessed total');
+            brb_t(strpos($body, 'No overnight stays. The Boardroom is an event space only.') !== false, 'request email states the no-overnight rule');
+            brb_t(stripos($body, 'check-in') === false && stripos($body, 'check-out') === false && stripos($body, 'per night') === false && stripos($body, 'per-night') === false && stripos($body, 'guests staying') === false && strpos($body, '[VERIFY] latest end time') === false && strpos($body, '[VERIFY: attorney review]') === false, 'request email uses event wording and has no attorney note');
+            brb_t(strpos($body, '$0.00') === false && strpos($body, '$500') === false && strpos($body, '$75') === false && strpos($body, '$100') === false, 'request email has no placeholder or zero total');
+            brb_t((int) $b->price_set === 0 && (float) $b->total == 0.0, 'a public request does not store a guessed total');
             brb_t($b->event_type === 'wedding', 'the event type is stored with the booking');
             brb_t($b->phone === '', 'a public save does not store a phone number');
         }
-        brb_t(count(array_filter($GLOBALS['brb_mails'], function ($m) {
-            return stripos($m['to'], 'admin@example.com') !== false;
-        })) >= 1, 'admin is notified of the hold');
+        brb_t($admin_mail && strpos($admin_mail['message'], 'pending review') !== false && strpos($admin_mail['message'], 'The date is not held.') !== false && strpos($admin_mail['message'], 'A private dinner for family.') !== false, 'staff email shows the screening answers and that the date is not held');
         $range_s = new DateTimeImmutable($b->start_dt, brb_tz());
         $range_e = new DateTimeImmutable($b->end_dt, brb_tz());
-        brb_t(!brb_is_free($range_s, $range_e), 'the held date blocks a second booking');
+        brb_t(brb_is_free($range_s, $range_e), 'a pending request does not block the date');
         $dup = brb_process_public_booking($post);
-        brb_t(is_wp_error($dup) && $dup->get_error_code() === 'busy', 'a second save of the same date is refused');
+        brb_t(!is_wp_error($dup) && $dup && $dup->status === 'review', 'a second request for the same date is allowed before any deposit');
+        if ($dup && !is_wp_error($dup)) $created_ids[] = (int) $dup->id;
 
         $_GET = ['br_token' => $b->token];
         $html = do_shortcode('[boardroom_booking]');
-        brb_t(strpos($html, 'Your date is held for 48 hours.') !== false, 'confirmation page says the date is held for 48 hours');
-        brb_t(strpos($html, 'Your date is held until ' . $deadline) !== false, 'confirmation page states the exact deadline');
+        brb_t(strpos($html, 'held for 48 hours') === false && strpos($html, 'Your date is held until') === false, 'confirmation page does not describe a 48 hour hold');
+        brb_t(strpos($html, 'Your date is reserved once your deposit is received.') !== false && strpos($html, 'No payment is due until the request is approved.') !== false, 'confirmation page says the date is reserved once the deposit is received');
         brb_t(strpos($html, 'Wedding') !== false, 'confirmation page shows the event type');
-        brb_t(strpos($html, '[VERIFY] Test instructions.') !== false && strpos($html, 'Extra instructions for bringing the check') === false, 'confirmation shows custom instructions and hides the default placeholder');
-        brb_t(strpos($html, 'Save your date') !== false, 'confirmation page is the booking shortcode');
+        brb_t(strpos($html, '[VERIFY] Test instructions.') === false && strpos($html, 'Extra instructions for bringing the check') === false, 'confirmation hides payment instructions until the request is approved');
+        brb_t(strpos($html, 'subject to approval') !== false, 'confirmation page is the booking shortcode');
         brb_t(strpos($html, 'No overnight stays. The Boardroom is an event space only.') !== false && strpos($html, 'guests attending') !== false, 'confirmation states the no-overnight rule and guests attending');
-        brb_t(stripos($html, 'check-in') === false && stripos($html, 'check-out') === false && stripos($html, 'per night') === false && stripos($html, 'guests staying') === false && strpos($html, '[VERIFY] latest end time') === false, 'confirmation uses event wording');
-        brb_t(strpos($html, brb_ref($b)) !== false && strpos($html, 'memo line') !== false, 'confirmation page shows the memo reference');
+        brb_t(stripos($html, 'check-in') === false && stripos($html, 'check-out') === false && stripos($html, 'per night') === false && stripos($html, 'guests staying') === false && strpos($html, '[VERIFY] latest end time') === false && strpos($html, '[VERIFY: attorney review]') === false, 'confirmation uses event wording and has no attorney note');
+        brb_t(strpos($html, brb_ref($b)) !== false && strpos($html, 'memo line') === false, 'an unapproved confirmation does not show payment instructions');
         brb_t(stripos($html, 'price to be confirmed') !== false, 'confirmation says price to be confirmed');
         brb_t(strpos($html, '$0.00') === false && strpos($html, '$500') === false && strpos($html, '$75') === false && strpos($html, '$100') === false && strpos($html, '7%') === false, 'confirmation has no placeholder amounts');
         foreach ($banned as $w) brb_t(stripos($html, $w) === false, "confirmation HTML has no $w");
@@ -295,8 +301,20 @@ try {
         foreach ($GLOBALS['brb_mails'] as $m) {
             if (stripos($m['to'], 'flow-test@example.com') !== false && stripos($m['subject'], 'price is confirmed') !== false) $price_mail = $m;
         }
-        brb_t($price_mail && strpos($price_mail['message'], '$1,200.00') !== false && strpos($price_mail['message'], '$600.00') !== false, 'price email states the agreed price and the check to bring');
-        $b = $priced;
+        brb_t($price_mail && strpos($price_mail['message'], '$1,200.00') !== false && strpos($price_mail['message'], '$600.00') !== false && strpos($price_mail['message'], 'Payment instructions are sent when the request is approved.') !== false, 'price email states the agreed price and waits for approval');
+        $GLOBALS['brb_mails'] = [];
+        $approved = brb_approve_booking($priced->id);
+        brb_t(!is_wp_error($approved) && $approved && $approved->status === 'approved', 'staff can approve a pending request');
+        brb_t($approved && brb_is_free($range_s, $range_e, (int) $approved->id), 'an approved unpaid request still does not block the date');
+        $approve_mail = null;
+        foreach ($GLOBALS['brb_mails'] as $m) {
+            if (stripos($m['to'], 'flow-test@example.com') !== false && stripos($m['subject'], 'approved') !== false) $approve_mail = $m;
+        }
+        brb_t($approve_mail && strpos($approve_mail['message'], 'Your date is not held until the deposit is received.') !== false, 'the approval email says the date is not held until the deposit is received');
+        brb_t($approve_mail && strpos($approve_mail['message'], 'payable to [VERIFY] Test Payee') !== false && strpos($approve_mail['message'], '[VERIFY] Test Window') !== false && strpos($approve_mail['message'], '[VERIFY] Test Hours') !== false, 'the approval email names the payee and the drop-off place and hours');
+        brb_t($approve_mail && strpos($approve_mail['message'], 'Write booking reference ' . brb_ref($priced) . ' on the memo line.') !== false && strpos($approve_mail['message'], '[VERIFY] Test instructions.') !== false, 'the approval email includes the memo line and custom instructions');
+        brb_t($approve_mail && strpos($approve_mail['message'], 'non-refundable and holds the date') !== false && strpos($approve_mail['message'], '[VERIFY: attorney review]') === false, 'the approval email says the deposit is non-refundable and has no attorney note');
+        $b = $approved;
 
         $first = round((float) $b->deposit_due, 2);
         $second = round((float) $b->total - $first, 2);
@@ -338,7 +356,8 @@ try {
             ob_start();
             brb_admin_settings();
             $settings_html = ob_get_clean();
-            brb_t(strpos($settings_html, 'Minimum notice') !== false && strpos($settings_html, 'Hold length') !== false, 'settings explain notice and hold length');
+            brb_t(strpos($settings_html, 'Minimum notice') !== false && strpos($settings_html, 'Hold length') === false, 'settings keep the notice rule and do not offer a hold length');
+            brb_t(strpos($admin_html, '[VERIFY: attorney review]') !== false && strpos($settings_html, '[VERIFY: attorney review]') !== false, 'the attorney note is visible to staff');
             brb_t(strpos($settings_html, '[VERIFY] latest end time') !== false, 'the latest end time is marked for staff only');
             brb_t(strpos($settings_html, 'Starting price') !== false && strpos($settings_html, 'Typical price text') !== false, 'settings show starting and typical price');
             brb_t(strpos($settings_html, 'Full-day rate') === false && strpos($settings_html, '$500') === false && strpos($settings_html, '$75') === false, 'settings do not show the old public rates');
@@ -357,31 +376,46 @@ try {
         'email' => 'flow-test@example.com',
         'policy' => '1',
         'event_type' => 'corporate',
-    ]);
-    brb_t(!is_wp_error($exp) && $exp && $exp->status === 'held' && $exp->mode === 'hourly', 'hourly save is held');
+    ] + brb_screen());
+    brb_t(!is_wp_error($exp) && $exp && $exp->status === 'review' && $exp->mode === 'hourly', 'an hourly request stays pending review');
     if ($exp && !is_wp_error($exp)) {
         $created_ids[] = (int) $exp->id;
-        $past = gmdate('Y-m-d H:i:s', time() - 3600);
-        $wpdb->update(brb_table(), ['hold_until' => $past], ['id' => (int) $exp->id]);
         $es = new DateTimeImmutable($exp->start_dt, brb_tz());
         $ee = new DateTimeImmutable($exp->end_dt, brb_tz());
-        brb_t(brb_is_free($es, $ee), 'a hold past its deadline no longer blocks the date');
+        brb_t(brb_is_free($es, $ee), 'an hourly request does not block the calendar');
         $GLOBALS['brb_mails'] = [];
         brb_expire_holds();
-        $expired = brb_booking($exp->id);
-        brb_t($expired && $expired->status === 'expired', 'the expiry job marks the hold expired');
-        $guest_exp = null;
-        $admin_exp = null;
-        foreach ($GLOBALS['brb_mails'] as $m) {
-            if (stripos($m['to'], 'flow-test@example.com') !== false) $guest_exp = $m;
-            if (stripos($m['to'], 'admin@example.com') !== false) $admin_exp = $m;
-        }
-        brb_t($guest_exp && stripos($guest_exp['message'], 'released') !== false, 'guest is emailed that the hold is released');
-        brb_t($admin_exp && stripos($admin_exp['message'], 'released') !== false, 'admin is emailed that the hold is released');
-        brb_expire_holds();
-        brb_t(count($GLOBALS['brb_mails']) === 2, 'running expiry again does not send a second pair of emails');
+        $still = brb_booking($exp->id);
+        brb_t($still && $still->status === 'review' && count($GLOBALS['brb_mails']) === 0, 'the old expiry job does not release or email a request');
         $extended = brb_extend_hold($exp->id, 48);
-        brb_t(!is_wp_error($extended) && $extended->status === 'held', 'staff can extend an expired hold when the date is free');
+        brb_t(is_wp_error($extended), 'staff cannot extend a hold because requests do not hold the date');
+        $priced_exp = brb_set_agreed_price($exp->id, 400);
+        $first_pay = brb_record_payment($exp->id, 200, '8801', brb_now()->format('Y-m-d'), 'First deposit', true);
+        brb_t(!is_wp_error($priced_exp) && !is_wp_error($first_pay) && $first_pay->status === 'deposit_paid', 'the first paid deposit reserves the date');
+        brb_t(!brb_is_free($es, $ee), 'a paid deposit blocks the calendar');
+        $loser = brb_process_public_booking([
+            'date' => $exp_day,
+            'type' => 'hourly',
+            'start_hour' => 18,
+            'hours' => 2,
+            'guests' => 4,
+            'name' => 'Second Guest',
+            'email' => 'flow-test@example.com',
+            'policy' => '1',
+            'event_type' => 'other',
+        ] + brb_screen(['event_about' => 'A second request after a deposit.']));
+        brb_t(is_wp_error($loser) && $loser->get_error_code() === 'busy', 'a new request is refused once a deposit has reserved the date');
+        $late = brb_record_payment($exp->id, 50, '8802', brb_now()->format('Y-m-d'), 'Overlap', true);
+        brb_t(!is_wp_error($late), 'the booking that already reserved the date can still take another payment');
+        $GLOBALS['brb_mails'] = [];
+        $declined = brb_decline_booking($exp->id);
+        brb_t(!is_wp_error($declined) && $declined->status === 'declined' && strpos((string) $declined->attention, 'Resolve it manually. [VERIFY: attorney review]') !== false, 'declining after a payment flags it for staff and does not promise a refund in the flag');
+        $decline_mail = null;
+        foreach ($GLOBALS['brb_mails'] as $m) {
+            if (stripos($m['to'], 'flow-test@example.com') !== false) $decline_mail = $m;
+        }
+        brb_t($decline_mail && strpos($decline_mail['message'], 'not reserved') !== false && stripos($decline_mail['message'], 'refund') === false, 'the decline email does not promise a refund');
+        brb_t(brb_is_free($es, $ee), 'declining the paid request releases the date');
     }
 
     $phone = brb_build_range([
@@ -397,7 +431,7 @@ try {
             'phone' => '555-0199',
             'notes' => 'Called in',
         ], 'phone', false);
-        brb_t(!is_wp_error($manual) && $manual->source === 'phone' && $manual->status === 'held', 'a phone booking stores its source');
+        brb_t(!is_wp_error($manual) && $manual->source === 'phone' && $manual->status === 'review', 'a phone booking is pending review and stores its source');
         if ($manual && !is_wp_error($manual)) $created_ids[] = (int) $manual->id;
     } else {
         brb_t(false, 'phone booking range could be built');
@@ -444,7 +478,7 @@ try {
     brb_t(stripos($faq_html, 'take the garbage out') !== false && stripos($faq_html, 'following day') !== false, 'faq explains cleanup');
     brb_t(stripos($faq_html, '48 hours') !== false && stripos($faq_html, 'price to be confirmed') !== false, 'faq explains the hold, the notice, and an unconfirmed price');
     brb_t(strpos($faq_html, 'Mail or drop off checks payable to Mad Productions at 2212 37th Street, Moline, IL 61265.') !== false && strpos($faq_html, '2220 37th Street') === false, 'faq tells guests where to mail or drop off checks');
-    brb_t(strpos($faq_html, 'online by card with a 3% processing fee') !== false && strpos($faq_html, 'non-refundable [VERIFY with attorney]') !== false, 'faq describes card payment and the non-refundable fee');
+    brb_t(strpos($faq_html, 'online by card with a 3% processing fee') !== false && strpos($faq_html, 'non-refundable and holds the date') !== false && strpos($faq_html, '[VERIFY with attorney]') === false && strpos($faq_html, '[VERIFY: attorney review]') === false, 'faq says the deposit is non-refundable and has no attorney note');
     brb_t(strpos($faq_html, 'Are overnight stays allowed?') !== false && strpos($faq_html, 'No overnight stays. The Boardroom is an event space only.') !== false && stripos($faq_html, 'check-in') === false && stripos($faq_html, 'check-out') === false && strpos($faq_html, '[VERIFY] latest end time') === false, 'faq states the no-overnight rule without a public end time');
     brb_t(stripos($faq_html, 'How many guests can The Boardroom hold') !== false && stripos($faq_html, 'Up to 75') !== false, 'faq keeps the capacity answer');
     brb_t(strpos($faq_html, 'No cooking is allowed in the venue') !== false && strpos($faq_html, 'The stove top may not be used') !== false && strpos($faq_html, 'Food warmers (for keeping prepared food warm)') !== false, 'faq says no cooking and allows food warmers');
@@ -482,7 +516,7 @@ try {
         'Christmas decorations are up in December' => $terms_html,
         'not set up' => $terms_html,
         'Last updated: October 27, 2026' => $terms_html,
-        '[VERIFY: attorney review]' => $terms_html,
+        'non-refundable and holds the date' => $terms_html,
         'MAD Productions, LLC' => $privacy_html,
         'boardroomqc@gmail.com' => $privacy_html,
         'We never see or store card numbers' => $privacy_html,
@@ -521,7 +555,9 @@ try {
     brb_t(strpos($privacy_html, 'mailto:boardroomqc@gmail.com') !== false && strpos($privacy_html, '[VERIFY]</span>') === false, 'privacy email is confirmed without a verification marker');
     brb_t(strpos($privacy_html, 'sets no advertising, analytics, or tracking cookies of its own') !== false && strpos($privacy_html, 'embedded Google Map on the Contact page may set cookies from Google') !== false && strpos($privacy_html, "Google's privacy policy applies") !== false && strpos($privacy_html, 'not asked to accept cookies') !== false, 'privacy explains our cookies and the Google map');
     brb_t(strpos($privacy_html, 'does not process payments online') === false && strpos($privacy_html, 'Stripe processes card payments') !== false && strpos($privacy_html, 'Stripe may set cookies on its own checkout page') !== false, 'privacy says Stripe processes cards and may set cookies on its checkout page');
-    brb_t(strpos($terms_html, 'online by card with a 3% processing fee') !== false && strpos($terms_html, 'non-refundable [VERIFY with attorney]') !== false, 'terms describe the card fee and that it is non-refundable');
+    brb_t(strpos($terms_html, 'online by card with a 3% processing fee') !== false && strpos($terms_html, 'The card processing fee is non-refundable.') !== false && strpos($terms_html, '[VERIFY with attorney]') === false && strpos($terms_html, '[VERIFY: attorney review]') === false, 'terms describe the card fee without an attorney note');
+    brb_t(strpos($terms_html, 'does not entitle you to a refund of the deposit') !== false && strpos($agreement_html, 'non-refundable and holds the date') !== false && strpos($privacy_html, 'non-refundable and holds the date') !== false, 'terms, the rental agreement, and privacy say the deposit is non-refundable');
+    brb_t(strpos($agreement_html, 'may be entitled to a refund of amounts paid') === false && strpos($agreement_html, 'shall refund amounts paid') === false, 'the rental agreement does not promise a deposit refund');
     brb_t(strpos($terms_html, 'No overnight stays. The Boardroom is an event space only.') !== false && strpos($agreement_html, 'Overnight stays are not permitted. The Venue is an event space only.') !== false, 'terms and the rental agreement forbid overnight stays');
     brb_t(strpos($terms_html, '[VERIFY] latest end time') === false && strpos($agreement_html, '[VERIFY] latest end time') === false && stripos($terms_html, 'check-in') === false && stripos($agreement_html, 'check-in') === false, 'terms and the rental agreement do not publish an end time or check-in wording');
     brb_t(strpos($privacy_html, 'does not embed a map') === false && strpos($privacy_html, 'does not load Google') === false && strpos($privacy_html, 'does not use advertising, analytics, or tracking cookies.') === false && stripos($privacy_html, 'phone') === false, 'privacy no longer says the site uses no cookies or collects a phone number');
@@ -555,13 +591,15 @@ try {
     update_option('brb_settings', $review_settings);
     $_GET = ['date' => $later, 'type' => 'day', 'days' => 1, 'guests' => 4];
     $quote_html = do_shortcode('[boardroom_booking]');
-    brb_t(strpos($quote_html, 'Save this date') !== false, 'review page submit button is Save this date');
+    brb_t(strpos($quote_html, 'Submit request') !== false, 'review page submit button is Submit request');
     brb_t(strpos($quote_html, 'name="phone"') === false && stripos($quote_html, 'autocomplete="tel"') === false, 'the public booking form does not ask for a phone number');
     brb_t(strpos($quote_html, 'I agree to the') !== false && strpos($quote_html, '>Terms<') !== false && strpos($quote_html, '>Rental Agreement<') !== false && strpos($quote_html, '>Privacy Policy<') !== false && strpos($quote_html, home_url('/terms/')) !== false && strpos($quote_html, home_url('/rental-agreement/')) !== false && strpos($quote_html, home_url('/privacy/')) !== false, 'review page links the terms, rental agreement, and privacy policy');
     brb_t(strpos($quote_html, 'No overnight stays. The Boardroom is an event space only.') !== false && strpos($quote_html, 'guests attending') !== false, 'review step states the no-overnight rule and guests attending');
     brb_t(stripos($quote_html, 'check-in') === false && stripos($quote_html, 'check-out') === false && stripos($quote_html, 'per night') === false && stripos($quote_html, 'per-night') === false && stripos($quote_html, 'guests staying') === false && strpos($quote_html, '[VERIFY] latest end time') === false, 'review step uses event wording');
     brb_t(strpos($quote_html, 'name="event_type"') !== false && strpos($quote_html, 'Wedding') !== false && strpos($quote_html, 'Birthday') !== false && strpos($quote_html, 'Corporate') !== false && strpos($quote_html, 'Fundraiser') !== false && strpos($quote_html, 'Other') !== false, 'review page asks for an event type');
-    brb_t(strpos($quote_html, '[VERIFY] Test instructions.') !== false && strpos($quote_html, 'Extra instructions for bringing the check') === false, 'review page shows custom instructions and hides the default placeholder');
+    brb_t(strpos($quote_html, 'name="public_event"') !== false && strpos($quote_html, 'name="alcohol"') !== false && strpos($quote_html, 'name="end_time"') !== false && strpos($quote_html, 'name="host_age"') !== false && strpos($quote_html, 'Tell us about your event') !== false && strpos($quote_html, 'Under 21') !== false && strpos($quote_html, '21 to 24') !== false && strpos($quote_html, '25 or older') !== false, 'review page asks the screening questions');
+    brb_t(strpos($quote_html, 'non-refundable and holds the date') !== false && strpos($quote_html, 'subject to approval') !== false, 'review page states approval and a non-refundable deposit');
+    brb_t(strpos($quote_html, '[VERIFY] Test instructions.') === false && strpos($quote_html, 'Extra instructions for bringing the check') === false && strpos($quote_html, '[VERIFY: attorney review]') === false, 'review page hides payment instructions and the attorney note');
     brb_t(stripos($quote_html, 'cash') === false, 'the public review step stays check-only');
     brb_t(strpos($quote_html, 'Pricing from $600 per day (most events around $1,200), final price confirmed based on date, guest count and features.') !== false, 'review page shows the from price');
     brb_t(stripos($quote_html, 'price to be confirmed') !== false, 'review page says price to be confirmed');
@@ -612,7 +650,7 @@ try {
         'email' => 'flow-test@example.com',
         'policy' => '1',
         'event_type' => 'birthday',
-    ]);
+    ] + brb_screen());
     brb_t(!is_wp_error($cash_b) && $cash_b && $cash_b->event_type === 'birthday', 'a birthday booking stores its event type');
     if ($cash_b && !is_wp_error($cash_b)) {
         $created_ids[] = (int) $cash_b->id;
@@ -651,7 +689,7 @@ try {
         'email' => 'flow-test@example.com',
         'policy' => '1',
         'event_type' => 'other',
-    ]);
+    ] + brb_screen());
     brb_t(!is_wp_error($del) && $del, 'a booking can be created for the delete test');
     if ($del && !is_wp_error($del)) {
         $created_ids[] = (int) $del->id;
