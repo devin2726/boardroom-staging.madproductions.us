@@ -145,7 +145,7 @@ try {
     $_GET['tour'] = 'ok';
     $thanks = brb_tour_form();
     unset($_GET['tour']);
-    brb_t(strpos($thanks, "Thanks, we'll contact you to confirm a time.") !== false, 'the guest sees the confirmation sentence');
+    brb_t(brb_tour_message('ok') === "Thanks, we'll contact you to confirm a time." && strpos(html_entity_decode($thanks, ENT_QUOTES), "Thanks, we'll contact you to confirm a time.") !== false, 'the guest sees the confirmation sentence');
     brb_t(stripos($thanks, 'your tour is confirmed') === false && stripos($thanks, 'time is confirmed') === false, 'the confirmation does not say a time is already set');
 
     $contact = get_page_by_path('contact');

@@ -98,7 +98,8 @@ function brb_tour_submit($input) {
     if ($block !== '') return new WP_Error($block, $block === 'soon' ? 'Please wait a moment and try the form again.' : 'Please wait a little while and try again.');
 
     $name = sanitize_text_field((string) ($input['name'] ?? ''));
-    $email = sanitize_email((string) ($input['email'] ?? ''));
+    $raw_email = trim((string) ($input['email'] ?? ''));
+    $email = sanitize_email($raw_email);
     $phone = sanitize_text_field((string) ($input['phone'] ?? ''));
     $date = trim((string) ($input['preferred_date'] ?? ''));
     $window = sanitize_key((string) ($input['time_window'] ?? ''));
@@ -107,8 +108,8 @@ function brb_tour_submit($input) {
 
     if ($name === '' || strlen($name) > 190) return new WP_Error('missing', 'Please enter your name, and an email or a phone number.');
     $digits = preg_replace('/\D+/', '', $phone);
+    if ($raw_email !== '' && !is_email($email)) return new WP_Error('email', 'Please enter a valid email, or leave it blank and give a phone number.');
     if ($email === '' && $phone === '') return new WP_Error('missing', 'Please enter your name, and an email or a phone number.');
-    if ($email !== '' && !is_email($email)) return new WP_Error('email', 'Please enter a valid email, or leave it blank and give a phone number.');
     if ($phone !== '' && strlen($phone) > 50) return new WP_Error('phone', 'Please enter a shorter phone number.');
     if ($email === '' && strlen($digits) < 7) return new WP_Error('phone', 'Please enter a phone number we can call, or an email.');
     if ($date !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) return new WP_Error('date', 'Please choose a real date, or leave the date blank.');
