@@ -90,7 +90,7 @@ function brb_terms_html() {
 <li>Food warmers and the bar area may be used.</li>
 <li>There are no taps. Draft taps are not available.</li>
 <li>BYOB is allowed.</li>
-<li>The renter must obtain a one-day liquor license, about $50. <span class="placeholder">[VERIFY current fee and issuing office]</span></li>
+<li>The renter must obtain a one-day liquor license from the City of Moline, fee $50.</li>
 </ul>
 </div>
 
@@ -130,7 +130,7 @@ function brb_privacy_html() {
 <p>We do not sell your information. We share it only with service providers that host this site or deliver email, and when the law requires it.</p>
 
 <h2>Your requests</h2>
-<p>You can ask to see or delete your information by emailing <a href="mailto:boardroomqc@gmail.com">boardroomqc@gmail.com</a>. <span class="placeholder">[VERIFY]</span></p>
+<p>You can ask to see or delete your information by emailing <a href="mailto:boardroomqc@gmail.com">boardroomqc@gmail.com</a>.</p>
 
 <h2>Children</h2>
 <p>This site is not directed to children, and we do not seek information from children.</p>
