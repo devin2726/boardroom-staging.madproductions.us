@@ -36,7 +36,7 @@ function brb_chat_reply($text, $history = []) {
 }
 
 try {
-    brb_t(get_option('brb_version') === '2.5.7', 'plugin storage version is 2.5.7');
+    brb_t(get_option('brb_version') === '2.5.8', 'plugin storage version is 2.5.8');
     $cols = $wpdb->get_col('SHOW COLUMNS FROM ' . brb_tour_table(), 0);
     brb_t(in_array('source', $cols, true), 'inquiries can store a source');
     brb_t((string) brb_opt('quote_prices') === '1', 'price estimates are on by default');
@@ -63,17 +63,17 @@ try {
     $hours = brb_chat_reply('What are your hours?');
     brb_t(strpos($hours, '10:00 AM') !== false && strpos($hours, '11:30 PM') !== false && strpos($hours, 'Half days') !== false && strpos($hours, 'June') !== false, 'hours include the full day and June half days');
     $wedding = brb_chat_reply('Can we have a wedding?');
-    brb_t(strpos($wedding, 'Weddings') !== false && strpos($wedding, 'free to attend') !== false && strpos($wedding, 'our team will confirm') !== false, 'event types are welcome and the host age is confirmed by the team');
+    brb_t(strpos($wedding, 'Weddings') !== false && strpos($wedding, 'free to attend') !== false && strpos($wedding, 'minimum host age is 21') !== false && strpos($wedding, 'Our team will confirm') !== false, 'event types are welcome and the host age is a neutral rule');
     $reserve = brb_chat_reply('How do I reserve?');
     brb_t(strpos($reserve, home_url('/book/')) !== false && strpos($reserve, 'approved by the Boardroom') !== false, 'reserve explains the book request and deposit');
     $photos = brb_chat_reply('Where are the photos?');
     brb_t(strpos($photos, '/gallery/') !== false && strpos($photos, 'tour video') !== false, 'photos point at the gallery and the tour video');
     $insure = brb_chat_reply('Do I need insurance?');
-    brb_t(strpos($insure, 'Our team will confirm') !== false && strpos($insure, 'required') === false, 'insurance is confirmed by the team and not invented');
+    brb_t(strpos($insure, 'own home or renters policy') !== false && strpos($insure, 'assume the risk') !== false, 'insurance tells renters to carry their own policy');
     $dec = brb_chat_reply('What dates are open in December?');
     brb_t(strpos($dec, 'December') !== false, 'December availability names December');
     $smoke = brb_chat_reply('Can we smoke or vape?');
-    brb_t(strpos($smoke, 'No smoking or vaping.') !== false, 'smoking and vaping are refused');
+    brb_t(strpos($smoke, 'outside only') !== false && strpos($smoke, 'Vaping') !== false, 'smoking is outside only and vaping can affect the deposit');
     $pets = brb_chat_reply('Can I bring a pet?');
     brb_t(strpos($pets, 'Service animals only') !== false && strpos($pets, 'No pets') !== false, 'only service animals are allowed');
     $park = brb_chat_reply('Is there parking?');
@@ -105,7 +105,7 @@ try {
     brb_t(strpos($blackout, 'unavailable') !== false && strpos($blackout, '48 hours') === false && strpos($blackout, '$') === false && strpos($blackout, 'nearby dates look open') !== false, 'a blackout date is unavailable, with nearby dates and no price or notice rule');
 
     $open = brb_chat_reply('Is September 10, 2030 available?');
-    brb_t(strpos($open, 'looks open') !== false && strpos($open, 'All parties are subject to review. Your date will be reserved once your deposit is received and approved by the Boardroom.') !== false && substr_count($open, 'not a binding commitment') === 1, 'an open date includes the estimate once and one binding sentence');
+    brb_t(strpos($open, 'looks open') !== false && strpos($open, 'once the meeting is complete and your deposit is received and approved') !== false && substr_count($open, 'not a binding commitment') === 1, 'an open date includes the estimate once and one binding sentence');
 
     $soon = brb_now()->modify('+1 day')->format('Y-m-d');
     $soon_reply = brb_chat_reply('Is ' . $soon . ' available?');
@@ -164,7 +164,7 @@ try {
     update_option('brb_settings', $saved);
 
     $pay = brb_chat_reply('How do I pay the deposit?');
-    brb_t(strpos($pay, '50% of the agreed total') !== false && strpos($pay, '90 or more days before the event') !== false && strpos($pay, 'less than 90 days before the event') !== false && strpos($pay, 'Want the full cancellation terms?') !== false && strpos($pay, '2212') === false && strpos($pay, 'not a binding commitment') === false && stripos($pay, 'Stripe') === false, 'the deposit answer is short and skips the check address');
+    brb_t(strpos($pay, '50% of the agreed total') !== false && strpos($pay, '60 or more days before the event') !== false && strpos($pay, 'less than 60 days before the event') !== false && strpos($pay, 'Want the full cancellation terms?') !== false && strpos($pay, '2212') === false && strpos($pay, 'not a binding commitment') === false && stripos($pay, 'Stripe') === false, 'the deposit answer is short and skips the check address');
     $checks = brb_chat_reply('Where do I mail a check?');
     brb_t(strpos($checks, '2212 37th Street, Moline, IL 61265') !== false && strpos($checks, 'Mad Productions') !== false && strpos($checks, 'check address') !== false, 'a check question names the check address');
 
@@ -177,7 +177,7 @@ try {
     unset($_ENV['BRB_STRIPE_SECRET_KEY'], $_SERVER['BRB_STRIPE_SECRET_KEY']);
 
     $book = brb_chat_reply('I want to book a date');
-    brb_t(strpos($book, home_url('/book/')) !== false && strpos($book, 'All parties are subject to review. Your date will be reserved once your deposit is received and approved by the Boardroom.') !== false, 'booking help points at the book page');
+    brb_t(strpos($book, home_url('/book/')) !== false && strpos($book, 'once the meeting is complete and your deposit is received and approved') !== false, 'booking help points at the book page');
     $booked = brb_chat_answer('I want to book a date');
     brb_t(!empty($booked['lead']), 'a booking question asks for follow-up details');
     $tour = brb_chat_reply('Can I tour the space?');
@@ -218,7 +218,7 @@ try {
     $rules_reply = brb_chat_answer('What are the house rules?');
     brb_t(strpos($rules_reply['reply'], '✨') === false && strpos($rules_reply['reply'], '90 or more days') === false, 'rules replies stay plain');
     $refund_reply = brb_chat_answer('What is the cancellation policy?');
-    brb_t(strpos($refund_reply['reply'], '90 or more days before the event') !== false && strpos($refund_reply['reply'], 'less than 90 days before the event') !== false && strpos($refund_reply['reply'], '✨') === false, 'the assistant explains the 90-day deposit rule without an emoji');
+    brb_t(strpos($refund_reply['reply'], '60 or more days before the event') !== false && strpos($refund_reply['reply'], 'less than 60 days before the event') !== false && strpos($refund_reply['reply'], '✨') === false, 'the assistant explains the 60-day deposit rule without an emoji');
     $long = brb_chat_answer(str_repeat('a', 501));
     brb_t($long['intent'] === 'unknown' && strpos($long['reply'], 'shorten') !== false, 'a very long message is refused');
 

@@ -467,15 +467,33 @@ function brb_chat_specific_text($text) {
     $t = strtolower((string) $text);
     if (preg_match('/\brules?\b/', $t)) return '';
     if (preg_match('/amenit|what is included|what do you have|what\'s included|whats included/', $t)) return '';
-    if (preg_match('/discount|wheelchair|\bnoise\b|security camera|bad weather|staff on site|on-site staff|\bdamage\b|\btax\b|\binsurance\b/', $t)) {
-        return brb_chat_confirm_line();
-    }
+    if (preg_match('/balloon|wall tape|tape on the wall|\breceipt\b/', $t)) return brb_chat_confirm_line();
     $bits = [];
-    if (preg_match('/\bhours\b|what time are you open|half[- ]?day|10:00|10 am|open at/', $t)) {
-        $bits[] = brb_hours_line() . ' ' . brb_guest_out_line();
+    if (preg_match('/\bhours\b|what time are you open|half[- ]?day|10:00|10 am|open at|setup day|takedown|set-?up day/', $t)) {
+        $bits[] = brb_hours_line() . ' ' . brb_guest_out_line() . ' If the day before is open, setup is 12:00 PM to 8:00 PM, arranged at least 72 hours ahead, or that day can be rented for $500. If the next day is open, takedown can be the next day or that day can be rented for $500. If the next day is booked, everything is picked up and tidy by midnight for the cleaning crew. The same choices apply on Sunday. There are no two-night rentals.';
     }
-    if (preg_match('/wedding|shower|graduation|birthday|funeral|teen/', $t)) {
-        $bits[] = 'Yes. Weddings, showers, graduations, kids birthdays, funerals, and teen events are all welcome when the event is free to attend. Please keep the party small and plan to be out by 11:30 PM. A host who is 21 or older is something our team will confirm.';
+    if (preg_match('/wedding|shower|graduation|birthday|funeral|teen|host age|21/', $t)) {
+        $bits[] = 'Weddings, showers, graduations, kids birthdays, funerals, and teen events are welcome when the event is free to attend, within capacity, and finished by 11:30 PM. The minimum host age is 21 for every booking. Our team will confirm.';
+    }
+    if (preg_match('/meet you|meet us|walk[- ]?through|in person/', $t)) {
+        $bits[] = 'Yes. We meet every renter before approving a booking. It\'s a short, friendly visit to talk through your plans and the house rules. Our team will reach out to schedule it.';
+    }
+    if (preg_match('/nonprofit|military|discount/', $t)) {
+        $bits[] = 'Please contact us directly to discuss nonprofit or military discounts.';
+    }
+    if (preg_match('/\btax\b|sales tax/', $t)) $bits[] = 'Sales tax is added.';
+    if (preg_match('/wheelchair|accessible|accessib/', $t)) $bits[] = 'Yes. The space is accessible.';
+    if (preg_match('/\bnoise\b|quiet|outdoors/', $t)) $bits[] = 'Nothing is outdoors, and the space is quiet after 11:30 PM.';
+    if (preg_match('/camera|staff on site|no staff/', $t)) $bits[] = 'There are security cameras on site. No staff are in the area, and a representative can be reached if something arises.';
+    if (preg_match('/cooler/', $t)) $bits[] = 'Yes. There is a cooler and an ice machine.';
+    if (preg_match('/force majeure|hurricane|snowstorm|power outage|flat tire|bad weather/', $t)) {
+        $bits[] = 'Bad weather or an emergency out of our control, such as a hurricane, a snowstorm, or a power outage, is refundable. A personal issue, such as a flat tire, is not refundable.';
+    }
+    if (preg_match('/\binsurance\b|liability|assumption of risk/', $t)) {
+        $bits[] = 'We recommend that renters carry their own home or renters policy. If event insurance is needed, the renter carries that policy. The renter and guests assume the risk of the event. The Boardroom is not responsible for injury, loss, or equipment issues.';
+    }
+    if (preg_match('/damage deposit|glitter|dumpster|venmo|paypal/', $t)) {
+        $bits[] = 'The damage deposit is $100 to $500 depending on event size, mainly for cleaning. It may be applied to excessive cleaning or garbage. A dumpster is on site. It is returned within 72 hours when Venmo or PayPal is on file. A check takes 1 to 2 weeks. No glitter. Vaping leaves a residue and can affect the deposit. All smoking, including cigars and cigarettes, is outside only.';
     }
     if (preg_match('/december/', $t) && preg_match('/open|available|dates/', $t) && !preg_match('/\d/', $t)) {
         $bits[] = brb_chat_december_open();
@@ -484,13 +502,20 @@ function brb_chat_specific_text($text) {
         $bits[] = 'Photos are in the Gallery: ' . home_url('/gallery/') . '. The tour video is on the home page and the Contact page.';
     }
     if (preg_match('/table|chair/', $t)) {
-        $bits[] = 'The room comes not set up. Staff can help with tables and chairs for an extra fee.';
+        $bits[] = 'Tables and chairs are on site. Guests set them up and put them away. The room comes not set up. Staff can help for an extra fee.';
+    }
+    if (preg_match('/plate|cups|utensil|serving spoon|buffet/', $t)) {
+        $bits[] = 'Please bring your own plates, cups, and utensils. Buffet units, pans, and some serving spoons are available when guests clean them before leaving.';
+    }
+    if (preg_match('/food truck/', $t)) $bits[] = 'Yes. Food trucks are allowed.';
+    if (preg_match('/heat|air conditioning|\bac\b|wi-?fi|bluetooth/', $t)) {
+        $bits[] = 'The room has heat and air conditioning, a TV, Wi-Fi, and Bluetooth sound throughout.';
     }
     if (preg_match('/\btv\b|television|pinball|shuffleboard|pool table/', $t)) {
         $bits[] = 'Yes. The room has an 80in television, pinball, a pool table, and shuffleboard.';
     }
     if (preg_match('/restroom|bathroom/', $t)) {
-        $bits[] = 'Yes, the space has restrooms.';
+        $bits[] = 'There are two restrooms, with stalls and urinals.';
     }
     if (preg_match('/ice machine|\bbar\b/', $t)) {
         $bits[] = 'Yes. There is a bar area and an ice machine. BYOB is allowed, and guests get the one-day City of Moline liquor license.';
@@ -519,8 +544,8 @@ function brb_chat_specific_text($text) {
     if (preg_match('/\bclean|\bgarbage\b|\btrash\b|\btidy\b/', $t)) {
         $bits[] = 'Please leave it like you got it, and take the garbage out.';
     }
-    if (preg_match('/smok|vap/', $t)) {
-        $bits[] = 'No smoking or vaping.';
+    if (preg_match('/smok|vap|cigar|cigarette/', $t)) {
+        $bits[] = 'All smoking, including cigars and cigarettes, is outside only. Vaping leaves a residue and can affect the damage deposit.';
     }
     if (preg_match('/\bpets?\b|service animal|\bdogs?\b|\bcats?\b/', $t)) {
         $bits[] = 'Service animals only. No pets.';
@@ -555,7 +580,7 @@ function brb_chat_asks_checks($text) {
 }
 function brb_chat_payment_text($include_checks = false) {
     $fee = brb_fee_percent_label();
-    $text = brb_guest_review_line() . ' The deposit is 50% of the agreed total. It is refundable if written cancellation is received 90 or more days before the event, less the non-refundable ' . $fee . ' card processing fee and costs already incurred. It is not refundable if cancellation is received less than 90 days before the event. Want the full cancellation terms? See ' . home_url('/terms/') . '.';
+    $text = brb_guest_review_line() . ' The deposit is 50% of the agreed total. It is refundable if written cancellation is received 60 or more days before the event, less the non-refundable ' . $fee . ' card processing fee and costs already incurred. It is not refundable if cancellation is received less than 60 days before the event. Want the full cancellation terms? See ' . home_url('/terms/') . '.';
     if ($include_checks) {
         $text .= ' Mail or drop off checks payable to ' . brb_guest_payee() . ' at ' . brb_check_address() . '. That is the check address, not the event space.';
     }
@@ -598,7 +623,7 @@ function brb_chat_place_text($with_checks) {
 }
 
 function brb_chat_cancel_text() {
-    return 'The deposit is 50% of the agreed total. It is refundable if written cancellation is received 90 or more days before the event, less the non-refundable 3% card processing fee and costs already incurred. It is not refundable if cancellation is received less than 90 days before the event. This is not legal advice. Want the full cancellation terms? See ' . home_url('/terms/') . '.';
+    return 'The deposit is 50% of the agreed total. It is refundable if written cancellation is received 60 or more days before the event, less the non-refundable 3% card processing fee and costs already incurred. It is not refundable if cancellation is received less than 60 days before the event. This is not legal advice. Want the full cancellation terms? See ' . home_url('/terms/') . '.';
 }
 
 function brb_chat_clean_reply($text) {

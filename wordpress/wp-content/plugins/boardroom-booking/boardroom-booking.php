@@ -2,11 +2,11 @@
 /**
  * Plugin Name: Boardroom Booking
  * Description: Self-hosted direct booking for The Boardroom — full-day and hourly blocks, availability calendar, agreed prices, approval before payment, blackout dates, and emails.
- * Version: 2.5.7
+ * Version: 2.5.8
  * Author: Mad Productions
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.5.7');
+define('BRB_VER', '2.5.8');
 define('BRB_VENUE_ADDRESS', '2220 37th Street, Moline, IL 61265');
 define('BRB_CHECK_ADDRESS', '2212 37th Street, Moline, IL 61265');
 define('BRB_MAPS_URL', 'https://maps.app.goo.gl/nVqUsGTcy48nPzc18');
@@ -83,7 +83,8 @@ function brb_defaults() {
         'deposit_type' => 'percent',
         'deposit_pct' => '50',
         'deposit_fixed' => '0',
-        'balance_due_days' => '7',
+        'balance_due_days' => '2',
+        'addon_price' => '500',
         'max_guests' => '75',
         'max_days' => '7',
         'min_notice_hours' => '48',
@@ -269,7 +270,15 @@ function brb_guest_hello_line() {
     return 'Thank you for contacting The Boardroom!';
 }
 function brb_guest_review_line() {
-    return 'All parties are subject to review. Your date will be reserved once your deposit is received and approved by the Boardroom.';
+    return 'As part of our review, we meet every renter in person before approving a booking. It\'s a quick, friendly walk-through where we go over your event plans, the space and our house rules together. Your date will be reserved once the meeting is complete and your deposit is received and approved by the Boardroom.';
+}
+function brb_terms_review_line() {
+    return 'All bookings are subject to review and approval by the Boardroom, which includes an in-person meeting with the renter. Approval is based on the event details provided, availability and our house rules.';
+}
+function brb_addon_price() {
+    $n = (float) brb_opt('addon_price');
+    if ($n <= 0) $n = 500;
+    return $n;
 }
 function brb_guest_out_line() {
     return 'Please plan to be out by 11:30 PM.';
@@ -306,7 +315,7 @@ function brb_end_time_error($end, $start = null) {
     return '';
 }
 function brb_deposit_refund_rule() {
-    return 'It is refundable if written cancellation is received 90 or more days before the event, less any non-refundable processing charges (including the ' . brb_fee_percent_label() . ' card processing fee) and costs already incurred. It is not refundable if cancellation is received less than 90 days before the event. Refunds are issued manually.';
+    return 'It is refundable if written cancellation is received 60 or more days before the event, less any non-refundable processing charges (including the ' . brb_fee_percent_label() . ' card processing fee) and costs already incurred. It is not refundable if cancellation is received less than 60 days before the event. Refunds are issued manually.';
 }
 function brb_deposit_line() {
     $o = brb_opt();
@@ -336,7 +345,7 @@ function brb_fee_public_line() {
     return 'The ' . brb_fee_percent_label() . ' card processing fee is non-refundable.';
 }
 function brb_attorney_notice() {
-    return 'Deposit and refund wording updated October 27, 2026: the deposit (50% of the agreed total) is refundable if written cancellation is received 90 or more days before the event, less any non-refundable processing charges (including the 3% card processing fee) and costs already incurred. It is not refundable if cancellation is received less than 90 days before the event. Staff process refunds manually. [VERIFY: attorney review]';
+    return 'Deposit and refund wording updated October 27, 2026: the deposit (50% of the agreed total) is refundable if written cancellation is received 60 or more days before the event, less any non-refundable processing charges (including the 3% card processing fee) and costs already incurred. It is not refundable if cancellation is received less than 60 days before the event. Staff process refunds manually. [VERIFY: attorney review]';
 }
 function brb_screening_lines($b) {
     $lines = [];
@@ -450,6 +459,12 @@ function brb_install_tables() {
       event_about text,
       attention varchar(255) NOT NULL DEFAULT '',
       free_admission varchar(3) NOT NULL DEFAULT '',
+      waiver_ack varchar(3) NOT NULL DEFAULT '',
+      walkthrough_done tinyint(1) NOT NULL DEFAULT 0,
+      damage_deposit decimal(10,2) NOT NULL DEFAULT 0.00,
+      setup_addon tinyint(1) NOT NULL DEFAULT 0,
+      takedown_addon tinyint(1) NOT NULL DEFAULT 0,
+      addon_prompted tinyint(1) NOT NULL DEFAULT 0,
       created datetime NOT NULL,
       PRIMARY KEY  (id),
       KEY token (token),
@@ -470,6 +485,12 @@ function brb_install_tables() {
     brb_ensure_column($t, 'event_about', 'text');
     brb_ensure_column($t, 'attention', "varchar(255) NOT NULL DEFAULT ''");
     brb_ensure_column($t, 'free_admission', "varchar(3) NOT NULL DEFAULT ''");
+    brb_ensure_column($t, 'waiver_ack', "varchar(3) NOT NULL DEFAULT ''");
+    brb_ensure_column($t, 'walkthrough_done', 'tinyint(1) NOT NULL DEFAULT 0');
+    brb_ensure_column($t, 'damage_deposit', 'decimal(10,2) NOT NULL DEFAULT 0.00');
+    brb_ensure_column($t, 'setup_addon', 'tinyint(1) NOT NULL DEFAULT 0');
+    brb_ensure_column($t, 'takedown_addon', 'tinyint(1) NOT NULL DEFAULT 0');
+    brb_ensure_column($t, 'addon_prompted', 'tinyint(1) NOT NULL DEFAULT 0');
     $p = brb_pay_table();
     dbDelta("CREATE TABLE $p (
       id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
@@ -596,7 +617,7 @@ function brb_migrate_prices() {
 // [CONFIRM with Chris] Guests out by 11:30 PM. No smoking or vaping. Service animals only.
 function brb_faq_markup() {
     return <<<'HTML'
-<details><summary>How many guests can The Boardroom hold?</summary><p>Up to 75 people.</p></details><details><summary>Is parking available?</summary><p>Yes. Free parking on premises.</p></details><details><summary>Can we bring our own drinks?</summary><p>The Boardroom has a bar area and an ice machine. No cooking is allowed in the venue. The stove top may not be used. Food warmers (for keeping prepared food warm) and the bar area may be used. There are no taps. Draft taps are not available. BYOB is allowed, and the renter must obtain a one-day liquor license from the City of Moline, fee $50. See the <a href="/terms/">Rental Terms</a>.</p></details><details><summary>What is there to do?</summary><p>80in television, pinball, pool and shuffleboard.</p></details><details><summary>How much does it cost?</summary><p>Pricing starts at $600 per day and can reach about $2,000, depending on the date, how many people are coming, and the features you would like. Most events come to about $1,200. We confirm the final price with you before any check is due. The website does not guess a total.</p></details><details><summary>How is the space set up?</summary><p>The space arrives not set up. Seating and layout are yours to plan, so bring the arrangement that suits your gathering. If you would like a hand, our staff can help with setup for an extra fee.</p></details><details><summary>Do you provide decorations?</summary><p>Decorations are not provided. Christmas decorations are up in December.</p></details><details><summary>What are our responsibilities before we leave?</summary><p>Please leave it like you got it. Clean and tidy the space, and take the garbage out. Another event is often booked the following day, and a ready room lets the next hosts begin on time.</p></details><details><summary>How do I book and pay?</summary><p>Request a date on the <a href="/book/">Book</a> page. Bookings are subject to approval, and the owner may decline any request. No payment is due until the request is approved. A request does not hold the date. Your date is reserved once your deposit is received. The deposit (50% of the agreed total) holds the date. It is refundable if the Owner receives written cancellation 90 or more days before the event, less any non-refundable processing charges (including the 3% card processing fee) and costs already incurred. It is not refundable if cancellation is received less than 90 days before the event. Pay by check or in person, or online by card with a 3% processing fee. Mail or drop off checks payable to Mad Productions at 2212 37th Street, Moline, IL 61265. Bookings need at least 48 hours' notice. Until we confirm your price, your confirmation says price to be confirmed. The card processing fee is non-refundable.</p></details><details><summary>What is the cancellation policy?</summary><p>See the <a href="/terms/">Rental Terms</a>. If a summary and the signed agreement differ, the signed agreement controls.</p></details><details><summary>Are overnight stays allowed?</summary><p>No overnight stays. The Boardroom is an event space only.</p></details><details><summary>When does everyone have to be out?</summary><p>Everyone must be out of The Boardroom by 11:30 PM. This is firm, with no exceptions. Please finish in time to wrap up.</p></details><details><summary>What are the hours?</summary><p>A full day runs from 10:00 AM to 11:30 PM. Half days are generally available in June: 10:00 AM to 4:00 PM, or 5:00 PM to 11:30 PM.</p></details><details><summary>Can we sell tickets or charge admission?</summary><p>No. All events must be free to attend: no tickets, no cover charge, no paid admission, no door fees, and no ticket or merchandise sales. We do not host concerts or ticketed shows.</p></details><details><summary>Can we have a band?</summary><p>Yes. Guests may have a band or live music, as long as they are not charging for the event. We do not host concerts or ticketed shows.</p></details><details><summary>Is smoking allowed?</summary><p>No smoking or vaping.</p></details><details><summary>Can I bring a pet?</summary><p>Service animals only. No pets.</p></details><details><summary>Can I bring my own food?</summary><p>Yes. You can bring your own food. We have warmers and buffet-style warmers, but the stovetop can't be used. You can also have it catered by any caterer. The Boardroom does not provide catering.</p></details>
+<details><summary>How many guests can The Boardroom hold?</summary><p>Up to 75 people.</p></details><details><summary>Is parking available?</summary><p>Yes. Free parking on premises.</p></details><details><summary>Can we bring our own drinks?</summary><p>The Boardroom has a bar area and an ice machine. No cooking is allowed in the venue. The stove top may not be used. Food warmers (for keeping prepared food warm) and the bar area may be used. There are no taps. Draft taps are not available. BYOB is allowed, and the renter must obtain a one-day liquor license from the City of Moline, fee $50. See the <a href="/terms/">Rental Terms</a>.</p></details><details><summary>What is there to do?</summary><p>80in television, pinball, pool and shuffleboard.</p></details><details><summary>How much does it cost?</summary><p>Pricing starts at $600 per day and can reach about $2,000, depending on the date, how many people are coming, and the features you would like. Most events come to about $1,200. We confirm the final price with you before any check is due. The website does not guess a total.</p></details><details><summary>How is the space set up?</summary><p>The space arrives not set up. Seating and layout are yours to plan, so bring the arrangement that suits your gathering. If you would like a hand, our staff can help with setup for an extra fee.</p></details><details><summary>Do you provide decorations?</summary><p>Decorations are not provided. Christmas decorations are up in December.</p></details><details><summary>What are our responsibilities before we leave?</summary><p>Please leave it like you got it. Clean and tidy the space, and take the garbage out. Another event is often booked the following day, and a ready room lets the next hosts begin on time.</p></details><details><summary>How do I book and pay?</summary><p>Request a date on the <a href="/book/">Book</a> page. Bookings are subject to approval, and the owner may decline any request. No payment is due until the request is approved. A request does not hold the date. Your date is reserved once your deposit is received. The deposit (50% of the agreed total) holds the date. It is refundable if the Owner receives written cancellation 60 or more days before the event, less any non-refundable processing charges (including the 3% card processing fee) and costs already incurred. It is not refundable if cancellation is received less than 60 days before the event. Pay by check or in person, or online by card with a 3% processing fee. Mail or drop off checks payable to Mad Productions at 2212 37th Street, Moline, IL 61265. Bookings need at least 48 hours' notice. Until we confirm your price, your confirmation says price to be confirmed. The card processing fee is non-refundable.</p></details><details><summary>What is the cancellation policy?</summary><p>See the <a href="/terms/">Rental Terms</a>. If a summary and the signed agreement differ, the signed agreement controls.</p></details><details><summary>Are overnight stays allowed?</summary><p>No overnight stays. The Boardroom is an event space only.</p></details><details><summary>When does everyone have to be out?</summary><p>Everyone must be out of The Boardroom by 11:30 PM. This is firm, with no exceptions. Please finish in time to wrap up.</p></details><details><summary>What are the hours?</summary><p>A full day runs from 10:00 AM to 11:30 PM. Half days are generally available in June: 10:00 AM to 4:00 PM, or 5:00 PM to 11:30 PM.</p></details><details><summary>Can we sell tickets or charge admission?</summary><p>No. All events must be free to attend: no tickets, no cover charge, no paid admission, no door fees, and no ticket or merchandise sales. We do not host concerts or ticketed shows.</p></details><details><summary>Can we have a band?</summary><p>Yes. Guests may have a band or live music, as long as they are not charging for the event. We do not host concerts or ticketed shows.</p></details><details><summary>Is smoking allowed?</summary><p>No smoking or vaping.</p></details><details><summary>Can I bring a pet?</summary><p>Service animals only. No pets.</p></details><details><summary>Can I bring my own food?</summary><p>Yes. You can bring your own food. We have warmers and buffet-style warmers, but the stovetop can't be used. You can also have it catered by any caterer. The Boardroom does not provide catering.</p></details>
 HTML;
 }
 function brb_patch_faq_drinks() {
@@ -635,7 +656,7 @@ function brb_refresh_faq() {
     $old_pay = 'Bring a check in person within those 48 hours.';
     $new_pay = 'Mail or drop off checks payable to Mad Productions at ' . BRB_CHECK_ADDRESS . '.';
     $next = str_replace('online processing fee', 'card processing fee', str_replace($old_pay, $new_pay, $c));
-    $book = '<details><summary>How do I book and pay?</summary><p>Request a date on the <a href="/book/">Book</a> page. Bookings are subject to approval, and the owner may decline any request. No payment is due until the request is approved. A request does not hold the date. Your date is reserved once your deposit is received. The deposit (50% of the agreed total) holds the date. It is refundable if the Owner receives written cancellation 90 or more days before the event, less any non-refundable processing charges (including the 3% card processing fee) and costs already incurred. It is not refundable if cancellation is received less than 90 days before the event. Pay by check or in person, or online by card with a 3% processing fee. Mail or drop off checks payable to Mad Productions at ' . BRB_CHECK_ADDRESS . '. Bookings need at least 48 hours\' notice. Until we confirm your price, your confirmation says price to be confirmed. The card processing fee is non-refundable.</p></details>';
+    $book = '<details><summary>How do I book and pay?</summary><p>Request a date on the <a href="/book/">Book</a> page. Bookings are subject to approval, and the owner may decline any request. No payment is due until the request is approved. A request does not hold the date. Your date is reserved once your deposit is received. The deposit (50% of the agreed total) holds the date. It is refundable if the Owner receives written cancellation 60 or more days before the event, less any non-refundable processing charges (including the 3% card processing fee) and costs already incurred. It is not refundable if cancellation is received less than 60 days before the event. Pay by check or in person, or online by card with a 3% processing fee. Mail or drop off checks payable to Mad Productions at ' . BRB_CHECK_ADDRESS . '. Bookings need at least 48 hours\' notice. Until we confirm your price, your confirmation says price to be confirmed. The card processing fee is non-refundable.</p></details>';
     if (strpos($next, 'holds the date for 48 hours') !== false || strpos($next, 'held for 48 hours') !== false || strpos($next, 'Saving a date on this website holds it') !== false || strpos($next, 'non-refundable [VERIFY with attorney]') !== false || strpos($next, 'is non-refundable and holds the date') !== false) {
         $replaced = preg_replace('/<details><summary>How do I book and pay\?<\/summary>.*?<\/details>/is', $book, $next, 1);
         if (is_string($replaced)) $next = $replaced;
@@ -652,11 +673,16 @@ function brb_refresh_faq() {
         $next = brb_faq_markup();
     }
     $next = str_replace('<details><summary>When do events have to end?</summary><p>Events must end by midnight, per the City of Moline permit.</p></details>', '', $next);
+    $next = str_replace('90 or more days before the event', '60 or more days before the event', $next);
+    $next = str_replace('less than 90 days before the event', 'less than 60 days before the event', $next);
     $next = str_replace('Yes, on-site parking.', 'Yes. Free parking on premises.', $next);
     $next = str_replace('Please clean and tidy the space, and take the garbage out.', 'Please leave it like you got it. Clean and tidy the space, and take the garbage out.', $next);
     $house = [
         'When does everyone have to be out?' => 'Everyone must be out of The Boardroom by 11:30 PM. This is firm, with no exceptions. Please finish in time to wrap up.',
         'What are the hours?' => 'A full day runs from 10:00 AM to 11:30 PM. Half days are generally available in June: 10:00 AM to 4:00 PM, or 5:00 PM to 11:30 PM.',
+        'Do I have to meet you?' => 'Yes. We meet every renter before approving a booking. It is a short, friendly visit to talk through your plans and the house rules. Our team will reach out to schedule it.',
+        'What if there is bad weather?' => 'Bad weather or an emergency out of our control, such as a hurricane, a snowstorm, or a power outage, is refundable. A personal issue, such as a flat tire, is not refundable.',
+        'Is there a damage deposit?' => 'The damage deposit is $100 to $500 depending on event size, mainly for cleaning. It may be applied to excessive cleaning or garbage. A dumpster is on site. It is returned within 72 hours when Venmo or PayPal is on file. A check takes 1 to 2 weeks. No glitter. Vaping leaves a residue and can affect the deposit. All smoking, including cigars and cigarettes, is outside only.',
         'Can we sell tickets or charge admission?' => 'No. All events must be free to attend: no tickets, no cover charge, no paid admission, no door fees, and no ticket or merchandise sales. We do not host concerts or ticketed shows.',
         'Can we have a band?' => 'Yes. Guests may have a band or live music, as long as they are not charging for the event. We do not host concerts or ticketed shows.',
         'Is smoking allowed?' => 'No smoking or vaping.',
@@ -673,7 +699,7 @@ function brb_refresh_faq() {
     clean_post_cache((int) $page->ID);
 }
 function brb_scrub_copy_string($c) {
-    $card = 'Pay by check or in person, or online by card with a 3% processing fee. Mail or drop off checks payable to Mad Productions at ' . BRB_CHECK_ADDRESS . '. We never see or store card numbers. The deposit (50% of the agreed total) holds the date. It is refundable if the Owner receives written cancellation 90 or more days before the event, less any non-refundable processing charges (including the 3% card processing fee) and costs already incurred. It is not refundable if cancellation is received less than 90 days before the event. The card processing fee is non-refundable.';
+    $card = 'Pay by check or in person, or online by card with a 3% processing fee. Mail or drop off checks payable to Mad Productions at ' . BRB_CHECK_ADDRESS . '. We never see or store card numbers. The deposit (50% of the agreed total) holds the date. It is refundable if the Owner receives written cancellation 60 or more days before the event, less any non-refundable processing charges (including the 3% card processing fee) and costs already incurred. It is not refundable if cancellation is received less than 60 days before the event. The card processing fee is non-refundable.';
     $c = preg_replace('/Payments are processed by \w+;?\s*we do not store card numbers\./i', $card, $c);
     $c = preg_replace('/This site does not process payments online and does not collect card data\./i', 'Stripe processes card payments. We never see or store card numbers.', $c);
     $c = preg_replace('/pay securely online/i', 'pay by check or in person, or online by card', $c);
@@ -857,11 +883,73 @@ function brb_is_free($s, $e, $exclude_id = 0) {
     $sql = "SELECT COUNT(*) FROM " . brb_table() . " WHERE id<>%d AND start_dt < %s AND end_dt > %s AND $block";
     $params = array_merge([(int) $exclude_id, $e->format('Y-m-d H:i:s'), $s->format('Y-m-d H:i:s')], $args);
     $n = $wpdb->get_var($wpdb->prepare($sql, $params));
-    return (int) $n === 0;
+    if ((int) $n !== 0) return false;
+    return !brb_range_hits_addon($s, $e, $exclude_id);
 }
+function brb_range_hits_addon($s, $e, $exclude_id = 0) {
+    global $wpdb;
+    $rows = $wpdb->get_results($wpdb->prepare('SELECT id, start_dt, setup_addon, takedown_addon FROM ' . brb_table() . ' WHERE id<>%d AND (setup_addon=1 OR takedown_addon=1)', (int) $exclude_id));
+    if (!$rows) return false;
+    foreach ($rows as $row) {
+        $start = new DateTimeImmutable($row->start_dt, brb_tz());
+        $windows = [];
+        if (!empty($row->setup_addon)) $windows[] = $start->modify('-1 day');
+        if (!empty($row->takedown_addon)) $windows[] = $start->modify('+1 day');
+        foreach ($windows as $day) {
+            $a = $day->setTime(10, 0);
+            $b = $day->setTime(23, 30);
+            if ($a < $e && $b > $s) return true;
+        }
+    }
+    return false;
+}
+function brb_addon_day_open($b, $which) {
+    $start = new DateTimeImmutable($b->start_dt, brb_tz());
+    $day = $start->modify($which === 'setup' ? '-1 day' : '+1 day')->setTime(0, 0);
+    $a = $day->setTime(10, 0);
+    $c = $day->setTime(23, 30);
+    return brb_is_free($a, $c, (int) $b->id);
+}
+function brb_apply_addon($booking_id, $which) {
+    global $wpdb;
+    $which = $which === 'takedown' ? 'takedown' : 'setup';
+    $b = brb_booking($booking_id);
+    if (!$b) return new WP_Error('missing', 'Booking not found.');
+    $col = $which . '_addon';
+    if (!empty($b->$col)) return $b;
+    if (!brb_addon_day_open($b, $which)) return new WP_Error('busy', 'That day is not open.');
+    $price = brb_addon_price();
+    $total = round((float) $b->total + $price, 2);
+    $fields = [$col => 1, 'total' => brb_dec($total), 'subtotal' => brb_dec($total)];
+    if (brb_price_is_set($b) || (float) $b->total > 0.009) {
+        $fields['deposit_due'] = brb_dec(round($total * 0.5, 2));
+        $fields['amount_due'] = $fields['deposit_due'];
+        $fields['price_set'] = 1;
+    }
+    $wpdb->update(brb_table(), $fields, ['id' => (int) $b->id]);
+    return brb_booking($b->id);
+}
+function brb_send_addon_prompts() {
+    if (get_transient('brb_addon_prompt_lock')) return;
+    set_transient('brb_addon_prompt_lock', 1, HOUR_IN_SECONDS);
+    global $wpdb;
+    $now = brb_now();
+    $until = $now->modify('+72 hours');
+    $rows = $wpdb->get_results($wpdb->prepare(
+        'SELECT * FROM ' . brb_table() . " WHERE addon_prompted=0 AND status IN ('review','approved','deposit_paid','paid') AND start_dt > %s AND start_dt <= %s",
+        $now->format('Y-m-d H:i:s'),
+        $until->format('Y-m-d H:i:s')
+    ));
+    foreach ((array) $rows as $b) {
+        $link = add_query_arg('br_addon', $b->token, home_url('/book/'));
+        $body = brb_guest_hello_line() . "\n\nYour event is coming up. If the day before is open, you can add a setup day for " . brb_money(brb_addon_price()) . ". If the day after is open, you can add a takedown day for the same amount. This includes Sunday.\n\n" . $link . "\n";
+        brb_mail($b->email, 'Setup or takedown day for ' . brb_ref($b), $body, brb_opt('admin_email'));
+        $wpdb->update(brb_table(), ['addon_prompted' => 1], ['id' => (int) $b->id]);
+    }
+}
+add_action('init', 'brb_send_addon_prompts', 20);
 function brb_balance_due_on(DateTimeImmutable $start) {
-    $days = max(0, (int) brb_opt('balance_due_days'));
-    return $start->setTimezone(brb_tz())->modify("-{$days} days")->format('Y-m-d');
+    return $start->setTimezone(brb_tz())->modify('-48 hours')->format('Y-m-d');
 }
 function brb_balance_due_label($on) {
     if (!$on) return '';
@@ -931,7 +1019,7 @@ function brb_payment_lines($b) {
         if ($balance > 0.009 && (float) $b->amount_paid + 0.009 < (float) $b->deposit_due) {
             $when = brb_balance_due_display($b);
             if ($when === 'Due now') $lines[] = 'After that deposit, the remaining balance of ' . brb_money($balance) . ' is due now.';
-            elseif ($when !== '' && $when !== 'Price to be confirmed' && $when !== 'Paid') $lines[] = 'After that deposit, the remaining balance of ' . brb_money($balance) . ' is due by ' . $when . ' (' . (int) $o['balance_due_days'] . ' days before the event).';
+            elseif ($when !== '' && $when !== 'Price to be confirmed' && $when !== 'Paid') $lines[] = 'After that deposit, the remaining balance of ' . brb_money($balance) . ' is due by ' . $when . ' (48 hours before the event).';
         }
     } else {
         $lines[] = 'Price to be confirmed. We will confirm the final price based on the date, guest count, and features, then tell you the deposit amount.';
@@ -1098,7 +1186,7 @@ function brb_send_approve_email($b) {
 function brb_send_decline_email($b) {
     $o = brb_opt();
     $ref = brb_ref($b);
-    $body = brb_guest_hello_line() . "\n\nThank you for your request ({$ref}, " . brb_when($b) . "). We are not able to approve it. The date is not reserved.\n\n" . brb_guest_review_line() . "\n\n" . brb_deposit_line() . "\n\nIf a payment was recorded, our team will resolve it manually.\n";
+    $body = brb_guest_hello_line() . "\n\n" . brb_guest_review_line() . "\n\nThis request ({$ref}, " . brb_when($b) . ") is not approved because it does not meet our event rules or the date is not available. The date is not reserved.\n\n" . brb_deposit_line() . "\n\nIf a payment was recorded, our team will resolve it manually.\n";
     brb_mail($b->email, 'Your Boardroom request was declined (' . $ref . ')', $body, $o['admin_email']);
     $staff = "Request declined.\n\n{$ref}, " . brb_when($b) . "\nThe date is not reserved.\n\n" . brb_deposit_line() . "\n\n" . admin_url('admin.php?page=brb&booking=' . (int) $b->id) . "\n";
     brb_mail($o['admin_email'], 'Request declined ' . $ref . ' – ' . $b->name, $staff, $b->email);
@@ -1202,6 +1290,7 @@ function brb_insert_booking($r, $q, $guest, $source = 'online', $notify = true) 
                 'host_age' => $guest['host_age'] ?? '',
                 'event_about' => $guest['event_about'] ?? '',
                 'free_admission' => (($guest['free_admission'] ?? '') === '1') ? '1' : '',
+                'waiver_ack' => (($guest['waiver_ack'] ?? '') === '1') ? '1' : '',
                 'subtotal' => brb_dec($q['subtotal']),
                 'cleaning' => brb_dec($q['cleaning']),
                 'tax' => brb_dec($q['tax']),
@@ -1233,6 +1322,7 @@ function brb_process_public_booking($post) {
     if (!$name || !is_email($email)) return new WP_Error('contact', 'Name and a valid email are required.');
     $event_type = sanitize_key($post['event_type'] ?? '');
     if (!isset(brb_event_types()[$event_type])) return new WP_Error('event_type', 'Please choose an event type.');
+    if ((string) ($post['waiver'] ?? '') !== '1') return new WP_Error('waiver', 'Please confirm the assumption of risk.');
     $screen = brb_collect_screening($post, true, is_wp_error($r) ? null : $r['s']);
     if (is_wp_error($screen)) return $screen;
     $q = brb_quote($r);
@@ -1244,6 +1334,7 @@ function brb_process_public_booking($post) {
         'event_type' => $event_type,
         'public_event' => $screen['public_event'],
         'free_admission' => $screen['free_admission'],
+        'waiver_ack' => ((string) ($post['waiver'] ?? '') === '1') ? '1' : '',
         'alcohol' => $screen['alcohol'],
         'end_time' => $screen['end_time'],
         'host_age' => $screen['host_age'],
@@ -1355,6 +1446,7 @@ function brb_set_agreed_price($booking_id, $amount) {
     if (in_array($b->status, ['cancelled', 'declined'], true)) return new WP_Error('status', 'That booking cannot take a price.');
     $amount = round((float) $amount, 2);
     if ($amount <= 0) return new WP_Error('amount', 'Enter an agreed price greater than zero.');
+    $amount = round($amount + ((int) $b->setup_addon + (int) $b->takedown_addon) * brb_addon_price(), 2);
     if ((float) $b->amount_paid - $amount > 0.009) {
         return new WP_Error('amount', 'The agreed price cannot be less than the ' . brb_money($b->amount_paid) . ' already recorded.');
     }
@@ -1400,6 +1492,7 @@ function brb_approve_booking($booking_id) {
     $b = brb_booking($booking_id);
     if (!$b) return new WP_Error('missing', 'Booking not found.');
     if (!in_array($b->status, ['review', 'pending'], true)) return new WP_Error('status', 'Only a request that is pending review can be approved.');
+    if (empty($b->walkthrough_done)) return new WP_Error('walkthrough', 'Mark the in-person walk-through complete before approving. Approval follows the event details, availability, and house rules.');
     $wpdb->update(brb_table(), ['status' => 'approved', 'hold_until' => null], ['id' => (int) $b->id]);
     $b = brb_booking($b->id);
     brb_send_approve_email($b);
@@ -1529,7 +1622,8 @@ add_shortcode('boardroom_booking', function () {
     echo '<p class="brb-lead">' . esc_html(brb_price_sentence()) . '</p>';
     echo '<p class="brb-lead">' . esc_html(brb_approval_line()) . ' ' . esc_html(brb_request_open_line()) . ' ' . esc_html(brb_reserved_line()) . ' ' . esc_html(brb_deposit_line()) . ' ' . esc_html(brb_fee_public_line()) . '</p>';
     if (!empty($_GET['br_err'])) echo '<div class="brb-alert brb-err">' . esc_html(wp_unslash($_GET['br_err'])) . '</div>';
-    if (!empty($_GET['br_pay'])) brb_view_pay(sanitize_text_field(wp_unslash($_GET['br_pay'])), sanitize_text_field(wp_unslash($_GET['br_sig'] ?? '')));
+    if (!empty($_GET['br_addon'])) brb_view_addon(sanitize_text_field(wp_unslash($_GET['br_addon'])));
+    elseif (!empty($_GET['br_pay'])) brb_view_pay(sanitize_text_field(wp_unslash($_GET['br_pay'])), sanitize_text_field(wp_unslash($_GET['br_sig'] ?? '')));
     elseif (!empty($_GET['br_token'])) brb_view_confirmation(sanitize_text_field(wp_unslash($_GET['br_token'])));
     elseif (!empty($_GET['date'])) brb_view_quote();
     else brb_view_select();
@@ -1546,6 +1640,38 @@ function brb_steps($i, $labels = null) {
 }
 function brb_hour_label($h) {
     return brb_now()->setTime((int) $h, 0)->format('g:i A');
+}
+function brb_view_addon($token) {
+    $b = brb_booking_by_token($token);
+    if (!$b) {
+        echo '<p>That link is not available.</p>';
+        return;
+    }
+    $price = brb_money(brb_addon_price());
+    echo '<h2>Setup or takedown day</h2>';
+    echo '<p>' . esc_html(brb_guest_hello_line()) . ' ' . esc_html(brb_guest_review_line()) . '</p>';
+    echo '<p>If the night before is open, setup is 12:00 PM to 8:00 PM the day before. Please arrange it at least 72 hours before the event, or rent that day for ' . esc_html($price) . ' when it is open. There are no two-night rentals. If the next day is open, takedown can be the next day, or you can rent that day for ' . esc_html($price) . '. If the next day is booked, everything is picked up and tidy by midnight for the cleaning crew. The same choices apply on Sunday.</p>';
+    echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
+    echo '<input type="hidden" name="action" value="brb_addon"><input type="hidden" name="token" value="' . esc_attr($b->token) . '">';
+    wp_nonce_field('brb_addon');
+    if (!empty($b->setup_addon)) echo '<p>Setup day is already on this booking.</p>';
+    elseif (brb_addon_day_open($b, 'setup')) echo '<label class="brb-check"><input type="checkbox" name="setup" value="1"> Add the setup day (' . esc_html($price) . ')</label>';
+    else echo '<p>The day before is not open, so a setup day cannot be added.</p>';
+    if (!empty($b->takedown_addon)) echo '<p>Takedown day is already on this booking.</p>';
+    elseif (brb_addon_day_open($b, 'takedown')) echo '<label class="brb-check"><input type="checkbox" name="takedown" value="1"> Add the takedown day (' . esc_html($price) . ')</label>';
+    else echo '<p>The day after is not open. Please have everything picked up and tidy by midnight for the cleaning crew.</p>';
+    echo '<p><button class="brb-btn" type="submit">Update my booking</button></p></form>';
+}
+add_action('admin_post_nopriv_brb_addon', 'brb_handle_addon');
+add_action('admin_post_brb_addon', 'brb_handle_addon');
+function brb_handle_addon() {
+    if (!wp_verify_nonce($_POST['_wpnonce'] ?? '', 'brb_addon')) wp_die('Session expired, please try again.');
+    $b = brb_booking_by_token(sanitize_text_field(wp_unslash($_POST['token'] ?? '')));
+    if (!$b) wp_die('Booking not found.');
+    if (!empty($_POST['setup'])) brb_apply_addon($b->id, 'setup');
+    if (!empty($_POST['takedown'])) brb_apply_addon($b->id, 'takedown');
+    wp_safe_redirect(add_query_arg('br_token', $b->token, home_url('/book/')));
+    exit;
 }
 function brb_view_select() {
     $o = brb_opt();
@@ -1672,6 +1798,7 @@ function brb_view_quote() {
         </select></label>
         <label>Tell us about your event*<textarea name="event_about" rows="4" required></textarea></label>
         <div class="brb-policy"><strong>Cancellation policy</strong><p><?php echo nl2br(esc_html($o['policy'])); ?></p><p><a href="<?php echo esc_url(home_url('/terms/')); ?>" target="_blank" rel="noopener">Read the Rental Terms</a></p></div>
+        <label class="brb-check"><input type="checkbox" name="waiver" value="1" required> I and my guests assume all risk. The Boardroom is not responsible for injury, loss, or equipment issues, such as the ice maker or wifi, that affect an event.</label>
         <label class="brb-check"><input type="checkbox" name="policy" value="1" required> I agree to the <a href="<?php echo esc_url(home_url('/terms/')); ?>" target="_blank" rel="noopener">Terms</a>, the <a href="<?php echo esc_url(home_url('/rental-agreement/')); ?>" target="_blank" rel="noopener">Rental Agreement</a> and the <a href="<?php echo esc_url(home_url('/privacy/')); ?>" target="_blank" rel="noopener">Privacy Policy</a>. I understand <?php echo esc_html(lcfirst(brb_deposit_line())); ?></label>
         <button class="brb-btn" type="submit">Submit request</button>
       </form>

@@ -65,6 +65,7 @@ function brb_pay_token_valid($token, $sig) {
 }
 function brb_pay_link($b) {
     if (!$b || empty($b->token) || !brb_stripe_enabled()) return '';
+    if (empty($b->walkthrough_done)) return '';
     if (brb_amount_due_now($b) <= 0) return '';
     return add_query_arg([
         'br_pay' => $b->token,
