@@ -44,7 +44,7 @@ add_filter('pre_wp_mail', function ($short, $atts) {
 $GLOBALS['brb_mails'] = [];
 
 try {
-    brb_t(get_option('brb_version') === '2.5.10', 'plugin storage version is 2.5.10');
+    brb_t(get_option('brb_version') === '2.5.11', 'plugin storage version is 2.5.11');
     brb_t(get_option('blog_public') === '0' || get_option('blog_public') === 0, 'staging discourages search engines');
     $cols = $wpdb->get_col('SHOW COLUMNS FROM ' . brb_table(), 0);
     foreach (['deposit_due', 'amount_paid', 'source', 'hold_until', 'balance_due_on', 'price_set', 'status', 'event_type'] as $col) {
@@ -561,7 +561,7 @@ try {
     $faq_html = $faq ? (string) $faq->post_content : '';
     brb_t(stripos($faq_html, 'How much does it cost?') !== false && stripos($faq_html, '$600') !== false && stripos($faq_html, '$1,200') !== false && stripos($faq_html, '$2,000') !== false, 'faq explains the price range');
     brb_t(stripos($faq_html, 'arrives not set up') !== false && stripos($faq_html, 'extra fee') === false && stripos($faq_html, 'Staff cannot set the room up') !== false && stripos($faq_html, '8:00 AM') !== false && stripos($faq_html, 'minimum host age is 25') !== false, 'faq explains setup and seating');
-    brb_t(strpos($faq_html, 'Card payments get an emailed receipt') !== false && stripos($faq_html, 'sales tax is added') === false, 'faq offers a receipt and does not say sales tax is added');
+    brb_t(strpos($faq_html, 'Card payments get an emailed receipt') !== false && strpos($faq_html, 'Sales tax is included in the price.') !== false && stripos($faq_html, 'sales tax is added') === false, 'faq offers a receipt and says sales tax is included');
     brb_t(stripos($faq_html, 'Christmas decorations are up in December') !== false, 'faq explains decorations');
     brb_t(stripos($faq_html, 'take the garbage out') !== false && stripos($faq_html, 'following day') !== false, 'faq explains cleanup');
     brb_t(stripos($faq_html, '48 hours') !== false && stripos($faq_html, 'price to be confirmed') !== false, 'faq explains the hold, the notice, and an unconfirmed price');
@@ -608,6 +608,7 @@ try {
         'no later than 48 hours before the event' => $terms_html,
         'Balloons are allowed' => $terms_html,
         'Wall tape is not allowed' => $terms_html,
+        'Sales tax is included in the price.' => $terms_html,
         'Last updated: October 27, 2026' => $terms_html,
         '60 or more days before the event' => $terms_html,
         'MAD Productions, LLC' => $privacy_html,

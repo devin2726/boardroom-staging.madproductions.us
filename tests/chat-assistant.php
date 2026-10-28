@@ -36,7 +36,7 @@ function brb_chat_reply($text, $history = []) {
 }
 
 try {
-    brb_t(get_option('brb_version') === '2.5.10', 'plugin storage version is 2.5.10');
+    brb_t(get_option('brb_version') === '2.5.11', 'plugin storage version is 2.5.11');
     $cols = $wpdb->get_col('SHOW COLUMNS FROM ' . brb_tour_table(), 0);
     brb_t(in_array('source', $cols, true), 'inquiries can store a source');
     brb_t((string) brb_opt('quote_prices') === '1', 'price estimates are on by default');
@@ -97,9 +97,9 @@ try {
     $receipt = brb_chat_reply('Can I get a receipt or an invoice?');
     brb_t(strpos($receipt, 'Card payments get an emailed receipt') !== false && strpos($receipt, 'invoice or receipt for any payment on request') !== false && strpos($receipt, $unknown) === false, 'a receipt or invoice is offered on request');
     $tax = brb_chat_reply('Is sales tax added?');
-    brb_t(strpos($tax, 'Our team will confirm') !== false && stripos($tax, 'sales tax is added') === false && stripos($tax, 'included') === false && strpos($tax, '$') === false, 'a tax question is confirmed and does not say whether tax is included');
+    brb_t($tax === 'Sales tax is included in the price.', 'a tax question says sales tax is included in the price');
     $tax_price = brb_chat_reply('Does the price include sales tax?');
-    brb_t($tax_price === 'Our team will confirm that for you.', 'a price-and-tax question does not quote a price or a tax rule');
+    brb_t($tax_price === 'Sales tax is included in the price.', 'a price-and-tax question says sales tax is included and does not add a tax line');
     $truck_req = new WP_REST_Request('POST', '/brb/v1/chat');
     $truck_req->set_param('message', 'Is there a place for a food truck?');
     $truck = brb_chat_rest($truck_req);

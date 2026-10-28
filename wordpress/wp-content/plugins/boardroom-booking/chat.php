@@ -511,7 +511,7 @@ function brb_chat_specific_text($text) {
     if (preg_match('/nonprofit|military|discount/', $t)) {
         $bits[] = 'Please contact us directly to discuss nonprofit or military discounts.';
     }
-    if (preg_match('/\btax\b|sales tax/', $t)) $bits[] = brb_chat_confirm_line();
+    if (preg_match('/\btax\b|sales tax/', $t)) $bits[] = 'Sales tax is included in the price.';
     if (preg_match('/wheelchair|accessible|accessib/', $t)) $bits[] = 'Yes. The space is accessible.';
     if (preg_match('/\bnoise\b|quiet|outdoors/', $t)) $bits[] = 'Nothing is outdoors, and the space is quiet after 11:30 PM.';
     if (preg_match('/camera|staff on site|no staff/', $t)) $bits[] = 'There are security cameras on site. No staff are in the area, and a representative can be reached if something arises.';
@@ -707,7 +707,7 @@ function brb_chat_answer($message, $history = []) {
         return ['reply' => brb_chat_receipt_line(), 'lead' => false, 'intent' => 'topic'];
     }
     if (preg_match('/\btax\b|sales tax/i', $message)) {
-        return ['reply' => brb_chat_confirm_line(), 'lead' => false, 'intent' => 'topic'];
+        return ['reply' => 'Sales tax is included in the price.', 'lead' => false, 'intent' => 'topic'];
     }
     $parsed = brb_chat_dates($message);
     $intents = brb_chat_intents($message);
