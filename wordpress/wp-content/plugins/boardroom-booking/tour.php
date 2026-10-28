@@ -365,7 +365,18 @@ function brb_admin_tour_detail($id) {
     if ($row->party_size !== null && $row->party_size !== '') $lines['People'] = (string) (int) $row->party_size;
     $lines['Message'] = $row->notes !== '' ? $row->notes : 'none';
     foreach ($lines as $label => $value) {
-        echo '<tr><th style="width:180px">' . esc_html($label) . '</th><td>' . nl2br(esc_html($value)) . '</td></tr>';
+        echo '<tr><th style="width:180px">' . esc_html($label) . '</th><td>';
+        if ($label === 'Message' && preg_match('/^(Guest|Assistant):/m', $value)) {
+            echo '<ol class="brb-chat-transcript">';
+            foreach (preg_split("/\n/", $value) as $line) {
+                if (trim($line) === '') continue;
+                echo '<li>' . esc_html($line) . '</li>';
+            }
+            echo '</ol>';
+        } else {
+            echo nl2br(esc_html($value));
+        }
+        echo '</td></tr>';
     }
     echo '</tbody></table>';
     echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="max-width:720px;margin-top:16px">';

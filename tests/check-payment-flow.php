@@ -43,7 +43,7 @@ add_filter('pre_wp_mail', function ($short, $atts) {
 $GLOBALS['brb_mails'] = [];
 
 try {
-    brb_t(get_option('brb_version') === '2.5.1', 'plugin storage version is 2.5.1');
+    brb_t(get_option('brb_version') === '2.5.2', 'plugin storage version is 2.5.2');
     brb_t(get_option('blog_public') === '0' || get_option('blog_public') === 0, 'staging discourages search engines');
     $cols = $wpdb->get_col('SHOW COLUMNS FROM ' . brb_table(), 0);
     foreach (['deposit_due', 'amount_paid', 'source', 'hold_until', 'balance_due_on', 'price_set', 'status', 'event_type'] as $col) {
@@ -280,7 +280,7 @@ try {
         brb_t(strpos($html, 'Your date is reserved once your deposit is received.') !== false && strpos($html, 'No payment is due until the request is approved.') !== false, 'confirmation page says the date is reserved once the deposit is received');
         brb_t(strpos($html, 'Wedding') !== false, 'confirmation page shows the event type');
         brb_t(strpos($html, '[VERIFY] Test instructions.') === false && strpos($html, 'Extra instructions for bringing the check') === false, 'confirmation hides payment instructions until the request is approved');
-        brb_t(strpos($html, 'subject to approval') !== false, 'confirmation page is the booking shortcode');
+        brb_t(strpos($html, 'subject to approval') !== false && strpos($html, 'Pending review') !== false && strpos($html, 'Your request is pending review.') !== false, 'confirmation page says the request is pending review and subject to approval');
         brb_t(strpos($html, 'No overnight stays. The Boardroom is an event space only.') !== false && strpos($html, 'guests attending') !== false, 'confirmation states the no-overnight rule and guests attending');
         brb_t(stripos($html, 'check-in') === false && stripos($html, 'check-out') === false && stripos($html, 'per night') === false && stripos($html, 'guests staying') === false && strpos($html, '[VERIFY] latest end time') === false && strpos($html, '[VERIFY: attorney review]') === false, 'confirmation uses event wording and has no attorney note');
         brb_t(strpos($html, brb_ref($b)) !== false && strpos($html, 'memo line') === false, 'an unapproved confirmation does not show payment instructions');
@@ -453,6 +453,8 @@ try {
         $data = rest_do_request($req2)->get_data();
     }
     brb_t(!empty($data['days'][$later]['day_ok']) && $data['days'][$later]['status'] === 'free', 'a date outside the notice window is free');
+    $cal_js = file_get_contents(dirname((new ReflectionFunction('brb_view_select'))->getFileName()) . '/assets/brb.js');
+    brb_t(is_string($cal_js) && strpos($cal_js, "credentials: 'omit'") !== false && strpos($cal_js, 'X-WP-Nonce') !== false && strpos($cal_js, 'no-store') !== false, 'the calendar request skips the logged-in cookie and does not use a cached failure');
     $routes = rest_get_server()->get_routes();
     $hook = '/brb/v1/' . $brand . '-webhook';
     $post_only = isset($routes[$hook]);
