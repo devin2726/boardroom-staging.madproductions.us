@@ -449,13 +449,62 @@ function brb_chat_price_for_dates($parsed) {
     return implode(' ', $lines);
 }
 
+// [CONFIRM with Chris] Guests out by 11:30 PM. No smoking or vaping. Service animals only.
 function brb_chat_rules_text() {
     return 'Here\'s the short version. No overnight stays. The Boardroom is an event space only. '
+        . 'Everyone must be out of The Boardroom by 11:30 PM. This is firm, with no exceptions. No smoking or vaping. Service animals only. No pets. '
+        . 'All events must be free to attend: no tickets, no cover charge, no paid admission, no door fees, and no ticket or merchandise sales. Guests may have a band or live music, as long as they are not charging for the event. We do not host concerts or ticketed shows. '
         . 'No cooking is allowed. The stovetop may not be used. The kitchen area is for serving and storage. '
+        . 'You can bring your own food. Warmers and buffet-style warmers are available. Any caterer is welcome. The Boardroom does not provide catering. '
         . 'There are no taps. BYOB is allowed. The renter must obtain a one-day liquor license from the City of Moline, fee $50. '
-        . 'The room comes not set up. Guests clean the space and take the garbage out. '
-        . 'No more than 75 people. Decorations are not provided, except that Christmas decorations are up in December. '
-        . 'Event liability insurance is required. If alcohol is served, liquor liability coverage is also required. Proof can be requested before access.';
+        . 'Please leave it like you got it, and take the garbage out. '
+        . 'The room comes not set up. No more than 75 people. Decorations are not provided, except that Christmas decorations are up in December. '
+        . 'Event liability insurance is required. If alcohol is served, liquor liability coverage is also required. Proof can be requested before access. '
+        . 'Free parking on premises.';
+}
+function brb_chat_specific_text($text) {
+    $t = strtolower((string) $text);
+    if (preg_match('/\brules?\b/', $t)) return '';
+    if (preg_match('/amenit|what is included|what do you have|what\'s included|whats included/', $t)) return '';
+    $bits = [];
+    if (preg_match('/food|cater|warmer|buffet|\bcook|\bstove|stovetop/', $t)) {
+        $bits[] = 'Yes. You can bring your own food. We have warmers and buffet-style warmers, but the stovetop can\'t be used. You can also have it catered by any caterer. The Boardroom does not provide catering.';
+    }
+    if (preg_match('/\bbyob\b|liquor|alcohol|\bdrinks?\b/', $t)) {
+        $bits[] = 'Yes, BYOB is allowed. Guests must get the one-day City of Moline liquor license, fee $50. Please leave it like you got it, and take the garbage out.';
+    }
+    if (preg_match('/decorat/', $t)) {
+        $bits[] = 'Decorations are not provided, except that Christmas decorations are up in December.';
+    }
+    if (preg_match('/set-?up|setup/', $t)) {
+        $bits[] = 'The room comes not set up. Staff can help with setup for an extra fee.';
+    }
+    if (preg_match('/parking/', $t)) {
+        $bits[] = 'Yes. Free parking on premises, and there is free street parking too.';
+    }
+    if (preg_match('/music|sound system|sonos|\bvolume\b|speaker/', $t)) {
+        $bits[] = 'The room has a sound system (Sonos, Aux, and Bluetooth).';
+    }
+    if (preg_match('/\bclean|\bgarbage\b|\btrash\b|\btidy\b/', $t)) {
+        $bits[] = 'Please leave it like you got it, and take the garbage out.';
+    }
+    if (preg_match('/smok|vap/', $t)) {
+        $bits[] = 'No smoking or vaping.';
+    }
+    if (preg_match('/\bpets?\b|service animal|\bdogs?\b|\bcats?\b/', $t)) {
+        $bits[] = 'Service animals only. No pets.';
+    }
+    if (preg_match('/capacity|how many (people|guests)|75 people|how many can/', $t)) {
+        $bits[] = 'The Boardroom holds up to 75 people.';
+    }
+    $paid = preg_match('/ticket|cover charge|concert|paid admission|door fee|fundrais|merchandise|charge admission|paid event/', $t);
+    $band = preg_match('/\bband\b|live music/', $t);
+    if ($paid) $bits[] = 'All events must be free to attend: no tickets, no cover charge, no paid admission, no door fees, and no ticket or merchandise sales. Guests may have a band or live music, as long as they are not charging for the event. We do not host concerts or ticketed shows.';
+    elseif ($band) $bits[] = 'Yes. Guests may have a band or live music, as long as they are not charging for the event. We do not host concerts or ticketed shows.';
+    if (preg_match('/how late|end time|have to leave|be out|what time do we|stay until|out by|11:30|wrap up/', $t)) {
+        $bits[] = 'Everyone must be out of The Boardroom by 11:30 PM. That is firm, with no exceptions. Please plan to wrap up before then.';
+    }
+    return implode(' ', $bits);
 }
 
 function brb_chat_amenities_text() {
@@ -553,6 +602,8 @@ function brb_chat_answer($message, $history = []) {
     }
     $parsed = brb_chat_dates($message);
     $intents = brb_chat_intents($message);
+    $specific = brb_chat_specific_text($message);
+    if ($specific !== '') $intents = array_values(array_diff($intents, ['rules', 'amenities']));
     if (!$intents && !empty($parsed['dates'])) $intents[] = 'availability';
     if (!$intents && !empty($parsed['too_long'])) $intents[] = 'availability';
     $quotable = [];
@@ -573,10 +624,11 @@ function brb_chat_answer($message, $history = []) {
             'intent' => 'thanks',
         ];
     }
-    if (!$intents) {
+    if (!$intents && $specific === '') {
         return ['reply' => brb_chat_clean_reply(brb_chat_refusal()), 'lead' => true, 'intent' => 'unknown'];
     }
     $parts = [];
+    if ($specific !== '') $parts[] = $specific;
     if (in_array('availability', $intents, true)) $parts[] = brb_chat_availability_text($parsed);
     if (in_array('pricing', $intents, true)) $parts[] = brb_chat_price_for_dates($parsed);
     if (in_array('payment', $intents, true)) $parts[] = brb_chat_payment_text(brb_chat_asks_checks($message) && !in_array('place', $intents, true));
@@ -590,7 +642,7 @@ function brb_chat_answer($message, $history = []) {
     return [
         'reply' => brb_chat_clean_reply(implode("\n\n", $parts)),
         'lead' => brb_chat_lead_flag($intents, $history),
-        'intent' => $intents[0],
+        'intent' => $intents ? $intents[0] : 'topic',
     ];
 }
 
@@ -773,14 +825,19 @@ add_action('rest_api_init', function () {
     ]);
 });
 
-function brb_chat_markup() {
+function brb_chat_markup($mode = 'float') {
+    $inline = ($mode === 'inline');
     ob_start();
-    echo '<div class="brb-chat">';
-    echo '<button type="button" class="brb-chat-launch" aria-expanded="false" aria-controls="brb-chat-panel">Chat</button>';
-    echo '<section id="brb-chat-panel" class="brb-chat-panel" role="dialog" aria-modal="true" aria-labelledby="brb-chat-title" hidden>';
-    echo '<header class="brb-chat-head"><h2 id="brb-chat-title">The Boardroom</h2><button type="button" class="brb-chat-close" aria-label="Close chat">Close</button></header>';
+    echo '<div class="brb-chat' . ($inline ? ' brb-chat-inline' : '') . '">';
+    if (!$inline) {
+        echo '<button type="button" class="brb-chat-launch" aria-expanded="false" aria-controls="brb-chat-panel">Ask our Chat Bot</button>';
+    }
+    echo '<section id="brb-chat-panel" class="brb-chat-panel" role="' . ($inline ? 'region' : 'dialog') . '"' . ($inline ? '' : ' aria-modal="true"') . ' aria-labelledby="brb-chat-title"' . ($inline ? '' : ' hidden') . '>';
+    echo '<header class="brb-chat-head"><h2 id="brb-chat-title">Ask our Chat Bot</h2>';
+    if (!$inline) echo '<button type="button" class="brb-chat-close" aria-label="Close chat">Close</button>';
+    echo '</header>';
     echo '<div class="brb-chat-scroll">';
-    echo '<div class="brb-chat-log" aria-live="polite"><p class="brb-chat-msg bot">Hi there! I\'m the Boardroom\'s assistant. I\'d love to help you plan your event.</p></div>';
+    echo '<div class="brb-chat-log" aria-live="polite"><p class="brb-chat-msg bot"><span class="brb-chat-who">Boardroom</span>Hi there! I\'m the Boardroom\'s assistant. I\'d love to help you plan your event.</p></div>';
     echo '<form class="brb-chat-ask"><label class="brb-chat-sr" for="brb-chat-input">Your question</label><input id="brb-chat-input" class="brb-chat-input" type="text" maxlength="500" autocomplete="off"><button type="submit" class="brb-chat-send">Send</button></form>';
     echo '<button type="button" class="brb-chat-lead-toggle">Leave your details</button>';
     echo '<form class="brb-chat-lead" hidden>';
@@ -816,5 +873,6 @@ add_action('wp_enqueue_scripts', function () {
 
 add_action('wp_footer', function () {
     if (is_admin()) return;
+    if (is_page('contact')) return;
     echo brb_chat_markup();
 });

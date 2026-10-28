@@ -4,8 +4,8 @@ add_action('after_setup_theme', function () {
     register_nav_menus(['primary' => 'Primary', 'footer' => 'Footer']);
 });
 add_action('wp_enqueue_scripts', function () {
-    wp_enqueue_style('boardroom', get_stylesheet_uri(), [], '1.2.13');
-    wp_enqueue_script('boardroom', get_template_directory_uri() . '/assets/site.js', [], '1.2.13', true);
+    wp_enqueue_style('boardroom', get_stylesheet_uri(), [], '1.2.14');
+    wp_enqueue_script('boardroom', get_template_directory_uri() . '/assets/site.js', [], '1.2.14', true);
 });
 function br_img($f) { return get_template_directory_uri() . '/assets/img/' . $f; }
 function br_photos() { return ['IMG_0223.jpeg', 'IMG_0231.jpeg', 'PXL_20220912_160615354.jpg', 'PXL_20220912_160655168.jpg', 'PXL_20220912_161645069.jpg']; }
@@ -22,32 +22,41 @@ function br_gallery() {
 function br_gallery_src($file, $thumb = false) {
     return br_img('gallery/' . ($thumb ? 'thumbs/' : '') . $file);
 }
+function br_amenity_icon($d) {
+    return '<svg class="amenity-icon" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path fill="none" stroke="#c4912e" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" d="' . $d . '"/></svg>';
+}
 function br_amenity_groups() {
     return [
         [
             'title' => 'Comfort and utilities',
+            'icon' => 'M12 3v2M12 19v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M3 12h2M19 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z',
             'items' => ['Air conditioning', 'Heating', 'Hot water'],
         ],
         [
             'title' => 'Access and parking',
+            'icon' => 'M4 16l2-6h12l2 6M6 16h12M7 16v2M17 16v2M7 10V7h10v3',
             'items' => ['Private entrance', 'Free parking on premises', 'Free street parking'],
         ],
         [
             'title' => 'Tech and entertainment',
+            'icon' => 'M4 9a12 12 0 0 1 16 0M7 13a7 7 0 0 1 10 0M12 17h.01',
             'items' => ['Wifi', 'TV', 'Sound system (Sonos, Aux, Bluetooth)', 'Pool table', 'Board games'],
         ],
         [
             'title' => 'Furnishings',
+            'icon' => 'M6 11V6h12v5M4 11h16v4H4zM7 15v4M17 15v4',
             'items' => ['Dining table', 'Dedicated workspace'],
         ],
         [
             'title' => 'Kitchen area',
+            'icon' => 'M6 10h12l-1 8H7l-1-8zM9 10V7M12 10V5M15 10V7',
             'lead' => 'Serving and storage only, no cooking.',
             'items' => ['Refrigerator (large)', 'Freezer', 'Mini fridge', 'Microwave', 'Dishwasher', 'Coffee maker (drip and pour-over)', 'Hot water kettle', 'Toaster', 'Blender', 'Wine glasses'],
             'note' => 'Kitchen area is for serving and storage. Cooking and stovetop use are not permitted.',
         ],
         [
             'title' => 'Safety',
+            'quiet' => true,
             'items' => ['Smoke alarm', 'Carbon monoxide alarm', 'Fire extinguisher', 'First aid kit'],
         ],
     ];
@@ -55,17 +64,23 @@ function br_amenity_groups() {
 function br_amenities_html() {
     $html = '<p class="amenity-intro">The room comes not set up. No overnight stays. The Boardroom is an event space only.</p>';
     $html .= '<div class="amenity-groups">';
+    $safety = '';
     foreach (br_amenity_groups() as $group) {
-        $html .= '<div class="amenity-group">';
-        $html .= '<h3>' . esc_html($group['title']) . '</h3>';
+        if (!empty($group['quiet'])) {
+            $safety = implode(', ', $group['items']);
+            continue;
+        }
+        $html .= '<section class="amenity-group">';
+        $html .= '<h3>' . (!empty($group['icon']) ? br_amenity_icon($group['icon']) : '') . esc_html($group['title']) . '</h3>';
         if (!empty($group['lead'])) $html .= '<p class="amenity-lead">' . esc_html($group['lead']) . '</p>';
         $html .= '<ul>';
         foreach ($group['items'] as $item) $html .= '<li>' . esc_html($item) . '</li>';
         $html .= '</ul>';
         if (!empty($group['note'])) $html .= '<p class="amenity-note">' . esc_html($group['note']) . '</p>';
-        $html .= '</div>';
+        $html .= '</section>';
     }
     $html .= '</div>';
+    if ($safety !== '') $html .= '<p class="amenity-safety">Safety: ' . esc_html($safety) . '.</p>';
     return $html;
 }
 function br_review_summary() {
@@ -103,24 +118,25 @@ function br_guest_reviews() {
 function br_review_card($review, $class = 'review-card') {
     return '<blockquote class="' . esc_attr($class) . '"><p class="stars" aria-label="5 out of 5 stars">★★★★★</p><p class="review-text">' . esc_html($review['text']) . '</p><footer><cite>' . esc_html($review['name']) . '</cite> <span>' . esc_html($review['when']) . '</span></footer></blockquote>';
 }
+function br_review_initial($name) {
+    $name = trim((string) $name);
+    if ($name === '') return 'G';
+    if (function_exists('mb_substr')) return mb_strtoupper(mb_substr($name, 0, 1));
+    return strtoupper(substr($name, 0, 1));
+}
+function br_review_marquee_card($review) {
+    return '<article class="t-card"><p class="stars" aria-label="5 out of 5 stars">★★★★★</p><p class="review-text">' . esc_html($review['text']) . '</p><footer class="t-foot"><span class="t-avatar" aria-hidden="true">' . esc_html(br_review_initial($review['name'])) . '</span><span class="t-meta"><cite>' . esc_html($review['name']) . '</cite><span class="t-when">' . esc_html($review['when']) . '</span></span></footer></article>';
+}
 function br_reviews_html() {
-    $featured = [];
-    $rest = [];
-    foreach (br_guest_reviews() as $review) {
-        if (!empty($review['featured']) && count($featured) < 3) $featured[] = $review;
-        else $rest[] = $review;
-    }
+    $cards = '';
+    foreach (br_guest_reviews() as $review) $cards .= br_review_marquee_card($review);
     $html = '<section class="block" id="guest-reviews"><div class="wrap">';
-    $html .= '<h2>What our guests say</h2>';
-    $html .= '<p class="review-badge">5.0 ★ from 29 guest reviews</p>';
-    $html .= '<div class="review-grid">';
-    foreach ($featured as $review) $html .= br_review_card($review);
-    $html .= '</div>';
-    $html .= '<div id="more-reviews" class="review-grid" hidden>';
-    foreach ($rest as $review) $html .= br_review_card($review);
-    $html .= '</div>';
-    $html .= '<p class="reviews-more-wrap"><button type="button" class="btn reviews-more" aria-expanded="false" aria-controls="more-reviews">Read more reviews</button></p>';
-    $html .= '</div></section>';
+    $html .= '<header class="t-head"><h2>What our guests say</h2>';
+    $html .= '<p class="review-badge">5.0 ★ from 29 guest reviews</p></header>';
+    $html .= '<div class="t-marquee"><div class="t-track">';
+    $html .= '<div class="t-set">' . $cards . '</div>';
+    $html .= '<div class="t-set" aria-hidden="true">' . $cards . '</div>';
+    $html .= '</div></div></div></section>';
     return $html;
 }
 function br_review_rotator_html() {
@@ -165,17 +181,70 @@ add_filter('body_class', function ($classes) {
     if (is_page(['privacy', 'terms', 'rental-agreement', 'privacy-policy', 'terms-and-conditions'])) $classes[] = 'legal-page';
     return $classes;
 });
+function br_menu_title($item) {
+    return strtolower(trim(wp_strip_all_tags((string) $item->title)));
+}
+function br_menu_path($url) {
+    $path = trim((string) parse_url((string) $url, PHP_URL_PATH), '/');
+    $home = trim((string) parse_url(home_url('/'), PHP_URL_PATH), '/');
+    if ($home !== '' && strpos($path, $home . '/') === 0) $path = substr($path, strlen($home) + 1);
+    return $path;
+}
 add_filter('wp_nav_menu_objects', function ($items, $args) {
-    if (($args->theme_location ?? '') !== 'footer') return $items;
-    $drop = ['privacy', 'privacy-policy', 'terms', 'terms-and-conditions', 'rental-agreement'];
+    $loc = $args->theme_location ?? '';
+    if ($loc === 'footer') {
+        $drop = ['privacy', 'privacy-policy', 'terms', 'terms-and-conditions', 'rental-agreement'];
+        $kept = [];
+        foreach ($items as $item) {
+            $path = br_menu_path($item->url);
+            $slug = $path === '' ? '' : basename($path);
+            if (!in_array($slug, $drop, true)) $kept[] = $item;
+        }
+        return $kept;
+    }
+    if ($loc !== 'primary') return $items;
     $kept = [];
     foreach ($items as $item) {
-        $path = trim((string) parse_url($item->url, PHP_URL_PATH), '/');
-        $slug = $path === '' ? '' : basename($path);
-        if (!in_array($slug, $drop, true)) $kept[] = $item;
+        if (br_menu_title($item) === 'home') continue;
+        if (($item->type ?? '') === 'post_type' && !empty($item->object_id)) {
+            $permalink = get_permalink((int) $item->object_id);
+            if ($permalink) $item->url = $permalink;
+        }
+        $kept[] = $item;
     }
     return $kept;
 }, 10, 2);
+function br_migrate_primary_menu() {
+    if (get_option('br_menu_migration') === '1.2.14') return;
+    $locs = get_nav_menu_locations();
+    $menu_id = (int) ($locs['primary'] ?? 0);
+    if (!$menu_id) return;
+    foreach ((array) wp_get_nav_menu_items($menu_id) as $item) {
+        $title = br_menu_title($item);
+        if ($title === 'home') {
+            wp_delete_post((int) $item->ID, true);
+            continue;
+        }
+        if ($title !== 'faq' && $title !== 'book') continue;
+        $page = get_page_by_path($title);
+        if (!$page) continue;
+        $path = br_menu_path($item->url);
+        if ($path === $title || $path === $title . '/') continue;
+        wp_update_nav_menu_item($menu_id, (int) $item->ID, [
+            'menu-item-title' => $page->post_title,
+            'menu-item-object-id' => (int) $page->ID,
+            'menu-item-object' => 'page',
+            'menu-item-type' => 'post_type',
+            'menu-item-status' => 'publish',
+        ]);
+    }
+    update_option('br_menu_migration', '1.2.14');
+}
+add_action('init', 'br_migrate_primary_menu', 20);
+function br_footer_map() {
+    $src = 'https://www.google.com/maps?q=2220+37th+Street,+Moline,+IL+61265&output=embed';
+    return '<iframe class="footer-map" src="' . esc_url($src) . '" loading="lazy" title="Map of The Boardroom at 2220 37th Street, Moline, IL 61265" referrerpolicy="no-referrer-when-downgrade"></iframe>';
+}
 function br_ensure_gallery() {
     if (get_option('br_gallery_ready') === '1') return;
     $page = get_page_by_path('gallery');
