@@ -44,7 +44,7 @@ add_filter('pre_wp_mail', function ($short, $atts) {
 $GLOBALS['brb_mails'] = [];
 
 try {
-    brb_t(get_option('brb_version') === '2.5.13', 'plugin storage version is 2.5.13');
+    brb_t(get_option('brb_version') === '2.5.14', 'plugin storage version is 2.5.14');
     brb_t(get_option('blog_public') === '0' || get_option('blog_public') === 0, 'staging discourages search engines');
     $cols = $wpdb->get_col('SHOW COLUMNS FROM ' . brb_table(), 0);
     foreach (['deposit_due', 'amount_paid', 'source', 'hold_until', 'balance_due_on', 'price_set', 'status', 'event_type'] as $col) {
@@ -597,7 +597,7 @@ try {
         'Rock Island County' => $terms_html,
         'seventy-five (75)' => $terms_html,
         'glitter' => $terms_html,
-        'House rules for food and drink' => $terms_html,
+        'Food, kitchen and alcohol' => $terms_html,
         'stove top' => $terms_html,
         'https://moline.il.us/244/Liquor-Licensing' => $terms_html,
         '2212 37th Street, Moline, IL 61265' => $terms_html,
