@@ -2,7 +2,7 @@
 <body <?php body_class(); ?>><?php wp_body_open(); ?>
 <div class="announce"><a href="<?php echo esc_url(home_url('/book/')); ?>">Book Now! Spaces are filling up fast.</a></div>
 <header class="site-header"><div class="wrap">
-  <a class="brand" href="<?php echo esc_url(home_url('/')); ?>"><img src="<?php echo esc_url(br_img('boardroom-siteicon-512.png')); ?>" alt="">The Boardroom</a>
+  <a class="brand" href="<?php echo esc_url(home_url('/')); ?>"><img src="<?php echo esc_url(br_img('boardroom-logo-gold.png')); ?>" alt="The Boardroom"></a>
   <button class="menu-toggle" aria-label="Menu" onclick="document.querySelector('.nav').classList.toggle('open')">☰</button>
   <nav class="nav"><?php wp_nav_menu(['theme_location' => 'primary', 'container' => false, 'fallback_cb' => false]); ?></nav>
 </div></header>
