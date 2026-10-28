@@ -44,7 +44,7 @@ add_filter('pre_wp_mail', function ($short, $atts) {
 $GLOBALS['brb_mails'] = [];
 
 try {
-    brb_t(get_option('brb_version') === '2.5.12', 'plugin storage version is 2.5.12');
+    brb_t(get_option('brb_version') === '2.5.13', 'plugin storage version is 2.5.13');
     brb_t(get_option('blog_public') === '0' || get_option('blog_public') === 0, 'staging discourages search engines');
     $cols = $wpdb->get_col('SHOW COLUMNS FROM ' . brb_table(), 0);
     foreach (['deposit_due', 'amount_paid', 'source', 'hold_until', 'balance_due_on', 'price_set', 'status', 'event_type'] as $col) {
@@ -633,14 +633,12 @@ try {
     brb_t(strpos($agreement_html, '2212 37th Street') === false && strpos($agreement_html, '2212 47 Ave') === false, 'signed agreement body is not rewritten to the site address');
     $contact = get_page_by_path('contact');
     $contact_html = $contact ? (string) $contact->post_content : '';
-    brb_t(strpos($contact_html, '2220 37th Street, Moline, IL 61265') !== false && strpos($contact_html, '2212 37th Street') === false && strpos($contact_html, 'PLACEHOLDER') === false, 'contact page shows the venue address');
-    brb_t(strpos($contact_html, 'mailto:boardroomqc@gmail.com') !== false, 'contact page stores the venue email');
-    brb_t(strpos($contact_html, 'https://maps.app.goo.gl/nVqUsGTcy48nPzc18') !== false && strpos($contact_html, 'Get directions / View on Google Maps') !== false, 'contact page keeps the directions link');
+    brb_t(strpos($contact_html, '2220 37th Street') === false && strpos($contact_html, 'mailto:') === false && strpos($contact_html, 'Get directions') === false && strpos($contact_html, 'PLACEHOLDER') === false, 'stored contact content does not repeat the address, email, or directions');
     brb_t(strpos($contact_html, '[boardroom_tour]') === false && strpos($contact_html, '[boardroom_contact]') === false && stripos($contact_html, 'Schedule a tour') === false, 'stored contact content no longer includes the old forms');
     $map = brb_map_embed();
     $contact_template = file_get_contents(get_stylesheet_directory() . '/page-contact.php');
     brb_t(strpos($map, '<iframe') !== false && strpos($map, 'loading="lazy"') !== false && strpos($map, 'google.com/maps/embed') !== false && strpos($map, '41.4913116') !== false && strpos($map, '-90.4820481') !== false && stripos($map, 'Load map') === false, 'the contact map iframe loads from Google with the venue coordinates');
-    brb_t(is_string($contact_template) && strpos($contact_template, 'brb_map_embed') !== false && strpos($contact_template, 'mailto:boardroomqc@gmail.com') !== false && strpos($contact_template, 'brb_directions_markup') !== false, 'the contact template shows the email, map, and directions link');
+    brb_t(is_string($contact_template) && strpos($contact_template, "brb_chat_markup('inline')") !== false && strpos($contact_template, 'brb_tour_form') !== false && strpos($contact_template, 'brb_map_embed') !== false && strpos($contact_template, "brb_chat_markup('inline')") < strpos($contact_template, 'brb_tour_form') && strpos($contact_template, 'brb_tour_form') < strpos($contact_template, 'brb_map_embed') && strpos($contact_template, 'mailto:') === false && strpos($contact_template, 'brb_directions_markup') === false && strpos($contact_template, 'br_tour_video_html') === false, 'the contact template is chat, then the form, then the map');
     $footer = file_get_contents(get_stylesheet_directory() . '/footer.php');
     brb_t(is_string($footer) && strpos($footer, '2220 37th Street, Moline, IL 61265') !== false && strpos($footer, '2212 37th Street') === false, 'footer shows the venue address');
     brb_t(is_string($footer) && strpos($footer, '/rental-checklist/') !== false, 'footer links to the rental checklist');

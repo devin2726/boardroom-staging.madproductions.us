@@ -33,7 +33,7 @@ $created = [];
 $snapshot = get_option('brb_settings');
 
 try {
-    brb_t(get_option('brb_version') === '2.5.12', 'plugin storage version is 2.5.12');
+    brb_t(get_option('brb_version') === '2.5.13', 'plugin storage version is 2.5.13');
     brb_t($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', brb_tour_table())) === brb_tour_table(), 'inquiry table still exists');
     $cols = $wpdb->get_col('SHOW COLUMNS FROM ' . brb_tour_table(), 0);
     brb_t(in_array('phone', $cols, true) && in_array('topic', $cols, true) && in_array('preferred', $cols, true), 'topic and preferred were added and phone was kept');
@@ -154,7 +154,7 @@ try {
     brb_t(strpos($html, 'name="phone"') === false && stripos($html, 'tel:') === false, 'the inquiry form has no phone field');
     brb_t(strpos($html, 'Question') !== false && strpos($html, 'Tour the venue') !== false && strpos($html, 'Planning an event') !== false, 'the optional topic lists question, tour, and event');
     brb_t(strpos($html, 'name="preferred"') !== false && strpos($html, 'name="message"') !== false, 'the form has a message and a preferred date or time');
-    brb_t(strpos($html, 'Ready to reserve?') !== false && strpos($html, home_url('/book/')) !== false && strpos($html, 'Book your date') !== false, 'the form points to booking above the fields');
+    brb_t(strpos($html, 'Ready to reserve?') === false && strpos($html, 'name="name"') !== false && strpos($html, 'name="message"') !== false, 'the form is the fields without a booking link above them');
     brb_t(stripos($html, 'Book Now') === false && stripos($html, 'Request a tour') === false, 'the form does not add another booking button');
     foreach ($banned as $w) brb_t(stripos($html, $w) === false, 'inquiry form has no ' . $w);
     $_GET['inquiry'] = 'ok';
@@ -165,7 +165,7 @@ try {
 
     $contact = get_page_by_path('contact');
     $contact_html = $contact ? (string) $contact->post_content : '';
-    brb_t(strpos($contact_html, '[boardroom_tour]') === false && strpos($contact_html, '2220 37th Street, Moline, IL 61265') !== false && strpos($contact_html, 'mailto:boardroomqc@gmail.com') !== false, 'stored contact content has the venue and email and no tour shortcode');
+    brb_t(strpos($contact_html, '[boardroom_tour]') === false && strpos($contact_html, '2220 37th Street') === false && strpos($contact_html, 'mailto:') === false, 'stored contact content does not repeat the venue or email');
     $template = file_get_contents(get_stylesheet_directory() . '/page-contact.php');
     $map = brb_map_embed();
     brb_t(is_string($template) && strpos($template, 'brb_map_embed') !== false && strpos($template, 'brb_tour_form') !== false, 'the contact template renders the map and the one form');
@@ -208,7 +208,7 @@ try {
     brb_t(strpos($home, 'br_tour_video_html') !== false && strpos($home, 'br_tour_video_html') < strpos($home, 'id="amenities"'), 'the tour video sits after the hero and before amenities');
     brb_t(strpos($video, 'Take a tour') !== false && strpos($video, 'Take a look around The Boardroom') !== false && strpos($video, '<video') !== false && strpos($video, 'controls') !== false && strpos($video, 'preload="none"') !== false && strpos($video, 'playsinline') !== false && strpos($video, 'poster=') !== false && strpos($video, 'autoplay') === false && strpos($video, 'tour-play') !== false, 'the tour video is a native player with a poster and a play button');
     brb_t(strpos($video, home_url('/book/')) !== false && strpos($video, home_url('/contact/')) !== false && strpos($video, 'boardroom-tour-720.mp4') !== false, 'the tour video links to booking and the contact form');
-    brb_t(is_string($contact_tpl) && strpos($contact_tpl, 'br_tour_video_html') !== false, 'the contact page includes the tour video');
+    brb_t(is_string($contact_tpl) && strpos($contact_tpl, 'br_tour_video_html') === false, 'the contact page does not include the tour video');
     brb_t(stripos($video, 'airbnb') === false && stripos($video, 'google') === false && strpos($video, 'tel:') === false, 'the tour video does not name an outside source or a phone number');
     $mp4 = get_stylesheet_directory() . '/assets/video/boardroom-tour-720.mp4';
     $poster = get_stylesheet_directory() . '/assets/video/boardroom-tour-poster.jpg';
@@ -243,7 +243,7 @@ try {
     $footer = file_get_contents(get_stylesheet_directory() . '/footer.php');
     $footer_map = function_exists('br_footer_map') ? br_footer_map() : '';
     brb_t(is_string($footer) && strpos($footer, 'br_footer_map') !== false && strpos($footer_map, 'https://www.google.com/maps?q=2220+37th+Street,+Moline,+IL+61265') !== false && strpos($footer_map, 'output=embed') !== false && strpos($footer_map, 'loading="lazy"') !== false && strpos($footer_map, 'referrerpolicy="no-referrer-when-downgrade"') !== false && strpos($footer, 'Get directions') !== false && strpos($footer, '2220 37th Street, Moline, IL 61265') !== false, 'the footer map uses the venue embed');
-    brb_t(is_string($contact_tpl) && strpos($contact_tpl, 'brb_chat_markup') !== false && strpos($contact_tpl, 'Contact the Boardroom') !== false, 'the contact page includes the inline assistant');
+    brb_t(is_string($contact_tpl) && strpos($contact_tpl, "brb_chat_markup('inline')") !== false && strpos($contact_tpl, 'brb_tour_form') !== false && strpos($contact_tpl, 'brb_map_embed') !== false && strpos($contact_tpl, "brb_chat_markup('inline')") < strpos($contact_tpl, 'brb_tour_form') && strpos($contact_tpl, 'brb_tour_form') < strpos($contact_tpl, 'brb_map_embed'), 'the contact page is the inline assistant, then the form, then the map');
     brb_t(is_string($home) && strpos($home, 'brb_chat_markup') !== false && strpos($home, 'Contact the Boardroom') !== false, 'the home contact section includes the inline assistant');
     $css = file_get_contents(get_stylesheet_directory() . '/style.css');
     $site_js = file_get_contents(get_stylesheet_directory() . '/assets/site.js');

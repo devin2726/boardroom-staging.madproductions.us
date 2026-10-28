@@ -2,11 +2,11 @@
 /**
  * Plugin Name: Boardroom Booking
  * Description: Self-hosted direct booking for The Boardroom — full-day and hourly blocks, availability calendar, agreed prices, approval before payment, blackout dates, and emails.
- * Version: 2.5.12
+ * Version: 2.5.13
  * Author: Mad Productions
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.5.12');
+define('BRB_VER', '2.5.13');
 define('BRB_VENUE_ADDRESS', '2220 37th Street, Moline, IL 61265');
 define('BRB_CHECK_ADDRESS', '2212 37th Street, Moline, IL 61265');
 define('BRB_MAPS_URL', 'https://maps.app.goo.gl/nVqUsGTcy48nPzc18');
@@ -146,7 +146,7 @@ function brb_map_embed() {
     return '<iframe class="venue-map" src="' . esc_url(brb_map_embed_src()) . '" loading="lazy" title="Map of The Boardroom" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe>';
 }
 function brb_contact_stored_markup() {
-    return '<h2>Contact the Boardroom</h2><p>The Boardroom QC<br>' . BRB_VENUE_ADDRESS . '</p><p><a href="mailto:boardroomqc@gmail.com">boardroomqc@gmail.com</a></p>' . brb_directions_markup();
+    return '';
 }
 function brb_place_schema() {
     $data = [

@@ -217,7 +217,6 @@ function brb_tour_form() {
     $message = brb_tour_message($code);
     ob_start();
     echo '<section class="inquiry-block">';
-    echo '<p class="book-line">Ready to reserve? <a href="' . esc_url(home_url('/book/')) . '">Book your date</a></p>';
     if ($message !== '') echo '<div class="notice">' . esc_html($message) . '</div>';
     echo '<form class="form" method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
     echo '<input type="hidden" name="action" value="brb_tour">';
