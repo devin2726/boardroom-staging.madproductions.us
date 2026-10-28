@@ -257,7 +257,7 @@ function brb_chat_intents($text) {
     $map = [
         'availability' => ['available', 'availability', 'blackout', 'is the date', 'open on', 'free on', 'reserved'],
         'amenities' => ['amenit', 'wifi', 'wi-fi', 'parking', 'pool table', 'kitchen', 'fridge', 'sound system', 'air conditioning', 'what is included', 'what do you have'],
-        'rules' => ['overnight', 'cook', 'stove', 'stovetop', 'tap', 'byob', 'liquor', 'alcohol', 'insurance', 'decorat', 'garbage', 'trash', 'occupan', '75', 'not set up', 'clean'],
+        'rules' => ['rule', 'overnight', 'cook', 'stove', 'stovetop', 'tap', 'byob', 'liquor', 'alcohol', 'insurance', 'decorat', 'garbage', 'trash', 'occupan', '75', 'not set up', 'clean', 'allowed'],
         'pricing' => ['price', 'pricing', 'cost', 'how much', 'rate', 'estimate', 'quote'],
         'payment' => ['deposit', 'check', 'payment', 'pay ', 'card', 'fee', 'non-refundable', 'stripe'],
         'book' => ['book', 'reserve a', 'request a date', 'hold a date'],
