@@ -452,16 +452,12 @@ function brb_chat_price_for_dates($parsed) {
 
 // [CONFIRM with Chris] Guests out by 11:30 PM. No smoking or vaping. Service animals only.
 function brb_chat_rules_text() {
-    return 'Here\'s the short version. No overnight stays. The Boardroom is an event space only. '
-        . brb_hours_line() . ' Everyone is out by 11:30 PM. No smoking or vaping. Service animals only. No pets. '
-        . 'All events must be free to attend: no tickets, no cover charge, no paid admission, no door fees, and no ticket or merchandise sales. Guests may have a band or live music, as long as they are not charging for the event. We do not host concerts or ticketed shows. '
-        . 'No cooking is allowed. The stovetop may not be used. The kitchen area is for serving and storage. '
-        . 'You can bring your own food. Warmers and buffet-style warmers are available. Any caterer is welcome. The Boardroom does not provide catering. '
-        . 'There are no taps. ' . brb_byob_line() . ' '
-        . 'Please leave it like you got it, and take the garbage out. '
-        . 'The room comes not set up. No more than 75 people. Decorations are not provided, except that Christmas decorations are up in December. '
-        . 'Event liability insurance is required. If alcohol is served, liquor liability coverage is also required. Proof can be requested before access. '
-        . 'Free parking on premises.';
+    return 'We\'d love to host you. Here\'s the short version. No overnight stays. The Boardroom is an event space only. '
+        . brb_hours_line() . ' Everyone is out by 11:30 PM. Smoking is outside only. Service animals only. No pets. '
+        . 'All events must be free to attend: no tickets, no cover charge, no paid admission, no door fees, and no ticket or merchandise sales. '
+        . 'No cooking is allowed. The stovetop may not be used. There are no taps. ' . brb_byob_line() . ' '
+        . 'Please take the garbage out. The room comes not set up. We hold up to 75 people. Christmas decorations are up in December. Event liability insurance is required. '
+        . 'Want me to check a date?';
 }
 function brb_chat_specific_text($text) {
     $t = strtolower((string) $text);
@@ -470,16 +466,16 @@ function brb_chat_specific_text($text) {
     if (preg_match('/\breceipt\b|\binvoice\b/', $t)) return brb_chat_receipt_line();
     $bits = [];
     if (preg_match('/\bhours\b|what time are you open|half[- ]?day|10:00|10 am|open at/', $t)) {
-        $bits[] = brb_hours_line() . ' ' . brb_guest_out_line();
+        $bits[] = brb_hours_line() . ' ' . brb_guest_out_line() . ' Want me to check a date?';
     }
     if (preg_match('/wedding|shower|graduation|birthday|funeral|teen/', $t)) {
-        $bits[] = 'Weddings, showers, graduations, kids birthdays, funerals, and teen events are welcome when the event is free to attend, within capacity, and finished by 11:30 PM. The minimum host age is 25 for every booking.';
+        $bits[] = 'We\'d love to host you. Weddings, showers, graduations, kids birthdays, funerals, and teen events are welcome when the event is free to attend, within capacity, and finished by 11:30 PM. The minimum host age is 25 for every booking. Want me to check a date?';
     }
     if (preg_match('/\bage limit\b|\bhost age\b|\bminimum host\b|\bhosts\b/', $t)) {
-        $bits[] = 'The minimum host age is 25 for every booking.';
+        $bits[] = 'The host must be 25 or older. The minimum host age is 25 for every booking.';
     }
     if (preg_match('/balance due|when is the balance|the balance/', $t)) {
-        $bits[] = 'The balance is due the week of the event, no later than 48 hours before.';
+        $bits[] = 'The balance is due the week of the event, no later than 48 hours before. We\'ll confirm the amount with you.';
     }
     if (preg_match('/refrigerator|\bfridge\b|\bice\b/', $t)) {
         $bits[] = 'Yes. There is a refrigerator and an ice machine.';
@@ -557,13 +553,13 @@ function brb_chat_specific_text($text) {
         $bits[] = 'Yes. You can bring your own food. We have warmers and buffet-style warmers, but the stovetop can\'t be used. You can also have it catered by any caterer. The Boardroom does not provide catering.';
     }
     if (preg_match('/\bbyob\b|liquor|alcohol|\bdrinks?\b/', $t)) {
-        $bits[] = brb_byob_line() . ' Please leave it like you got it, and take the garbage out.';
+        $bits[] = 'Yes. ' . brb_byob_line() . ' Please leave it like you got it, and take the garbage out.';
     }
     if (preg_match('/decorat/', $t)) {
         $bits[] = 'Decorations are not provided, except that Christmas decorations are up in December.';
     }
     if (preg_match('/get in|set it up|set-?up|setup|tear ?down|put away/', $t)) {
-        $bits[] = 'No. Guests set up and put everything away. Staff cannot set the room up. On a full day, setup can begin at 8:00 AM. On a half day, setup can begin one hour before the start.';
+        $bits[] = 'No. Guests set up and put everything away. Our staff can\'t set the room for you. Staff cannot set the room up. On a full day, setup can begin at 8:00 AM. On a half day, setup can begin one hour before the start.';
     }
     if (preg_match('/parking/', $t)) {
         $bits[] = 'Yes. Free parking on premises, and there is free street parking too.';
@@ -610,7 +606,7 @@ function brb_chat_asks_checks($text) {
 }
 function brb_chat_payment_text($include_checks = false) {
     $fee = brb_fee_percent_label();
-    $text = brb_guest_review_line() . ' The deposit is 50% of the agreed total. It is refundable if written cancellation is received 60 or more days before the event, less the non-refundable ' . $fee . ' card processing fee and costs already incurred. It is not refundable if cancellation is received less than 60 days before the event. Want the full cancellation terms? See ' . home_url('/terms/') . '.';
+    $text = 'Happy to help. ' . brb_guest_review_line() . ' The deposit is 50% of the agreed total. It is refundable if written cancellation is received 60 or more days before the event, less the non-refundable ' . $fee . ' card processing fee and costs already incurred. It is not refundable if cancellation is received less than 60 days before the event. Want the full cancellation terms? See ' . home_url('/terms/') . '.';
     if ($include_checks) {
         $text .= ' Mail or drop off checks payable to ' . brb_guest_payee() . ' at ' . brb_check_address() . '. That is the check address, not the event space.';
     }
@@ -621,7 +617,7 @@ function brb_chat_payment_text($include_checks = false) {
 }
 
 function brb_chat_book_text() {
-    return 'I\'d love to help you plan your event. Submit a request on the Book page: ' . home_url('/book/') . '. ' . brb_guest_review_line();
+    return 'I\'d love to help you plan your event. Submit a request on the Book page: ' . home_url('/book/') . '. ' . brb_guest_review_line() . ' Want me to check a date?';
 }
 function brb_chat_confirm_line() {
     return 'Our team will confirm that for you.';

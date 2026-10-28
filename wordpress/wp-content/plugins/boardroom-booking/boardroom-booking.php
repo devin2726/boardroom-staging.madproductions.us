@@ -2,11 +2,11 @@
 /**
  * Plugin Name: Boardroom Booking
  * Description: Self-hosted direct booking for The Boardroom — full-day and hourly blocks, availability calendar, agreed prices, approval before payment, blackout dates, and emails.
- * Version: 2.5.12
+ * Version: 2.5.15
  * Author: Mad Productions
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.5.12');
+define('BRB_VER', '2.5.15');
 define('BRB_VENUE_ADDRESS', '2220 37th Street, Moline, IL 61265');
 define('BRB_CHECK_ADDRESS', '2212 37th Street, Moline, IL 61265');
 define('BRB_MAPS_URL', 'https://maps.app.goo.gl/nVqUsGTcy48nPzc18');
@@ -146,7 +146,7 @@ function brb_map_embed() {
     return '<iframe class="venue-map" src="' . esc_url(brb_map_embed_src()) . '" loading="lazy" title="Map of The Boardroom" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe>';
 }
 function brb_contact_stored_markup() {
-    return '<h2>Contact the Boardroom</h2><p>The Boardroom QC<br>' . BRB_VENUE_ADDRESS . '</p><p><a href="mailto:boardroomqc@gmail.com">boardroomqc@gmail.com</a></p>' . brb_directions_markup();
+    return '';
 }
 function brb_place_schema() {
     $data = [
@@ -414,7 +414,7 @@ function brb_fee_public_line() {
     return 'The ' . brb_fee_percent_label() . ' card processing fee is non-refundable.';
 }
 function brb_attorney_notice() {
-    return 'Deposit and refund wording updated October 27, 2026: the deposit (50% of the agreed total) is refundable if written cancellation is received 60 or more days before the event, less any non-refundable processing charges (including the 3% card processing fee) and costs already incurred. It is not refundable if cancellation is received less than 60 days before the event. Staff process refunds manually. [VERIFY: attorney review]';
+    return 'Deposit and refund wording updated October 27, 2026: the deposit (50% of the agreed total) is refundable if written cancellation is received 60 or more days before the event, less any non-refundable processing charges (including the 3% card processing fee) and costs already incurred. It is not refundable if cancellation is received less than 60 days before the event. Staff process refunds manually. [VERIFY: attorney review] Sections 12, 14, and 15 of the public Rental Terms still need attorney review. [ATTORNEY REVIEW]';
 }
 function brb_screening_lines($b) {
     $lines = [];
@@ -691,9 +691,55 @@ function brb_migrate_prices() {
 // [CONFIRM with Chris] Guests out by 11:30 PM. No smoking or vaping. Service animals only.
 function brb_faq_markup() {
     return <<<'HTML'
-<details><summary>How many guests can The Boardroom hold?</summary><p>Up to 75 people.</p></details><details><summary>Is parking available?</summary><p>Yes. Free parking on premises.</p></details><details><summary>Can we bring our own drinks?</summary><p>The Boardroom has a bar area and an ice machine. No cooking is allowed in the venue. The stove top may not be used. Food warmers (for keeping prepared food warm) and the bar area may be used. There are no taps. Draft taps are not available. BYOB is allowed. Guests are responsible for obtaining any permit or license the City of Moline requires for alcohol at their event. Please check with the City of Moline: <a href="https://moline.il.us/244/Liquor-Licensing">https://moline.il.us/244/Liquor-Licensing</a> (City Clerk, 309-524-2004). See the <a href="/terms/">Rental Terms</a>.</p></details><details><summary>What is there to do?</summary><p>80in television, pinball, pool and shuffleboard.</p></details><details><summary>How much does it cost?</summary><p>Pricing starts at $600 per day and can reach about $2,000, depending on the date, how many people are coming, and the features you would like. Most events come to about $1,200. We confirm the final price with you before any check is due. The website does not guess a total.</p></details><details><summary>How is the space set up?</summary><p>The space arrives not set up. Seating and layout are yours to plan, so bring the arrangement that suits your gathering. Renters set up and tear down. Staff cannot set the room up. On a full day, setup can begin at 8:00 AM. On a half day, setup can begin one hour before the start.</p></details><details><summary>Do you provide decorations?</summary><p>Decorations are not provided. Christmas decorations are up in December.</p></details><details><summary>What are our responsibilities before we leave?</summary><p>Please leave it like you got it. Clean and tidy the space, and take the garbage out. Another event is often booked the following day, and a ready room lets the next hosts begin on time.</p></details><details><summary>How do I book and pay?</summary><p>Request a date on the <a href="/book/">Book</a> page. Bookings are subject to approval, and the owner may decline any request. No payment is due until the request is approved. A request does not hold the date. Your date is reserved once your deposit is received. The deposit (50% of the agreed total) holds the date. It is refundable if the Owner receives written cancellation 60 or more days before the event, less any non-refundable processing charges (including the 3% card processing fee) and costs already incurred. It is not refundable if cancellation is received less than 60 days before the event. Pay by check or in person, or online by card with a 3% processing fee. Mail or drop off checks payable to Mad Productions at 2212 37th Street, Moline, IL 61265. Bookings need at least 48 hours' notice. Until we confirm your price, your confirmation says price to be confirmed. The card processing fee is non-refundable.</p></details><details><summary>What is the cancellation policy?</summary><p>See the <a href="/terms/">Rental Terms</a>. If a summary and the signed agreement differ, the signed agreement controls.</p></details><details><summary>Are overnight stays allowed?</summary><p>No overnight stays. The Boardroom is an event space only.</p></details><details><summary>When does everyone have to be out?</summary><p>Everyone must be out of The Boardroom by 11:30 PM. This is firm, with no exceptions. Please finish in time to wrap up.</p></details><details><summary>What are the hours?</summary><p>A full day runs from 10:00 AM to 11:30 PM. Half days are generally available in June: 10:00 AM to 4:00 PM, or 5:00 PM to 11:30 PM.</p></details><details><summary>Can we sell tickets or charge admission?</summary><p>No. All events must be free to attend: no tickets, no cover charge, no paid admission, no door fees, and no ticket or merchandise sales. We do not host concerts or ticketed shows.</p></details><details><summary>Can we have a band?</summary><p>Yes. Guests may have a band or live music, as long as they are not charging for the event. We do not host concerts or ticketed shows.</p></details><details><summary>Is smoking allowed?</summary><p>No smoking or vaping.</p></details><details><summary>Can I bring a pet?</summary><p>Service animals only. No pets.</p></details><details><summary>Can I bring my own food?</summary><p>Yes. You can bring your own food. We have warmers and buffet-style warmers, but the stovetop can't be used. You can also have it catered by any caterer. The Boardroom does not provide catering.</p></details><details><summary>When is the balance due?</summary><p>The remaining balance is due the week of the event, no later than 48 hours before.</p></details><details><summary>Is there a refrigerator or ice?</summary><p>Yes. There is a refrigerator and an ice machine.</p></details><details><summary>Who is on site during an event?</summary><p>No one is on site during events. Our connected offices are available on demand if something is needed. Cell numbers are given when the contract is signed, and they are not listed on this site.</p></details><details><summary>Is there a private entrance?</summary><p>There is one main entrance. A back entrance can be used for a surprise guest when it is arranged ahead of time with our team.</p></details><details><summary>Are balloons allowed?</summary><p>Yes. Balloons are fine. Wall tape is not allowed. Glitter is not allowed.</p></details><details><summary>Is there an age limit for hosts?</summary><p>The minimum host age is 25 for every booking.</p></details><details><summary>What happens if something gets damaged?</summary><p>The damage deposit covers cleaning and damage. Anything beyond that deposit may be charged. See the Terms. Our team will go over it at the walk-through.</p></details><details><summary>Can I hold a vendor market or sell items?</summary><p>No. All events are free to attend. There are no merchandise sales and no ticket sales.</p></details><details><summary>Can I get an invoice or a receipt?</summary><p>Yes. Card payments get an emailed receipt, and we can provide an invoice or receipt for any payment on request.</p></details><details><summary>Is sales tax included?</summary><p>Sales tax is included in the price.</p></details><details><summary>Where is the rental checklist?</summary><p>The rental checklist is on the <a href="/rental-checklist/">Rental Checklist</a> page. We email it when a request is approved, and again about 7 days before the event.</p></details>
+<h2>Booking and dates</h2>
+<details><summary>How do I book?</summary><p>We'd love to host you. Request a date on the <a href="/book/">Book</a> page. We meet every renter in person before we approve a booking. No payment is due until the request is approved. Your date is reserved once the meeting is complete and your deposit is received and approved by the Boardroom. A request does not hold the date. Bookings need at least 48 hours' notice. Until we confirm your price, your confirmation says price to be confirmed.</p></details>
+<details><summary>Where is the rental checklist?</summary><p>It's on the <a href="/rental-checklist/">Rental Checklist</a> page. We email it when a request is approved, and again about 7 days before the event.</p></details>
+<details><summary>Are overnight stays allowed?</summary><p>No overnight stays. The Boardroom is an event space only.</p></details>
+<details><summary>What dates are open?</summary><p>Use the calendar on the <a href="/book/">Book</a> page, or ask us about a date. We'll tell you if it looks open.</p></details>
+
+<h2>Pricing and payment</h2>
+<details><summary>How much does it cost?</summary><p>Pricing starts at $600 per day and can reach about $2,000, depending on the date, how many people are coming, and the features you'd like. Most events come to about $1,200. We confirm the final price with you before any check is due.</p></details>
+<details><summary>How do I pay?</summary><p>After we approve the request, pay by check or in person, or online by card with a 3% processing fee. Mail or drop off checks payable to Mad Productions at 2212 37th Street, Moline, IL 61265. The deposit (50% of the agreed total) holds the date. The remaining balance is due the week of the event, no later than 48 hours before. Sales tax is included in the price. The card processing fee is non-refundable.</p></details>
+<details><summary>Can I get an invoice or a receipt?</summary><p>Yes. Card payments get an emailed receipt, and we can provide an invoice or receipt for any payment on request.</p></details>
+<details><summary>Is sales tax included?</summary><p>Sales tax is included in the price.</p></details>
+
+<h2>Setup and hours</h2>
+<details><summary>What are the hours?</summary><p>A full day runs from 10:00 AM to 11:30 PM. Half days are generally available in June: 10:00 AM to 4:00 PM, or 5:00 PM to 11:30 PM.</p></details>
+<details><summary>When does everyone have to be out?</summary><p>Out by 11:30 PM. This one's firm, no exceptions. Everyone must be out of The Boardroom by 11:30 PM so there's time to wrap up.</p></details>
+<details><summary>How is the space set up?</summary><p>The space arrives not set up. You set up and tear down. Our staff can't set the room for you. Staff cannot set the room up. Setup starts at 8:00 AM on full days, or one hour before your start time on half days.</p></details>
+<details><summary>Do you provide decorations?</summary><p>The room isn't decorated when you arrive, except in December, when our Christmas décor is up. Christmas decorations are up in December.</p></details>
+
+<h2>Food and drink</h2>
+<details><summary>Can I bring my own food?</summary><p>Yes. We provide the space; you bring the food. No cooking or stove-top use. No cooking is allowed in the venue. The stove top may not be used. Food warmers (for keeping prepared food warm) and the bar area are yours to use. You can also have it catered by any caterer. The Boardroom does not provide catering.</p></details>
+<details><summary>Can we bring our own drinks?</summary><p>Yes. There's a bar area and an ice machine, and there are no taps. BYOB is allowed. Guests are responsible for obtaining any permit or license the City of Moline requires for alcohol at their event. Please check with the City of Moline: <a href="https://moline.il.us/244/Liquor-Licensing">https://moline.il.us/244/Liquor-Licensing</a> (City Clerk, 309-524-2004).</p></details>
+<details><summary>Is there a refrigerator or ice?</summary><p>Yes. There is a refrigerator and an ice machine.</p></details>
+
+<h2>Rules</h2>
+<details><summary>How many guests can The Boardroom hold?</summary><p>Up to 75 people.</p></details>
+<details><summary>Is there an age limit for hosts?</summary><p>The host must be 25 or older. The minimum host age is 25 for every booking.</p></details>
+<details><summary>Can we sell tickets or charge admission?</summary><p>No. All events must be free to attend: no tickets, no cover charge, no paid admission, no door fees, and no ticket or merchandise sales. We do not host concerts or ticketed shows.</p></details>
+<details><summary>Can we have a band?</summary><p>Yes. Guests may have a band or live music, as long as they are not charging for the event.</p></details>
+<details><summary>Can I hold a vendor market or sell items?</summary><p>No. All events are free to attend. There are no merchandise sales and no ticket sales.</p></details>
+<details><summary>Are balloons allowed?</summary><p>Yes. Balloons are fine. Wall tape is not allowed. Glitter is not allowed.</p></details>
+<details><summary>Is smoking allowed?</summary><p>All smoking, including cigars and cigarettes, is outside only. Vaping leaves a residue and can affect the damage deposit.</p></details>
+<details><summary>Can I bring a pet?</summary><p>Service animals only. No pets.</p></details>
+
+<h2>Policies and cancellation</h2>
+<details><summary>What is the cancellation policy?</summary><p>If we receive written cancellation 60 or more days before the event, the deposit is refundable, less any non-refundable processing charges (including the 3% card processing fee) and costs already incurred. It is not refundable if cancellation is received less than 60 days before the event. See the <a href="/terms/">Rental Terms</a>. If a summary and the signed agreement differ, the signed agreement controls.</p></details>
+<details><summary>What if there is bad weather?</summary><p>Bad weather or an emergency out of our control, such as a hurricane, a snowstorm, or a power outage, is refundable. A personal issue, such as a flat tire, is not refundable.</p></details>
+<details><summary>What happens if something gets damaged?</summary><p>The damage deposit covers cleaning and damage. Anything beyond that deposit may be charged. Our team will go over it at the walk-through. See the <a href="/terms/">Terms</a>.</p></details>
+<details><summary>Is there a damage deposit?</summary><p>The damage deposit is $100 to $500 depending on event size, mainly for cleaning. A dumpster is on site. It is returned within 72 hours when Venmo or PayPal is on file. A check takes 1 to 2 weeks.</p></details>
+<details><summary>What are our responsibilities before we leave?</summary><p>Please leave it like you got it. Clean and tidy the space, and take the garbage out. Another event is often booked the following day, and a ready room lets the next hosts begin on time.</p></details>
+
+<h2>Facilities</h2>
+<details><summary>Is parking available?</summary><p>Yes. Free parking on premises.</p></details>
+<details><summary>What is there to do?</summary><p>There's an 80in television, pinball, pool, and shuffleboard.</p></details>
+<details><summary>Who is on site during an event?</summary><p>No one is on site during events. Our connected offices are available on demand if something is needed. Cell numbers are given when the contract is signed, and they are not listed on this site.</p></details>
+<details><summary>Is there a private entrance?</summary><p>There is one main entrance. A back entrance can be used for a surprise guest when it is arranged ahead of time with our team.</p></details>
+<details><summary>Is the space accessible?</summary><p>Yes. The space is accessible.</p></details>
 HTML;
 }
+
 function brb_patch_faq_drinks() {
     $page = get_page_by_path('faq');
     if (!$page) return;
@@ -728,6 +774,12 @@ function brb_refresh_faq() {
     if (!$page) return;
     $c = (string) $page->post_content;
     if (stripos($c, 'How many guests can The Boardroom hold') === false) return;
+    if (stripos($c, 'Our staff can\'t set the room for you') === false) {
+        global $wpdb;
+        $wpdb->update($wpdb->posts, ['post_content' => brb_faq_markup()], ['ID' => (int) $page->ID]);
+        clean_post_cache((int) $page->ID);
+        return;
+    }
     $old_pay = 'Bring a check in person within those 48 hours.';
     $new_pay = 'Mail or drop off checks payable to Mad Productions at ' . BRB_CHECK_ADDRESS . '.';
     $next = str_replace('online processing fee', 'card processing fee', str_replace($old_pay, $new_pay, $c));

@@ -15,114 +15,125 @@ function brb_policy_needs_refresh($text) {
 }
 
 function brb_terms_html() {
-    // [CONFIRM with Chris] Guests out by 11:30 PM. No smoking or vaping. Service animals only.
+    // [CONFIRM with Chris] Guests out by 11:30 PM. Smoking is outside only. Service animals only.
     return <<<'TERMS_HTML'
-<p>These Rental Terms are a plain-language summary of the Facility Event Space Rental Agreement between MAD Productions, LLC, the Owner of The Boardroom QC, and the person or entity renting the space. They follow that agreement section by section. They do not replace it. If this page and the signed agreement differ, the signed agreement controls. The full text, with signature lines, is on the <a href="/rental-agreement/">Rental Agreement</a> page, which you can print. The venue is at 2220 37th Street, Moline, IL 61265.</p>
+<p>Thanks for choosing The Boardroom! This page sums up our Facility Event Space Rental Agreement in plain language, section by section. It doesn't replace the agreement. If the two ever differ, the signed agreement wins. You can read and print the full <a href="/rental-agreement/">Rental Agreement</a> anytime.</p>
+<p>The Boardroom QC is operated by MAD Productions, LLC ("we" or "the Owner") at 2220 37th Street, Moline, IL 61265.</p>
 
-<h2>1. Rental period and limited use</h2>
-<p>You may use the venue only during the date or dates and the times stated on the invoice, the booking confirmation, or a written approval from the Owner. That window is the rental period. You may not enter before the setup time, stay after the rental period ends, or use the venue for any purpose other than the approved event, unless the Owner agrees in writing first. Setup on the morning of the event is included. Renters set up and tear down. Staff cannot set the room up. On a full day, setup can begin at 8:00 AM. On a half day, setup can begin one hour before the start. Overnight stays are not allowed. The Boardroom is an event space only. A full day runs from 10:00 AM to 11:30 PM. Half days are generally available in June, from 10:00 AM to 4:00 PM or from 5:00 PM to 11:30 PM. Everyone must be out of The Boardroom by 11:30 PM. This is firm, with no exceptions. All events must be free to attend: no tickets, no cover charge, no paid admission, no door fees, and no ticket or merchandise sales. Guests may have a band or live music, as long as they are not charging for the event. We do not host concerts or ticketed shows. Entering before the setup time, leaving late, or using the space without approval can bring additional charges, loss of the deposit, and any other remedy available to the Owner.</p>
-
-<h2>2. Access, keys, and codes</h2>
-<p>The Owner may give you one key, one access code, or another way to enter, as the Owner decides is needed. You must safeguard every key, code, and access credential. You may not duplicate them or share them except with approved event representatives. You must return every physical access item immediately when the rental period ends. You are responsible for the cost of lost keys, rekeying, lock changes, code changes, and unauthorized access caused by you or by your guests, invitees, vendors, contractors, agents, or representatives.</p>
-
-<h2>3. Payment, deposit, and fees</h2>
-<p>Before the rental period begins, you must pay all rental fees, cleaning fees, security deposits, and any other charges the Owner states. Unless the Owner agrees otherwise in writing, you must pay fifty percent (50%) of the invoice within one (1) day after signing the agreement. That deposit holds the date. It is refundable if the Owner receives written cancellation 60 or more days before the event, less any non-refundable processing charges (including the 3% card processing fee) and costs already incurred. It is not refundable if cancellation is received less than 60 days before the event. A request does not hold the date. Your date is reserved once your deposit is received. The remaining balance is due the week of the event, no later than 48 hours before the event. Sales tax is included in the price. If you do not pay on time, the reservation may be cancelled without further notice.</p>
-
-<h2>4. Occupancy, conduct, and supervision</h2>
-<p>No more than seventy-five (75) persons may occupy the venue unless the Owner approves a different limit in writing. The minimum host age is 25 for every booking. You must be present, or you must name a responsible adult who is present, for the entire event. You alone supervise every guest, invitee, child, vendor, contractor, and anyone else who enters during the rental period. Pets and other animals are not allowed, except a documented service animal when the law requires it.</p>
-
-<h2>5. Required event liability insurance</h2>
-<p>You must buy and keep, at your own cost, special event liability insurance or party liability insurance for the event and the rental period. It must cover bodily injury, property damage, and the activities of you and your guests. The Owner may require proof before giving you access. If alcohol is served, sold, distributed, or consumed, you must also obtain liquor liability coverage, or a special event liquor liability endorsement, if that coverage is available and applies. The Owner may require that MAD Productions, LLC, The Boardroom QC, the venue owner, and any related parties the Owner names be listed as additional insureds. If you do not provide acceptable proof of insurance, the Owner may cancel the event or refuse access. Amounts you already owe are not waived.</p>
-
-<h2>6. Outside vendors, caterers, and contractors</h2>
-<p>If you use a caterer, bartender, entertainer, decorator, rental company, vendor, contractor, or any other outside party, you must make sure each one is properly licensed, insured, and qualified for the work. At least seven (7) days before the rental period, or sooner if the Owner asks, you must give proof of insurance for any outside vendor. When the Owner asks, the Owner must be listed as an additional insured. You remain fully responsible for the acts, omissions, damage, injuries, cleanup, violations, and charges of your vendors and contractors.</p>
-
-<h2>7. Food, alcohol, kitchen, and equipment</h2>
-<p>The Owner does not provide food, beverages, alcohol, catering, bartending, food service, security, medical services, or event supervision. You are solely responsible for following every law, rule, and regulation about food, alcohol, service, consumption, sales, licensing, age limits, intoxication, and transportation after the event. BYOB is allowed. Guests are responsible for obtaining any permit or license the City of Moline requires for alcohol at their event. Please check with the City of Moline: <a href="https://moline.il.us/244/Liquor-Licensing">https://moline.il.us/244/Liquor-Licensing</a> (City Clerk, 309-524-2004). You accept all risk and liability from using kitchen utensils, appliances, equipment, furniture, fixtures, décor, or any other property at the venue, whether it is used properly or improperly. [ATTORNEY REVIEW] You and your guests assume all risk. The Boardroom is not responsible for injury, loss, or equipment issues, such as the ice maker or wifi, that affect an event.</p>
-
-<h2>8. Strictly prohibited items and activities</h2>
-<p>The following are strictly prohibited inside the venue, outside the venue, on sidewalks, in parking areas, and anywhere on or around the premises: glitter; wall tape; party confetti; confetti cannons; rice; birdseed; loose sequins; fireworks; sparklers; smoke bombs; pyrotechnics; explosive devices; explosive props; combustible props; open flame that the Owner has not expressly approved in writing; hazardous materials; illegal substances; weapons except as the law permits; and any activity that creates an unusual mess, a fire risk, an explosion risk, a property-damage risk, an injury risk, a nuisance, or a disturbance.</p>
-<p>Ticketed events, cover charges, paid admission, door fees, and ticket or merchandise sales are prohibited. The Boardroom does not host concerts or ticketed shows. A band or live music is allowed only when guests are not charged for the event.</p>
-<p>Breaking this section can end the event immediately, forfeit the deposit, add cleaning or repair charges, and leave you liable for resulting damages, claims, fines, attorney fees, and costs.</p>
-
-<h2>9. Condition of the premises</h2>
-<p>You accept the venue in its existing “AS IS” condition when you take possession. Inspect it when you arrive and tell the Owner immediately about any damage or concern that was already there. You must leave the venue, fixtures, furniture, restrooms, kitchen areas, floors, walls, décor, equipment, sidewalks, entry areas, and parking-related areas in the same condition and arrangement as when you arrived, ordinary wear and tear excepted. The venue must be left clean, orderly, secure, and free of personal property, decorations, trash, food, spills, stains, debris, glitter, confetti, and anything you, your guests, or your vendors brought in.</p>
-
-<h2>10. Cleanup, trash, and personal property</h2>
-<p>Before the rental period ends, remove all personal property, decorations, trash, food, beverages, vendor property, rental items, and anything else that was not there when you took control. Take the trash out. Anything left behind may be treated as abandoned and may be thrown away or stored at your expense. Excessive cleaning, specialty cleaning, remediation, odor removal, stain removal, or disposal caused by you, your guests, your invitees, or your vendors may be charged to you, deducted from the security deposit, or billed separately.</p>
-
-<h2>11. Damage, security deposit, and legal action</h2>
-<p>You are financially responsible for all damage, loss, theft, excessive cleaning, fines, citations, violations, business interruption, loss of use, loss of reputation, and any other cost or damage from your event, your use of the venue, or the acts or omissions of your guests, invitees, vendors, contractors, agents, representatives, or anyone who enters during the rental period. Damage beyond ordinary wear and tear can mean loss of the security deposit, further charges, civil liability, and legal action. The Owner may apply the security deposit to any amount you owe. Applying the deposit does not limit what you owe above the deposit.</p>
-
-<h2>12. Assumption of risk</h2>
-<p>Event activities and use of the venue, furniture, fixtures, equipment, parking areas, sidewalks, curbs, entrances, exits, kitchen areas, and food or alcohol can involve risk, including serious injury, temporary or permanent disability, death, and property damage. You voluntarily assume all risks from the event and from use of the venue by you, your guests, invitees, vendors, contractors, agents, and representatives. The Owner is not responsible for accidents, injuries, death, loss, theft, or property damage involving you or any guest, invitee, child, vendor, contractor, agent, representative, or other person connected with your event, except where the law does not allow that limit.</p>
-
-<h2>13. Responsibility for guests</h2>
-<p>You take full responsibility for every guest, invitee, child, vendor, contractor, agent, representative, and other person who enters or tries to enter in connection with your event, whether or not you invited them or knew they were there. You are responsible for their conduct, their safety, their supervision, their compliance with the agreement, and any damage, injury, claim, or violation they cause.</p>
-
-<h2>14. Indemnification, hold harmless, and release</h2>
-<p>To the fullest extent the law allows, you will defend, indemnify, release, and hold harmless the Owner, MAD Productions, LLC, The Boardroom QC, the venue, the property owner, and their members, managers, officers, employees, agents, representatives, affiliates, successors, and assigns. This covers every claim, demand, cause of action, damage, loss, liability, injury, death, property damage, fine, citation, judgment, settlement, attorney fee, court cost, and expense arising from or related to your event, your use of the venue, the presence or conduct of any guest or vendor, alcohol or food service, prohibited items, cleanup, damage, or any breach of the agreement.</p>
-
-<h2>15. Attorney fees, costs, and collection</h2>
-<p>If the Owner has to enforce the agreement, collect what you owe, defend or pursue a claim related to your event, recover damages, respond to a third-party claim, or take legal action because you breached the agreement or because of acts or omissions by you or your guests, invitees, vendors, contractors, agents, or representatives, you are responsible for the Owner’s reasonable attorney fees, court costs, collection costs, expert fees, investigation costs, and other expenses, in addition to the damages and other amounts owed.</p>
-
-<h2>16. Cancellation by the renter</h2>
-<p>You may cancel by giving the Owner written notice. The deposit (50% of the agreed total) holds the date. If the Owner receives written cancellation 60 or more days before the event, the deposit is refundable, less any non-refundable processing charges (including the 3% card processing fee) and costs already incurred. If cancellation is received less than 60 days before the event, the deposit is not refundable. The card processing fee is non-refundable. Refunds are issued manually.</p>
-
-<h2>17. Cancellation by the Owner</h2>
-<p>The Owner may decline any request, and may cancel at any time by written notice to you. If the Owner declines a request before any payment is made, no money is taken. If a payment was recorded before a decline, staff resolve it manually. A guest cancellation follows section 16. If the Owner cancels because you breached the agreement, failed to pay, failed to provide proof of insurance, misrepresented something, created a safety concern, engaged in illegal or prohibited activity, or otherwise violated the agreement, the Owner may keep the amounts the agreement allows and may pursue any other available remedy.</p>
-
-<h2>18. Compliance with laws and rules</h2>
-<p>You must comply with all applicable federal, state, county, and municipal laws, and with fire, building, health, alcohol, noise, occupancy, and safety laws, rules, ordinances, and regulations. That includes the rules of the City of Moline, Rock Island County, and the State of Illinois. You must also follow reasonable rules and instructions the Owner gives before, during, or after the event.</p>
-
-<h2>19. Illinois law and Rock Island County</h2>
-<p>The agreement is governed by the laws of the State of Illinois. Any lawsuit, claim, collection action, or dispute about the agreement, the venue, the event, or the parties’ rights must be filed in a court of competent jurisdiction in Rock Island County, Illinois, unless the law requires another court.</p>
-
-<h2>20. No waiver, changes, and severability</h2>
-<p>A waiver, amendment, or change is effective only if it is in writing and signed by an authorized representative of the party against whom it would be enforced. Not enforcing a provision once is not a waiver of later enforcement. If a provision is found invalid or unenforceable, the rest stays in effect to the fullest extent the law allows.</p>
-
-<h2>21. Entire agreement and authority to sign</h2>
-<p>The agreement, together with any invoice, booking confirmation, written addendum, or written rules from the Owner, is the entire agreement about renting and using the venue. The person who signs for the renter represents that they have authority to bind the renter, and accepts personal responsibility if they do not.</p>
-
-<h2>Review and the in-person meeting</h2>
-<p>All bookings are subject to review and approval by the Boardroom, which includes an in-person meeting with the renter. Approval is based on the event details provided, availability and our house rules.</p>
-<h2>Force majeure</h2>
-<p>Bad weather or an emergency out of our control, such as a hurricane, a snowstorm, or a power outage, is refundable. A personal issue, such as a flat tire, is not refundable.</p>
-<h2>Assumption of risk [ATTORNEY REVIEW]</h2>
-<p>[ATTORNEY REVIEW] The renter and every guest assume all risk of the event. The Boardroom is not responsible for injury, loss, or equipment issues, such as the ice maker or wifi, that affect an event. Renters are encouraged to carry their own home or renters policy. If event insurance is needed, the renter carries that policy.</p>
-<h2>Damage deposit and smoking</h2>
-<p>The damage deposit is $100 to $500 depending on event size, mainly for cleaning. It may be applied to excessive cleaning or garbage. A dumpster is on site. The deposit is returned within 72 hours when Venmo or PayPal is on file. A check takes 1 to 2 weeks. No glitter. Vaping leaves a residue and can affect the deposit. All smoking, including cigars and cigarettes, is outside only.</p>
-<h2>House rules for food and drink</h2>
-<div class="rules">
-<p>These house rules are in addition to section 7 of the agreement.</p>
+<h2>The quick version</h2>
 <ul>
-<li>No overnight stays. The Boardroom is an event space only.</li>
-<li>A full day runs from 10:00 AM to 11:30 PM. Half days are generally available in June: 10:00 AM to 4:00 PM, or 5:00 PM to 11:30 PM.</li>
-<li>Everyone must be out of The Boardroom by 11:30 PM. This is firm, with no exceptions.</li>
-<li>Renters set up and tear down. Staff cannot set the room up. On a full day, setup can begin at 8:00 AM. On a half day, setup can begin one hour before the start.</li>
-<li>Balloons are allowed. Wall tape is not allowed. Glitter is not allowed.</li>
-<li>The minimum host age is 25 for every booking.</li>
-<li>All events must be free to attend: no tickets, no cover charge, no paid admission, no door fees, and no ticket or merchandise sales. Guests may have a band or live music, as long as they are not charging for the event. We do not host concerts or ticketed shows.</li>
-<li>No smoking or vaping.</li>
-<li>Service animals only. No pets.</li>
-<li>No cooking is allowed in the venue.</li>
-<li>The stove top may not be used.</li>
-<li>Food warmers (for keeping prepared food warm) and the bar area may be used.</li>
-<li>There are no taps. Draft taps are not available.</li>
-<li>BYOB is allowed. Guests are responsible for obtaining any permit or license the City of Moline requires for alcohol at their event. Please check with the City of Moline: <a href="https://moline.il.us/244/Liquor-Licensing">https://moline.il.us/244/Liquor-Licensing</a> (City Clerk, 309-524-2004).</li>
+<li>Hours: Full days run 10:00 AM to 11:30 PM. Half days (mostly in June) run 10:00 AM to 4:00 PM or 5:00 PM to 11:30 PM.</li>
+<li>Out by 11:30 PM. This one's firm, no exceptions.</li>
+<li>You set up and tear down. Our staff can't set the room for you. Setup starts at 8:00 AM on full days, or one hour before your start time on half days.</li>
+<li>Up to 75 guests. The host must be 25 or older.</li>
+<li>Free events only. Live music and bands are welcome. Tickets, cover charges, and concerts aren't.</li>
+<li>BYOB is fine. No cooking or stove-top use. Food warmers and the bar area are yours to use. There are no draft taps.</li>
+<li>Balloons, yes. Glitter, confetti, and wall tape, no.</li>
+<li>No smoking or vaping inside. Smoking is outside only.</li>
+<li>Service animals only. No pets, and no overnight stays.</li>
 </ul>
-</div>
 
-<h2>Booking and payment on this website</h2>
-<p>Bookings on this website are subject to approval. No payment is due until the request is approved. The owner may decline any request. A request does not hold the date. Your date is reserved once your deposit is received. The deposit (50% of the agreed total) holds the date. It is refundable if the Owner receives written cancellation 60 or more days before the event, less any non-refundable processing charges (including the 3% card processing fee) and costs already incurred. It is not refundable if cancellation is received less than 60 days before the event. You can pay by check or in person, or online by card with a 3% processing fee once the request is approved. Mail or drop off checks payable to Mad Productions at 2212 37th Street, Moline, IL 61265.</p>
-<p>The card processing fee is added on top of the amount being paid and is not part of the booking balance. The card processing fee is non-refundable. Sales tax is included in the price.</p>
-<p>As the agreement states, 50% of the invoice is due within 1 day after signing. That deposit holds the date. It is refundable if the Owner receives written cancellation 60 or more days before the event, less any non-refundable processing charges (including the 3% card processing fee) and costs already incurred. It is not refundable if cancellation is received less than 60 days before the event. The remaining balance is due the week of the event, no later than 48 hours before the event.</p>
-<p>Section 11 above allows the Owner to apply a security deposit to amounts owed for damage, and you remain responsible for anything above that security deposit. The rental deposit that holds the date follows section 16.</p>
-<p>The room is not set up when you arrive. Renters set up and tear down. Staff cannot set the room up. On a full day, setup can begin at 8:00 AM. On a half day, setup can begin one hour before the start. Decorations are not provided, except that Christmas decorations are up in December. Balloons are allowed. Wall tape is not allowed. The maximum is 75 people unless the Owner approves a different limit in writing.</p>
+<h2>1. Your rental time</h2>
+<p>Your rental period is the date and times on your invoice, booking confirmation, or written OK from us. Please don't arrive before setup, stay past your end time, or use the space for anything other than your approved event without checking with us in writing first. Doing so can mean extra charges, a lost deposit, or other remedies.</p>
+
+<h2>2. Keys and codes</h2>
+<p>We'll give you a key, code, or other way in. Please keep it safe, don't copy it, and only share it with your approved event helpers. Return any physical keys as soon as your rental ends. If something is lost or used without permission by you or anyone with your event, you'll cover rekeying, lock or code changes, and related costs.</p>
+
+<h2>3. Payment and deposit</h2>
+<ul>
+<li>Within 1 day of signing: 50% of your invoice. This deposit holds your date. A request alone doesn't.</li>
+<li>The week of your event: the remaining balance, no later than 48 hours before.</li>
+<li>Before your event starts: all rental, cleaning, and damage deposit amounts must be paid.</li>
+<li>Sales tax is included in the price.</li>
+<li>Pay by check, in person, or online by card once approved. Card payments add a 3% processing fee on top of the amount paid, and that fee isn't refundable.</li>
+<li>Make checks payable to Mad Productions and mail or drop them off at 2212 37th Street, Moline, IL 61265.</li>
+<li>Late payment may cancel your reservation without further notice.</li>
+</ul>
+
+<h2>4. Guests and supervision</h2>
+<p>Up to 75 people, unless we approve a different number in writing. The host must be 25 or older, and you (or a responsible adult you name) must be on site the whole time. You're in charge of everyone who comes in: guests, kids, vendors, and anyone else. Service animals are welcome where the law requires; pets aren't.</p>
+
+<h2>5. Event insurance</h2>
+<p>You'll need special event or party liability insurance covering injury, property damage, and your guests' activities. If alcohol is involved, please add liquor liability coverage where it's available and applies. We may ask for proof before giving you access, and may ask that MAD Productions, LLC, The Boardroom QC, the venue owner, and related parties be listed as additional insureds. Without acceptable proof, we may cancel or refuse access, and amounts already owed still apply. We also recommend carrying your own home or renters policy.</p>
+
+<h2>6. Vendors</h2>
+<p>Bringing in a caterer, bartender, DJ, decorator, or rental company? Make sure they're licensed, insured, and qualified, and send us their proof of insurance at least 7 days before your event (or sooner if we ask). We may ask to be listed as an additional insured. Your vendors are your responsibility, including their work, their cleanup, and any damage or charges.</p>
+
+<h2>7. Food, drinks, and equipment</h2>
+<p>We provide the space; you bring the rest. We don't supply food, drinks, catering, bartending, security, medical services, or event staff.</p>
+<p>BYOB is welcome. You're responsible for any permit the City of Moline requires for alcohol at your event (see <a href="https://moline.il.us/244/Liquor-Licensing">Moline Liquor Licensing</a> or call the City Clerk at 309-524-2004) and for following all food and alcohol laws, including age limits and safe rides home.</p>
+<p>You use the kitchen, furniture, and equipment at your own risk. We're not responsible for equipment hiccups, like the ice maker or wifi, that affect your event.</p>
+
+<h2>8. Please leave these at home</h2>
+<p>To keep everyone safe and the space clean, these aren't allowed inside, outside, on the sidewalks, or in the parking lot:</p>
+<ul>
+<li>Glitter, confetti, confetti cannons, rice, birdseed, or loose sequins</li>
+<li>Wall tape</li>
+<li>Fireworks, sparklers, smoke bombs, pyrotechnics, or explosive or combustible props</li>
+<li>Open flame, unless we approve it in writing</li>
+<li>Hazardous materials or illegal substances</li>
+<li>Weapons, except as the law allows</li>
+<li>Anything that creates a big mess, a fire or safety risk, a nuisance, or a disturbance</li>
+</ul>
+<p>Tickets, cover charges, paid admission, door fees, and ticket or merchandise sales aren't allowed either.</p>
+<p>Breaking these rules can end your event on the spot, forfeit your deposit, and add cleaning, repair, legal, or other costs.</p>
+
+<h2>9. Condition of the space</h2>
+<p>The space is rented as-is. Take a quick look when you arrive and let us know right away about anything already damaged. Please leave everything (rooms, restrooms, kitchen, floors, walls, furniture, décor, equipment, entry, sidewalks, and parking area) as clean and arranged as you found it. Normal wear and tear is fine.</p>
+
+<h2>10. Cleanup</h2>
+<p>Before your time is up, please take out everything you brought: decorations, food, drinks, rentals, and trash. There's a dumpster on site. Anything left behind may be tossed or stored at your cost. Extra cleaning, stain or odor removal, or disposal may be charged to you or taken from your deposit.</p>
+
+<h2>11. Damage and your damage deposit</h2>
+<p>Your damage deposit is $100 to $500, depending on event size, and mostly covers cleaning and garbage. It's separate from the 50% booking deposit that holds your date. If all's well, it comes back within 72 hours by Venmo or PayPal, or in 1 to 2 weeks by check. Vape residue can affect it.</p>
+<p>You're responsible for any damage, loss, theft, extra cleaning, fines, lost use of the venue, or other costs tied to your event or anyone connected with it. We may apply your deposit to what's owed, and you're responsible for anything beyond it.</p>
+
+<h2>12. Your risk</h2>
+<p>Events come with some risk, including injury, property damage, and in rare cases serious harm. By renting, you accept those risks for yourself, your guests, and your vendors. We're not responsible for accidents, injuries, loss, theft, or damage connected to your event, except where the law says otherwise.</p>
+
+<h2>13. Your guests</h2>
+<p>You're responsible for everyone connected to your event, invited or not, including their conduct, safety, and any damage or claims they cause.</p>
+
+<h2>14. Covering us (indemnification)</h2>
+<p>To the fullest extent the law allows, you agree to defend, cover, and hold harmless MAD Productions, LLC, The Boardroom QC, the venue, the property owner, and their team against any claims, losses, injuries, fines, legal fees, or costs related to your event, your guests or vendors, food or alcohol, prohibited items, cleanup, damage, or any breach of the agreement.</p>
+
+<h2>15. Legal and collection costs</h2>
+<p>If we have to enforce the agreement, collect what's owed, or handle a claim related to your event, you'll cover our reasonable attorney fees, court and collection costs, and related expenses, on top of what you owe.</p>
+
+<h2>16. If you need to cancel</h2>
+<p>Just let us know in writing.</p>
+<ul>
+<li>60 or more days before your event: your deposit is refunded, minus the 3% card fee and any costs already incurred.</li>
+<li>Less than 60 days before: the deposit isn't refundable.</li>
+</ul>
+<p>Refunds are processed by hand.</p>
+
+<h2>17. If we need to cancel</h2>
+<p>We may decline any request, or cancel with written notice. If we decline before you've paid, nothing is charged. If a payment was already made, we'll sort it out with you directly.</p>
+<p>If weather or an emergency outside our control (like a snowstorm, severe storm, or power outage) cancels your event, you'll get a refund. Personal issues, like a flat tire, aren't refundable.</p>
+<p>If we cancel because of a missed payment, missing insurance, misrepresentation, a safety concern, prohibited activity, or another breach, we may keep what the agreement allows and pursue other remedies.</p>
+
+<h2>18. Following the rules</h2>
+<p>Please follow all federal, Illinois, Rock Island County, and City of Moline laws, including fire, building, health, alcohol, noise, occupancy, and safety rules, plus any reasonable instructions from our team.</p>
+
+<h2>19. Governing law</h2>
+<p>Illinois law applies. Any legal dispute goes to court in Rock Island County, Illinois, unless the law requires otherwise.</p>
+
+<h2>20. Changes in writing</h2>
+<p>Any change or waiver has to be in writing and signed. If we let something slide once, that doesn't waive it later. If any part is found invalid, the rest still stands.</p>
+
+<h2>21. The whole agreement</h2>
+<p>The signed agreement, together with your invoice, booking confirmation, and any written addendum or rules from us, is the entire deal. Whoever signs for the renter confirms they're authorized to, and is personally responsible if they're not.</p>
+
+<h2>How booking works</h2>
+<p>Every booking starts as a request. Our team reviews it, which includes a quick in-person meeting with you. Approval depends on your event details, availability, and our house rules. No payment is due until you're approved.</p>
+<p>One heads-up: the room isn't set up or decorated when you arrive, except in December, when our Christmas décor is up.</p>
 
 <h2>The signed agreement controls</h2>
-<p>This page is a summary for guests of The Boardroom QC, operated by MAD Productions, LLC. If anything here differs from the signed Rental Agreement, the signed Rental Agreement controls. The full agreement is available to print at <a href="/rental-agreement/">the Rental Agreement</a>.</p>
-<p class="updated">Last updated: October 27, 2026</p>
+<p>This page is a friendly summary. If anything here differs from your signed <a href="/rental-agreement/">Rental Agreement</a>, the agreement controls.</p>
+<p>Questions? We're happy to help. <a href="/contact/">Get in touch</a>.</p>
+<p class="updated">Last updated: October 28, 2026</p>
+<p>The Boardroom QC · 2220 37th Street, Moline, IL 61265 · <a href="https://maps.app.goo.gl/nVqUsGTcy48nPzc18" rel="noopener noreferrer">Get directions</a></p>
 TERMS_HTML;
 }
 

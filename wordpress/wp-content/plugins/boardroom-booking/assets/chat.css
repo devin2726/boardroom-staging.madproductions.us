@@ -29,8 +29,12 @@
 body.admin-bar .brb-chat-panel{max-height:calc(100dvh - 136px - env(safe-area-inset-bottom))}
 @media(max-width:782px){body.admin-bar .brb-chat-panel{max-height:calc(100dvh - 150px - env(safe-area-inset-bottom))}}
 .brb-chat-inline .brb-chat-panel{position:relative;right:auto;bottom:auto;z-index:1;width:100%;max-width:720px;max-height:640px;margin:8px 0 28px}
+body.contact-page .brb-chat-inline,body.contact-page .brb-chat-inline .brb-chat-msg,body.contact-page .brb-chat-inline .brb-chat-input,body.contact-page .brb-chat-inline .brb-chat-lead input,body.contact-page .brb-chat-inline .brb-chat-lead select,body.contact-page .brb-chat-inline .brb-chat-lead textarea,body.contact-page .brb-chat-inline .brb-chat-lead label{font-size:21px}
+body.contact-page .brb-chat-inline .brb-chat-head h2{font-size:clamp(22px,3vw,32px)}
+body.contact-page .brb-chat-inline .brb-chat-panel{max-width:none;width:100%;margin:0 0 36px}
 @media(max-width:600px){
 .brb-chat-panel{left:8px;right:8px;width:auto;max-height:calc(100dvh - 96px - env(safe-area-inset-bottom))}
 .brb-chat-inline .brb-chat-panel{left:auto;right:auto;max-height:70vh}
+body.contact-page .brb-chat-inline .brb-chat-panel{max-height:70vh}
 }
 @media print{.brb-chat{display:none!important}}
