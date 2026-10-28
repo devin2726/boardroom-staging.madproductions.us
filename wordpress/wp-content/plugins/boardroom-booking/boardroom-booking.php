@@ -2,11 +2,11 @@
 /**
  * Plugin Name: Boardroom Booking
  * Description: Self-hosted direct booking for The Boardroom — full-day and hourly blocks, availability calendar, agreed prices, approval before payment, blackout dates, and emails.
- * Version: 2.5.9
+ * Version: 2.5.10
  * Author: Mad Productions
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.5.9');
+define('BRB_VER', '2.5.10');
 define('BRB_VENUE_ADDRESS', '2220 37th Street, Moline, IL 61265');
 define('BRB_CHECK_ADDRESS', '2212 37th Street, Moline, IL 61265');
 define('BRB_MAPS_URL', 'https://maps.app.goo.gl/nVqUsGTcy48nPzc18');
@@ -628,7 +628,7 @@ function brb_migrate_prices() {
 // [CONFIRM with Chris] Guests out by 11:30 PM. No smoking or vaping. Service animals only.
 function brb_faq_markup() {
     return <<<'HTML'
-<details><summary>How many guests can The Boardroom hold?</summary><p>Up to 75 people.</p></details><details><summary>Is parking available?</summary><p>Yes. Free parking on premises.</p></details><details><summary>Can we bring our own drinks?</summary><p>The Boardroom has a bar area and an ice machine. No cooking is allowed in the venue. The stove top may not be used. Food warmers (for keeping prepared food warm) and the bar area may be used. There are no taps. Draft taps are not available. BYOB is allowed, and the renter must obtain a one-day liquor license from the City of Moline, fee $50. See the <a href="/terms/">Rental Terms</a>.</p></details><details><summary>What is there to do?</summary><p>80in television, pinball, pool and shuffleboard.</p></details><details><summary>How much does it cost?</summary><p>Pricing starts at $600 per day and can reach about $2,000, depending on the date, how many people are coming, and the features you would like. Most events come to about $1,200. We confirm the final price with you before any check is due. The website does not guess a total.</p></details><details><summary>How is the space set up?</summary><p>The space arrives not set up. Seating and layout are yours to plan, so bring the arrangement that suits your gathering. Renters set up and tear down. Staff cannot set the room up. On a full day, setup can begin at 8:00 AM. On a half day, setup can begin one hour before the start.</p></details><details><summary>Do you provide decorations?</summary><p>Decorations are not provided. Christmas decorations are up in December.</p></details><details><summary>What are our responsibilities before we leave?</summary><p>Please leave it like you got it. Clean and tidy the space, and take the garbage out. Another event is often booked the following day, and a ready room lets the next hosts begin on time.</p></details><details><summary>How do I book and pay?</summary><p>Request a date on the <a href="/book/">Book</a> page. Bookings are subject to approval, and the owner may decline any request. No payment is due until the request is approved. A request does not hold the date. Your date is reserved once your deposit is received. The deposit (50% of the agreed total) holds the date. It is refundable if the Owner receives written cancellation 60 or more days before the event, less any non-refundable processing charges (including the 3% card processing fee) and costs already incurred. It is not refundable if cancellation is received less than 60 days before the event. Pay by check or in person, or online by card with a 3% processing fee. Mail or drop off checks payable to Mad Productions at 2212 37th Street, Moline, IL 61265. Bookings need at least 48 hours' notice. Until we confirm your price, your confirmation says price to be confirmed. The card processing fee is non-refundable.</p></details><details><summary>What is the cancellation policy?</summary><p>See the <a href="/terms/">Rental Terms</a>. If a summary and the signed agreement differ, the signed agreement controls.</p></details><details><summary>Are overnight stays allowed?</summary><p>No overnight stays. The Boardroom is an event space only.</p></details><details><summary>When does everyone have to be out?</summary><p>Everyone must be out of The Boardroom by 11:30 PM. This is firm, with no exceptions. Please finish in time to wrap up.</p></details><details><summary>What are the hours?</summary><p>A full day runs from 10:00 AM to 11:30 PM. Half days are generally available in June: 10:00 AM to 4:00 PM, or 5:00 PM to 11:30 PM.</p></details><details><summary>Can we sell tickets or charge admission?</summary><p>No. All events must be free to attend: no tickets, no cover charge, no paid admission, no door fees, and no ticket or merchandise sales. We do not host concerts or ticketed shows.</p></details><details><summary>Can we have a band?</summary><p>Yes. Guests may have a band or live music, as long as they are not charging for the event. We do not host concerts or ticketed shows.</p></details><details><summary>Is smoking allowed?</summary><p>No smoking or vaping.</p></details><details><summary>Can I bring a pet?</summary><p>Service animals only. No pets.</p></details><details><summary>Can I bring my own food?</summary><p>Yes. You can bring your own food. We have warmers and buffet-style warmers, but the stovetop can't be used. You can also have it catered by any caterer. The Boardroom does not provide catering.</p></details><details><summary>When is the balance due?</summary><p>The remaining balance is due the week of the event, no later than 48 hours before.</p></details><details><summary>Is there a refrigerator or ice?</summary><p>Yes. There is a refrigerator and an ice machine.</p></details><details><summary>Who is on site during an event?</summary><p>No one is on site during events. Our connected offices are available on demand if something is needed. Cell numbers are given when the contract is signed, and they are not listed on this site.</p></details><details><summary>Is there a private entrance?</summary><p>There is one main entrance. A back entrance can be used for a surprise guest when it is arranged ahead of time with our team.</p></details><details><summary>Are balloons allowed?</summary><p>Yes. Balloons are fine. Wall tape is not allowed. Glitter is not allowed.</p></details><details><summary>Is there an age limit for hosts?</summary><p>The minimum host age is 25 for every booking.</p></details><details><summary>What happens if something gets damaged?</summary><p>The damage deposit covers cleaning and damage. Anything beyond that deposit may be charged. See the Terms. Our team will go over it at the walk-through.</p></details><details><summary>Can I hold a vendor market or sell items?</summary><p>No. All events are free to attend. There are no merchandise sales and no ticket sales.</p></details>
+<details><summary>How many guests can The Boardroom hold?</summary><p>Up to 75 people.</p></details><details><summary>Is parking available?</summary><p>Yes. Free parking on premises.</p></details><details><summary>Can we bring our own drinks?</summary><p>The Boardroom has a bar area and an ice machine. No cooking is allowed in the venue. The stove top may not be used. Food warmers (for keeping prepared food warm) and the bar area may be used. There are no taps. Draft taps are not available. BYOB is allowed, and the renter must obtain a one-day liquor license from the City of Moline, fee $50. See the <a href="/terms/">Rental Terms</a>.</p></details><details><summary>What is there to do?</summary><p>80in television, pinball, pool and shuffleboard.</p></details><details><summary>How much does it cost?</summary><p>Pricing starts at $600 per day and can reach about $2,000, depending on the date, how many people are coming, and the features you would like. Most events come to about $1,200. We confirm the final price with you before any check is due. The website does not guess a total.</p></details><details><summary>How is the space set up?</summary><p>The space arrives not set up. Seating and layout are yours to plan, so bring the arrangement that suits your gathering. Renters set up and tear down. Staff cannot set the room up. On a full day, setup can begin at 8:00 AM. On a half day, setup can begin one hour before the start.</p></details><details><summary>Do you provide decorations?</summary><p>Decorations are not provided. Christmas decorations are up in December.</p></details><details><summary>What are our responsibilities before we leave?</summary><p>Please leave it like you got it. Clean and tidy the space, and take the garbage out. Another event is often booked the following day, and a ready room lets the next hosts begin on time.</p></details><details><summary>How do I book and pay?</summary><p>Request a date on the <a href="/book/">Book</a> page. Bookings are subject to approval, and the owner may decline any request. No payment is due until the request is approved. A request does not hold the date. Your date is reserved once your deposit is received. The deposit (50% of the agreed total) holds the date. It is refundable if the Owner receives written cancellation 60 or more days before the event, less any non-refundable processing charges (including the 3% card processing fee) and costs already incurred. It is not refundable if cancellation is received less than 60 days before the event. Pay by check or in person, or online by card with a 3% processing fee. Mail or drop off checks payable to Mad Productions at 2212 37th Street, Moline, IL 61265. Bookings need at least 48 hours' notice. Until we confirm your price, your confirmation says price to be confirmed. The card processing fee is non-refundable.</p></details><details><summary>What is the cancellation policy?</summary><p>See the <a href="/terms/">Rental Terms</a>. If a summary and the signed agreement differ, the signed agreement controls.</p></details><details><summary>Are overnight stays allowed?</summary><p>No overnight stays. The Boardroom is an event space only.</p></details><details><summary>When does everyone have to be out?</summary><p>Everyone must be out of The Boardroom by 11:30 PM. This is firm, with no exceptions. Please finish in time to wrap up.</p></details><details><summary>What are the hours?</summary><p>A full day runs from 10:00 AM to 11:30 PM. Half days are generally available in June: 10:00 AM to 4:00 PM, or 5:00 PM to 11:30 PM.</p></details><details><summary>Can we sell tickets or charge admission?</summary><p>No. All events must be free to attend: no tickets, no cover charge, no paid admission, no door fees, and no ticket or merchandise sales. We do not host concerts or ticketed shows.</p></details><details><summary>Can we have a band?</summary><p>Yes. Guests may have a band or live music, as long as they are not charging for the event. We do not host concerts or ticketed shows.</p></details><details><summary>Is smoking allowed?</summary><p>No smoking or vaping.</p></details><details><summary>Can I bring a pet?</summary><p>Service animals only. No pets.</p></details><details><summary>Can I bring my own food?</summary><p>Yes. You can bring your own food. We have warmers and buffet-style warmers, but the stovetop can't be used. You can also have it catered by any caterer. The Boardroom does not provide catering.</p></details><details><summary>When is the balance due?</summary><p>The remaining balance is due the week of the event, no later than 48 hours before.</p></details><details><summary>Is there a refrigerator or ice?</summary><p>Yes. There is a refrigerator and an ice machine.</p></details><details><summary>Who is on site during an event?</summary><p>No one is on site during events. Our connected offices are available on demand if something is needed. Cell numbers are given when the contract is signed, and they are not listed on this site.</p></details><details><summary>Is there a private entrance?</summary><p>There is one main entrance. A back entrance can be used for a surprise guest when it is arranged ahead of time with our team.</p></details><details><summary>Are balloons allowed?</summary><p>Yes. Balloons are fine. Wall tape is not allowed. Glitter is not allowed.</p></details><details><summary>Is there an age limit for hosts?</summary><p>The minimum host age is 25 for every booking.</p></details><details><summary>What happens if something gets damaged?</summary><p>The damage deposit covers cleaning and damage. Anything beyond that deposit may be charged. See the Terms. Our team will go over it at the walk-through.</p></details><details><summary>Can I hold a vendor market or sell items?</summary><p>No. All events are free to attend. There are no merchandise sales and no ticket sales.</p></details><details><summary>Can I get an invoice or a receipt?</summary><p>Yes. Card payments get an emailed receipt, and we can provide an invoice or receipt for any payment on request.</p></details>
 HTML;
 }
 function brb_patch_faq_drinks() {
@@ -689,6 +689,8 @@ function brb_refresh_faq() {
     $next = str_replace('Yes, on-site parking.', 'Yes. Free parking on premises.', $next);
     $next = str_replace('Please clean and tidy the space, and take the garbage out.', 'Please leave it like you got it. Clean and tidy the space, and take the garbage out.', $next);
     $next = str_replace('If you would like a hand, our staff can help with setup for an extra fee.', 'Renters set up and tear down. Staff cannot set the room up. On a full day, setup can begin at 8:00 AM. On a half day, setup can begin one hour before the start.', $next);
+    $next = str_replace('Sales tax is added.', '', $next);
+    $next = str_replace('Sales tax is added', '', $next);
     $house = [
         'When does everyone have to be out?' => 'Everyone must be out of The Boardroom by 11:30 PM. This is firm, with no exceptions. Please finish in time to wrap up.',
         'What are the hours?' => 'A full day runs from 10:00 AM to 11:30 PM. Half days are generally available in June: 10:00 AM to 4:00 PM, or 5:00 PM to 11:30 PM.',
@@ -708,6 +710,7 @@ function brb_refresh_faq() {
         'Is there an age limit for hosts?' => 'The minimum host age is 25 for every booking.',
         'What happens if something gets damaged?' => 'The damage deposit covers cleaning and damage. Anything beyond that deposit may be charged. See the Terms. Our team will go over it at the walk-through.',
         'Can I hold a vendor market or sell items?' => 'No. All events are free to attend. There are no merchandise sales and no ticket sales.',
+        'Can I get an invoice or a receipt?' => 'Yes. Card payments get an emailed receipt, and we can provide an invoice or receipt for any payment on request.',
     ];
     foreach ($house as $question => $answer) {
         if (strpos($next, $question) !== false) continue;
@@ -726,6 +729,8 @@ function brb_scrub_copy_string($c) {
     $c = preg_replace('/Bookings are confirmed once payment \(or the required deposit\) is received\./i', 'A request does not hold the date. Your date is reserved once your deposit is received.', $c);
     $c = preg_replace('/Saving a date holds it for a limited time\. The booking is confirmed once we receive your check, your card payment, or the required deposit\./i', 'A request does not hold the date. Your date is reserved once your deposit is received.', $c);
     $c = str_replace('online processing fee', 'card processing fee', $c);
+    $c = str_replace('Sales tax is added.', '', $c);
+    $c = str_replace('Sales tax is added', '', $c);
     $c = preg_replace('/\b(ze' . 'lle|air' . 'bnb)\b/i', '', $c);
     $c = preg_replace('/[ \t]{2,}/', ' ', $c);
     return $c;
@@ -1211,21 +1216,45 @@ function brb_send_decline_email($b) {
     $staff = "Request declined.\n\n{$ref}, " . brb_when($b) . "\nThe date is not reserved.\n\n" . brb_deposit_line() . "\n\n" . admin_url('admin.php?page=brb&booking=' . (int) $b->id) . "\n";
     brb_mail($o['admin_email'], 'Request declined ' . $ref . ' – ' . $b->name, $staff, $b->email);
 }
-function brb_send_payment_email($b, $amount, $check_number, $method = 'check') {
-    $o = brb_opt();
-    $ref = brb_ref($b);
-    $paid = brb_money($b->amount_paid);
+function brb_payment_date_label($ymd) {
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $ymd)) return brb_now()->format('F j, Y');
+    try {
+        return (new DateTimeImmutable($ymd . ' 12:00:00', brb_tz()))->format('F j, Y');
+    } catch (Exception $e) {
+        return brb_now()->format('F j, Y');
+    }
+}
+function brb_receipt_block($b, $amount, $method, $received_on) {
     $balance = brb_money(max(0, round((float) $b->total - (float) $b->amount_paid, 2)));
+    return "Amount: " . brb_money($amount) . "\n"
+        . "Date: " . brb_payment_date_label($received_on) . "\n"
+        . "Method: " . brb_pay_method_label($method) . "\n"
+        . "Booking reference: " . brb_ref($b) . "\n"
+        . "Event date: " . brb_when($b) . "\n"
+        . "Balance remaining: " . $balance;
+}
+function brb_send_receipt_copies($b, $subject, $admin_subject, $body) {
+    $admins = brb_admin_emails();
+    $reply = $admins ? $admins[0] : '';
+    brb_mail($b->email, $subject, $body, $reply);
+    $staff = $body . "\n" . admin_url('admin.php?page=brb&booking=' . (int) $b->id) . "\n";
+    foreach ($admins as $admin) {
+        brb_mail($admin, $admin_subject, $staff, $b->email);
+    }
+}
+function brb_send_payment_email($b, $amount, $check_number, $method = 'check') {
+    $ref = brb_ref($b);
     $method = brb_pay_method_known($method) ? $method : 'check';
     $pays = brb_payments($b->id);
     $last_pay = $pays ? end($pays) : null;
     $fee = ($method === 'card' && $last_pay) ? (float) ($last_pay->fee ?? 0) : 0;
+    $received_on = ($last_pay && !empty($last_pay->received_on)) ? (string) $last_pay->received_on : brb_now()->format('Y-m-d');
     if ((float) $amount > 0) {
         if ($method === 'cash') {
             $check = 'We recorded cash for ' . brb_money($amount) . '.';
         } elseif ($method === 'card') {
             $check = 'We recorded a card payment for ' . brb_money($amount) . '.';
-            if ($fee > 0.009)             $check .= ' A card processing fee of ' . brb_money($fee) . ' was charged on top and is not part of the booking balance. ' . brb_fee_public_line();
+            if ($fee > 0.009) $check .= ' A card processing fee of ' . brb_money($fee) . ' was charged on top and is not part of the booking balance. ' . brb_fee_public_line();
         } else {
             $check = 'We recorded a check for ' . brb_money($amount);
             if ($check_number !== '') $check .= ' (check ' . $check_number . ')';
@@ -1234,32 +1263,31 @@ function brb_send_payment_email($b, $amount, $check_number, $method = 'check') {
     } else {
         $check = 'This booking is marked paid in full.';
     }
+    $follow = '';
+    if ($b->status !== 'paid') {
+        $due = brb_balance_due_display($b);
+        if ($due === 'Due now') $follow = 'The balance remaining is due now.';
+        elseif ($due && $due !== 'Price to be confirmed' && $due !== 'Paid') $follow = 'The balance remaining is due the week of the event, no later than ' . $due . '.';
+        $follow .= "\n\n" . brb_check_sentence('the remaining balance as a check') . "\nWrite booking reference {$ref} on the memo line.";
+        if ($method === 'card') $follow .= "\nYou can also pay the rest online from your booking page.";
+    } else {
+        $follow = 'Your booking is paid in full.';
+    }
     if ($b->status === 'paid') {
-        $intro = "Your Boardroom booking is confirmed.\n\n{$check}\nPaid: {$paid}\nBalance: {$balance}";
-        $subject = 'Your Boardroom booking is confirmed (' . $ref . ')';
+        $subject = 'Your Boardroom receipt, booking confirmed (' . $ref . ')';
         $admin_subject = 'Payment recorded for ' . $ref . ' – ' . $b->name;
     } elseif ($method === 'cash') {
-        $due = brb_balance_due_display($b);
-        $due_bit = ($due === 'Due now') ? ' due now' : (($due && $due !== 'Price to be confirmed' && $due !== 'Paid') ? " due by {$due}" : '');
-        $intro = "We received your cash and your date stays reserved.\n\n{$check}\nPaid so far: {$paid}\nBalance: {$balance}" . $due_bit . ".\n\n" . brb_check_sentence('the remaining balance as a check') . "\nWrite booking reference {$ref} on the memo line.";
-        $subject = 'We received your cash for ' . $ref;
+        $subject = 'Your Boardroom receipt for ' . $ref;
         $admin_subject = 'Cash recorded for ' . $ref . ' – ' . $b->name;
     } elseif ($method === 'card') {
-        $due = brb_balance_due_display($b);
-        $due_bit = ($due === 'Due now') ? ' due now' : (($due && $due !== 'Price to be confirmed' && $due !== 'Paid') ? " due by {$due}" : '');
-        $intro = "We received your card payment and your date stays reserved.\n\n{$check}\nPaid so far: {$paid}\nBalance: {$balance}" . $due_bit . ".\n\n" . brb_check_sentence('the remaining balance as a check') . "\nYou can also pay the rest online from your booking page.\nWrite booking reference {$ref} on the memo line if you pay by check.";
-        $subject = 'We received your card payment for ' . $ref;
+        $subject = 'Your Boardroom receipt for ' . $ref;
         $admin_subject = 'Card payment recorded for ' . $ref . ' – ' . $b->name;
     } else {
-        $due = brb_balance_due_display($b);
-        $due_bit = ($due === 'Due now') ? ' due now' : (($due && $due !== 'Price to be confirmed' && $due !== 'Paid') ? " due by {$due}" : '');
-        $intro = "We received your check and your date stays reserved.\n\n{$check}\nPaid so far: {$paid}\nBalance: {$balance}" . $due_bit . ".\n\n" . brb_check_sentence('the remaining balance as a check') . "\nWrite booking reference {$ref} on the memo line.";
-        $subject = 'We received your check for ' . $ref;
+        $subject = 'Your Boardroom receipt for ' . $ref;
         $admin_subject = 'Check recorded for ' . $ref . ' – ' . $b->name;
     }
-    $body = brb_guest_hello_line() . "\n\n{$intro}\n\n" . brb_guest_review_line() . "\n\n" . brb_deposit_line() . "\n\nReference: {$ref}\nWhen: " . brb_when($b) . "\n" . brb_event_type_line($b) . "Guests attending: {$b->guests}\nPrice: " . brb_price_phrase($b) . "\n\nCancellation policy:\n{$o['policy']}\n\nView your booking: " . brb_guest_link($b) . "\n";
-    brb_mail($b->email, $subject, $body, $o['admin_email']);
-    brb_mail($o['admin_email'], $admin_subject, "Payment notice for {$ref}.\n\n{$intro}\n\n" . admin_url('admin.php?page=brb&booking=' . (int) $b->id) . "\n", $b->email);
+    $body = brb_guest_hello_line() . "\n\nHere is your receipt.\n\n" . brb_receipt_block($b, $amount, $method, $received_on) . "\n\n{$check}\n\n{$follow}\n\n" . brb_event_type_line($b) . "Guests attending: {$b->guests}\n\nView your booking: " . brb_guest_link($b) . "\n";
+    brb_send_receipt_copies($b, $subject, $admin_subject, $body);
 }
 function brb_send_expired_emails($b) {
     unset($b);
@@ -1437,8 +1465,8 @@ function brb_record_payment($booking_id, $amount, $check_number, $received_on, $
     $wpdb->query("SELECT RELEASE_LOCK('brb_book')");
     $b = brb_booking($b->id);
     if ($taken && $method === 'card') {
-        brb_mail($b->email, 'Card payment received for ' . brb_ref($b), "Hi {$b->name},\n\nWe received your card payment for " . brb_money($amount) . ". Staff will follow up about this date.\n\n" . brb_deposit_line() . "\n", brb_opt('admin_email'));
-        brb_mail(brb_opt('admin_email'), 'Card payment needs attention ' . brb_ref($b), $b->attention . "\n\n" . admin_url('admin.php?page=brb&booking=' . (int) $b->id) . "\n", $b->email);
+        $notice = brb_guest_hello_line() . "\n\nHere is your receipt.\n\n" . brb_receipt_block($b, $amount, 'card', $received_on) . "\n\nWe received your card payment. Staff will follow up about this date.\n";
+        brb_send_receipt_copies($b, 'Your Boardroom receipt for ' . brb_ref($b), 'Card payment needs attention ' . brb_ref($b), $notice . "\n" . $b->attention . "\n");
     } else {
         brb_send_payment_email($b, $amount, $check_number, $method);
     }

@@ -44,7 +44,7 @@ add_filter('pre_wp_mail', function ($short, $atts) {
 $GLOBALS['brb_mails'] = [];
 
 try {
-    brb_t(get_option('brb_version') === '2.5.9', 'plugin storage version is 2.5.9');
+    brb_t(get_option('brb_version') === '2.5.10', 'plugin storage version is 2.5.10');
     brb_t(get_option('blog_public') === '0' || get_option('blog_public') === 0, 'staging discourages search engines');
     $cols = $wpdb->get_col('SHOW COLUMNS FROM ' . brb_table(), 0);
     foreach (['deposit_due', 'amount_paid', 'source', 'hold_until', 'balance_due_on', 'price_set', 'status', 'event_type'] as $col) {
@@ -561,6 +561,7 @@ try {
     $faq_html = $faq ? (string) $faq->post_content : '';
     brb_t(stripos($faq_html, 'How much does it cost?') !== false && stripos($faq_html, '$600') !== false && stripos($faq_html, '$1,200') !== false && stripos($faq_html, '$2,000') !== false, 'faq explains the price range');
     brb_t(stripos($faq_html, 'arrives not set up') !== false && stripos($faq_html, 'extra fee') === false && stripos($faq_html, 'Staff cannot set the room up') !== false && stripos($faq_html, '8:00 AM') !== false && stripos($faq_html, 'minimum host age is 25') !== false, 'faq explains setup and seating');
+    brb_t(strpos($faq_html, 'Card payments get an emailed receipt') !== false && stripos($faq_html, 'sales tax is added') === false, 'faq offers a receipt and does not say sales tax is added');
     brb_t(stripos($faq_html, 'Christmas decorations are up in December') !== false, 'faq explains decorations');
     brb_t(stripos($faq_html, 'take the garbage out') !== false && stripos($faq_html, 'following day') !== false, 'faq explains cleanup');
     brb_t(stripos($faq_html, '48 hours') !== false && stripos($faq_html, 'price to be confirmed') !== false, 'faq explains the hold, the notice, and an unconfirmed price');
@@ -761,6 +762,12 @@ try {
         }
         brb_t($cash_mail && strpos($cash_mail['message'], 'We recorded cash for') !== false && strpos($cash_mail['message'], '9999') === false, 'the guest receipt says cash and omits a check number');
         brb_t($cash_mail && strpos($cash_mail['message'], 'Event type: Birthday') !== false, 'the cash receipt names the event type');
+        brb_t($cash_mail && strpos($cash_mail['message'], 'Thank you for contacting The Boardroom!') === 0 && strpos($cash_mail['message'], 'Amount: ' . brb_money(400)) !== false && strpos($cash_mail['message'], 'Date: ' . brb_now()->format('F j, Y')) !== false && strpos($cash_mail['message'], 'Method: Cash') !== false && strpos($cash_mail['message'], 'Booking reference: ' . brb_ref($cash_b)) !== false && strpos($cash_mail['message'], 'Event date:') !== false && strpos($cash_mail['message'], 'Balance remaining:') !== false && stripos($cash_mail['message'], 'sales tax') === false, 'the cash receipt lists the payment and does not mention sales tax');
+        $staff_receipt = null;
+        foreach ($GLOBALS['brb_mails'] as $m) {
+            if (stripos($m['to'], 'flow-test@example.com') === false && strpos($m['message'], 'Method: Cash') !== false) $staff_receipt = $m;
+        }
+        brb_t((bool) $staff_receipt, 'staff receive a copy of the receipt');
         if ($user) {
             ob_start();
             brb_admin_detail((int) $cash_b->id);

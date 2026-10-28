@@ -467,7 +467,7 @@ function brb_chat_specific_text($text) {
     $t = strtolower((string) $text);
     if (preg_match('/\brules?\b/', $t)) return '';
     if (preg_match('/amenit|what is included|what do you have|what\'s included|whats included/', $t)) return '';
-    if (preg_match('/\breceipt\b|\binvoice\b/', $t)) return brb_chat_confirm_line();
+    if (preg_match('/\breceipt\b|\binvoice\b/', $t)) return brb_chat_receipt_line();
     $bits = [];
     if (preg_match('/\bhours\b|what time are you open|half[- ]?day|10:00|10 am|open at/', $t)) {
         $bits[] = brb_hours_line() . ' ' . brb_guest_out_line();
@@ -511,7 +511,7 @@ function brb_chat_specific_text($text) {
     if (preg_match('/nonprofit|military|discount/', $t)) {
         $bits[] = 'Please contact us directly to discuss nonprofit or military discounts.';
     }
-    if (preg_match('/\btax\b|sales tax/', $t)) $bits[] = 'Sales tax is added.';
+    if (preg_match('/\btax\b|sales tax/', $t)) $bits[] = brb_chat_confirm_line();
     if (preg_match('/wheelchair|accessible|accessib/', $t)) $bits[] = 'Yes. The space is accessible.';
     if (preg_match('/\bnoise\b|quiet|outdoors/', $t)) $bits[] = 'Nothing is outdoors, and the space is quiet after 11:30 PM.';
     if (preg_match('/camera|staff on site|no staff/', $t)) $bits[] = 'There are security cameras on site. No staff are in the area, and a representative can be reached if something arises.';
@@ -626,6 +626,9 @@ function brb_chat_book_text() {
 function brb_chat_confirm_line() {
     return 'Our team will confirm that for you.';
 }
+function brb_chat_receipt_line() {
+    return 'Yes. Card payments get an emailed receipt, and we can provide an invoice or receipt for any payment on request.';
+}
 function brb_chat_december_open() {
     $year = (int) brb_now()->format('Y');
     if ((int) brb_now()->format('n') > 12) $year++;
@@ -699,6 +702,12 @@ function brb_chat_answer($message, $history = []) {
     }
     if ($sensitive === 'refuse') {
         return ['reply' => brb_chat_clean_reply(brb_chat_refusal()), 'lead' => true, 'intent' => 'refuse'];
+    }
+    if (preg_match('/\breceipt\b|\binvoice\b/i', $message)) {
+        return ['reply' => brb_chat_receipt_line(), 'lead' => false, 'intent' => 'topic'];
+    }
+    if (preg_match('/\btax\b|sales tax/i', $message)) {
+        return ['reply' => brb_chat_confirm_line(), 'lead' => false, 'intent' => 'topic'];
     }
     $parsed = brb_chat_dates($message);
     $intents = brb_chat_intents($message);
