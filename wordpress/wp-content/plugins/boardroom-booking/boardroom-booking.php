@@ -2,11 +2,11 @@
 /**
  * Plugin Name: Boardroom Booking
  * Description: Self-hosted direct booking for The Boardroom — full-day and hourly blocks, availability calendar, agreed prices, approval before payment, blackout dates, and emails.
- * Version: 2.5.14
+ * Version: 2.5.15
  * Author: Mad Productions
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.5.14');
+define('BRB_VER', '2.5.15');
 define('BRB_VENUE_ADDRESS', '2220 37th Street, Moline, IL 61265');
 define('BRB_CHECK_ADDRESS', '2212 37th Street, Moline, IL 61265');
 define('BRB_MAPS_URL', 'https://maps.app.goo.gl/nVqUsGTcy48nPzc18');
@@ -414,7 +414,7 @@ function brb_fee_public_line() {
     return 'The ' . brb_fee_percent_label() . ' card processing fee is non-refundable.';
 }
 function brb_attorney_notice() {
-    return 'Deposit and refund wording updated October 27, 2026: the deposit (50% of the agreed total) is refundable if written cancellation is received 60 or more days before the event, less any non-refundable processing charges (including the 3% card processing fee) and costs already incurred. It is not refundable if cancellation is received less than 60 days before the event. Staff process refunds manually. [VERIFY: attorney review]';
+    return 'Deposit and refund wording updated October 27, 2026: the deposit (50% of the agreed total) is refundable if written cancellation is received 60 or more days before the event, less any non-refundable processing charges (including the 3% card processing fee) and costs already incurred. It is not refundable if cancellation is received less than 60 days before the event. Staff process refunds manually. [VERIFY: attorney review] Sections 12, 14, and 15 of the public Rental Terms still need attorney review. [ATTORNEY REVIEW]';
 }
 function brb_screening_lines($b) {
     $lines = [];
@@ -705,18 +705,18 @@ function brb_faq_markup() {
 
 <h2>Setup and hours</h2>
 <details><summary>What are the hours?</summary><p>A full day runs from 10:00 AM to 11:30 PM. Half days are generally available in June: 10:00 AM to 4:00 PM, or 5:00 PM to 11:30 PM.</p></details>
-<details><summary>When does everyone have to be out?</summary><p>Everyone must be out of The Boardroom by 11:30 PM. This is firm, with no exceptions. Please finish in time to wrap up.</p></details>
-<details><summary>How is the space set up?</summary><p>The space arrives not set up. You plan the seating and layout. Renters set up and tear down. Staff cannot set the room up. On a full day, setup can begin at 8:00 AM. On a half day, setup can begin one hour before the start.</p></details>
-<details><summary>Do you provide decorations?</summary><p>Decorations are not provided. Christmas decorations are up in December.</p></details>
+<details><summary>When does everyone have to be out?</summary><p>Out by 11:30 PM. This one's firm, no exceptions. Everyone must be out of The Boardroom by 11:30 PM so there's time to wrap up.</p></details>
+<details><summary>How is the space set up?</summary><p>The space arrives not set up. You set up and tear down. Our staff can't set the room for you. Staff cannot set the room up. Setup starts at 8:00 AM on full days, or one hour before your start time on half days.</p></details>
+<details><summary>Do you provide decorations?</summary><p>The room isn't decorated when you arrive, except in December, when our Christmas décor is up. Christmas decorations are up in December.</p></details>
 
 <h2>Food and drink</h2>
-<details><summary>Can I bring my own food?</summary><p>Yes. You can bring your own food. No cooking is allowed in the venue. The stove top may not be used. Food warmers (for keeping prepared food warm) and buffet-style warmers are available. You can also have it catered by any caterer. The Boardroom does not provide catering.</p></details>
+<details><summary>Can I bring my own food?</summary><p>Yes. We provide the space; you bring the food. No cooking or stove-top use. No cooking is allowed in the venue. The stove top may not be used. Food warmers (for keeping prepared food warm) and the bar area are yours to use. You can also have it catered by any caterer. The Boardroom does not provide catering.</p></details>
 <details><summary>Can we bring our own drinks?</summary><p>Yes. There's a bar area and an ice machine, and there are no taps. BYOB is allowed. Guests are responsible for obtaining any permit or license the City of Moline requires for alcohol at their event. Please check with the City of Moline: <a href="https://moline.il.us/244/Liquor-Licensing">https://moline.il.us/244/Liquor-Licensing</a> (City Clerk, 309-524-2004).</p></details>
 <details><summary>Is there a refrigerator or ice?</summary><p>Yes. There is a refrigerator and an ice machine.</p></details>
 
 <h2>Rules</h2>
 <details><summary>How many guests can The Boardroom hold?</summary><p>Up to 75 people.</p></details>
-<details><summary>Is there an age limit for hosts?</summary><p>The minimum host age is 25 for every booking.</p></details>
+<details><summary>Is there an age limit for hosts?</summary><p>The host must be 25 or older. The minimum host age is 25 for every booking.</p></details>
 <details><summary>Can we sell tickets or charge admission?</summary><p>No. All events must be free to attend: no tickets, no cover charge, no paid admission, no door fees, and no ticket or merchandise sales. We do not host concerts or ticketed shows.</p></details>
 <details><summary>Can we have a band?</summary><p>Yes. Guests may have a band or live music, as long as they are not charging for the event.</p></details>
 <details><summary>Can I hold a vendor market or sell items?</summary><p>No. All events are free to attend. There are no merchandise sales and no ticket sales.</p></details>
@@ -774,7 +774,7 @@ function brb_refresh_faq() {
     if (!$page) return;
     $c = (string) $page->post_content;
     if (stripos($c, 'How many guests can The Boardroom hold') === false) return;
-    if (stripos($c, 'Booking and dates') === false) {
+    if (stripos($c, 'Our staff can\'t set the room for you') === false) {
         global $wpdb;
         $wpdb->update($wpdb->posts, ['post_content' => brb_faq_markup()], ['ID' => (int) $page->ID]);
         clean_post_cache((int) $page->ID);

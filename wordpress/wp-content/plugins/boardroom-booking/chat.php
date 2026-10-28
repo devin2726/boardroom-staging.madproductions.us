@@ -472,7 +472,7 @@ function brb_chat_specific_text($text) {
         $bits[] = 'We\'d love to host you. Weddings, showers, graduations, kids birthdays, funerals, and teen events are welcome when the event is free to attend, within capacity, and finished by 11:30 PM. The minimum host age is 25 for every booking. Want me to check a date?';
     }
     if (preg_match('/\bage limit\b|\bhost age\b|\bminimum host\b|\bhosts\b/', $t)) {
-        $bits[] = 'The minimum host age is 25 for every booking. That\'s the same rule for every renter.';
+        $bits[] = 'The host must be 25 or older. The minimum host age is 25 for every booking.';
     }
     if (preg_match('/balance due|when is the balance|the balance/', $t)) {
         $bits[] = 'The balance is due the week of the event, no later than 48 hours before. We\'ll confirm the amount with you.';
@@ -559,7 +559,7 @@ function brb_chat_specific_text($text) {
         $bits[] = 'Decorations are not provided, except that Christmas decorations are up in December.';
     }
     if (preg_match('/get in|set it up|set-?up|setup|tear ?down|put away/', $t)) {
-        $bits[] = 'No. Guests set up and put everything away. Staff cannot set the room up. On a full day, setup can begin at 8:00 AM. On a half day, setup can begin one hour before the start.';
+        $bits[] = 'No. Guests set up and put everything away. Our staff can\'t set the room for you. Staff cannot set the room up. On a full day, setup can begin at 8:00 AM. On a half day, setup can begin one hour before the start.';
     }
     if (preg_match('/parking/', $t)) {
         $bits[] = 'Yes. Free parking on premises, and there is free street parking too.';
