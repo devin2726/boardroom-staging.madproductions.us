@@ -14,7 +14,11 @@ add_action('admin_enqueue_scripts', function ($h) {
 });
 add_action('admin_notices', function () {
     if (!current_user_can('manage_options')) return;
-    echo '<div class="notice notice-warning"><p>' . esc_html(brb_attorney_notice()) . '</p></div>';
+    $page = isset($_GET['page']) ? sanitize_key(wp_unslash($_GET['page'])) : '';
+    $prints_its_own = ($page === 'brb-settings') || ($page === 'brb' && !empty($_GET['booking']));
+    if (!$prints_its_own) {
+        echo '<div class="notice notice-warning"><p>' . esc_html(brb_attorney_notice()) . '</p></div>';
+    }
     $o = brb_opt();
     $missing = [];
     foreach ([

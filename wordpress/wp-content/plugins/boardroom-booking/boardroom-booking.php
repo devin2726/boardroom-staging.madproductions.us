@@ -2,11 +2,11 @@
 /**
  * Plugin Name: Boardroom Booking
  * Description: Self-hosted direct booking for The Boardroom — full-day and hourly blocks, availability calendar, agreed prices, approval before payment, blackout dates, and emails.
- * Version: 2.5.1
+ * Version: 2.5.2
  * Author: Mad Productions
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.5.1');
+define('BRB_VER', '2.5.2');
 define('BRB_VENUE_ADDRESS', '2220 37th Street, Moline, IL 61265');
 define('BRB_CHECK_ADDRESS', '2212 37th Street, Moline, IL 61265');
 define('BRB_MAPS_URL', 'https://maps.app.goo.gl/nVqUsGTcy48nPzc18');
@@ -534,7 +534,7 @@ function brb_migrate_prices() {
 }
 function brb_faq_markup() {
     return <<<'HTML'
-<details><summary>How many guests can The Boardroom hold?</summary><p>Up to 75 people.</p></details><details><summary>Is parking available?</summary><p>Yes, on-site parking.</p></details><details><summary>Can we bring our own drinks?</summary><p>The Boardroom has a bar area and an ice machine. No cooking is allowed in the venue. The stove top may not be used. Food warmers (for keeping prepared food warm) and the bar area may be used. There are no taps. Draft taps are not available. BYOB is allowed, and the renter must obtain a one-day liquor license from the City of Moline, fee $50. See the <a href="/terms/">Rental Terms</a>.</p></details><details><summary>What is there to do?</summary><p>80in television, pinball, pool and shuffleboard.</p></details><details><summary>How much does it cost?</summary><p>Pricing starts at $600 per day and can reach about $2,000, depending on the date, how many people are coming, and the features you would like. Most events come to about $1,200. We confirm the final price with you before any check is due. The website does not guess a total.</p></details><details><summary>How is the space set up?</summary><p>The space arrives not set up. Seating and layout are yours to plan, so bring the arrangement that suits your gathering. If you would like a hand, our staff can help with setup for an extra fee.</p></details><details><summary>Do you provide decorations?</summary><p>Decorations are not provided. Christmas decorations are up in December.</p></details><details><summary>What are our responsibilities before we leave?</summary><p>Please clean and tidy the space, and take the garbage out. Another event is often booked the following day, and a ready room lets the next hosts begin on time.</p></details><details><summary>How do I book and pay?</summary><p>Request a date on the <a href="/book/">Book</a> page. Bookings are subject to approval, and the owner may decline any request. No payment is due until the request is approved. A request does not hold the date. Your date is reserved once your deposit is received. The deposit (50% of the agreed total) holds the date. It is refundable if the Owner receives written cancellation 90 or more days before the event, less any non-refundable processing charges (including the 3% online processing fee) and costs already incurred. It is not refundable if cancellation is received less than 90 days before the event. Pay by check or in person, or online by card with a 3% processing fee. Mail or drop off checks payable to Mad Productions at 2212 37th Street, Moline, IL 61265. Bookings need at least 48 hours' notice. Until we confirm your price, your confirmation says price to be confirmed. The card processing fee is non-refundable.</p></details><details><summary>What is the cancellation policy?</summary><p>See the <a href="/terms/">Rental Terms</a>. If a summary and the signed agreement differ, the signed agreement controls.</p></details><details><summary>Are overnight stays allowed?</summary><p>No overnight stays. The Boardroom is an event space only.</p></details>
+<details><summary>How many guests can The Boardroom hold?</summary><p>Up to 75 people.</p></details><details><summary>Is parking available?</summary><p>Yes, on-site parking.</p></details><details><summary>Can we bring our own drinks?</summary><p>The Boardroom has a bar area and an ice machine. No cooking is allowed in the venue. The stove top may not be used. Food warmers (for keeping prepared food warm) and the bar area may be used. There are no taps. Draft taps are not available. BYOB is allowed, and the renter must obtain a one-day liquor license from the City of Moline, fee $50. See the <a href="/terms/">Rental Terms</a>.</p></details><details><summary>What is there to do?</summary><p>80in television, pinball, pool and shuffleboard.</p></details><details><summary>How much does it cost?</summary><p>Pricing starts at $600 per day and can reach about $2,000, depending on the date, how many people are coming, and the features you would like. Most events come to about $1,200. We confirm the final price with you before any check is due. The website does not guess a total.</p></details><details><summary>How is the space set up?</summary><p>The space arrives not set up. Seating and layout are yours to plan, so bring the arrangement that suits your gathering. If you would like a hand, our staff can help with setup for an extra fee.</p></details><details><summary>Do you provide decorations?</summary><p>Decorations are not provided. Christmas decorations are up in December.</p></details><details><summary>What are our responsibilities before we leave?</summary><p>Please clean and tidy the space, and take the garbage out. Another event is often booked the following day, and a ready room lets the next hosts begin on time.</p></details><details><summary>How do I book and pay?</summary><p>Request a date on the <a href="/book/">Book</a> page. Bookings are subject to approval, and the owner may decline any request. No payment is due until the request is approved. A request does not hold the date. Your date is reserved once your deposit is received. The deposit (50% of the agreed total) holds the date. It is refundable if the Owner receives written cancellation 90 or more days before the event, less any non-refundable processing charges (including the 3% card processing fee) and costs already incurred. It is not refundable if cancellation is received less than 90 days before the event. Pay by check or in person, or online by card with a 3% processing fee. Mail or drop off checks payable to Mad Productions at 2212 37th Street, Moline, IL 61265. Bookings need at least 48 hours' notice. Until we confirm your price, your confirmation says price to be confirmed. The card processing fee is non-refundable.</p></details><details><summary>What is the cancellation policy?</summary><p>See the <a href="/terms/">Rental Terms</a>. If a summary and the signed agreement differ, the signed agreement controls.</p></details><details><summary>Are overnight stays allowed?</summary><p>No overnight stays. The Boardroom is an event space only.</p></details>
 HTML;
 }
 function brb_patch_faq_drinks() {
@@ -572,8 +572,8 @@ function brb_refresh_faq() {
     if (stripos($c, 'How many guests can The Boardroom hold') === false) return;
     $old_pay = 'Bring a check in person within those 48 hours.';
     $new_pay = 'Mail or drop off checks payable to Mad Productions at ' . BRB_CHECK_ADDRESS . '.';
-    $next = str_replace($old_pay, $new_pay, $c);
-    $book = '<details><summary>How do I book and pay?</summary><p>Request a date on the <a href="/book/">Book</a> page. Bookings are subject to approval, and the owner may decline any request. No payment is due until the request is approved. A request does not hold the date. Your date is reserved once your deposit is received. The deposit (50% of the agreed total) holds the date. It is refundable if the Owner receives written cancellation 90 or more days before the event, less any non-refundable processing charges (including the 3% online processing fee) and costs already incurred. It is not refundable if cancellation is received less than 90 days before the event. Pay by check or in person, or online by card with a 3% processing fee. Mail or drop off checks payable to Mad Productions at ' . BRB_CHECK_ADDRESS . '. Bookings need at least 48 hours\' notice. Until we confirm your price, your confirmation says price to be confirmed. The card processing fee is non-refundable.</p></details>';
+    $next = str_replace('online processing fee', 'card processing fee', str_replace($old_pay, $new_pay, $c));
+    $book = '<details><summary>How do I book and pay?</summary><p>Request a date on the <a href="/book/">Book</a> page. Bookings are subject to approval, and the owner may decline any request. No payment is due until the request is approved. A request does not hold the date. Your date is reserved once your deposit is received. The deposit (50% of the agreed total) holds the date. It is refundable if the Owner receives written cancellation 90 or more days before the event, less any non-refundable processing charges (including the 3% card processing fee) and costs already incurred. It is not refundable if cancellation is received less than 90 days before the event. Pay by check or in person, or online by card with a 3% processing fee. Mail or drop off checks payable to Mad Productions at ' . BRB_CHECK_ADDRESS . '. Bookings need at least 48 hours\' notice. Until we confirm your price, your confirmation says price to be confirmed. The card processing fee is non-refundable.</p></details>';
     if (strpos($next, 'holds the date for 48 hours') !== false || strpos($next, 'held for 48 hours') !== false || strpos($next, 'Saving a date on this website holds it') !== false || strpos($next, 'non-refundable [VERIFY with attorney]') !== false || strpos($next, 'is non-refundable and holds the date') !== false) {
         $replaced = preg_replace('/<details><summary>How do I book and pay\?<\/summary>.*?<\/details>/is', $book, $next, 1);
         if (is_string($replaced)) $next = $replaced;
@@ -595,12 +595,13 @@ function brb_refresh_faq() {
     clean_post_cache((int) $page->ID);
 }
 function brb_scrub_copy_string($c) {
-    $card = 'Pay by check or in person, or online by card with a 3% processing fee. Mail or drop off checks payable to Mad Productions at ' . BRB_CHECK_ADDRESS . '. We never see or store card numbers. The deposit (50% of the agreed total) holds the date. It is refundable if the Owner receives written cancellation 90 or more days before the event, less any non-refundable processing charges (including the 3% online processing fee) and costs already incurred. It is not refundable if cancellation is received less than 90 days before the event. The card processing fee is non-refundable.';
+    $card = 'Pay by check or in person, or online by card with a 3% processing fee. Mail or drop off checks payable to Mad Productions at ' . BRB_CHECK_ADDRESS . '. We never see or store card numbers. The deposit (50% of the agreed total) holds the date. It is refundable if the Owner receives written cancellation 90 or more days before the event, less any non-refundable processing charges (including the 3% card processing fee) and costs already incurred. It is not refundable if cancellation is received less than 90 days before the event. The card processing fee is non-refundable.';
     $c = preg_replace('/Payments are processed by \w+;?\s*we do not store card numbers\./i', $card, $c);
     $c = preg_replace('/This site does not process payments online and does not collect card data\./i', 'Stripe processes card payments. We never see or store card numbers.', $c);
     $c = preg_replace('/pay securely online/i', 'pay by check or in person, or online by card', $c);
     $c = preg_replace('/Bookings are confirmed once payment \(or the required deposit\) is received\./i', 'A request does not hold the date. Your date is reserved once your deposit is received.', $c);
     $c = preg_replace('/Saving a date holds it for a limited time\. The booking is confirmed once we receive your check, your card payment, or the required deposit\./i', 'A request does not hold the date. Your date is reserved once your deposit is received.', $c);
+    $c = str_replace('online processing fee', 'card processing fee', $c);
     $c = preg_replace('/\b(ze' . 'lle|air' . 'bnb)\b/i', '', $c);
     $c = preg_replace('/[ \t]{2,}/', ' ', $c);
     return $c;
@@ -1375,7 +1376,7 @@ function brb_rest_availability($req) {
             'first_hour' => $slot['first_hour'],
         ];
     }
-    return [
+    $response = new WP_REST_Response([
         'month' => $m,
         'cutoff' => brb_notice_cutoff()->format('c'),
         'notice_hours' => brb_notice_hours(),
@@ -1385,7 +1386,9 @@ function brb_rest_availability($req) {
         'mode' => $o['mode'],
         'timezone' => 'America/Chicago',
         'days' => $days,
-    ];
+    ]);
+    $response->header('Cache-Control', 'no-store, no-cache, must-revalidate');
+    return $response;
 }
 
 /* ---------- front end ---------- */
@@ -1395,6 +1398,7 @@ add_shortcode('boardroom_booking', function () {
     $o = brb_opt();
     wp_localize_script('brb', 'BRB', [
         'api' => esc_url_raw(rest_url('brb/v1/availability')),
+        'nonce' => wp_create_nonce('wp_rest'),
         'open' => (int) $o['open_hour'],
         'close' => (int) $o['close_hour'],
         'minHours' => (int) $o['min_hours'],
@@ -1432,7 +1436,7 @@ function brb_view_select() {
     ?>
     <div class="brb-grid">
       <div class="brb-card">
-        <div id="brb-cal" class="brb-cal" aria-live="polite">Loading calendar…</div>
+        <div id="brb-cal" class="brb-cal" aria-live="polite" data-api="<?php echo esc_url(rest_url('brb/v1/availability')); ?>" data-nonce="<?php echo esc_attr(wp_create_nonce('wp_rest')); ?>" data-notice="<?php echo (int) $notice; ?>" data-mode="<?php echo esc_attr($o['mode']); ?>">Loading calendar…</div>
         <p class="brb-legend"><span class="free"></span>Available <span class="partial"></span>Partly booked <span class="booked"></span>Unavailable <span class="soon"></span>Inside <?php echo (int) $notice; ?>h notice</p>
       </div>
       <form class="brb-card" method="get" id="brb-form">
@@ -1557,8 +1561,8 @@ function brb_view_confirmation($token) {
     $latest = $recorded ? end($recorded) : null;
     $latest_method = $latest ? (string) ($latest->method ?? 'check') : 'check';
     $titles = [
-        'review' => 'Request received',
-        'pending' => 'Request received',
+        'review' => 'Pending review',
+        'pending' => 'Pending review',
         'approved' => 'Request approved',
         'held' => 'Request approved',
         'deposit_paid' => $latest_method === 'cash' ? 'Cash payment recorded' : ($latest_method === 'card' ? 'Card payment recorded' : 'Deposit recorded'),
@@ -1589,6 +1593,7 @@ function brb_view_confirmation($token) {
       }
       if (in_array($b->status, ['review', 'pending'], true)) {
           echo '<div class="brb-paybox">';
+          echo '<p>Your request is pending review. Bookings are subject to approval.</p>';
           echo '<p>' . esc_html(brb_approval_line()) . '</p>';
           echo '<p>' . esc_html(brb_request_open_line()) . '</p>';
           echo '<p>' . esc_html(brb_reserved_line()) . '</p>';

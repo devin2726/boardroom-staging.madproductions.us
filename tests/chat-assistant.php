@@ -36,7 +36,7 @@ function brb_chat_reply($text, $history = []) {
 }
 
 try {
-    brb_t(get_option('brb_version') === '2.5.1', 'plugin storage version is 2.5.1');
+    brb_t(get_option('brb_version') === '2.5.2', 'plugin storage version is 2.5.2');
     $cols = $wpdb->get_col('SHOW COLUMNS FROM ' . brb_tour_table(), 0);
     brb_t(in_array('source', $cols, true), 'inquiries can store a source');
     brb_t((string) brb_opt('quote_prices') === '1', 'price estimates are on by default');
@@ -56,7 +56,7 @@ try {
     brb_t(stripos($rules, 'owner') === false && stripos($rules, $other) === false, 'rules answer stays on the venue');
 
     $amenities = brb_chat_reply('What amenities are included?');
-    brb_t(strpos($amenities, 'Wifi') !== false && strpos($amenities, 'Kitchen area is for serving and storage. Cooking and stovetop use are not permitted.') !== false, 'amenities answer uses the checklist');
+    brb_t(strpos($amenities, 'Wifi') !== false && strpos($amenities, 'Kitchen area is for serving and storage. Cooking and stovetop use are not permitted.') !== false && strpos($amenities, "Here's what the room includes:") === 0 && strpos($amenities, 'Great question') === false, 'amenities answer uses the checklist and leads with the list');
     brb_t(strpos($amenities, 'Laundromat') === false && stripos($amenities, $other) === false && stripos($amenities, 'owner') === false, 'amenities answer does not add excluded items');
 
     $off = brb_chat_reply('Who is the ' . 'owner' . ' and what is their personal life?');
@@ -134,7 +134,7 @@ try {
     update_option('brb_settings', $saved);
 
     $pay = brb_chat_reply('How do I pay the deposit?');
-    brb_t(strpos($pay, 'subject to approval') !== false && strpos($pay, '2212 37th Street, Moline, IL 61265') !== false && strpos($pay, '2220 37th Street, Moline, IL 61265') !== false && strpos($pay, 'Mad Productions') !== false && stripos($pay, 'Stripe') === false, 'payment instructions name the check address and skip card payment when it is off');
+    brb_t(strpos($pay, 'subject to approval') !== false && strpos($pay, '2212 37th Street, Moline, IL 61265') !== false && strpos($pay, '2220 37th Street') === false && strpos($pay, 'Mad Productions') !== false && strpos($pay, 'check address') !== false && stripos($pay, 'Stripe') === false, 'payment instructions name the check address and skip card payment when it is off');
     brb_t(strpos($pay, 'non-refundable') !== false && strpos($pay, 'reserved once your deposit is received') !== false, 'payment instructions say the deposit reserves the date');
 
     putenv('BRB_STRIPE_SECRET_KEY=sk_test_ZZZexamplekey');
@@ -152,7 +152,7 @@ try {
     $tour = brb_chat_reply('Can I tour the space?');
     brb_t(strpos($tour, home_url('/contact/')) !== false && strpos($tour, 'boardroomqc@gmail.com') !== false && strpos($tour, 'does not hold') !== false, 'a tour question points at the contact form');
     $contact = brb_chat_reply('How do I contact you?');
-    brb_t(strpos($contact, 'boardroomqc@gmail.com') !== false && strpos($contact, 'no phone number') !== false && strpos($contact, '309') === false, 'contact help gives the email and no phone number');
+    brb_t(strpos($contact, 'boardroomqc@gmail.com') !== false && strpos($contact, 'no phone number') !== false && strpos($contact, '2220 37th Street, Moline, IL 61265') !== false && strpos($contact, '2212 37th Street') === false && strpos($contact, '309') === false, 'contact help gives the email, the venue, and no phone number');
     $cancel = brb_chat_reply('What is the cancellation policy?');
     brb_t(strpos($cancel, 'non-refundable') !== false && strpos($cancel, 'not legal advice') !== false && strpos($cancel, home_url('/terms/')) !== false && stripos($cancel, 'owner') === false, 'cancellation follows the terms without giving legal advice');
 
@@ -166,7 +166,22 @@ try {
     brb_t(!empty($later['lead']), 'a longer conversation offers follow-up');
 
     $hello = brb_chat_answer('Hi');
-    brb_t($hello['reply'] === 'Hi there! I\'m the Boardroom\'s assistant. I\'d love to help you plan your event.', 'the greeting is warm');
+    brb_t(strpos($hello['reply'], 'Hi there! I\'m the Boardroom\'s assistant.') !== false && strpos($hello['reply'], 'keep it short') !== false && $hello['reply'] !== 'Hi there! I\'m the Boardroom\'s assistant. I\'d love to help you plan your event.', 'a hello gets more than the panel greeting');
+    $next_month = brb_now()->setTime(0, 0)->modify('first day of next month');
+    $fifteenth = sprintf('%04d-%02d-15', (int) $next_month->format('Y'), (int) $next_month->format('n'));
+    $rel = brb_chat_reply('Is the 15th of next month available?');
+    brb_t(strpos($rel, brb_chat_date_label($fifteenth)) !== false && strpos($rel, 'looks open') !== false, 'the 15th of next month is parsed');
+    $saturday = brb_now()->setTime(0, 0);
+    $delta = (6 - (int) $saturday->format('w') + 7) % 7;
+    if ($delta === 0) $delta = 7;
+    $saturday = $saturday->modify('+' . $delta . ' days')->format('Y-m-d');
+    $sat_reply = brb_chat_reply('Is next Saturday free?');
+    brb_t(strpos($sat_reply, brb_chat_date_label($saturday)) !== false, 'next Saturday is parsed');
+    $dec12 = brb_chat_infer_year(12, 12);
+    $dec_reply = brb_chat_reply('Is Dec 12 open?');
+    $slash_reply = brb_chat_reply('What about 12/12?');
+    brb_t($dec12 !== '' && strpos($dec_reply, brb_chat_date_label($dec12)) !== false && strpos($slash_reply, brb_chat_date_label($dec12)) !== false, 'Dec 12 and 12/12 are the same date');
+    brb_t(strpos($dec_reply, 'an estimate for that date') !== false, 'a parsed date includes the estimate when quoting is on');
     $rules_reply = brb_chat_answer('What are the house rules?');
     brb_t(strpos($rules_reply['reply'], '✨') === false && strpos($rules_reply['reply'], '90 or more days') === false, 'rules replies stay plain');
     $refund_reply = brb_chat_answer('What is the cancellation policy?');
@@ -233,6 +248,24 @@ try {
         'consent' => '',
     ]);
     brb_t(is_wp_error($missing) && $missing->get_error_code() === 'consent', 'a lead requires the consent line');
+    $ordered = brb_chat_save_lead([
+        'name' => 'Ordered Guest',
+        'email' => 'chat-order@example.com',
+        'note' => 'Please call me back.',
+        'consent' => '1',
+        'turns' => [
+            ['role' => 'user', 'text' => 'First question about Saturday'],
+            ['role' => 'assistant', 'text' => 'First answer about Saturday'],
+            ['role' => 'user', 'text' => 'Second question about the deposit'],
+        ],
+    ]);
+    $ordered_row = (is_array($ordered) && !empty($ordered['id'])) ? brb_tour((int) $ordered['id']) : null;
+    if ($ordered_row) $created_inquiries[] = (int) $ordered_row->id;
+    $notes = $ordered_row ? (string) $ordered_row->notes : '';
+    $first_q = strpos($notes, 'First question about Saturday');
+    $first_a = strpos($notes, 'First answer about Saturday');
+    $second_q = strpos($notes, 'Second question about the deposit');
+    brb_t($first_q !== false && $first_a !== false && $second_q !== false && $first_q < $first_a && $first_a < $second_q, 'the chat transcript stays in chronological order');
 
     $user = get_user_by('login', 'admin');
     if ($user) wp_set_current_user($user->ID);
@@ -258,7 +291,7 @@ try {
     $plugin_dir = dirname((new ReflectionFunction('brb_chat_markup'))->getFileName());
     $css = file_get_contents($plugin_dir . '/assets/chat.css');
     $js = file_get_contents($plugin_dir . '/assets/chat.js');
-    brb_t(is_string($css) && strpos($css, 'EB Garamond') !== false && strpos($css, '#c4912e') !== false && strpos($css, 'position:fixed') !== false, 'the chat uses the black and gold type');
+    brb_t(is_string($css) && strpos($css, 'EB Garamond') !== false && strpos($css, '#c4912e') !== false && strpos($css, 'position:fixed') !== false && strpos($css, 'brb-chat-scroll') !== false && strpos($css, 'min-height:0') !== false && strpos($css, '100dvh') !== false, 'the chat panel scrolls inside the viewport');
     brb_t(is_string($js) && strpos($js, 'credentials: \'omit\'') !== false && stripos($js, 'openai') === false && stripos($js, 'googleapis') === false && stripos($js, $other) === false, 'the chat script stays on this site and does not call an outside model');
     $public_price = brb_price_sentence();
     brb_t(strpos($public_price, '$850') === false && strpos($public_price, '$1,400') === false && strpos($public_price, '$1,500') === false, 'the public price sentence does not list the assistant rates');

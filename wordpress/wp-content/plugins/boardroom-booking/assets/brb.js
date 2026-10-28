@@ -1,6 +1,15 @@
 (function () {
+  function boot() {
   var cal = document.getElementById('brb-cal');
-  if (!cal || !window.BRB) return;
+  var cfg = window.BRB || {};
+  if (cal) {
+    if (!cfg.api && cal.getAttribute('data-api')) cfg.api = cal.getAttribute('data-api');
+    if (!cfg.nonce && cal.getAttribute('data-nonce')) cfg.nonce = cal.getAttribute('data-nonce');
+    if (!cfg.noticeHours && cal.getAttribute('data-notice')) cfg.noticeHours = +cal.getAttribute('data-notice');
+    if (!cfg.mode && cal.getAttribute('data-mode')) cfg.mode = cal.getAttribute('data-mode');
+  }
+  if (!cal || !cfg.api) return;
+  window.BRB = cfg;
   var date = document.getElementById('brb-date');
   var busyEl = document.getElementById('brb-busy');
   var noticeEl = document.getElementById('brb-notice');
@@ -62,13 +71,15 @@
     refreshHours();
     refreshNotice();
   }
-  form.addEventListener('change', function (e) {
-    if (e.target.name === 'type' || e.target === date || e.target === startSel) {
-      syncType();
-      if (e.target === date) { showBusy(); render(); }
-    }
-  });
-  syncType();
+  if (form) {
+    form.addEventListener('change', function (e) {
+      if (e.target.name === 'type' || e.target === date || e.target === startSel) {
+        syncType();
+        if (e.target === date) { showBusy(); render(); }
+      }
+    });
+    syncType();
+  }
   function showBusy() {
     var d = dayInfo();
     if (!busyEl) return;
@@ -90,12 +101,24 @@
     cal.innerHTML = h + '</div>';
   }
   function load() {
-    fetch(BRB.api + '?month=' + cur.getFullYear() + '-' + pad(cur.getMonth() + 1)).then(function (r) { return r.json(); }).then(function (j) {
-      Object.assign(data, j.days || {});
+    var headers = { 'Accept': 'application/json' };
+    if (cfg.nonce) headers['X-WP-Nonce'] = cfg.nonce;
+    fetch(cfg.api + '?month=' + cur.getFullYear() + '-' + pad(cur.getMonth() + 1), {
+      credentials: 'omit',
+      cache: 'no-store',
+      headers: headers
+    }).then(function (r) {
+      if (!r.ok) throw new Error('calendar');
+      return r.json();
+    }).then(function (j) {
+      if (!j || !j.days) throw new Error('calendar');
+      Object.assign(data, j.days);
       render();
       showBusy();
-      syncType();
-    }).catch(render);
+      if (form) syncType();
+    }).catch(function () {
+      cal.textContent = 'The calendar could not be loaded. Please refresh the page.';
+    });
   }
   cal.addEventListener('click', function (e) {
     var b = e.target.closest('button');
@@ -107,8 +130,13 @@
     syncType();
     render();
   });
-  form.addEventListener('submit', function (e) {
-    if (!refreshNotice()) e.preventDefault();
-  });
+  if (form) {
+    form.addEventListener('submit', function (e) {
+      if (!refreshNotice()) e.preventDefault();
+    });
+  }
   load();
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+  else boot();
 })();

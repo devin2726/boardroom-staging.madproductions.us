@@ -172,8 +172,49 @@ function brb_chat_infer_year($month, $day) {
     return $made;
 }
 
-function brb_chat_find_dates($text) {
+function brb_chat_weekdays() {
+    return ['sunday' => 0, 'monday' => 1, 'tuesday' => 2, 'wednesday' => 3, 'thursday' => 4, 'friday' => 5, 'saturday' => 6];
+}
+function brb_chat_extra_dates($text) {
     $found = [];
+    $now = brb_now()->setTime(0, 0);
+    if (preg_match_all('/\b(?:the\s+)?(\d{1,2})(?:st|nd|rd|th)?\s+of\s+next\s+month\b/i', $text, $m, PREG_OFFSET_CAPTURE)) {
+        $next = $now->modify('first day of next month');
+        foreach ($m[0] as $i => $full) {
+            $ymd = brb_chat_make_date((int) $next->format('Y'), (int) $next->format('n'), (int) $m[1][$i][0]);
+            if ($ymd !== '') $found[] = ['date' => $ymd, 'pos' => $full[1], 'end' => $full[1] + strlen($full[0])];
+        }
+    }
+    $months = brb_chat_months();
+    if (preg_match_all('/\b(?:the\s+)?(\d{1,2})(?:st|nd|rd|th)?\s+of\s+(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sept|sep|oct|nov|dec)\b/i', $text, $m, PREG_OFFSET_CAPTURE)) {
+        foreach ($m[0] as $i => $full) {
+            $month = $months[strtolower($m[2][$i][0])] ?? 0;
+            $ymd = brb_chat_infer_year($month, (int) $m[1][$i][0]);
+            if ($ymd !== '') $found[] = ['date' => $ymd, 'pos' => $full[1], 'end' => $full[1] + strlen($full[0])];
+        }
+    }
+    if (preg_match_all('/\b(next|this)\s+(sunday|monday|tuesday|wednesday|thursday|friday|saturday)\b/i', $text, $m, PREG_OFFSET_CAPTURE)) {
+        $days = brb_chat_weekdays();
+        $today_dow = (int) $now->format('w');
+        foreach ($m[0] as $i => $full) {
+            $which = strtolower($m[1][$i][0]);
+            $target = $days[strtolower($m[2][$i][0])];
+            $delta = ($target - $today_dow + 7) % 7;
+            if ($which === 'next' && $delta === 0) $delta = 7;
+            $found[] = ['date' => $now->modify('+' . $delta . ' days')->format('Y-m-d'), 'pos' => $full[1], 'end' => $full[1] + strlen($full[0])];
+        }
+    }
+    if (preg_match_all('/\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/', $text, $m, PREG_OFFSET_CAPTURE)) {
+        foreach ($m[0] as $i => $full) {
+            $year = $m[3][$i][0];
+            $ymd = ($year !== '') ? brb_chat_make_date($year, (int) $m[1][$i][0], (int) $m[2][$i][0]) : brb_chat_infer_year((int) $m[1][$i][0], (int) $m[2][$i][0]);
+            if ($ymd !== '') $found[] = ['date' => $ymd, 'pos' => $full[1], 'end' => $full[1] + strlen($full[0])];
+        }
+    }
+    return $found;
+}
+function brb_chat_find_dates($text) {
+    $found = brb_chat_extra_dates($text);
     $months = brb_chat_months();
     if (preg_match_all('/\b(\d{4})-(\d{2})-(\d{2})\b/', $text, $m, PREG_OFFSET_CAPTURE)) {
         foreach ($m[0] as $i => $full) {
@@ -263,6 +304,7 @@ function brb_chat_intents($text) {
         'book' => ['book', 'reserve a', 'request a date', 'hold a date'],
         'tour' => ['tour', 'visit', 'see the space', 'walk through'],
         'contact' => ['contact', 'email', 'reach', 'get in touch', 'phone number', 'call'],
+        'place' => ['where', 'address', 'located', 'directions'],
         'cancel' => ['cancel', 'cancellation'],
     ];
     $hits = [];
@@ -309,24 +351,24 @@ function brb_chat_day_sentence($ymd) {
     $next = $day->modify('+1 day');
     $label = brb_chat_date_label($ymd);
     $today = brb_now()->setTime(0, 0);
-    if ($day < $today) return $label . ' has already passed. I\'d be glad to check another date.';
+    if ($day < $today) return $label . ' has already passed. I can check another date if you\'d like.';
     if (in_array($ymd, brb_blackouts(), true)) return 'I\'m sorry, ' . $label . ' is unavailable.';
     $slot = brb_slot_info($day);
     if (!brb_is_free($day, $next)) {
         $kind = brb_chat_blocked_kind($day, $next);
-        if ($kind === 'partial') return 'Part of ' . $label . ' is already reserved. A full day may not be open. This is not a binding commitment.';
+        if ($kind === 'partial') return 'Part of ' . $label . ' is already reserved, so a full day may not be open.';
         return $label . ' is already reserved. A date is reserved only once a deposit is paid.';
     }
     $notice = 'Bookings need at least ' . brb_notice_hours() . ' hours\' notice.';
     if (!$slot['any']) return $label . ' is inside the minimum notice window. ' . $notice;
-    if (!$slot['day_ok']) return 'A full day on ' . $label . ' starts too soon. ' . $notice . ' A shorter block may be possible later that day. This is not a binding commitment.';
-    return $label . ' looks open right now. A request does not hold the date. The date is reserved only once a deposit is paid. This is not a binding commitment.';
+    if (!$slot['day_ok']) return 'A full day on ' . $label . ' starts too soon. ' . $notice . ' A shorter block may be possible later that day.';
+    return $label . ' looks open.';
 }
 
 function brb_chat_availability_text($parsed) {
-    if (!empty($parsed['too_long'])) return 'I can check up to 14 days at a time. Send me a shorter range and I\'ll take a look.';
-    $notice = 'Bookings need at least ' . brb_notice_hours() . ' hours\' notice. Blackout dates are unavailable. A date is reserved only once a deposit is paid. Pending requests don\'t block the calendar. This is not a binding commitment.';
-    if (empty($parsed['dates'])) return 'Tell me a date or a short range and I\'ll check it for you. ' . $notice;
+    if (!empty($parsed['too_long'])) return 'I can check up to 14 days at a time. Try a shorter range?';
+    $notice = 'Bookings need at least ' . brb_notice_hours() . ' hours\' notice. A request does not hold the date. The date is reserved only once a deposit is paid. This is not a binding commitment.';
+    if (empty($parsed['dates'])) return 'Tell me a date, like next Saturday or Dec 12, and I\'ll check it. ' . $notice;
     $lines = [];
     foreach ($parsed['dates'] as $ymd) $lines[] = brb_chat_day_sentence($ymd);
     $lines[] = $notice;
@@ -358,7 +400,7 @@ function brb_chat_price_for_dates($parsed) {
             $label = (abs($pct - round($pct)) < 0.001) ? (string) (int) round($pct) : rtrim(rtrim(number_format($pct, 2, '.', ''), '0'), '.');
             $deposit = 'A ' . $label . '% deposit on that estimate is ' . brb_whole_money($due) . '.';
         }
-        $lines[] = brb_chat_date_label($ymd) . ' is ' . brb_whole_money($amount) . ', ' . brb_chat_estimate_phrase() . '. ' . $deposit . ' ' . brb_deposit_line() . ' The date is reserved only when the deposit is paid. This is not a binding commitment.';
+        $lines[] = brb_chat_date_label($ymd) . ' is ' . brb_whole_money($amount) . ', ' . brb_chat_estimate_phrase() . '. ' . $deposit . ' It is not refundable if cancellation is received less than 90 days before the event. The card processing fee is non-refundable. This is not a binding commitment.';
     }
     return implode(' ', $lines);
 }
@@ -374,27 +416,25 @@ function brb_chat_rules_text() {
 
 function brb_chat_amenities_text() {
     $groups = function_exists('br_amenity_groups') ? br_amenity_groups() : [];
-    $parts = ['The room comes not set up. No overnight stays. The Boardroom is an event space only. I hope this helps you picture the day.'];
+    $lines = ["Here's what the room includes:"];
     foreach ($groups as $group) {
-        $line = $group['title'] . ': ' . implode(', ', $group['items']) . '.';
-        if (!empty($group['note'])) $line .= ' ' . $group['note'];
-        $parts[] = $line;
+        $lines[] = $group['title'] . ': ' . implode(', ', $group['items']) . '.';
+        if (!empty($group['note'])) $lines[] = $group['note'];
     }
-    if (count($parts) === 1) $parts[] = 'The amenities checklist is on the home page.';
-    return implode(' ', $parts);
+    if (count($lines) === 1) $lines[] = 'The amenities checklist is on the home page.';
+    $lines[] = 'The room comes not set up. No overnight stays. The Boardroom is an event space only.';
+    return implode("\n", $lines);
 }
 
 function brb_chat_payment_text() {
     $parts = [
-        'Happy to walk you through payment. Bookings are subject to approval. No payment is due until the request is approved.',
-        brb_request_open_line(),
+        'Bookings are subject to approval. No payment is due until the request is approved.',
         brb_reserved_line(),
-        brb_deposit_line(),
-        brb_check_sentence(),
-        'The venue is at ' . brb_venue_address() . '.',
+        'The deposit is 50% of the agreed total. It is refundable if written cancellation is received 90 or more days before the event, less the non-refundable ' . brb_fee_percent_label() . ' card processing fee and costs already incurred. It is not refundable if cancellation is received less than 90 days before the event. Refunds are issued manually.',
+        'Mail or drop off checks payable to ' . brb_guest_payee() . ' at ' . brb_check_address() . '. That is the check address, not the event space.',
     ];
     if (brb_stripe_enabled()) {
-        $parts[] = 'After approval you can pay online by card. Stripe adds a ' . brb_fee_percent_label() . ' processing fee, and that fee is non-refundable.';
+        $parts[] = 'After approval you can also pay by card. Stripe adds a ' . brb_fee_percent_label() . ' card processing fee, and that fee is non-refundable.';
     }
     $parts[] = 'This is not a binding commitment.';
     return implode(' ', $parts);
@@ -411,14 +451,17 @@ function brb_chat_tour_text() {
 }
 
 function brb_chat_contact_text() {
-    return 'We\'d love to hear from you. Use the Contact form: ' . home_url('/contact/') . '. Email boardroomqc@gmail.com. There is no phone number on this site. The venue is at ' . brb_venue_address() . '.';
+    return 'We\'d love to hear from you. Email boardroomqc@gmail.com or use the Contact form: ' . home_url('/contact/') . '. There is no phone number on this site. The venue is at ' . brb_venue_address() . '.';
+}
+function brb_chat_place_text($with_checks) {
+    if ($with_checks) {
+        return 'The event is at ' . brb_venue_address() . '. Checks are mailed or dropped off at ' . brb_check_address() . '. Those are two different addresses.';
+    }
+    return 'The venue is at ' . brb_venue_address() . '.';
 }
 
 function brb_chat_cancel_text() {
-    return 'Bookings are subject to approval. No payment is due until a request is approved, and a request may be declined. '
-        . brb_request_open_line() . ' ' . brb_reserved_line() . ' ' . brb_deposit_line()
-        . ' The card processing fee is non-refundable. '
-        . 'This is a summary of the Rental Terms, not legal advice. The signed Rental Agreement controls. Read the terms: ' . home_url('/terms/') . '.';
+    return 'You can cancel in writing. The deposit is refundable if written cancellation is received 90 or more days before the event, less the non-refundable card processing fee and costs already incurred. It is not refundable if cancellation is received less than 90 days before the event. Refunds are issued manually. This is not legal advice. The signed agreement controls: ' . home_url('/terms/') . '.';
 }
 
 function brb_chat_clean_reply($text) {
@@ -450,7 +493,7 @@ function brb_chat_answer($message, $history = []) {
     }
     if ($message === '' || preg_match('/^\s*(hi|hello|hey|help|good morning|good afternoon|good evening)\s*[!.]*\s*$/i', $message)) {
         return [
-            'reply' => 'Hi there! I\'m the Boardroom\'s assistant. I\'d love to help you plan your event.',
+            'reply' => 'Hi there! I\'m the Boardroom\'s assistant. I\'d love to help you plan your event. Ask me about a date, the room, or the deposit, and I\'ll keep it short.',
             'lead' => false,
             'intent' => 'greeting',
         ];
@@ -466,6 +509,9 @@ function brb_chat_answer($message, $history = []) {
     $intents = brb_chat_intents($message);
     if (!$intents && !empty($parsed['dates'])) $intents[] = 'availability';
     if (!$intents && !empty($parsed['too_long'])) $intents[] = 'availability';
+    if (!empty($parsed['dates']) && brb_quote_prices_enabled() && in_array('availability', $intents, true) && !in_array('pricing', $intents, true) && !in_array('rules', $intents, true)) {
+        $intents[] = 'pricing';
+    }
     if (preg_match('/^\s*(thanks|thank you)\s*[!.]*\s*$/i', $message)) {
         return [
             'reply' => 'You\'re so welcome! If you\'d like a team member to follow up, leave your name and email below. A team member will reply using this info.',
@@ -477,15 +523,6 @@ function brb_chat_answer($message, $history = []) {
         return ['reply' => brb_chat_clean_reply(brb_chat_refusal()), 'lead' => true, 'intent' => 'unknown'];
     }
     $parts = [];
-    $prefix = '';
-    $emoji = '';
-    $quiet = array_intersect($intents, ['rules', 'cancel', 'payment']);
-    if (!$quiet && in_array('pricing', $intents, true)) $prefix = 'Great question! ';
-    elseif (!$quiet && in_array('amenities', $intents, true)) {
-        $prefix = 'Great question! ';
-        $emoji = ' ✨';
-    } elseif (!$quiet && in_array('availability', $intents, true)) $prefix = 'Happy to help with that! ';
-    elseif (!$quiet) $prefix = 'I\'d love to help with that. ';
     if (in_array('availability', $intents, true)) $parts[] = brb_chat_availability_text($parsed);
     if (in_array('pricing', $intents, true)) $parts[] = brb_chat_price_for_dates($parsed);
     if (in_array('payment', $intents, true)) $parts[] = brb_chat_payment_text();
@@ -495,8 +532,9 @@ function brb_chat_answer($message, $history = []) {
     if (in_array('book', $intents, true)) $parts[] = brb_chat_book_text();
     if (in_array('tour', $intents, true)) $parts[] = brb_chat_tour_text();
     if (in_array('contact', $intents, true)) $parts[] = brb_chat_contact_text();
+    if (in_array('place', $intents, true)) $parts[] = brb_chat_place_text(in_array('payment', $intents, true));
     return [
-        'reply' => brb_chat_clean_reply($prefix . implode("\n\n", $parts) . $emoji),
+        'reply' => brb_chat_clean_reply(implode("\n\n", $parts)),
         'lead' => brb_chat_lead_flag($intents, $history),
         'intent' => $intents[0],
     ];
@@ -549,6 +587,31 @@ function brb_chat_permission($req) {
     return true;
 }
 
+function brb_chat_transcript_from_input($input) {
+    $lines = [];
+    if (!empty($input['turns']) && is_array($input['turns'])) {
+        foreach ($input['turns'] as $turn) {
+            if (!is_array($turn)) continue;
+            $role = (($turn['role'] ?? '') === 'user') ? 'Guest' : 'Assistant';
+            $text = trim(sanitize_text_field((string) ($turn['text'] ?? '')));
+            if ($text === '') continue;
+            $lines[] = $role . ': ' . $text;
+            if (count($lines) >= 24) break;
+        }
+    }
+    if (!$lines) {
+        $raw = str_replace(["\r\n", "\r"], "\n", (string) ($input['transcript'] ?? ''));
+        foreach (explode("\n", $raw) as $line) {
+            $line = trim(sanitize_text_field($line));
+            if ($line === '') continue;
+            $lines[] = $line;
+            if (count($lines) >= 24) break;
+        }
+    }
+    $text = implode("\n", $lines);
+    if (strlen($text) > 2000) $text = substr($text, 0, 2000);
+    return $text;
+}
 function brb_chat_thanks() {
     return 'Thanks so much, someone from our team will get right back to you!';
 }
@@ -571,7 +634,7 @@ function brb_chat_save_lead($input) {
         return new WP_Error('event_type', 'Please choose an event type from the list, or leave it blank.');
     }
     $note = sanitize_textarea_field((string) ($input['note'] ?? ''));
-    $transcript = sanitize_textarea_field((string) ($input['transcript'] ?? ''));
+    $transcript = brb_chat_transcript_from_input($input);
     if (strlen($note) > 1000) $note = substr($note, 0, 1000);
     if (strlen($transcript) > 2000) $transcript = substr($transcript, 0, 2000);
     $consent = (string) ($input['consent'] ?? '');
@@ -662,6 +725,7 @@ function brb_chat_markup() {
     echo '<button type="button" class="brb-chat-launch" aria-expanded="false" aria-controls="brb-chat-panel">Chat</button>';
     echo '<section id="brb-chat-panel" class="brb-chat-panel" role="dialog" aria-modal="true" aria-labelledby="brb-chat-title" hidden>';
     echo '<header class="brb-chat-head"><h2 id="brb-chat-title">The Boardroom</h2><button type="button" class="brb-chat-close" aria-label="Close chat">Close</button></header>';
+    echo '<div class="brb-chat-scroll">';
     echo '<div class="brb-chat-log" aria-live="polite"><p class="brb-chat-msg bot">Hi there! I\'m the Boardroom\'s assistant. I\'d love to help you plan your event.</p></div>';
     echo '<form class="brb-chat-ask"><label class="brb-chat-sr" for="brb-chat-input">Your question</label><input id="brb-chat-input" class="brb-chat-input" type="text" maxlength="500" autocomplete="off"><button type="submit" class="brb-chat-send">Send</button></form>';
     echo '<button type="button" class="brb-chat-lead-toggle">Leave your details</button>';
@@ -681,7 +745,7 @@ function brb_chat_markup() {
     echo '<button type="submit" class="brb-chat-send">Send to the team</button>';
     echo '</form>';
     echo '<noscript><p><a href="' . esc_url(home_url('/contact/')) . '">Contact form</a></p></noscript>';
-    echo '</section></div>';
+    echo '</div></section></div>';
     return ob_get_clean();
 }
 

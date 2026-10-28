@@ -10,7 +10,7 @@
   var lead = root.querySelector('.brb-chat-lead');
   var leadToggle = root.querySelector('.brb-chat-lead-toggle');
   var history = [];
-  var transcript = [];
+  var turns = [];
 
   function focusable() {
     var items = panel.querySelectorAll('button, [href], input, select, textarea');
@@ -78,7 +78,7 @@
     if (!text) return;
     addMsg('user', text);
     input.value = '';
-    transcript.push('Guest: ' + text);
+    turns.push({ role: 'user', text: text });
     fetch(BRB_CHAT.endpoint, {
       method: 'POST',
       credentials: 'omit',
@@ -87,7 +87,7 @@
     }).then(function (r) { return r.json(); }).then(function (data) {
       var reply = data && data.reply ? data.reply : 'Please try again in a moment, or use the Contact form.';
       addMsg('bot', reply);
-      transcript.push('Assistant: ' + reply);
+      turns.push({ role: 'assistant', text: reply });
       history.push({ role: 'user', text: text });
       if (history.length > 8) history = history.slice(-8);
       if (data && data.lead) showLead();
@@ -107,7 +107,7 @@
       event_type: data.get('event_type') || '',
       note: data.get('note') || '',
       consent: lead.querySelector('[name="consent"]').checked ? '1' : '',
-      transcript: transcript.slice(-12).join('\n').slice(0, 2000)
+      turns: turns.slice(-12)
     };
     fetch(BRB_CHAT.leadEndpoint, {
       method: 'POST',
