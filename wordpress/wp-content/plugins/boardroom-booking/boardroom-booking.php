@@ -2,11 +2,11 @@
 /**
  * Plugin Name: Boardroom Booking
  * Description: Self-hosted direct booking for The Boardroom — full-day and hourly blocks, availability calendar, agreed prices, approval before payment, blackout dates, and emails.
- * Version: 2.4.0
+ * Version: 2.5.0
  * Author: Mad Productions
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.4.0');
+define('BRB_VER', '2.5.0');
 define('BRB_VENUE_ADDRESS', '2220 37th Street, Moline, IL 61265');
 define('BRB_CHECK_ADDRESS', '2212 37th Street, Moline, IL 61265');
 define('BRB_MAPS_URL', 'https://maps.app.goo.gl/nVqUsGTcy48nPzc18');
@@ -15,6 +15,7 @@ define('BRB_MAPS_LNG', '-90.4820481');
 require_once __DIR__ . '/legal-content.php';
 require_once __DIR__ . '/tour.php';
 require_once __DIR__ . '/stripe.php';
+require_once __DIR__ . '/chat.php';
 define('BRB_URL', plugin_dir_url(__FILE__));
 
 function brb_table() { global $wpdb; return $wpdb->prefix . 'br_bookings'; }
@@ -98,6 +99,10 @@ function brb_defaults() {
         'card_fee_percent' => '3',
         'blackouts' => '',
         'policy' => brb_cancellation_summary(),
+        'quote_prices' => '1',
+        'rate_sun_thu' => '850',
+        'rate_fri_sat' => '1400',
+        'rate_ranges' => wp_json_encode(brb_default_rate_ranges()),
     ];
 }
 function brb_legacy_keys() {
@@ -501,6 +506,11 @@ function brb_migrate_settings() {
     if (!isset($stored['policy']) || brb_policy_needs_refresh($stored['policy'])) {
         $merged['policy'] = brb_cancellation_summary();
     }
+    if (!isset($stored['quote_prices'])) $merged['quote_prices'] = '1';
+    if (!isset($stored['rate_sun_thu']) || !is_numeric($stored['rate_sun_thu']) || (float) $stored['rate_sun_thu'] <= 0) $merged['rate_sun_thu'] = '850';
+    if (!isset($stored['rate_fri_sat']) || !is_numeric($stored['rate_fri_sat']) || (float) $stored['rate_fri_sat'] <= 0) $merged['rate_fri_sat'] = '1400';
+    $ranges = json_decode((string) ($stored['rate_ranges'] ?? ''), true);
+    if (!isset($stored['rate_ranges']) || !is_array($ranges)) $merged['rate_ranges'] = wp_json_encode(brb_default_rate_ranges());
     update_option('brb_settings', $merged);
 }
 function brb_migrate_bookings() {

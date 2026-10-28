@@ -60,6 +60,7 @@ function brb_install_tour_table() {
       created datetime NOT NULL,
       topic varchar(40) NOT NULL DEFAULT '',
       preferred varchar(190) NOT NULL DEFAULT '',
+      source varchar(40) NOT NULL DEFAULT '',
       PRIMARY KEY  (id),
       KEY status (status),
       KEY created (created)
@@ -70,6 +71,9 @@ function brb_install_tour_table() {
     }
     if (is_array($cols) && !in_array('preferred', $cols, true)) {
         $wpdb->query("ALTER TABLE $t ADD COLUMN preferred varchar(190) NOT NULL DEFAULT ''");
+    }
+    if (is_array($cols) && !in_array('source', $cols, true)) {
+        $wpdb->query("ALTER TABLE $t ADD COLUMN source varchar(40) NOT NULL DEFAULT ''");
     }
     return $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $t)) === $t;
 }
@@ -313,7 +317,7 @@ function brb_admin_tour_list() {
         echo '<p>No inquiries yet.</p>';
         return;
     }
-    echo '<table class="widefat striped"><thead><tr><th>Received</th><th>Name</th><th>Email</th><th>About</th><th>Preferred</th><th>Status</th><th></th></tr></thead><tbody>';
+    echo '<table class="widefat striped"><thead><tr><th>Received</th><th>Name</th><th>Email</th><th>About</th><th>Preferred</th><th>Source</th><th>Status</th><th></th></tr></thead><tbody>';
     foreach ($rows as $row) {
         $email = $row->email !== '' ? $row->email : '';
         if ($row->phone !== '') $email = trim($email . ($email !== '' ? ' · ' : '') . $row->phone);
@@ -323,6 +327,8 @@ function brb_admin_tour_list() {
         if ($pref === '') $pref = '—';
         echo '<tr><td>' . esc_html(brb_format_utc_mysql($row->created)) . '</td>';
         echo '<td>' . esc_html($row->name) . '</td><td>' . esc_html($email) . '</td><td>' . esc_html($about) . '</td><td>' . esc_html($pref) . '</td>';
+        $source = trim((string) ($row->source ?? ''));
+        echo '<td>' . esc_html($source !== '' ? $source : '—') . '</td>';
         echo '<td>' . esc_html(brb_tour_status_label($row->status)) . '</td><td>';
         echo '<a href="' . esc_url(add_query_arg('id', (int) $row->id, $base)) . '">Open</a>';
         if ($row->status !== 'done') {
@@ -350,6 +356,8 @@ function brb_admin_tour_detail($id) {
     ];
     $about = brb_inquiry_topic_label((string) ($row->topic ?? ''));
     if ($about !== '' && $about !== 'Choose one') $lines["What's this about"] = $about;
+    $source = trim((string) ($row->source ?? ''));
+    if ($source !== '') $lines['Source'] = $source;
     if (trim((string) ($row->preferred ?? '')) !== '') $lines['Preferred date or time'] = $row->preferred;
     if ($row->phone !== '') $lines['Phone'] = $row->phone;
     if (!empty($row->preferred_date)) $lines['Preferred date'] = $row->preferred_date;

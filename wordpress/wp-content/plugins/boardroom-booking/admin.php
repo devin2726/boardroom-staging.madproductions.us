@@ -461,6 +461,7 @@ function brb_admin_settings() {
             $kept = true;
         }
         foreach (brb_legacy_keys() as $lk) unset($new[$lk]);
+        $new = brb_chat_apply_rate_settings($new, $_POST);
         update_option('brb_settings', $new);
         echo '<div class="updated"><p>Saved.' . ($kept ? ' Blackout dates were kept because the list was empty and “clear all blackout dates” was not ticked.' : '') . '</p></div>';
     }
@@ -532,6 +533,7 @@ function brb_admin_settings() {
         }
         echo '</table>';
     }
+    brb_admin_quote_rates_fields();
     echo '<p><button class="button button-primary" name="brb_save" value="1">Save settings</button></p></form>';
     echo '<h2>Send test email</h2>';
     $smtp = brb_smtp_config();
