@@ -473,7 +473,7 @@ function brb_admin_settings() {
                 $email = sanitize_email($raw);
                 $new[$k] = is_email($email) ? $email : $defaults['tour_email'];
             } else {
-                $new[$k] = in_array($k, ['policy', 'blackouts', 'pay_instructions'], true)
+                $new[$k] = in_array($k, ['policy', 'blackouts', 'pay_instructions', 'checklist'], true)
                     ? sanitize_textarea_field($raw)
                     : sanitize_text_field($raw);
             }
@@ -505,6 +505,7 @@ function brb_admin_settings() {
         echo '<div class="updated"><p>Saved.' . ($kept ? ' Blackout dates were kept because the list was empty and “clear all blackout dates” was not ticked.' : '') . '</p></div>';
     }
     $o = brb_opt();
+    if (trim((string) ($o['checklist'] ?? '')) === '') $o['checklist'] = brb_checklist_default();
     $groups = [
         'Pricing shown to guests' => [
             ['starting_price', 'Starting price ($ per day)', 'text', null, 'Guests see “from” this amount per day. Default 600. Whole dollars are shown without cents.'],
@@ -540,6 +541,7 @@ function brb_admin_settings() {
         'Calendar and policy' => [
             ['blackouts', 'Blackout dates (YYYY-MM-DD, one per line)', 'textarea', null, 'Saved dates stay in the database when the plugin is updated. Emptying this box does not delete them unless you tick the box under it.'],
             ['policy', 'Cancellation policy', 'textarea', null, 'Shown before a guest saves a date, and included in emails.'],
+            ['checklist', 'Rental checklist', 'textarea', null, 'Emailed when a request is approved and again about 7 days before the event. Also shown on the Rental Checklist page. One item per line. Leave the saved text in place to keep the current list.'],
         ],
     ];
     echo '<div class="wrap"><h1>Booking Settings</h1>';

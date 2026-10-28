@@ -36,7 +36,7 @@ function brb_chat_reply($text, $history = []) {
 }
 
 try {
-    brb_t(get_option('brb_version') === '2.5.11', 'plugin storage version is 2.5.11');
+    brb_t(get_option('brb_version') === '2.5.12', 'plugin storage version is 2.5.12');
     $cols = $wpdb->get_col('SHOW COLUMNS FROM ' . brb_tour_table(), 0);
     brb_t(in_array('source', $cols, true), 'inquiries can store a source');
     brb_t((string) brb_opt('quote_prices') === '1', 'price estimates are on by default');
@@ -50,14 +50,15 @@ try {
     brb_t(brb_estimate_amount('2027-01-10') === 850.0, 'a Sunday outside the holiday ranges uses the Sunday to Thursday rate');
 
     $rules = brb_chat_reply('What are the house rules?');
-    foreach (['No overnight stays', 'No cooking', 'stovetop', 'no taps', 'BYOB', 'City of Moline', '$50', 'not set up', 'garbage', '75', 'Christmas decorations are up in December', 'insurance'] as $needle) {
+    foreach (['No overnight stays', 'No cooking', 'stovetop', 'no taps', 'BYOB', 'City of Moline', 'https://moline.il.us/244/Liquor-Licensing', '309-524-2004', 'not set up', 'garbage', '75', 'Christmas decorations are up in December', 'insurance'] as $needle) {
         brb_t(stripos($rules, $needle) !== false, 'rules answer includes ' . $needle);
     }
+    brb_t(strpos($rules, '$50') === false && strpos($rules, 'fee $50') === false, 'rules do not state a liquor license fee');
     brb_t(stripos($rules, 'owner') === false && stripos($rules, $other) === false && strpos($rules, '11:30 PM') !== false && stripos($rules, 'midnight') === false && strpos($rules, 'no tickets') !== false, 'rules answer stays on the venue and states the departure and admission rules');
     $food = brb_chat_reply('Can I bring my own food?');
     brb_t(stripos($food, 'own food') !== false && stripos($food, 'warmers') !== false && stripos($food, 'stovetop') !== false && stripos($food, 'any caterer') !== false && stripos($food, 'does not provide catering') !== false, 'own food is allowed with warmers and without catering from us');
     $byob = brb_chat_reply('Is BYOB allowed?');
-    brb_t(strpos($byob, 'BYOB') !== false && strpos($byob, 'City of Moline') !== false && strpos($byob, 'leave it like you got it') !== false && strpos($byob, 'garbage') !== false, 'BYOB includes the license and cleanup');
+    brb_t(strpos($byob, 'BYOB') !== false && strpos($byob, 'https://moline.il.us/244/Liquor-Licensing') !== false && strpos($byob, '309-524-2004') !== false && strpos($byob, '$50') === false && strpos($byob, 'leave it like you got it') !== false && strpos($byob, 'garbage') !== false, 'BYOB points guests to the City of Moline and includes cleanup');
     $out = brb_chat_reply('How late can we stay?');
     brb_t(strpos($out, '11:30 PM') !== false && stripos($out, 'midnight') === false && stripos($out, 'permit') === false, 'end time questions say 11:30 PM');
     $hours = brb_chat_reply('What are your hours?');

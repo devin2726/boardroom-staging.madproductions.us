@@ -457,7 +457,7 @@ function brb_chat_rules_text() {
         . 'All events must be free to attend: no tickets, no cover charge, no paid admission, no door fees, and no ticket or merchandise sales. Guests may have a band or live music, as long as they are not charging for the event. We do not host concerts or ticketed shows. '
         . 'No cooking is allowed. The stovetop may not be used. The kitchen area is for serving and storage. '
         . 'You can bring your own food. Warmers and buffet-style warmers are available. Any caterer is welcome. The Boardroom does not provide catering. '
-        . 'There are no taps. BYOB is allowed. The renter must obtain a one-day liquor license from the City of Moline, fee $50. '
+        . 'There are no taps. ' . brb_byob_line() . ' '
         . 'Please leave it like you got it, and take the garbage out. '
         . 'The room comes not set up. No more than 75 people. Decorations are not provided, except that Christmas decorations are up in December. '
         . 'Event liability insurance is required. If alcohol is served, liquor liability coverage is also required. Proof can be requested before access. '
@@ -548,7 +548,7 @@ function brb_chat_specific_text($text) {
         $bits[] = 'There are two restrooms, with stalls and urinals.';
     }
     if (preg_match('/ice machine|\bbar\b/', $t)) {
-        $bits[] = 'Yes. There is a bar area and an ice machine. BYOB is allowed, and guests get the one-day City of Moline liquor license.';
+        $bits[] = 'Yes. There is a bar area and an ice machine. ' . brb_byob_line();
     }
     if (preg_match('/rental agreement|sign an agreement|signed agreement/', $t)) {
         $bits[] = 'Yes. A signed rental agreement is part of booking. The Terms page is ' . home_url('/terms/') . ' and the agreement is ' . home_url('/rental-agreement/') . '.';
@@ -557,7 +557,7 @@ function brb_chat_specific_text($text) {
         $bits[] = 'Yes. You can bring your own food. We have warmers and buffet-style warmers, but the stovetop can\'t be used. You can also have it catered by any caterer. The Boardroom does not provide catering.';
     }
     if (preg_match('/\bbyob\b|liquor|alcohol|\bdrinks?\b/', $t)) {
-        $bits[] = 'Yes, BYOB is allowed. Guests must get the one-day City of Moline liquor license, fee $50. Please leave it like you got it, and take the garbage out.';
+        $bits[] = brb_byob_line() . ' Please leave it like you got it, and take the garbage out.';
     }
     if (preg_match('/decorat/', $t)) {
         $bits[] = 'Decorations are not provided, except that Christmas decorations are up in December.';

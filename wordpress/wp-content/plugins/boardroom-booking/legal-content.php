@@ -38,7 +38,7 @@ function brb_terms_html() {
 <p>If you use a caterer, bartender, entertainer, decorator, rental company, vendor, contractor, or any other outside party, you must make sure each one is properly licensed, insured, and qualified for the work. At least seven (7) days before the rental period, or sooner if the Owner asks, you must give proof of insurance for any outside vendor. When the Owner asks, the Owner must be listed as an additional insured. You remain fully responsible for the acts, omissions, damage, injuries, cleanup, violations, and charges of your vendors and contractors.</p>
 
 <h2>7. Food, alcohol, kitchen, and equipment</h2>
-<p>The Owner does not provide food, beverages, alcohol, catering, bartending, food service, security, medical services, or event supervision. You are solely responsible for following every law, rule, and regulation about food, alcohol, service, consumption, sales, licensing, age limits, intoxication, and transportation after the event. You accept all risk and liability from using kitchen utensils, appliances, equipment, furniture, fixtures, décor, or any other property at the venue, whether it is used properly or improperly. [ATTORNEY REVIEW] You and your guests assume all risk. The Boardroom is not responsible for injury, loss, or equipment issues, such as the ice maker or wifi, that affect an event.</p>
+<p>The Owner does not provide food, beverages, alcohol, catering, bartending, food service, security, medical services, or event supervision. You are solely responsible for following every law, rule, and regulation about food, alcohol, service, consumption, sales, licensing, age limits, intoxication, and transportation after the event. BYOB is allowed. Guests are responsible for obtaining any permit or license the City of Moline requires for alcohol at their event. Please check with the City of Moline: <a href="https://moline.il.us/244/Liquor-Licensing">https://moline.il.us/244/Liquor-Licensing</a> (City Clerk, 309-524-2004). You accept all risk and liability from using kitchen utensils, appliances, equipment, furniture, fixtures, décor, or any other property at the venue, whether it is used properly or improperly. [ATTORNEY REVIEW] You and your guests assume all risk. The Boardroom is not responsible for injury, loss, or equipment issues, such as the ice maker or wifi, that affect an event.</p>
 
 <h2>8. Strictly prohibited items and activities</h2>
 <p>The following are strictly prohibited inside the venue, outside the venue, on sidewalks, in parking areas, and anywhere on or around the premises: glitter; wall tape; party confetti; confetti cannons; rice; birdseed; loose sequins; fireworks; sparklers; smoke bombs; pyrotechnics; explosive devices; explosive props; combustible props; open flame that the Owner has not expressly approved in writing; hazardous materials; illegal substances; weapons except as the law permits; and any activity that creates an unusual mess, a fire risk, an explosion risk, a property-damage risk, an injury risk, a nuisance, or a disturbance.</p>
@@ -109,8 +109,7 @@ function brb_terms_html() {
 <li>The stove top may not be used.</li>
 <li>Food warmers (for keeping prepared food warm) and the bar area may be used.</li>
 <li>There are no taps. Draft taps are not available.</li>
-<li>BYOB is allowed.</li>
-<li>The renter must obtain a one-day liquor license from the City of Moline, fee $50.</li>
+<li>BYOB is allowed. Guests are responsible for obtaining any permit or license the City of Moline requires for alcohol at their event. Please check with the City of Moline: <a href="https://moline.il.us/244/Liquor-Licensing">https://moline.il.us/244/Liquor-Licensing</a> (City Clerk, 309-524-2004).</li>
 </ul>
 </div>
 
@@ -189,7 +188,7 @@ NOW, THEREFORE, in consideration of the mutual promises and covenants stated her
 
 6. Outside Vendors, Caterers, and Contractors. If Renter uses any caterer, bartender, entertainer, decorator, rental company, vendor, contractor, or other third party, Renter shall ensure that each third party is properly licensed, insured, and qualified for the services provided. At least seven (7) days before the Rental Period, or earlier if requested by Owner, Renter shall provide proof of insurance for any outside vendor, with Owner listed as an additional insured when requested. Renter remains fully responsible for all acts, omissions, damages, injuries, cleanup, violations, and charges caused by Renter's vendors or contractors.
 
-7. Food, Alcohol, Kitchen, and Equipment. Owner does not provide food, beverages, alcohol, catering, bartending, food service, security, medical services, or event supervision. Renter is solely responsible for compliance with all laws, rules, and regulations involving food, alcohol, service, consumption, sales, licensing, age restrictions, intoxication, and transportation after the event. Renter accepts all risk and liability arising from the use of kitchen utensils, appliances, equipment, furniture, fixtures, décor, or other property at the Venue, whether used properly or improperly.
+7. Food, Alcohol, Kitchen, and Equipment. Owner does not provide food, beverages, alcohol, catering, bartending, food service, security, medical services, or event supervision. Renter is solely responsible for compliance with all laws, rules, and regulations involving food, alcohol, service, consumption, sales, licensing, age restrictions, intoxication, and transportation after the event. BYOB is allowed. Guests are responsible for obtaining any permit or license the City of Moline requires for alcohol at their event. Please check with the City of Moline: https://moline.il.us/244/Liquor-Licensing (City Clerk, 309-524-2004). Renter accepts all risk and liability arising from the use of kitchen utensils, appliances, equipment, furniture, fixtures, décor, or other property at the Venue, whether used properly or improperly.
 
 8. Strictly Prohibited Items and Activities. The following are strictly prohibited inside the Venue, outside the Venue, on sidewalks, in parking areas, and anywhere on or around the premises: glitter; wall tape; party confetti; confetti cannons; rice; birdseed; loose sequins; fireworks; sparklers; smoke bombs; pyrotechnics; explosive devices; explosive props; combustible props; open flame not expressly approved in writing by Owner; hazardous materials; illegal substances; weapons except as permitted by law; ticketed events; cover charges; paid admission; door fees; ticket or merchandise sales; concerts; and any activity that creates unusual mess, fire risk, explosion risk, property damage risk, injury risk, nuisance, or disturbance. A band or live music is allowed only when guests are not charged for the event. Violation of this section may result in immediate termination of the event, forfeiture of deposit, additional cleaning or repair charges, and liability for all resulting damages, claims, fines, attorney fees, and costs.
 
@@ -311,6 +310,12 @@ function brb_upsert_legal_page($slug, $legacy, $title, $html) {
     return (int) $id;
 }
 
+function brb_install_checklist_page() {
+    brb_upsert_legal_page('rental-checklist', [], 'Rental Checklist', brb_checklist_stored_markup());
+}
+add_shortcode('brb_checklist', function () {
+    return brb_checklist_html();
+});
 function brb_install_legal_pages() {
     $privacy = brb_upsert_legal_page('privacy', ['privacy-policy'], 'Privacy Policy', brb_privacy_html());
     brb_upsert_legal_page('terms', ['terms-and-conditions'], 'Rental Terms', brb_terms_html());

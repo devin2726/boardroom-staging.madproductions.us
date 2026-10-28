@@ -44,7 +44,7 @@ add_filter('pre_wp_mail', function ($short, $atts) {
 $GLOBALS['brb_mails'] = [];
 
 try {
-    brb_t(get_option('brb_version') === '2.5.11', 'plugin storage version is 2.5.11');
+    brb_t(get_option('brb_version') === '2.5.12', 'plugin storage version is 2.5.12');
     brb_t(get_option('blog_public') === '0' || get_option('blog_public') === 0, 'staging discourages search engines');
     $cols = $wpdb->get_col('SHOW COLUMNS FROM ' . brb_table(), 0);
     foreach (['deposit_due', 'amount_paid', 'source', 'hold_until', 'balance_due_on', 'price_set', 'status', 'event_type'] as $col) {
@@ -388,6 +388,7 @@ try {
         brb_t($approve_mail && strpos($approve_mail['message'], 'payable to [VERIFY] Test Payee') !== false && strpos($approve_mail['message'], '[VERIFY] Test Window') !== false && strpos($approve_mail['message'], '[VERIFY] Test Hours') !== false, 'the approval email names the payee and the drop-off place and hours');
         brb_t($approve_mail && strpos($approve_mail['message'], 'Write booking reference ' . brb_ref($priced) . ' on the memo line.') !== false && strpos($approve_mail['message'], '[VERIFY] Test instructions.') !== false, 'the approval email includes the memo line and custom instructions');
         brb_t($approve_mail && strpos($approve_mail['message'], '60 or more days before the event') !== false && strpos($approve_mail['message'], 'less than 60 days before the event') !== false && strpos($approve_mail['message'], 'Refunds are issued manually.') !== false && strpos($approve_mail['message'], '[VERIFY: attorney review]') === false, 'the approval email states the 60-day deposit rule and has no attorney note');
+        brb_t($approve_mail && strpos($approve_mail['message'], 'Rental checklist') !== false && strpos($approve_mail['message'], '8:00 AM') !== false && strpos($approve_mail['message'], 'https://moline.il.us/244/Liquor-Licensing') !== false && strpos($approve_mail['message'], 'fee $50') === false && strpos($approve_mail['message'], 'minimum host age is 25') !== false, 'the approval email includes the rental checklist');
         $b = $approved;
 
         $first = round((float) $b->deposit_due, 2);
@@ -434,7 +435,7 @@ try {
             brb_t(strpos($admin_html, '[VERIFY: attorney review]') !== false && strpos($settings_html, '[VERIFY: attorney review]') !== false, 'the attorney note is visible to staff');
             brb_t(strpos($settings_html, '11:30 PM') !== false && strpos($settings_html, '[VERIFY] latest end time') === false, 'settings state the 11:30 PM departure rule');
             brb_t(strpos($settings_html, 'Starting price') !== false && strpos($settings_html, 'Typical price text') !== false, 'settings show starting and typical price');
-            brb_t(strpos($settings_html, 'Full-day rate') === false && strpos($settings_html, '$500') === false && strpos($settings_html, '$75') === false, 'settings do not show the old public rates');
+            brb_t(strpos($settings_html, 'Full-day rate') === false && strpos($settings_html, '$75') === false && strpos($settings_html, 'name="checklist"') !== false, 'settings do not show the old public rates and include the checklist');
             foreach ($banned as $w) brb_t(stripos($settings_html, $w) === false, "settings HTML has no $w");
         }
     }
@@ -570,7 +571,7 @@ try {
     brb_t(strpos($faq_html, 'Are overnight stays allowed?') !== false && strpos($faq_html, 'No overnight stays. The Boardroom is an event space only.') !== false && stripos($faq_html, 'check-in') === false && stripos($faq_html, 'check-out') === false && strpos($faq_html, '[VERIFY] latest end time') === false, 'faq states the no-overnight rule without a public end time');
     brb_t(stripos($faq_html, 'How many guests can The Boardroom hold') !== false && stripos($faq_html, 'Up to 75') !== false, 'faq keeps the capacity answer');
     brb_t(strpos($faq_html, 'No cooking is allowed in the venue') !== false && strpos($faq_html, 'The stove top may not be used') !== false && strpos($faq_html, 'Food warmers (for keeping prepared food warm)') !== false, 'faq says no cooking and allows food warmers');
-    brb_t(strpos($faq_html, 'one-day liquor license from the City of Moline, fee $50') !== false, 'faq names the City of Moline liquor license and the fee');
+    brb_t(strpos($faq_html, 'https://moline.il.us/244/Liquor-Licensing') !== false && strpos($faq_html, '309-524-2004') !== false && strpos($faq_html, 'fee $50') === false && strpos($faq_html, '/rental-checklist/') !== false, 'faq points guests to the City of Moline and the rental checklist');
     if ($faq) {
         wp_update_post(['ID' => (int) $faq->ID, 'post_content' => '<p>Custom FAQ without the seed question.</p>']);
         clean_post_cache((int) $faq->ID);
@@ -598,7 +599,7 @@ try {
         'glitter' => $terms_html,
         'House rules for food and drink' => $terms_html,
         'stove top' => $terms_html,
-        'one-day liquor license' => $terms_html,
+        'https://moline.il.us/244/Liquor-Licensing' => $terms_html,
         '2212 37th Street, Moline, IL 61265' => $terms_html,
         '2220 37th Street, Moline, IL 61265' => $terms_html,
         'Christmas decorations are up in December' => $terms_html,
@@ -620,7 +621,7 @@ try {
         brb_t(strpos($hay, $needle) !== false, 'legal copy contains ' . $needle);
     }
     brb_t(strpos($terms_html, 'No cooking is allowed in the venue') !== false && strpos($terms_html, 'The stove top may not be used') !== false && strpos($terms_html, 'Food warmers (for keeping prepared food warm)') !== false, 'house rules say no cooking and allow food warmers');
-    brb_t(strpos($terms_html, 'one-day liquor license from the City of Moline, fee $50') !== false, 'liquor license names the City of Moline and the fee');
+    brb_t(strpos($terms_html, 'https://moline.il.us/244/Liquor-Licensing') !== false && strpos($terms_html, '309-524-2004') !== false && strpos($terms_html, 'fee $50') === false && strpos($agreement_html, 'https://moline.il.us/244/Liquor-Licensing') !== false && strpos($agreement_html, 'fee $50') === false, 'terms and the rental agreement point guests to the City of Moline without a liquor fee');
     brb_t(strpos($terms_html, '[VERIFY current fee and issuing office]') === false, 'liquor license fee is no longer marked for verification');
     brb_t(strpos($terms_html, 'The venue is at 2220 37th Street, Moline, IL 61265.') !== false, 'terms name the venue at 2220 37th Street');
     brb_t(strpos($terms_html, 'Mail or drop off checks payable to Mad Productions at 2212 37th Street, Moline, IL 61265.') !== false, 'terms tell guests where to mail or drop off checks');
@@ -642,6 +643,50 @@ try {
     brb_t(is_string($contact_template) && strpos($contact_template, 'brb_map_embed') !== false && strpos($contact_template, 'mailto:boardroomqc@gmail.com') !== false && strpos($contact_template, 'brb_directions_markup') !== false, 'the contact template shows the email, map, and directions link');
     $footer = file_get_contents(get_stylesheet_directory() . '/footer.php');
     brb_t(is_string($footer) && strpos($footer, '2220 37th Street, Moline, IL 61265') !== false && strpos($footer, '2212 37th Street') === false, 'footer shows the venue address');
+    brb_t(is_string($footer) && strpos($footer, '/rental-checklist/') !== false, 'footer links to the rental checklist');
+    $book_page = file_get_contents(get_stylesheet_directory() . '/page.php');
+    brb_t(is_string($book_page) && strpos($book_page, '/rental-checklist/') !== false, 'the book page links to the rental checklist');
+    $checklist_page = get_page_by_path('rental-checklist');
+    $checklist_html = $checklist_page ? do_shortcode((string) $checklist_page->post_content) : '';
+    brb_t($checklist_page && $checklist_page->post_title === 'Rental Checklist' && strpos($checklist_html, '8:00 AM') !== false && strpos($checklist_html, '309-524-2004') !== false && strpos($checklist_html, 'fee $50') === false && strpos($checklist_html, brb_whole_money(brb_addon_price())) !== false, 'the rental checklist page lists the house rules without a liquor fee');
+    $remind_day = brb_now()->modify('+7 days')->format('Y-m-d');
+    $remind = brb_process_public_booking([
+        'date' => $remind_day,
+        'type' => 'day',
+        'days' => 1,
+        'guests' => 6,
+        'name' => 'Checklist Renter',
+        'email' => 'checklist-renter@example.com',
+        'policy' => '1', 'waiver' => '1',
+        'event_type' => 'other',
+    ] + brb_screen());
+    brb_t(!is_wp_error($remind) && $remind, 'a booking a week out can be created for the checklist reminder');
+    if (!is_wp_error($remind) && $remind) {
+        $created_ids[] = (int) $remind->id;
+        $wpdb->update(brb_table(), ['walkthrough_done' => 1], ['id' => (int) $remind->id]);
+        $remind = brb_approve_booking($remind->id);
+        $GLOBALS['brb_mails'] = [];
+        brb_checklist_reminders();
+        $remind_mail = null;
+        $remind_mails = 0;
+        foreach ($GLOBALS['brb_mails'] as $m) {
+            if (stripos($m['to'], 'checklist-renter@example.com') !== false && stripos($m['subject'], 'checklist') !== false) {
+                $remind_mails++;
+                $remind_mail = $m;
+            }
+        }
+        $reminded = brb_booking((int) $remind->id);
+        brb_t($remind_mails === 1 && $remind_mail && strpos($remind_mail['message'], 'about a week away') !== false && $reminded && !empty($reminded->checklist_reminded), 'the checklist reminder is sent about 7 days before the event');
+        brb_checklist_reminders();
+        $again = 0;
+        foreach ($GLOBALS['brb_mails'] as $m) {
+            if (stripos($m['to'], 'checklist-renter@example.com') !== false && stripos($m['subject'], 'checklist') !== false) $again++;
+        }
+        brb_t($again === 1, 'the checklist reminder is sent once');
+    } else {
+        brb_t(false, 'the checklist reminder is sent about 7 days before the event');
+        brb_t(false, 'the checklist reminder is sent once');
+    }
     brb_t(is_string($footer) && strpos($footer, 'https://maps.app.goo.gl/nVqUsGTcy48nPzc18') !== false && strpos($footer, 'Get directions') !== false && strpos($footer, 'footer-map') !== false, 'footer links to Google Maps');
     ob_start();
     brb_place_schema();
