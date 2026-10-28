@@ -8,7 +8,9 @@
   <div class="card"><img src="<?php echo esc_url(br_img($p[2])); ?>" alt="Game room"><h3>80in Television, Pinball, Pool, Shuffleboard</h3></div>
   <div class="card"><img src="<?php echo esc_url(br_img($p[1])); ?>" alt="Bar"><h3>BYOB Bar and Ice Machine</h3></div>
   <div class="card"><img src="<?php echo esc_url(br_img($p[0])); ?>" alt="Event space"><h3>75 person Capacity, On-Site Parking.</h3></div>
-</div></div></section>
+</div>
+<?php echo br_amenities_html(); ?>
+</div></section>
 <section class="block dark cta"><div class="wrap"><h2>Make Your Reservations Now</h2><p>Check availability and book The Boardroom directly.</p><a class="btn" href="<?php echo esc_url($book); ?>">Check Availability</a></div></section>
 <section class="block" id="gallery"><div class="wrap"><h2>Photo Gallery</h2><div class="gallery gallery-strip">
   <?php foreach (array_slice(br_gallery(), 0, 6) as $f) printf('<a href="%s"><img src="%s" alt="The Boardroom" loading="lazy"></a>', esc_url(br_gallery_src($f)), esc_url(br_gallery_src($f, true))); ?>
