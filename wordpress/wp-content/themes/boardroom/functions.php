@@ -4,8 +4,8 @@ add_action('after_setup_theme', function () {
     register_nav_menus(['primary' => 'Primary', 'footer' => 'Footer']);
 });
 add_action('wp_enqueue_scripts', function () {
-    wp_enqueue_style('boardroom', get_stylesheet_uri(), [], '1.2.20');
-    wp_enqueue_script('boardroom', get_template_directory_uri() . '/assets/site.js', [], '1.2.20', true);
+    wp_enqueue_style('boardroom', get_stylesheet_uri(), [], '1.2.19');
+    wp_enqueue_script('boardroom', get_template_directory_uri() . '/assets/site.js', [], '1.2.19', true);
 });
 function br_img($f) { return get_template_directory_uri() . '/assets/img/' . $f; }
 function br_photos() { return ['IMG_0223.jpeg', 'IMG_0231.jpeg', 'PXL_20220912_160615354.jpg', 'PXL_20220912_160655168.jpg', 'PXL_20220912_161645069.jpg']; }
@@ -171,7 +171,7 @@ function br_tour_video_html() {
     $html .= '</div></section>';
     return $html;
 }
-add_action('wp_head', function () { echo '<link rel="icon" href="' . esc_url(br_img('boardroom-logo-gold.png')) . '">'; });
+add_action('wp_head', function () { echo '<link rel="icon" href="' . esc_url(br_img('boardroom-siteicon-512.png')) . '">'; });
 function br_contact_form() {
     if (function_exists('brb_tour_form')) return brb_tour_form();
     return '';
