@@ -128,7 +128,7 @@ try {
         'guests' => 12,
         'name' => 'Stripe Flow',
         'email' => 'stripe-flow@example.com',
-        'policy' => '1',
+        'policy' => '1', 'waiver' => '1',
         'event_type' => 'fundraiser',
         'public_event' => 'no',
         'free_admission' => '1',
@@ -138,7 +138,10 @@ try {
         'event_about' => 'A fundraiser in the main room.',
     ]);
     brb_t(!is_wp_error($held) && $held && $held->status === 'review', 'a request can be created for card payment');
-    if (!is_wp_error($held) && $held) $held = brb_approve_booking($held->id);
+    if (!is_wp_error($held) && $held) {
+        $wpdb->update(brb_table(), ['walkthrough_done' => 1], ['id' => (int) $held->id]);
+        $held = brb_approve_booking($held->id);
+    }
     brb_t(!is_wp_error($held) && $held && $held->status === 'approved', 'staff approve the request before card payment');
     if (is_wp_error($held) || !$held) {
         throw new RuntimeException('booking was not created');
@@ -177,7 +180,7 @@ try {
     brb_t(strpos($pay_page, 'Amount applied to your booking: $100.00') !== false, 'the pay page shows the amount applied to the booking');
     brb_t(strpos($pay_page, 'Card processing fee (3%): $3.00') !== false, 'the pay page shows the 3 percent fee before redirect');
     brb_t(strpos($pay_page, 'Total charged to your card: $103.00') !== false, 'the pay page shows the card total before redirect');
-    brb_t(strpos($pay_page, 'I understand a 3% card processing fee applies') !== false && strpos($pay_page, '90 or more days before the event') !== false && strpos($pay_page, 'less than 90 days before the event') !== false && strpos($pay_page, '>Terms<') !== false && strpos($pay_page, '>Rental Agreement<') !== false, 'the pay page requires the fee, the 90-day deposit rule, and the agreement checkbox');
+    brb_t(strpos($pay_page, 'I understand a 3% card processing fee applies') !== false && strpos($pay_page, '60 or more days before the event') !== false && strpos($pay_page, 'less than 60 days before the event') !== false && strpos($pay_page, '>Terms<') !== false && strpos($pay_page, '>Rental Agreement<') !== false, 'the pay page requires the fee, the 60-day deposit rule, and the agreement checkbox');
     brb_t(strpos($pay_page, 'name="card_fee_agree"') !== false && strpos($pay_page, 'required') !== false, 'the fee checkbox is required');
     brb_t(strpos($pay_page, 'js.stripe.com') === false && stripos($pay_page, 'card number') === false && strpos($pay_page, 'cardnumber') === false, 'the pay page has no card fields');
     brb_t(strpos($pay_page, $secret_marker) === false && strpos($pay_page, $whsec_marker) === false, 'the pay page does not show key material');
@@ -359,7 +362,7 @@ try {
         'guests' => 8,
         'name' => 'Stripe Flow',
         'email' => 'stripe-flow@example.com',
-        'policy' => '1',
+        'policy' => '1', 'waiver' => '1',
         'event_type' => 'corporate',
         'public_event' => 'yes',
         'free_admission' => '1',
@@ -371,6 +374,7 @@ try {
     brb_t(!is_wp_error($second_booking) && $second_booking && $second_booking->status === 'review', 'a second request can be created for a deposit card payment');
     if (!is_wp_error($second_booking) && $second_booking) {
         $created_ids[] = (int) $second_booking->id;
+        $wpdb->update(brb_table(), ['walkthrough_done' => 1], ['id' => (int) $second_booking->id]);
         $second_booking = brb_approve_booking($second_booking->id);
         $second_priced = !is_wp_error($second_booking) ? brb_set_agreed_price($second_booking->id, 200) : $second_booking;
         brb_t(!is_wp_error($second_priced) && abs(brb_amount_due_now($second_priced) - 100) < 0.001, 'with a 50 percent deposit the card amount is the deposit');

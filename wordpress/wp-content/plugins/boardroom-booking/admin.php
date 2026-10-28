@@ -78,6 +78,21 @@ add_action('admin_post_brb_mark_paid', function () {
     if (is_wp_error($res)) brb_admin_back($id, $res->get_error_message());
     brb_admin_back($id, brb_ref($res) . ' marked paid in full. The guest was emailed.');
 });
+add_action('admin_post_brb_flags', function () {
+    brb_admin_gate('brb_flags');
+    $id = (int) ($_POST['booking'] ?? 0);
+    $b = brb_booking($id);
+    if (!$b) brb_admin_back(0, 'Booking not found.');
+    global $wpdb;
+    $fields = [
+        'walkthrough_done' => empty($_POST['walkthrough_done']) ? 0 : 1,
+        'damage_deposit' => brb_dec(max(0, min(500, (float) ($_POST['damage_deposit'] ?? 0)))),
+    ];
+    $wpdb->update(brb_table(), $fields, ['id' => $id]);
+    if (!empty($_POST['setup_addon'])) brb_apply_addon($id, 'setup');
+    if (!empty($_POST['takedown_addon'])) brb_apply_addon($id, 'takedown');
+    brb_admin_back($id, 'Booking record saved.');
+});
 add_action('admin_post_brb_approve', function () {
     brb_admin_gate('brb_approve');
     $id = (int) ($_POST['booking'] ?? 0);
@@ -252,11 +267,26 @@ function brb_admin_detail($id) {
     $rows['Paid'] = brb_money($b->amount_paid);
     $rows['Balance'] = $set ? brb_money($balance) : 'Price to be confirmed';
     $rows['Balance due'] = brb_balance_due_display($b);
+    $rows['Walk-through'] = !empty($b->walkthrough_done) ? 'Completed' : 'Not yet';
+    $rows['Damage deposit'] = ((float) ($b->damage_deposit ?? 0) > 0.009) ? brb_money($b->damage_deposit) : '—';
+    $rows['Setup day'] = !empty($b->setup_addon) ? 'Added' : 'No';
+    $rows['Takedown day'] = !empty($b->takedown_addon) ? 'Added' : 'No';
     $rows['Date reserved'] = in_array($b->status, ['deposit_paid', 'paid', 'confirmed'], true) ? 'Yes, a deposit has been received' : 'No, not until the deposit is received';
     foreach ($rows as $label => $val) {
         echo '<tr><th style="width:280px">' . esc_html($label) . '</th><td>' . nl2br(esc_html((string) $val)) . '</td></tr>';
     }
     echo '</tbody></table>';
+    if (empty($b->walkthrough_done)) {
+        echo '<div class="notice notice-warning"><p>The in-person walk-through is not marked complete. Approval and the payment link stay off until it is checked.</p></div>';
+    }
+    echo '<h2>Walk-through, deposit, and add-ons</h2><form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="max-width:640px">';
+    echo '<input type="hidden" name="action" value="brb_flags"><input type="hidden" name="booking" value="' . (int) $b->id . '">';
+    wp_nonce_field('brb_flags');
+    echo '<p><label><input type="checkbox" name="walkthrough_done" value="1"' . (!empty($b->walkthrough_done) ? ' checked' : '') . '> Walk-through completed</label></p>';
+    echo '<p><label>Damage deposit <input type="number" name="damage_deposit" min="0" max="500" step="1" value="' . esc_attr((string) (int) ($b->damage_deposit ?? 0)) . '"> <span class="description">$100 to $500, mainly for cleaning.</span></label></p>';
+    echo '<p><label><input type="checkbox" name="setup_addon" value="1"' . (!empty($b->setup_addon) ? ' checked' : '') . '> Setup day</label></p>';
+    echo '<p><label><input type="checkbox" name="takedown_addon" value="1"' . (!empty($b->takedown_addon) ? ' checked' : '') . '> Takedown day</label></p>';
+    echo '<p><button class="button">Save booking record</button></p></form>';
     if (($b->public_event ?? '') === 'yes') {
         echo '<div class="notice notice-warning"><p>Open to the public. Staff review: all events must be free to attend. The Boardroom does not host concerts or ticketed shows.</p></div>';
     }
@@ -267,7 +297,7 @@ function brb_admin_detail($id) {
         return ($p->method ?? '') === 'card';
     });
     if ($card_rows || !empty($b->attention)) {
-        echo '<p>The deposit follows the 90-day written cancellation rule. The card processing fee is non-refundable. Card payments and refunds are resolved manually in the Stripe dashboard. [VERIFY: attorney review]</p>';
+        echo '<p>The deposit follows the 60-day written cancellation rule. The card processing fee is non-refundable. Card payments and refunds are resolved manually in the Stripe dashboard. [VERIFY: attorney review]</p>';
     }
 
     if ($b->status !== 'cancelled') {
@@ -493,10 +523,11 @@ function brb_admin_settings() {
             ['min_notice_hours', 'Minimum notice (hours)', 'number', null, 'A booking must start at least this many hours from now. Default 48. The owner described the rule as not renting inside 48 hours; change this number here if that rule changes. Set 0 to allow same-day starts. A request does not hold the date.'],
         ],
         'Check payment' => [
-            ['deposit_type', 'Deposit that reserves the date', 'select', ['full' => 'Full amount', 'percent' => 'Percent of the agreed price', 'fixed' => 'Fixed dollar amount'], 'The deposit holds the date. It is refundable if written cancellation is received 90 or more days before the event, less non-refundable processing charges and costs already incurred, and it is not refundable inside 90 days. Staff process refunds manually. Default is 50% of the agreed price. Until staff set a price, the guest is told the price is to be confirmed.'],
+            ['deposit_type', 'Deposit that reserves the date', 'select', ['full' => 'Full amount', 'percent' => 'Percent of the agreed price', 'fixed' => 'Fixed dollar amount'], 'The deposit holds the date. It is refundable if written cancellation is received 60 or more days before the event, less non-refundable processing charges and costs already incurred, and it is not refundable inside 90 days. Staff process refunds manually. Default is 50% of the agreed price. Until staff set a price, the guest is told the price is to be confirmed.'],
             ['deposit_pct', 'Deposit percent', 'number', null, 'Used when the choice above is percent. Default 50.'],
             ['deposit_fixed', 'Fixed deposit amount ($)', 'text', null, 'Used when the choice above is a fixed dollar amount. Cannot exceed the total.'],
-            ['balance_due_days', 'Balance due (days before the event)', 'number', null, '[VERIFY] Used when the first check is less than the total. 7 means the rest is due 7 days before the start date.'],
+            ['balance_due_days', 'Balance due note', 'number', null, 'The remaining balance is due 48 hours before the event. A past date is shown as due now. Until a price is set, the guest sees price to be confirmed.'],
+            ['addon_price', 'Setup or takedown day ($)', 'number', null, 'Added when that day is open. Default 500. The same price applies on Sunday.'],
             ['venue_address', 'Venue address', 'text', null, 'The event space. Shown in the footer, on Contact, and in Terms and Privacy. Default is 2220 37th Street, Moline, IL 61265. This is not where checks go.'],
             ['payee', 'Check payable to [VERIFY]', 'text', null, 'The name guests write on the payee line. Until this placeholder is replaced, guest check instructions say Mad Productions.'],
             ['pay_location', 'Where to mail or drop off checks', 'text', null, 'Check mail and drop-off only. Default is 2212 37th Street, Moline, IL 61265. A saved placeholder, or the old 2212 47 Ave line, is replaced on upgrade.'],
