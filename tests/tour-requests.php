@@ -175,6 +175,21 @@ try {
     brb_t(is_string($header) && strpos($header, 'Book Now') !== false && stripos($header, 'tour') === false && stripos($header, 'tel:') === false, 'the header keeps Book Now and has no tour or phone link');
     $home = file_get_contents(get_stylesheet_directory() . '/front-page.php');
     brb_t(is_string($home) && strpos($home, 'br_contact_form') === false && strpos($home, 'name="phone"') === false && strpos($home, "home_url('/contact/')") !== false, 'the homepage links to contact instead of a second form');
+    $amenities = br_amenities_html();
+    foreach (['Air conditioning', 'Heating', 'Hot water', 'Private entrance', 'Free parking on premises', 'Free street parking', 'Wifi', 'TV', 'Sound system (Sonos, Aux, Bluetooth)', 'Pool table', 'Board games', 'Dining table', 'Dedicated workspace', 'Refrigerator (large)', 'Freezer', 'Mini fridge', 'Microwave', 'Dishwasher', 'Coffee maker (drip and pour-over)', 'Hot water kettle', 'Toaster', 'Blender', 'Wine glasses', 'Smoke alarm', 'Carbon monoxide alarm', 'Fire extinguisher', 'First aid kit'] as $item) {
+        brb_t(strpos($amenities, $item) !== false, 'amenities include ' . $item);
+    }
+    brb_t(strpos($amenities, 'Kitchen area is for serving and storage. Cooking and stovetop use are not permitted.') !== false, 'the kitchen note says serving and storage only');
+    brb_t(strpos($amenities, 'The room comes not set up.') !== false && strpos($amenities, 'No overnight stays.') !== false, 'amenities say the room is not set up and there are no overnight stays');
+    brb_t(strpos($home, 'br_amenities_html') !== false && strpos($home, 'id="amenities"') !== false, 'the homepage amenities section prints the checklist');
+    foreach (['Laundromat', 'Airbnb', 'airbnb', 'Cooking basics', 'Baking sheet', 'Barbecue utensils', 'Books and reading material', '$'] as $banned_item) {
+        brb_t(strpos($amenities, $banned_item) === false, 'amenities do not list ' . $banned_item);
+    }
+    brb_t(strpos($amenities, '<li>Stove</li>') === false && strpos($amenities, '<li>Oven</li>') === false, 'amenities do not list a stove or oven');
+    $gallery_tpl = file_get_contents(get_stylesheet_directory() . '/page-gallery.php');
+    $book_tpl = file_get_contents(get_stylesheet_directory() . '/page.php');
+    brb_t(is_string($gallery_tpl) && strpos($gallery_tpl, '/#amenities') !== false, 'the gallery page links to the amenities');
+    brb_t(is_string($book_tpl) && strpos($book_tpl, 'book-amenities') !== false && strpos($book_tpl, '/#amenities') !== false, 'the book page links to the amenities');
     $tour_nav = false;
     $locs = get_nav_menu_locations();
     if (!empty($locs['primary'])) {
