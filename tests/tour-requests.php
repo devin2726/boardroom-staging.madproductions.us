@@ -33,7 +33,7 @@ $created = [];
 $snapshot = get_option('brb_settings');
 
 try {
-    brb_t(get_option('brb_version') === '2.5.3', 'plugin storage version is 2.5.3');
+    brb_t(get_option('brb_version') === '2.5.4', 'plugin storage version is 2.5.4');
     brb_t($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', brb_tour_table())) === brb_tour_table(), 'inquiry table still exists');
     $cols = $wpdb->get_col('SHOW COLUMNS FROM ' . brb_tour_table(), 0);
     brb_t(in_array('phone', $cols, true) && in_array('topic', $cols, true) && in_array('preferred', $cols, true), 'topic and preferred were added and phone was kept');
@@ -190,6 +190,20 @@ try {
     $book_tpl = file_get_contents(get_stylesheet_directory() . '/page.php');
     brb_t(is_string($gallery_tpl) && strpos($gallery_tpl, '/#amenities') !== false, 'the gallery page links to the amenities');
     brb_t(is_string($book_tpl) && strpos($book_tpl, 'book-amenities') !== false && strpos($book_tpl, '/#amenities') !== false, 'the book page links to the amenities');
+    $reviews = br_reviews_html();
+    $more_at = strpos($reviews, 'id="more-reviews"');
+    brb_t(strpos($home, 'br_reviews_html') !== false && strpos($home, 'br_reviews_html') < strpos($home, 'block dark cta'), 'guest reviews sit before the reservation call to action');
+    brb_t(strpos($reviews, 'What our guests say') !== false && strpos($reviews, '5.0 ★ from 29 guest reviews') !== false && strpos($reviews, 'Read more reviews') !== false && strpos($reviews, 'aria-expanded="false"') !== false, 'the reviews section has the rating badge and a reveal control');
+    brb_t($more_at !== false && strpos($reviews, 'Dixon N.') < $more_at && strpos($reviews, 'Nothing else like it in the QC.') < $more_at && strpos($reviews, 'Cresencia') > $more_at && strpos($reviews, 'grandma') > $more_at, 'three featured reviews show first and the rest stay in the reveal');
+    brb_t(stripos($reviews, 'airbnb') === false && strpos($reviews, 'Google') === false && strpos($reviews, 'tel:') === false && strpos($reviews, 'name="phone"') === false, 'guest reviews do not name a source or a phone number');
+    $rotator = br_review_rotator_html();
+    brb_t(is_string($book_tpl) && strpos($book_tpl, 'br_review_rotator_html') !== false && strpos($rotator, 'class="review-card on"') !== false && substr_count($rotator, '<blockquote') === 4, 'the book page rotates the featured quotes and shows the first without script');
+    $summary = br_review_aggregate_schema();
+    brb_t(is_array($summary) && $summary['ratingValue'] === '5.0' && $summary['reviewCount'] === 29, 'the review schema uses the 5.0 rating and the count of 29');
+    ob_start();
+    brb_place_schema();
+    $plain_schema = ob_get_clean();
+    brb_t(strpos($plain_schema, 'aggregateRating') === false, 'review stars are not added to the venue schema off the home page');
     $tour_nav = false;
     $locs = get_nav_menu_locations();
     if (!empty($locs['primary'])) {
