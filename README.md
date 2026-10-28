@@ -12,7 +12,7 @@ Contact is one form on `/contact/`: name, email, message, an optional “What’
 2. Review the date. The page shows **Pricing from $600 per day (most events around $1,200), final price confirmed based on date, guest count and features.** The starting amount and the parenthetical text are settings. Until staff set a price, the guest sees **price to be confirmed**. There is no calculated cleaning fee, tax, or total on the website.
 3. Enter contact details, choose an event type (Wedding, Birthday, Corporate, Fundraiser, or Other), agree to the Terms, the Rental Agreement, and the Privacy Policy, and press **Save this date**.
 4. The date is **held** so nobody else can book it. The confirmation page and the guest email state:
-   - that the date is held for 48 hours (or the hold length in settings), and the exact deadline time in America/Chicago
+   - that a request does not hold the date, and the date is reserved once the deposit is received
    - that the price is to be confirmed, or the check amount once staff have set it
    - who the check is payable to, and where to mail or drop it off
    - the booking reference to write on the memo
@@ -22,7 +22,7 @@ Contact is one form on `/contact/`: name, email, message, an optional “What’
 
 ## Staff
 
-Bookings → All Bookings shows **Held (awaiting check)**, **Deposit paid**, **Paid in full**, **Cancelled**, and **Expired**.
+Bookings → All Bookings shows **Pending review**, **Approved, deposit due**, **Deposit paid**, **Paid in full**, **Declined**, and **Cancelled**. Pending review and approved-but-unpaid requests do not block the calendar. The first paid deposit reserves the date.
 
 - **Set agreed price** stores the final price for that booking and emails the guest the check amount. The hold and recorded checks use this price. Recording a check or marking paid is refused until a price is set.
 - **Record payment** stores the amount, method (Check or Cash), date received, and notes. The check number is optional and is kept only for a check. Cash is an in-person staff record; the public pages still tell guests to mail or drop off a check. A deposit and the later balance are two records. Each one emails the guest, and that receipt names the method. Paid and balance use the same totals either way.
@@ -49,7 +49,7 @@ Bookings → Settings. Anything still marked `[VERIFY]` is shown to guests until
 | Amount that secures the date | Full amount of the agreed price | Or a percent, or a fixed dollar amount. Applied only after staff set the price. |
 | Balance due | 7 days before the event | `[VERIFY]` Used only when the first check is less than the agreed price |
 | Minimum notice (hours) | 48 | Booking must **start** at least this many hours from now. This is the “not inside 48 hours” rule. Change the number here if the rule changes. |
-| Hold length (hours) | 48 | How long an unpaid saved date stays reserved |
+| Deposit | 50% | Non-refundable. This is what reserves the date. A request does not hold the date. |
 | Admin notification email | WordPress admin email | Hold, price, check, expiry, and contact inquiry mail. Separate extra addresses with commas. |
 | Inquiry email | boardroomqc@gmail.com | Contact inquiries are emailed here as well. A blank or invalid saved value is replaced on upgrade. |
 | Cancellation policy | Summary of the signed rental agreement | Shown before save and in email. A saved placeholder is replaced on upgrade. The Rental Terms, Privacy Policy, and printable Rental Agreement pages are the guest-facing text. |

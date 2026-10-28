@@ -116,6 +116,10 @@ try {
         brb_t(strpos($off_html, 'Stripe connected: no') !== false && strpos($off_html, 'Mode: —') !== false, 'settings show Stripe disconnected and no mode');
     }
 
+    $full_deposit = brb_opt();
+    $full_deposit['deposit_type'] = 'full';
+    $full_deposit['deposit_pct'] = '100';
+    update_option('brb_settings', $full_deposit);
     $day = brb_now()->modify('+35 days')->format('Y-m-d');
     $held = brb_process_public_booking([
         'date' => $day,
@@ -126,8 +130,15 @@ try {
         'email' => 'stripe-flow@example.com',
         'policy' => '1',
         'event_type' => 'fundraiser',
+        'public_event' => 'no',
+        'alcohol' => 'no',
+        'end_time' => '22:00',
+        'host_age' => 'age_25',
+        'event_about' => 'A fundraiser in the main room.',
     ]);
-    brb_t(!is_wp_error($held) && $held, 'a held booking can be created for card payment');
+    brb_t(!is_wp_error($held) && $held && $held->status === 'review', 'a request can be created for card payment');
+    if (!is_wp_error($held) && $held) $held = brb_approve_booking($held->id);
+    brb_t(!is_wp_error($held) && $held && $held->status === 'approved', 'staff approve the request before card payment');
     if (is_wp_error($held) || !$held) {
         throw new RuntimeException('booking was not created');
     }
@@ -165,7 +176,7 @@ try {
     brb_t(strpos($pay_page, 'Amount applied to your booking: $100.00') !== false, 'the pay page shows the amount applied to the booking');
     brb_t(strpos($pay_page, 'Card processing fee (3%): $3.00') !== false, 'the pay page shows the 3 percent fee before redirect');
     brb_t(strpos($pay_page, 'Total charged to your card: $103.00') !== false, 'the pay page shows the card total before redirect');
-    brb_t(strpos($pay_page, 'I understand a 3% card processing fee applies and I agree to the') !== false && strpos($pay_page, '>Terms<') !== false && strpos($pay_page, '>Rental Agreement<') !== false, 'the pay page requires the fee and agreement checkbox');
+    brb_t(strpos($pay_page, 'I understand a 3% card processing fee applies') !== false && strpos($pay_page, '90 or more days before the event') !== false && strpos($pay_page, 'less than 90 days before the event') !== false && strpos($pay_page, '>Terms<') !== false && strpos($pay_page, '>Rental Agreement<') !== false, 'the pay page requires the fee, the 90-day deposit rule, and the agreement checkbox');
     brb_t(strpos($pay_page, 'name="card_fee_agree"') !== false && strpos($pay_page, 'required') !== false, 'the fee checkbox is required');
     brb_t(strpos($pay_page, 'js.stripe.com') === false && stripos($pay_page, 'card number') === false && strpos($pay_page, 'cardnumber') === false, 'the pay page has no card fields');
     brb_t(strpos($pay_page, $secret_marker) === false && strpos($pay_page, $whsec_marker) === false, 'the pay page does not show key material');
@@ -239,7 +250,7 @@ try {
     brb_t(strpos($confirm, '>Pay online<') !== false && strpos($confirm, 'br_pay=' . $priced->token) !== false, 'the confirmation page shows Pay online once the price is set');
     $_GET = ['br_token' => $priced->token, 'card' => 'pending'];
     $waiting = do_shortcode('[boardroom_booking]');
-    brb_t(strpos($waiting, 'the receipt is sent when the payment is confirmed') !== false && $priced->status === 'held', 'returning from checkout does not mark the booking paid');
+    brb_t(strpos($waiting, 'the receipt is sent when the payment is confirmed') !== false && $priced->status === 'approved', 'returning from checkout does not mark the booking paid');
     brb_t(strpos($confirm, $secret_marker) === false, 'the confirmation page does not show key material');
 
     $base = 10000;
@@ -330,7 +341,7 @@ try {
         $card_admin = ob_get_clean();
         brb_t(strpos($card_admin, 'Card (Stripe)') !== false && strpos($card_admin, '$3.00') !== false && strpos($card_admin, 'pi_test_one') !== false, 'the payments list shows the card method, fee, and payment id');
         brb_t(strpos($card_admin, 'dashboard.stripe.com') === false && strpos($card_admin, 'https://stripe.com') === false, 'the payment id is plain text');
-        brb_t(strpos($card_admin, 'issued manually in the Stripe dashboard') !== false, 'the booking screen says refunds are issued manually');
+        brb_t(strpos($card_admin, 'resolved manually in the Stripe dashboard') !== false && strpos($card_admin, '[VERIFY: attorney review]') !== false, 'the booking screen says card payments are resolved manually and marks the wording for attorney review');
         brb_t(strpos($card_admin, 'value="card"') === false, 'staff cannot record a card payment by hand');
         brb_t(strpos($card_admin, $secret_marker) === false, 'the booking screen does not show key material');
     }
@@ -349,11 +360,17 @@ try {
         'email' => 'stripe-flow@example.com',
         'policy' => '1',
         'event_type' => 'corporate',
+        'public_event' => 'yes',
+        'alcohol' => 'yes',
+        'end_time' => '20:00',
+        'host_age' => 'age_21_24',
+        'event_about' => 'A corporate reception.',
     ]);
-    brb_t(!is_wp_error($second_booking) && $second_booking, 'a second booking can be held for a deposit card payment');
+    brb_t(!is_wp_error($second_booking) && $second_booking && $second_booking->status === 'review', 'a second request can be created for a deposit card payment');
     if (!is_wp_error($second_booking) && $second_booking) {
         $created_ids[] = (int) $second_booking->id;
-        $second_priced = brb_set_agreed_price($second_booking->id, 200);
+        $second_booking = brb_approve_booking($second_booking->id);
+        $second_priced = !is_wp_error($second_booking) ? brb_set_agreed_price($second_booking->id, 200) : $second_booking;
         brb_t(!is_wp_error($second_priced) && abs(brb_amount_due_now($second_priced) - 100) < 0.001, 'with a 50 percent deposit the card amount is the deposit');
         $deposit_session = [
             'id' => 'cs_test_deposit',
