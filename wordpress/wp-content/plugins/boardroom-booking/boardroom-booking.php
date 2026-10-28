@@ -2,11 +2,11 @@
 /**
  * Plugin Name: Boardroom Booking
  * Description: Self-hosted direct booking for The Boardroom — full-day and hourly blocks, availability calendar, agreed prices, approval before payment, blackout dates, and emails.
- * Version: 2.5.6
+ * Version: 2.5.7
  * Author: Mad Productions
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.5.6');
+define('BRB_VER', '2.5.7');
 define('BRB_VENUE_ADDRESS', '2220 37th Street, Moline, IL 61265');
 define('BRB_CHECK_ADDRESS', '2212 37th Street, Moline, IL 61265');
 define('BRB_MAPS_URL', 'https://maps.app.goo.gl/nVqUsGTcy48nPzc18');
@@ -76,7 +76,7 @@ function brb_defaults() {
         'starting_price' => '600',
         'typical_price' => 'most events around $1,200',
         'min_hours' => '2',
-        'open_hour' => '9',
+        'open_hour' => '10',
         'close_hour' => '23',
         'cleaning_fee' => '100',
         'tax_rate' => '7',
@@ -264,6 +264,24 @@ function brb_end_time_label($value) {
 }
 function brb_out_by_line() {
     return 'Everyone must be out of The Boardroom by 11:30 PM. This is firm, with no exceptions. Please finish in time to wrap up.';
+}
+function brb_guest_hello_line() {
+    return 'Thank you for contacting The Boardroom!';
+}
+function brb_guest_review_line() {
+    return 'All parties are subject to review. Your date will be reserved once your deposit is received and approved by the Boardroom.';
+}
+function brb_guest_out_line() {
+    return 'Please plan to be out by 11:30 PM.';
+}
+function brb_guest_free_line() {
+    return 'Events are free to attend: no tickets, no cover charge, no paid admission, no door fees, and no ticket or merchandise sales. A band or live music is welcome when guests are not charged for the event.';
+}
+function brb_hours_line() {
+    return 'A full day runs from 10:00 AM to 11:30 PM. Half days are generally available in June: 10:00 AM to 4:00 PM, or 5:00 PM to 11:30 PM.';
+}
+function brb_half_day_month($day) {
+    return (int) $day->format('n') === 6;
 }
 function brb_free_admission_rule() {
     return 'All events must be free to attend: no tickets, no cover charge, no paid admission, no door fees, and no ticket or merchandise sales. Guests may have a band or live music, as long as they are not charging for the event. We do not host concerts or ticketed shows.';
@@ -517,6 +535,7 @@ function brb_migrate_settings() {
         $merged['deposit_type'] = 'percent';
         $merged['deposit_pct'] = '50';
     }
+    if ((string) ($stored['open_hour'] ?? '') === '9') $merged['open_hour'] = '10';
     if (!isset($stored['min_notice_hours'])) $merged['min_notice_hours'] = '48';
     if (!isset($stored['hold_hours'])) $merged['hold_hours'] = '48';
     if (!isset($stored['balance_due_days'])) $merged['balance_due_days'] = '7';
@@ -577,7 +596,7 @@ function brb_migrate_prices() {
 // [CONFIRM with Chris] Guests out by 11:30 PM. No smoking or vaping. Service animals only.
 function brb_faq_markup() {
     return <<<'HTML'
-<details><summary>How many guests can The Boardroom hold?</summary><p>Up to 75 people.</p></details><details><summary>Is parking available?</summary><p>Yes. Free parking on premises.</p></details><details><summary>Can we bring our own drinks?</summary><p>The Boardroom has a bar area and an ice machine. No cooking is allowed in the venue. The stove top may not be used. Food warmers (for keeping prepared food warm) and the bar area may be used. There are no taps. Draft taps are not available. BYOB is allowed, and the renter must obtain a one-day liquor license from the City of Moline, fee $50. See the <a href="/terms/">Rental Terms</a>.</p></details><details><summary>What is there to do?</summary><p>80in television, pinball, pool and shuffleboard.</p></details><details><summary>How much does it cost?</summary><p>Pricing starts at $600 per day and can reach about $2,000, depending on the date, how many people are coming, and the features you would like. Most events come to about $1,200. We confirm the final price with you before any check is due. The website does not guess a total.</p></details><details><summary>How is the space set up?</summary><p>The space arrives not set up. Seating and layout are yours to plan, so bring the arrangement that suits your gathering. If you would like a hand, our staff can help with setup for an extra fee.</p></details><details><summary>Do you provide decorations?</summary><p>Decorations are not provided. Christmas decorations are up in December.</p></details><details><summary>What are our responsibilities before we leave?</summary><p>Please leave it like you got it. Clean and tidy the space, and take the garbage out. Another event is often booked the following day, and a ready room lets the next hosts begin on time.</p></details><details><summary>How do I book and pay?</summary><p>Request a date on the <a href="/book/">Book</a> page. Bookings are subject to approval, and the owner may decline any request. No payment is due until the request is approved. A request does not hold the date. Your date is reserved once your deposit is received. The deposit (50% of the agreed total) holds the date. It is refundable if the Owner receives written cancellation 90 or more days before the event, less any non-refundable processing charges (including the 3% card processing fee) and costs already incurred. It is not refundable if cancellation is received less than 90 days before the event. Pay by check or in person, or online by card with a 3% processing fee. Mail or drop off checks payable to Mad Productions at 2212 37th Street, Moline, IL 61265. Bookings need at least 48 hours' notice. Until we confirm your price, your confirmation says price to be confirmed. The card processing fee is non-refundable.</p></details><details><summary>What is the cancellation policy?</summary><p>See the <a href="/terms/">Rental Terms</a>. If a summary and the signed agreement differ, the signed agreement controls.</p></details><details><summary>Are overnight stays allowed?</summary><p>No overnight stays. The Boardroom is an event space only.</p></details><details><summary>When does everyone have to be out?</summary><p>Everyone must be out of The Boardroom by 11:30 PM. This is firm, with no exceptions. Please finish in time to wrap up.</p></details><details><summary>Can we sell tickets or charge admission?</summary><p>No. All events must be free to attend: no tickets, no cover charge, no paid admission, no door fees, and no ticket or merchandise sales. We do not host concerts or ticketed shows.</p></details><details><summary>Can we have a band?</summary><p>Yes. Guests may have a band or live music, as long as they are not charging for the event. We do not host concerts or ticketed shows.</p></details><details><summary>Is smoking allowed?</summary><p>No smoking or vaping.</p></details><details><summary>Can I bring a pet?</summary><p>Service animals only. No pets.</p></details><details><summary>Can I bring my own food?</summary><p>Yes. You can bring your own food. We have warmers and buffet-style warmers, but the stovetop can't be used. You can also have it catered by any caterer. The Boardroom does not provide catering.</p></details>
+<details><summary>How many guests can The Boardroom hold?</summary><p>Up to 75 people.</p></details><details><summary>Is parking available?</summary><p>Yes. Free parking on premises.</p></details><details><summary>Can we bring our own drinks?</summary><p>The Boardroom has a bar area and an ice machine. No cooking is allowed in the venue. The stove top may not be used. Food warmers (for keeping prepared food warm) and the bar area may be used. There are no taps. Draft taps are not available. BYOB is allowed, and the renter must obtain a one-day liquor license from the City of Moline, fee $50. See the <a href="/terms/">Rental Terms</a>.</p></details><details><summary>What is there to do?</summary><p>80in television, pinball, pool and shuffleboard.</p></details><details><summary>How much does it cost?</summary><p>Pricing starts at $600 per day and can reach about $2,000, depending on the date, how many people are coming, and the features you would like. Most events come to about $1,200. We confirm the final price with you before any check is due. The website does not guess a total.</p></details><details><summary>How is the space set up?</summary><p>The space arrives not set up. Seating and layout are yours to plan, so bring the arrangement that suits your gathering. If you would like a hand, our staff can help with setup for an extra fee.</p></details><details><summary>Do you provide decorations?</summary><p>Decorations are not provided. Christmas decorations are up in December.</p></details><details><summary>What are our responsibilities before we leave?</summary><p>Please leave it like you got it. Clean and tidy the space, and take the garbage out. Another event is often booked the following day, and a ready room lets the next hosts begin on time.</p></details><details><summary>How do I book and pay?</summary><p>Request a date on the <a href="/book/">Book</a> page. Bookings are subject to approval, and the owner may decline any request. No payment is due until the request is approved. A request does not hold the date. Your date is reserved once your deposit is received. The deposit (50% of the agreed total) holds the date. It is refundable if the Owner receives written cancellation 90 or more days before the event, less any non-refundable processing charges (including the 3% card processing fee) and costs already incurred. It is not refundable if cancellation is received less than 90 days before the event. Pay by check or in person, or online by card with a 3% processing fee. Mail or drop off checks payable to Mad Productions at 2212 37th Street, Moline, IL 61265. Bookings need at least 48 hours' notice. Until we confirm your price, your confirmation says price to be confirmed. The card processing fee is non-refundable.</p></details><details><summary>What is the cancellation policy?</summary><p>See the <a href="/terms/">Rental Terms</a>. If a summary and the signed agreement differ, the signed agreement controls.</p></details><details><summary>Are overnight stays allowed?</summary><p>No overnight stays. The Boardroom is an event space only.</p></details><details><summary>When does everyone have to be out?</summary><p>Everyone must be out of The Boardroom by 11:30 PM. This is firm, with no exceptions. Please finish in time to wrap up.</p></details><details><summary>What are the hours?</summary><p>A full day runs from 10:00 AM to 11:30 PM. Half days are generally available in June: 10:00 AM to 4:00 PM, or 5:00 PM to 11:30 PM.</p></details><details><summary>Can we sell tickets or charge admission?</summary><p>No. All events must be free to attend: no tickets, no cover charge, no paid admission, no door fees, and no ticket or merchandise sales. We do not host concerts or ticketed shows.</p></details><details><summary>Can we have a band?</summary><p>Yes. Guests may have a band or live music, as long as they are not charging for the event. We do not host concerts or ticketed shows.</p></details><details><summary>Is smoking allowed?</summary><p>No smoking or vaping.</p></details><details><summary>Can I bring a pet?</summary><p>Service animals only. No pets.</p></details><details><summary>Can I bring my own food?</summary><p>Yes. You can bring your own food. We have warmers and buffet-style warmers, but the stovetop can't be used. You can also have it catered by any caterer. The Boardroom does not provide catering.</p></details>
 HTML;
 }
 function brb_patch_faq_drinks() {
@@ -637,6 +656,7 @@ function brb_refresh_faq() {
     $next = str_replace('Please clean and tidy the space, and take the garbage out.', 'Please leave it like you got it. Clean and tidy the space, and take the garbage out.', $next);
     $house = [
         'When does everyone have to be out?' => 'Everyone must be out of The Boardroom by 11:30 PM. This is firm, with no exceptions. Please finish in time to wrap up.',
+        'What are the hours?' => 'A full day runs from 10:00 AM to 11:30 PM. Half days are generally available in June: 10:00 AM to 4:00 PM, or 5:00 PM to 11:30 PM.',
         'Can we sell tickets or charge admission?' => 'No. All events must be free to attend: no tickets, no cover charge, no paid admission, no door fees, and no ticket or merchandise sales. We do not host concerts or ticketed shows.',
         'Can we have a band?' => 'Yes. Guests may have a band or live music, as long as they are not charging for the event. We do not host concerts or ticketed shows.',
         'Is smoking allowed?' => 'No smoking or vaping.',
@@ -726,7 +746,7 @@ function brb_slot_info(DateTimeImmutable $day) {
     $minH = max(1, (int) $o['min_hours']);
     $midnight = $day->setTime(0, 0);
     $mode = $o['mode'];
-    $dayOk = ($mode !== 'hourly') && ($midnight >= $cutoff);
+    $dayOk = ($mode !== 'hourly') && ($day->setTime(10, 0) >= $cutoff);
     $first = null;
     if ($mode !== 'day') {
         for ($h = $open; $h + $minH <= $close; $h++) {
@@ -740,8 +760,11 @@ function brb_build_range($in, $args = []) {
     $o = brb_opt();
     $date = sanitize_text_field($in['date'] ?? '');
     if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) return new WP_Error('date', 'Please choose a date.');
-    $type = ($in['type'] ?? 'day') === 'hourly' ? 'hourly' : 'day';
-    if ($o['mode'] !== 'both') $type = $o['mode'];
+    $asked = (string) ($in['type'] ?? 'day');
+    if ($asked === 'hourly') $type = 'hourly';
+    elseif ($asked === 'half') $type = 'half';
+    else $type = 'day';
+    if ($type !== 'half' && $o['mode'] !== 'both') $type = $o['mode'];
     $tz = brb_tz();
     try {
         $d0 = new DateTimeImmutable($date . ' 00:00:00', $tz);
@@ -749,10 +772,19 @@ function brb_build_range($in, $args = []) {
         return new WP_Error('date', 'Please choose a date.');
     }
     if ($d0 < brb_now()->setTime(0, 0)) return new WP_Error('past', 'That date is in the past.');
-    if ($type === 'day') {
+    if ($type === 'half') {
+        if (!brb_half_day_month($d0) && empty($args['override_notice'])) {
+            return new WP_Error('half', 'Half days are generally available in June. Please choose a full day, or ask our team about another month.');
+        }
+        $which = ($in['half'] ?? 'day') === 'eve' ? 'eve' : 'day';
+        $s = $d0->setTime($which === 'eve' ? 17 : 10, 0);
+        $e = $which === 'eve' ? $d0->setTime(23, 30) : $d0->setTime(16, 0);
+        $units = 1;
+        $type = 'half';
+    } elseif ($type === 'day') {
         $days = max(1, min((int) $o['max_days'], (int) ($in['days'] ?? 1)));
-        $s = $d0;
-        $e = $d0->modify("+$days day");
+        $s = $d0->setTime(10, 0);
+        $e = $d0->modify('+' . ($days - 1) . ' day')->setTime(23, 30);
         $units = $days;
     } else {
         $h = (int) ($in['start_hour'] ?? $o['open_hour']);
@@ -865,9 +897,13 @@ function brb_when($b) {
     $s = new DateTimeImmutable($b->start_dt, brb_tz());
     $e = new DateTimeImmutable($b->end_dt, brb_tz());
     if ($b->mode === 'day') {
-        $last = $e->modify('-1 day');
+        if ($s->format('Y-m-d') === $e->format('Y-m-d')) return $s->format('D M j, Y') . ' (full day)';
+        $last = ($e->format('H:i') === '00:00') ? $e->modify('-1 day') : $e;
         if ($last->format('Y-m-d') === $s->format('Y-m-d')) return $s->format('D M j, Y') . ' (full day)';
         return $s->format('D M j, Y') . ' – ' . $last->format('D M j, Y') . ' (full day)';
+    }
+    if ($b->mode === 'half') {
+        return $s->format('D M j, Y g:i A') . ' – ' . $e->format('g:i A');
     }
     return $s->format('D M j, Y g:i A') . ' – ' . $e->format('g:i A');
 }
@@ -1039,7 +1075,7 @@ function brb_send_request_emails($b) {
     $screen = implode("\n", brb_screening_lines($b));
     $facts = brb_approval_line() . "\n\n" . brb_request_open_line() . "\n\n" . brb_reserved_line() . "\n\n" . brb_deposit_line() . "\n\n" . brb_not_held_line();
     $detail = "When: " . brb_when($b) . "\n" . brb_event_type_line($b) . "Guests attending: {$b->guests}\n" . ($screen !== '' ? $screen . "\n" : '') . "Price: {$price}\n";
-    $body = "Hi {$b->name},\n\nWe received your request.\n\n{$facts}\n\n{$detail}\n" . brb_no_overnight_line() . "\n" . brb_out_by_line() . "\n" . brb_free_admission_rule() . "\n\nCancellation policy:\n{$o['policy']}\n\nView your request: " . brb_guest_link($b) . "\n";
+    $body = brb_guest_hello_line() . "\n\n" . brb_guest_review_line() . "\n\n{$detail}\n" . brb_no_overnight_line() . "\n" . brb_guest_out_line() . "\n" . brb_guest_free_line() . "\n" . brb_hours_line() . "\n\nCancellation policy:\n{$o['policy']}\n\nView your request: " . brb_guest_link($b) . "\n";
     brb_mail($b->email, 'We received your Boardroom request (' . $ref . ')', $body, $o['admin_email']);
     $admin = "A new request is pending review. The date is not held.\n\nReference: {$ref}\nWhen: " . brb_when($b) . "\nGuest: {$b->name}\nEmail: {$b->email}\nPhone: {$b->phone}\n" . brb_event_type_line($b) . "Guests: {$b->guests}\n" . ($screen !== '' ? $screen . "\n" : '') . "Price: {$price}\nSource: " . brb_source_label($b->source) . "\nNotes: {$b->notes}\n\n" . admin_url('admin.php?page=brb&booking=' . (int) $b->id) . "\n";
     brb_mail($o['admin_email'], 'Request pending review ' . $ref . ' – ' . $b->name, $admin, $b->email);
@@ -1051,16 +1087,21 @@ function brb_send_approve_email($b) {
     $o = brb_opt();
     $ref = brb_ref($b);
     $facts = implode("\n\n", brb_payment_lines($b));
-    $body = "Hi {$b->name},\n\nYour request is approved.\n\n{$facts}\n\n" . brb_out_by_line() . "\n" . brb_free_admission_rule() . "\n\nWhen: " . brb_when($b) . "\n" . brb_event_type_line($b) . "Guests attending: {$b->guests}\nReference: {$ref}\n\nView your booking: " . brb_guest_link($b) . "\n";
+    $guest_facts = implode("\n\n", array_values(array_filter(brb_payment_lines($b), function ($line) {
+        return !in_array($line, [brb_not_held_line(), brb_reserved_line(), brb_approval_line(), brb_request_open_line()], true);
+    })));
+    $body = brb_guest_hello_line() . "\n\nYour request is approved.\n\n" . brb_guest_review_line() . "\n\n" . $guest_facts . "\n\n" . brb_guest_out_line() . "\n" . brb_guest_free_line() . "\n\nWhen: " . brb_when($b) . "\n" . brb_event_type_line($b) . "Guests attending: {$b->guests}\nReference: {$ref}\n\nView your booking: " . brb_guest_link($b) . "\n";
     brb_mail($b->email, 'Your Boardroom request is approved (' . $ref . ')', $body, $o['admin_email']);
-    brb_mail($o['admin_email'], 'Request approved ' . $ref . ' – ' . $b->name, $body . "\n" . admin_url('admin.php?page=brb&booking=' . (int) $b->id) . "\n", $b->email);
+    $staff = "Request approved.\n\n{$facts}\n\nWhen: " . brb_when($b) . "\n" . brb_event_type_line($b) . "Guests attending: {$b->guests}\nReference: {$ref}\n\n" . admin_url('admin.php?page=brb&booking=' . (int) $b->id) . "\n";
+    brb_mail($o['admin_email'], 'Request approved ' . $ref . ' – ' . $b->name, $staff, $b->email);
 }
 function brb_send_decline_email($b) {
     $o = brb_opt();
     $ref = brb_ref($b);
-    $body = "Hi {$b->name},\n\nThank you for your request ({$ref}, " . brb_when($b) . "). We are not able to approve it. The date is not reserved.\n\n" . brb_deposit_line() . "\n\nIf a payment was recorded, our team will resolve it manually.\n\n" . brb_no_overnight_line() . "\n" . brb_out_by_line() . "\n" . brb_free_admission_rule() . "\n";
+    $body = brb_guest_hello_line() . "\n\nThank you for your request ({$ref}, " . brb_when($b) . "). We are not able to approve it. The date is not reserved.\n\n" . brb_guest_review_line() . "\n\n" . brb_deposit_line() . "\n\nIf a payment was recorded, our team will resolve it manually.\n";
     brb_mail($b->email, 'Your Boardroom request was declined (' . $ref . ')', $body, $o['admin_email']);
-    brb_mail($o['admin_email'], 'Request declined ' . $ref . ' – ' . $b->name, $body . "\n" . admin_url('admin.php?page=brb&booking=' . (int) $b->id) . "\n", $b->email);
+    $staff = "Request declined.\n\n{$ref}, " . brb_when($b) . "\nThe date is not reserved.\n\n" . brb_deposit_line() . "\n\n" . admin_url('admin.php?page=brb&booking=' . (int) $b->id) . "\n";
+    brb_mail($o['admin_email'], 'Request declined ' . $ref . ' – ' . $b->name, $staff, $b->email);
 }
 function brb_send_payment_email($b, $amount, $check_number, $method = 'check') {
     $o = brb_opt();
@@ -1108,9 +1149,9 @@ function brb_send_payment_email($b, $amount, $check_number, $method = 'check') {
         $subject = 'We received your check for ' . $ref;
         $admin_subject = 'Check recorded for ' . $ref . ' – ' . $b->name;
     }
-    $body = "Hi {$b->name},\n\n{$intro}\n\n" . brb_deposit_line() . "\n\n" . brb_reserved_line() . "\n\n" . brb_no_overnight_line() . "\n\nReference: {$ref}\nWhen: " . brb_when($b) . "\n" . brb_event_type_line($b) . "Guests attending: {$b->guests}\nPrice: " . brb_price_phrase($b) . "\n\nCancellation policy:\n{$o['policy']}\n\nView your booking: " . brb_guest_link($b) . "\n";
+    $body = brb_guest_hello_line() . "\n\n{$intro}\n\n" . brb_guest_review_line() . "\n\n" . brb_deposit_line() . "\n\nReference: {$ref}\nWhen: " . brb_when($b) . "\n" . brb_event_type_line($b) . "Guests attending: {$b->guests}\nPrice: " . brb_price_phrase($b) . "\n\nCancellation policy:\n{$o['policy']}\n\nView your booking: " . brb_guest_link($b) . "\n";
     brb_mail($b->email, $subject, $body, $o['admin_email']);
-    brb_mail($o['admin_email'], $admin_subject, $body . "\nAdmin: " . admin_url('admin.php?page=brb&booking=' . (int) $b->id) . "\n", $b->email);
+    brb_mail($o['admin_email'], $admin_subject, "Payment notice for {$ref}.\n\n{$intro}\n\n" . admin_url('admin.php?page=brb&booking=' . (int) $b->id) . "\n", $b->email);
 }
 function brb_send_expired_emails($b) {
     unset($b);
@@ -1118,8 +1159,9 @@ function brb_send_expired_emails($b) {
 function brb_send_cancel_email($b) {
     $o = brb_opt();
     $ref = brb_ref($b);
-    $body = "Hi {$b->name},\n\nBooking {$ref} (" . brb_when($b) . ") has been cancelled. The date is no longer reserved.\n\nCancellation policy:\n{$o['policy']}\n";
+    $body = brb_guest_hello_line() . "\n\nBooking {$ref} (" . brb_when($b) . ") has been cancelled. The date is no longer reserved.\n\nCancellation policy:\n{$o['policy']}\n";
     brb_mail($b->email, 'Boardroom booking cancelled (' . $ref . ')', $body, $o['admin_email']);
+    brb_mail($o['admin_email'], 'Booking cancelled ' . $ref, "Booking {$ref} was cancelled.\n\n" . admin_url('admin.php?page=brb&booking=' . (int) $b->id) . "\n", $b->email);
 }
 
 function brb_expire_holds() {
@@ -1339,11 +1381,11 @@ function brb_send_price_email($b) {
     $o = brb_opt();
     $ref = brb_ref($b);
     $bring = brb_money(brb_amount_to_bring($b));
-    $body = "Hi {$b->name},\n\nThe price for your Boardroom date is confirmed.\n\nAgreed price: " . brb_money($b->total) . "\nDeposit: {$bring}\n\n";
+    $body = brb_guest_hello_line() . "\n\nThe price for your Boardroom date is confirmed.\n\nAgreed price: " . brb_money($b->total) . "\nDeposit: {$bring}\n\n" . brb_guest_review_line() . "\n\n";
     if (in_array($b->status, ['approved', 'held', 'deposit_paid'], true)) {
         $body .= implode("\n\n", brb_payment_lines($b)) . "\n\n";
     } else {
-        $body .= "Payment instructions are sent when the request is approved. No payment is due until then.\n\n" . brb_not_held_line() . "\n\n" . brb_reserved_line() . "\n\n" . brb_deposit_line() . "\n\n";
+        $body .= "Payment instructions are sent when the request is approved.\n\n" . brb_deposit_line() . "\n\n";
     }
     $body .= 'When: ' . brb_when($b) . "\n" . brb_event_type_line($b) . "Guests attending: {$b->guests}\nReference: {$ref}\n\nView your booking: " . brb_guest_link($b) . "\n";
     brb_mail($b->email, 'Your Boardroom price is confirmed (' . $ref . ')', $body, $o['admin_email']);
@@ -1516,7 +1558,8 @@ function brb_view_select() {
         <p class="brb-legend"><span class="free"></span>Available <span class="partial"></span>Partly booked <span class="booked"></span>Unavailable <span class="soon"></span>Inside <?php echo (int) $notice; ?>h notice</p>
       </div>
       <form class="brb-card" method="get" id="brb-form">
-        <p class="brb-small">Bookings must start at least <?php echo (int) $notice; ?> hours from now (America/Chicago). Dates and start times inside that window are unavailable. A full day starts at 12:00 AM.</p>
+        <p class="brb-small">Please choose a start at least <?php echo (int) $notice; ?> hours from now (America/Chicago). Dates and start times inside that window are unavailable. A full day runs from 10:00 AM to 11:30 PM.</p>
+        <p class="brb-small"><?php echo esc_html(brb_hours_line()); ?></p>
         <p class="brb-small"><?php echo esc_html(brb_no_overnight_line()); ?></p>
         <?php if ($o['mode'] !== 'day'): ?>
         <p class="brb-small">A shorter block reserves part of the day. There is no separate hourly price. The price is confirmed for the event, from the same starting price.</p>
@@ -1524,11 +1567,19 @@ function brb_view_select() {
         <label>Date<input type="date" name="date" id="brb-date" required min="<?php echo esc_attr(brb_now()->format('Y-m-d')); ?>"></label>
         <?php if ($o['mode'] === 'both'): ?>
         <fieldset class="brb-type"><legend>Booking type</legend>
-          <label><input type="radio" name="type" value="day" checked> Full day</label>
+          <label><input type="radio" name="type" value="day" checked> Full day (10:00 AM–11:30 PM)</label>
+          <label class="brb-half-choice"><input type="radio" name="type" value="half"> Half day</label>
           <label><input type="radio" name="type" value="hourly"> Shorter block (<?php echo (int) $o['min_hours']; ?> hour minimum)</label>
         </fieldset>
         <?php else: ?><input type="hidden" name="type" value="<?php echo esc_attr($o['mode']); ?>"><?php endif; ?>
         <div class="brb-day"><label>Number of days<input type="number" name="days" value="1" min="1" max="<?php echo (int) $o['max_days']; ?>"></label></div>
+        <div class="brb-half">
+          <fieldset><legend>Half day</legend>
+            <label><input type="radio" name="half" value="day" checked> 10:00 AM to 4:00 PM</label>
+            <label><input type="radio" name="half" value="eve"> 5:00 PM to 11:30 PM</label>
+          </fieldset>
+          <p class="brb-small" id="brb-half-note">Half days are generally available in June.</p>
+        </div>
         <div class="brb-hourly">
           <label>Start time<select name="start_hour" id="brb-start"><?php
             for ($h = (int) $o['open_hour']; $h < (int) $o['close_hour']; $h++) {
@@ -1674,12 +1725,9 @@ function brb_view_confirmation($token) {
       }
       if (in_array($b->status, ['review', 'pending'], true)) {
           echo '<div class="brb-paybox">';
-          echo '<p>Your request is pending review. Bookings are subject to approval.</p>';
-          echo '<p>' . esc_html(brb_approval_line()) . '</p>';
-          echo '<p>' . esc_html(brb_request_open_line()) . '</p>';
-          echo '<p>' . esc_html(brb_reserved_line()) . '</p>';
-          echo '<p>' . esc_html(brb_deposit_line()) . '</p>';
-          echo '<p>No payment is due until the request is approved.</p>';
+          echo '<p>' . esc_html(brb_guest_hello_line()) . '</p>';
+          echo '<p>' . esc_html(brb_guest_review_line()) . '</p>';
+          echo '<p>Pending review</p>';
           echo '</div>';
           echo '<p>A copy of this request was sent to ' . esc_html($b->email) . '.</p>';
       } elseif (in_array($b->status, ['approved', 'held'], true)) {

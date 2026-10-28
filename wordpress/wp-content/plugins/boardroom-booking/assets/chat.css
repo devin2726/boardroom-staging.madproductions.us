@@ -11,10 +11,10 @@
 .brb-chat-close,.brb-chat-send,.brb-chat-lead-toggle{font-family:"EB Garamond",Georgia,"Times New Roman",serif;cursor:pointer}
 .brb-chat-close{background:transparent;color:#c4912e;border:1px solid #c4912e;padding:4px 10px}
 .brb-chat-log{overflow:visible;padding:12px;min-height:0}
-.brb-chat-msg,.brb-chat-msg.user,.brb-chat-msg.bot{margin:0 0 12px;color:#161616;background:transparent;border:0;box-shadow:none;border-radius:0;font-size:17px;line-height:1.6}
-.brb-chat-msg.user{text-align:right}
-.brb-chat-msg.bot{text-align:left}
-.brb-chat-who{display:block;font-size:15px;letter-spacing:.08em;text-transform:uppercase;color:#161616;font-weight:600}
+.brb-chat-msg,.brb-chat-msg.user,.brb-chat-msg.bot{margin:0 0 12px;color:#161616;background:#fbf6ec;border:1px solid #e4d3a8;box-shadow:none;border-radius:12px;padding:10px 12px;font-size:17px;line-height:1.6}
+.brb-chat-msg.user{text-align:right;margin-left:18%}
+.brb-chat-msg.bot{text-align:left;margin-right:18%}
+.brb-chat-who{display:block;font-size:16px;letter-spacing:.08em;text-transform:uppercase;color:#161616;font-weight:600}
 .brb-chat-ask,.brb-chat-lead{display:flex;gap:8px;padding:0 12px 12px}
 .brb-chat-lead{flex-direction:column;gap:8px;border-top:1px solid #e3e3e3;padding-top:12px}
 .brb-chat-lead[hidden]{display:none!important}

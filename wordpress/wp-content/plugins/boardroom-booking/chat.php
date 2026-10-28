@@ -301,7 +301,7 @@ function brb_chat_intents($text) {
         'rules' => ['rule', 'overnight', 'cook', 'stove', 'stovetop', 'tap', 'byob', 'liquor', 'alcohol', 'insurance', 'decorat', 'garbage', 'trash', 'occupan', '75', 'not set up', 'clean', 'allowed'],
         'pricing' => ['price', 'pricing', 'cost', 'how much', 'rate', 'estimate', 'quote'],
         'payment' => ['deposit', 'check', 'payment', 'pay ', 'card', 'fee', 'non-refundable', 'stripe'],
-        'book' => ['book', 'reserve a', 'request a date', 'hold a date'],
+        'book' => ['book', 'reserve a', 'request a date', 'hold a date', 'how do i reserve', 'how to reserve'],
         'tour' => ['tour', 'visit', 'see the space', 'walk through'],
         'contact' => ['contact', 'email', 'reach', 'get in touch', 'phone number', 'call'],
         'place' => ['where', 'address', 'located', 'directions'],
@@ -351,10 +351,11 @@ function brb_chat_blocked_kind(DateTimeImmutable $day, DateTimeImmutable $next) 
 
 function brb_chat_date_status($ymd) {
     $day = new DateTimeImmutable($ymd . ' 00:00:00', brb_tz());
-    $next = $day->modify('+1 day');
+    $start = $day->setTime(10, 0);
+    $end = $day->setTime(23, 30);
     if ($day < brb_now()->setTime(0, 0)) return 'past';
     if (in_array($ymd, brb_blackouts(), true)) return 'blackout';
-    if (!brb_is_free($day, $next)) return brb_chat_blocked_kind($day, $next);
+    if (!brb_is_free($start, $end)) return brb_chat_blocked_kind($start, $end);
     $slot = brb_slot_info($day);
     if (!$slot['any'] || !$slot['day_ok']) return 'notice';
     return 'open';
@@ -396,7 +397,7 @@ function brb_chat_day_sentence($ymd) {
         if (!empty($slot['any']) && empty($slot['day_ok'])) return $label . ' is a bit soon for a full day. ' . $notice . ' A shorter block may be possible later that day.';
         return $label . ' is a bit soon. ' . $notice;
     }
-    return $label . ' looks open. The date is reserved only once a deposit is paid.';
+    return $label . ' looks open. ' . brb_guest_review_line();
 }
 
 function brb_chat_availability_text($parsed) {
@@ -452,7 +453,7 @@ function brb_chat_price_for_dates($parsed) {
 // [CONFIRM with Chris] Guests out by 11:30 PM. No smoking or vaping. Service animals only.
 function brb_chat_rules_text() {
     return 'Here\'s the short version. No overnight stays. The Boardroom is an event space only. '
-        . 'Everyone must be out of The Boardroom by 11:30 PM. This is firm, with no exceptions. No smoking or vaping. Service animals only. No pets. '
+        . brb_hours_line() . ' Everyone is out by 11:30 PM. No smoking or vaping. Service animals only. No pets. '
         . 'All events must be free to attend: no tickets, no cover charge, no paid admission, no door fees, and no ticket or merchandise sales. Guests may have a band or live music, as long as they are not charging for the event. We do not host concerts or ticketed shows. '
         . 'No cooking is allowed. The stovetop may not be used. The kitchen area is for serving and storage. '
         . 'You can bring your own food. Warmers and buffet-style warmers are available. Any caterer is welcome. The Boardroom does not provide catering. '
@@ -466,7 +467,37 @@ function brb_chat_specific_text($text) {
     $t = strtolower((string) $text);
     if (preg_match('/\brules?\b/', $t)) return '';
     if (preg_match('/amenit|what is included|what do you have|what\'s included|whats included/', $t)) return '';
+    if (preg_match('/discount|wheelchair|\bnoise\b|security camera|bad weather|staff on site|on-site staff|\bdamage\b|\btax\b|\binsurance\b/', $t)) {
+        return brb_chat_confirm_line();
+    }
     $bits = [];
+    if (preg_match('/\bhours\b|what time are you open|half[- ]?day|10:00|10 am|open at/', $t)) {
+        $bits[] = brb_hours_line() . ' ' . brb_guest_out_line();
+    }
+    if (preg_match('/wedding|shower|graduation|birthday|funeral|teen/', $t)) {
+        $bits[] = 'Yes. Weddings, showers, graduations, kids birthdays, funerals, and teen events are all welcome when the event is free to attend. Please keep the party small and plan to be out by 11:30 PM. A host who is 21 or older is something our team will confirm.';
+    }
+    if (preg_match('/december/', $t) && preg_match('/open|available|dates/', $t) && !preg_match('/\d/', $t)) {
+        $bits[] = brb_chat_december_open();
+    }
+    if (preg_match('/\bphoto|\bpicture|\bgallery\b|tour video|\bvideo\b/', $t)) {
+        $bits[] = 'Photos are in the Gallery: ' . home_url('/gallery/') . '. The tour video is on the home page and the Contact page.';
+    }
+    if (preg_match('/table|chair/', $t)) {
+        $bits[] = 'The room comes not set up. Staff can help with tables and chairs for an extra fee.';
+    }
+    if (preg_match('/\btv\b|television|pinball|shuffleboard|pool table/', $t)) {
+        $bits[] = 'Yes. The room has an 80in television, pinball, a pool table, and shuffleboard.';
+    }
+    if (preg_match('/restroom|bathroom/', $t)) {
+        $bits[] = 'Yes, the space has restrooms.';
+    }
+    if (preg_match('/ice machine|\bbar\b/', $t)) {
+        $bits[] = 'Yes. There is a bar area and an ice machine. BYOB is allowed, and guests get the one-day City of Moline liquor license.';
+    }
+    if (preg_match('/rental agreement|sign an agreement|signed agreement/', $t)) {
+        $bits[] = 'Yes. A signed rental agreement is part of booking. The Terms page is ' . home_url('/terms/') . ' and the agreement is ' . home_url('/rental-agreement/') . '.';
+    }
     if (preg_match('/food|cater|warmer|buffet|\bcook|\bstove|stovetop/', $t)) {
         $bits[] = 'Yes. You can bring your own food. We have warmers and buffet-style warmers, but the stovetop can\'t be used. You can also have it catered by any caterer. The Boardroom does not provide catering.';
     }
@@ -524,7 +555,7 @@ function brb_chat_asks_checks($text) {
 }
 function brb_chat_payment_text($include_checks = false) {
     $fee = brb_fee_percent_label();
-    $text = 'The deposit is 50% of the agreed total. It is refundable if written cancellation is received 90 or more days before the event, less the non-refundable ' . $fee . ' card processing fee and costs already incurred. It is not refundable if cancellation is received less than 90 days before the event. Want the full cancellation terms? See ' . home_url('/terms/') . '.';
+    $text = brb_guest_review_line() . ' The deposit is 50% of the agreed total. It is refundable if written cancellation is received 90 or more days before the event, less the non-refundable ' . $fee . ' card processing fee and costs already incurred. It is not refundable if cancellation is received less than 90 days before the event. Want the full cancellation terms? See ' . home_url('/terms/') . '.';
     if ($include_checks) {
         $text .= ' Mail or drop off checks payable to ' . brb_guest_payee() . ' at ' . brb_check_address() . '. That is the check address, not the event space.';
     }
@@ -535,7 +566,21 @@ function brb_chat_payment_text($include_checks = false) {
 }
 
 function brb_chat_book_text() {
-    return 'I\'d love to help you plan your event. Request a date on the Book page: ' . home_url('/book/') . '. Bookings are subject to approval. No payment is due until the request is approved.';
+    return 'I\'d love to help you plan your event. Submit a request on the Book page: ' . home_url('/book/') . '. ' . brb_guest_review_line();
+}
+function brb_chat_confirm_line() {
+    return 'Our team will confirm that for you.';
+}
+function brb_chat_december_open() {
+    $year = (int) brb_now()->format('Y');
+    if ((int) brb_now()->format('n') > 12) $year++;
+    $found = [];
+    for ($d = 1; $d <= 31 && count($found) < 3; $d++) {
+        $ymd = sprintf('%04d-12-%02d', $year, $d);
+        if (brb_chat_date_status($ymd) === 'open') $found[] = $ymd;
+    }
+    if (!$found) return 'I do not see an open December date in that quick look. ' . brb_chat_confirm_line();
+    return 'A few open dates in December: ' . brb_chat_list_dates($found) . '. ' . brb_guest_review_line();
 }
 
 function brb_chat_tour_text() {
@@ -873,6 +918,6 @@ add_action('wp_enqueue_scripts', function () {
 
 add_action('wp_footer', function () {
     if (is_admin()) return;
-    if (is_page('contact')) return;
+    if (is_page('contact') || is_front_page()) return;
     echo brb_chat_markup();
 });

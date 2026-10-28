@@ -36,7 +36,7 @@ function brb_chat_reply($text, $history = []) {
 }
 
 try {
-    brb_t(get_option('brb_version') === '2.5.6', 'plugin storage version is 2.5.6');
+    brb_t(get_option('brb_version') === '2.5.7', 'plugin storage version is 2.5.7');
     $cols = $wpdb->get_col('SHOW COLUMNS FROM ' . brb_tour_table(), 0);
     brb_t(in_array('source', $cols, true), 'inquiries can store a source');
     brb_t((string) brb_opt('quote_prices') === '1', 'price estimates are on by default');
@@ -60,6 +60,18 @@ try {
     brb_t(strpos($byob, 'BYOB') !== false && strpos($byob, 'City of Moline') !== false && strpos($byob, 'leave it like you got it') !== false && strpos($byob, 'garbage') !== false, 'BYOB includes the license and cleanup');
     $out = brb_chat_reply('How late can we stay?');
     brb_t(strpos($out, '11:30 PM') !== false && stripos($out, 'midnight') === false && stripos($out, 'permit') === false, 'end time questions say 11:30 PM');
+    $hours = brb_chat_reply('What are your hours?');
+    brb_t(strpos($hours, '10:00 AM') !== false && strpos($hours, '11:30 PM') !== false && strpos($hours, 'Half days') !== false && strpos($hours, 'June') !== false, 'hours include the full day and June half days');
+    $wedding = brb_chat_reply('Can we have a wedding?');
+    brb_t(strpos($wedding, 'Weddings') !== false && strpos($wedding, 'free to attend') !== false && strpos($wedding, 'our team will confirm') !== false, 'event types are welcome and the host age is confirmed by the team');
+    $reserve = brb_chat_reply('How do I reserve?');
+    brb_t(strpos($reserve, home_url('/book/')) !== false && strpos($reserve, 'approved by the Boardroom') !== false, 'reserve explains the book request and deposit');
+    $photos = brb_chat_reply('Where are the photos?');
+    brb_t(strpos($photos, '/gallery/') !== false && strpos($photos, 'tour video') !== false, 'photos point at the gallery and the tour video');
+    $insure = brb_chat_reply('Do I need insurance?');
+    brb_t(strpos($insure, 'Our team will confirm') !== false && strpos($insure, 'required') === false, 'insurance is confirmed by the team and not invented');
+    $dec = brb_chat_reply('What dates are open in December?');
+    brb_t(strpos($dec, 'December') !== false, 'December availability names December');
     $smoke = brb_chat_reply('Can we smoke or vape?');
     brb_t(strpos($smoke, 'No smoking or vaping.') !== false, 'smoking and vaping are refused');
     $pets = brb_chat_reply('Can I bring a pet?');
@@ -93,7 +105,7 @@ try {
     brb_t(strpos($blackout, 'unavailable') !== false && strpos($blackout, '48 hours') === false && strpos($blackout, '$') === false && strpos($blackout, 'nearby dates look open') !== false, 'a blackout date is unavailable, with nearby dates and no price or notice rule');
 
     $open = brb_chat_reply('Is September 10, 2030 available?');
-    brb_t(strpos($open, 'looks open') !== false && strpos($open, 'reserved only once a deposit is paid') !== false && substr_count($open, 'not a binding commitment') === 1, 'an open date includes the estimate once and one binding sentence');
+    brb_t(strpos($open, 'looks open') !== false && strpos($open, 'All parties are subject to review. Your date will be reserved once your deposit is received and approved by the Boardroom.') !== false && substr_count($open, 'not a binding commitment') === 1, 'an open date includes the estimate once and one binding sentence');
 
     $soon = brb_now()->modify('+1 day')->format('Y-m-d');
     $soon_reply = brb_chat_reply('Is ' . $soon . ' available?');
@@ -165,7 +177,7 @@ try {
     unset($_ENV['BRB_STRIPE_SECRET_KEY'], $_SERVER['BRB_STRIPE_SECRET_KEY']);
 
     $book = brb_chat_reply('I want to book a date');
-    brb_t(strpos($book, home_url('/book/')) !== false && strpos($book, 'subject to approval') !== false, 'booking help points at the book page');
+    brb_t(strpos($book, home_url('/book/')) !== false && strpos($book, 'All parties are subject to review. Your date will be reserved once your deposit is received and approved by the Boardroom.') !== false, 'booking help points at the book page');
     $booked = brb_chat_answer('I want to book a date');
     brb_t(!empty($booked['lead']), 'a booking question asks for follow-up details');
     $tour = brb_chat_reply('Can I tour the space?');

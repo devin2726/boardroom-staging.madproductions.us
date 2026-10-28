@@ -33,7 +33,7 @@ $created = [];
 $snapshot = get_option('brb_settings');
 
 try {
-    brb_t(get_option('brb_version') === '2.5.6', 'plugin storage version is 2.5.6');
+    brb_t(get_option('brb_version') === '2.5.7', 'plugin storage version is 2.5.7');
     brb_t($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', brb_tour_table())) === brb_tour_table(), 'inquiry table still exists');
     $cols = $wpdb->get_col('SHOW COLUMNS FROM ' . brb_tour_table(), 0);
     brb_t(in_array('phone', $cols, true) && in_array('topic', $cols, true) && in_array('preferred', $cols, true), 'topic and preferred were added and phone was kept');
@@ -244,6 +244,7 @@ try {
     $footer_map = function_exists('br_footer_map') ? br_footer_map() : '';
     brb_t(is_string($footer) && strpos($footer, 'br_footer_map') !== false && strpos($footer_map, 'https://www.google.com/maps?q=2220+37th+Street,+Moline,+IL+61265') !== false && strpos($footer_map, 'output=embed') !== false && strpos($footer_map, 'loading="lazy"') !== false && strpos($footer_map, 'referrerpolicy="no-referrer-when-downgrade"') !== false && strpos($footer, 'Get directions') !== false && strpos($footer, '2220 37th Street, Moline, IL 61265') !== false, 'the footer map uses the venue embed');
     brb_t(is_string($contact_tpl) && strpos($contact_tpl, 'brb_chat_markup') !== false && strpos($contact_tpl, 'Contact the Boardroom') !== false, 'the contact page includes the inline assistant');
+    brb_t(is_string($home) && strpos($home, 'brb_chat_markup') !== false && strpos($home, 'Contact the Boardroom') !== false, 'the home contact section includes the inline assistant');
     $css = file_get_contents(get_stylesheet_directory() . '/style.css');
     $site_js = file_get_contents(get_stylesheet_directory() . '/assets/site.js');
     brb_t(is_string($css) && strpos($css, 'z-index:400') !== false && strpos($css, 'body.admin-bar .site-header{top:32px}') !== false && strpos($css, '.nav.open{display:block}') !== false && strpos($css, 't-scroll') !== false && strpos($css, 'translateX(-50%)') !== false, 'the header stays above the page and the review track scrolls in CSS');
