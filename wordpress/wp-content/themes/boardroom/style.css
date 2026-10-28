@@ -1,7 +1,7 @@
 /*
 Theme Name: The Boardroom
 Description: Lightweight theme replicating the look of boardroomqc.com (dark + gold, EB Garamond, full-width hero slider). Pairs with the Boardroom Booking plugin.
-Version: 1.2.11
+Version: 1.2.12
 Author: Mad Productions
 Text Domain: boardroom
 */
@@ -75,3 +75,20 @@ section.block{padding:80px 0}section.alt{background:var(--bg2)}section.dark{back
 .legal-links{margin-top:8px}.legal-page .content h2{text-align:left;font-size:clamp(22px,3vw,32px);margin:36px 0 12px}.legal-page .content h2:after{margin:10px 0 0}.legal-page .content h3{margin:28px 0 8px}.legal-page .updated{color:#777;font-size:16px}.legal-page .rules{background:var(--bg2);border-left:4px solid var(--gold);padding:8px 20px 16px;margin:8px 0 24px}.legal-page .rules li{margin:6px 0}.legal-page .content p{font-variant-numeric:lining-nums}
 @media print{.announce,.site-header,.site-footer,.noprint,.menu-toggle{display:none!important}.page-hero{padding:24px 0}.page-hero:before{display:none}.page-hero h1{color:#000}.legal-page .content{max-width:none}}
 .fmenu{list-style:none;padding:0;margin:0;display:flex;justify-content:center;gap:8px}
+#guest-reviews{text-align:center}
+#guest-reviews h2{font-family:'EB Garamond',Georgia,'Times New Roman',serif}
+.review-badge{display:inline-block;margin:0 auto 28px;padding:8px 18px;border:1px solid var(--gold);color:var(--ink);font-family:'EB Garamond',Georgia,'Times New Roman',serif;letter-spacing:.04em}
+.review-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px;text-align:left}
+.review-card{margin:0;background:#fff;border-top:3px solid var(--gold);padding:22px 20px;box-shadow:0 4px 18px rgba(0,0,0,.06);display:flex;flex-direction:column;min-height:240px;font-family:'EB Garamond',Georgia,'Times New Roman',serif;color:var(--ink)}
+.review-card .stars{margin:0 0 12px;color:var(--gold);letter-spacing:.12em;font-size:18px;line-height:1}
+.review-card .review-text{margin:0 0 16px}
+.review-card footer{margin-top:auto;font-weight:600}
+.review-card cite{font-style:normal}
+.reviews-more-wrap{margin:28px 0 0}
+.review-rotator{display:grid;margin:0 0 28px}
+.review-rotator .review-card{grid-area:1/1;opacity:0;transition:opacity .6s ease;min-height:0}
+.review-rotator .review-card.on{opacity:1}
+@media(max-width:800px){.review-grid{grid-template-columns:1fr}.review-card{min-height:0}}
+@media(prefers-reduced-motion:reduce){
+.review-rotator .review-card{transition:none}
+}
