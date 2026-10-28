@@ -90,20 +90,30 @@
     addMsg('user', text);
     input.value = '';
     turns.push({ role: 'user', text: text });
-    fetch(BRB_CHAT.endpoint, {
-      method: 'POST',
-      credentials: 'omit',
-      headers: { 'Content-Type': 'application/json', 'X-BRB-Chat': BRB_CHAT.nonce },
-      body: JSON.stringify({ message: text, history: history })
-    }).then(function (r) { return r.json(); }).then(function (data) {
-      var reply = data && data.reply ? data.reply : 'Please try again in a moment, or use the Contact form.';
-      addMsg('bot', reply);
-      turns.push({ role: 'assistant', text: reply });
+    function askChat(attempt) {
+      return fetch(BRB_CHAT.endpoint, {
+        method: 'POST',
+        credentials: 'omit',
+        headers: { 'Content-Type': 'application/json', 'X-BRB-Chat': BRB_CHAT.nonce },
+        body: JSON.stringify({ message: text, history: history })
+      }).then(function (r) {
+        if ((r.status === 502 || r.status === 503 || r.status === 504) && attempt < 1) {
+          return askChat(attempt + 1);
+        }
+        return r.json().then(function (data) {
+          if (!r.ok || !data || !data.reply) throw new Error('chat');
+          return data;
+        });
+      });
+    }
+    askChat(0).then(function (data) {
+      addMsg('bot', data.reply);
+      turns.push({ role: 'assistant', text: data.reply });
       history.push({ role: 'user', text: text });
       if (history.length > 8) history = history.slice(-8);
-      if (data && data.lead) showLead();
+      if (data.lead) showLead();
     }).catch(function () {
-      addMsg('bot', 'Please try again in a moment, or use the Contact form.');
+      addMsg('bot', 'Please try that once more in a moment. You can also use the Contact form.');
     });
   });
   lead.addEventListener('submit', function (e) {

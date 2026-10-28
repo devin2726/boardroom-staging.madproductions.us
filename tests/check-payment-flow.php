@@ -44,7 +44,7 @@ add_filter('pre_wp_mail', function ($short, $atts) {
 $GLOBALS['brb_mails'] = [];
 
 try {
-    brb_t(get_option('brb_version') === '2.5.8', 'plugin storage version is 2.5.8');
+    brb_t(get_option('brb_version') === '2.5.9', 'plugin storage version is 2.5.9');
     brb_t(get_option('blog_public') === '0' || get_option('blog_public') === 0, 'staging discourages search engines');
     $cols = $wpdb->get_col('SHOW COLUMNS FROM ' . brb_table(), 0);
     foreach (['deposit_due', 'amount_paid', 'source', 'hold_until', 'balance_due_on', 'price_set', 'status', 'event_type'] as $col) {
@@ -123,6 +123,15 @@ try {
     brb_t(($migrated['starting_price'] ?? '') === '750', 'a saved starting price is kept');
     brb_t(($migrated['typical_price'] ?? '') === 'often near $1,500', 'a saved typical price text is kept');
     brb_t(($migrated['policy'] ?? '') === 'Keep this policy text.', 'policy text is kept');
+    $balance_policy = brb_opt();
+    $balance_before = (string) $balance_policy['policy'];
+    $balance_policy['policy'] = 'The invoice notes require full payment 30 days before the event. Keep the rest.';
+    update_option('brb_settings', $balance_policy);
+    brb_migrate_settings();
+    brb_t(strpos((string) brb_opt('policy'), 'week of the event, no later than 48 hours before the event') !== false && strpos((string) brb_opt('policy'), '30 days before the event') === false && strpos((string) brb_opt('policy'), 'Keep the rest.') !== false, 'a saved 30-day balance sentence becomes the week-of-event rule');
+    $balance_policy = brb_opt();
+    $balance_policy['policy'] = $balance_before;
+    update_option('brb_settings', $balance_policy);
     brb_t(($migrated['admin_email'] ?? '') === 'admin@example.com', 'admin email is kept');
     brb_t(!array_key_exists($brand . '_sk', $migrated) && !isset($migrated['hold_minutes']), 'legacy keys are dropped');
     brb_t(($migrated['deposit_type'] ?? '') === 'percent' && (string) ($migrated['deposit_pct'] ?? '') === '50', 'a legacy full deposit becomes a 50 percent deposit');
@@ -551,7 +560,7 @@ try {
     $faq = get_page_by_path('faq');
     $faq_html = $faq ? (string) $faq->post_content : '';
     brb_t(stripos($faq_html, 'How much does it cost?') !== false && stripos($faq_html, '$600') !== false && stripos($faq_html, '$1,200') !== false && stripos($faq_html, '$2,000') !== false, 'faq explains the price range');
-    brb_t(stripos($faq_html, 'arrives not set up') !== false && stripos($faq_html, 'extra fee') !== false, 'faq explains setup and seating');
+    brb_t(stripos($faq_html, 'arrives not set up') !== false && stripos($faq_html, 'extra fee') === false && stripos($faq_html, 'Staff cannot set the room up') !== false && stripos($faq_html, '8:00 AM') !== false && stripos($faq_html, 'minimum host age is 25') !== false, 'faq explains setup and seating');
     brb_t(stripos($faq_html, 'Christmas decorations are up in December') !== false, 'faq explains decorations');
     brb_t(stripos($faq_html, 'take the garbage out') !== false && stripos($faq_html, 'following day') !== false, 'faq explains cleanup');
     brb_t(stripos($faq_html, '48 hours') !== false && stripos($faq_html, 'price to be confirmed') !== false, 'faq explains the hold, the notice, and an unconfirmed price');
@@ -593,6 +602,11 @@ try {
         '2220 37th Street, Moline, IL 61265' => $terms_html,
         'Christmas decorations are up in December' => $terms_html,
         'not set up' => $terms_html,
+        'Staff cannot set the room up' => $terms_html,
+        'The minimum host age is 25 for every booking' => $terms_html,
+        'no later than 48 hours before the event' => $terms_html,
+        'Balloons are allowed' => $terms_html,
+        'Wall tape is not allowed' => $terms_html,
         'Last updated: October 27, 2026' => $terms_html,
         '60 or more days before the event' => $terms_html,
         'MAD Productions, LLC' => $privacy_html,
@@ -612,6 +626,7 @@ try {
     brb_t(strpos($privacy_html, 'at 2220 37th Street, Moline, IL 61265') !== false, 'privacy names the venue address');
     brb_t(strpos($privacy_html, 'Mail or drop off checks payable to Mad Productions at 2212 37th Street, Moline, IL 61265.') !== false, 'privacy names the check address separately');
     brb_t(strpos($agreement_html, '2220 37th Street, Moline, Illinois 61265') !== false && strpos($agreement_html, '2220 37th Street, Moline, IL 61265') !== false, 'signed agreement body keeps 2220 37th Street');
+    brb_t(strpos($agreement_html, 'Staff cannot set the room up') !== false && strpos($agreement_html, 'The minimum host age is 25 for every booking') !== false && strpos($agreement_html, 'no later than 48 hours before the event') !== false && strpos($agreement_html, 'Balloons are allowed') !== false && strpos($agreement_html, 'wall tape') !== false, 'the rental agreement states setup, host age, balance, balloons, and wall tape');
     brb_t(strpos($agreement_html, '2212 37th Street') === false && strpos($agreement_html, '2212 47 Ave') === false, 'signed agreement body is not rewritten to the site address');
     $contact = get_page_by_path('contact');
     $contact_html = $contact ? (string) $contact->post_content : '';
@@ -675,7 +690,8 @@ try {
     brb_t(strpos($quote_html, 'No overnight stays. The Boardroom is an event space only.') !== false && strpos($quote_html, 'guests attending') !== false, 'review step states the no-overnight rule and guests attending');
     brb_t(stripos($quote_html, 'check-in') === false && stripos($quote_html, 'check-out') === false && stripos($quote_html, 'per night') === false && stripos($quote_html, 'per-night') === false && stripos($quote_html, 'guests staying') === false && strpos($quote_html, '[VERIFY] latest end time') === false, 'review step uses event wording');
     brb_t(strpos($quote_html, 'name="event_type"') !== false && strpos($quote_html, 'Wedding') !== false && strpos($quote_html, 'Birthday') !== false && strpos($quote_html, 'Corporate') !== false && strpos($quote_html, 'Fundraiser') !== false && strpos($quote_html, 'Other') !== false, 'review page asks for an event type');
-    brb_t(strpos($quote_html, 'name="private_event"') !== false && strpos($quote_html, 'name="public_event"') === false && strpos($quote_html, 'name="free_admission"') !== false && strpos($quote_html, 'open to the public or ticketed') === false && strpos($quote_html, 'name="alcohol"') !== false && strpos($quote_html, 'name="end_time"') !== false && strpos($quote_html, 'max="23:30"') !== false && strpos($quote_html, '11:30 PM') !== false && strpos($quote_html, 'name="host_age"') !== false && strpos($quote_html, 'Tell us about your event') !== false && strpos($quote_html, 'Under 21') !== false && strpos($quote_html, '21 to 24') !== false && strpos($quote_html, '25 or older') !== false && strpos($quote_html, 'invitation-only') !== false, 'review page asks the screening questions');
+    brb_t(strpos($quote_html, 'name="private_event"') !== false && strpos($quote_html, 'name="public_event"') === false && strpos($quote_html, 'name="free_admission"') !== false && strpos($quote_html, 'open to the public or ticketed') === false && strpos($quote_html, 'name="alcohol"') !== false && strpos($quote_html, 'name="end_time"') !== false && strpos($quote_html, 'max="23:30"') !== false && strpos($quote_html, '11:30 PM') !== false && strpos($quote_html, 'name="host_age"') !== false && strpos($quote_html, 'Tell us about your event') !== false && strpos($quote_html, 'Under 21') === false && strpos($quote_html, '21 to 24') === false && strpos($quote_html, 'Under 25') !== false && strpos($quote_html, '25 or older') !== false && strpos($quote_html, 'minimum host age is 25') !== false && strpos($quote_html, 'invitation-only') !== false, 'review page asks the screening questions');
+    brb_t(brb_host_age_label('under_21') === 'Under 21' && brb_host_age_label('age_21_24') === '21 to 24' && brb_host_age_label('under_25') === 'Under 25' && !isset(brb_host_ages()['age_21_24']), 'older host-age answers still display and new bookings use 25');
     brb_t(strpos($quote_html, '60 or more days before the event') !== false && strpos($quote_html, 'less than 60 days before the event') !== false && strpos($quote_html, 'subject to approval') !== false, 'review page states approval and the 60-day deposit rule');
     brb_t(strpos($quote_html, '[VERIFY] Test instructions.') === false && strpos($quote_html, 'Extra instructions for bringing the check') === false && strpos($quote_html, '[VERIFY: attorney review]') === false, 'review page hides payment instructions and the attorney note');
     brb_t(stripos($quote_html, 'cash') === false, 'the public review step stays check-only');

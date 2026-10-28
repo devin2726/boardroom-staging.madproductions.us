@@ -2,11 +2,11 @@
 /**
  * Plugin Name: Boardroom Booking
  * Description: Self-hosted direct booking for The Boardroom — full-day and hourly blocks, availability calendar, agreed prices, approval before payment, blackout dates, and emails.
- * Version: 2.5.8
+ * Version: 2.5.9
  * Author: Mad Productions
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.5.8');
+define('BRB_VER', '2.5.9');
 define('BRB_VENUE_ADDRESS', '2220 37th Street, Moline, IL 61265');
 define('BRB_CHECK_ADDRESS', '2212 37th Street, Moline, IL 61265');
 define('BRB_MAPS_URL', 'https://maps.app.goo.gl/nVqUsGTcy48nPzc18');
@@ -242,10 +242,17 @@ function brb_event_type_line($b) {
 }
 function brb_host_ages() {
     return [
-        'under_21' => 'Under 21',
-        'age_21_24' => '21 to 24',
+        'under_25' => 'Under 25',
         'age_25' => '25 or older',
     ];
+}
+function brb_host_age_label($value) {
+    $legacy = [
+        'under_21' => 'Under 21',
+        'age_21_24' => '21 to 24',
+    ];
+    $ages = brb_host_ages() + $legacy;
+    return $ages[$value] ?? '';
 }
 function brb_yes_no_label($value) {
     if ($value === 'yes') return 'Yes';
@@ -356,8 +363,7 @@ function brb_screening_lines($b) {
     if ($alcohol !== '') $lines[] = 'Alcohol served: ' . $alcohol;
     $end = trim((string) ($b->end_time ?? ''));
     if ($end !== '') $lines[] = 'Planned end time: ' . brb_end_time_label($end);
-    $ages = brb_host_ages();
-    $age = $ages[$b->host_age ?? ''] ?? '';
+    $age = brb_host_age_label($b->host_age ?? '');
     if ($age !== '') $lines[] = 'Host age bracket: ' . $age;
     $about = trim((string) ($b->event_about ?? ''));
     if ($about !== '') $lines[] = 'About the event: ' . $about;
@@ -589,6 +595,11 @@ function brb_migrate_settings() {
     if (strpos((string) $merged['policy'], $old_policy) !== false) {
         $merged['policy'] = str_replace($old_policy, brb_cancellation_summary(), $merged['policy']);
     }
+    $old_balance = 'The invoice notes require full payment 30 days before the event.';
+    $new_balance = 'The remaining balance is due the week of the event, no later than 48 hours before the event.';
+    if (strpos((string) ($merged['policy'] ?? ''), $old_balance) !== false) {
+        $merged['policy'] = str_replace($old_balance, $new_balance, (string) $merged['policy']);
+    }
     if (!isset($stored['policy']) || brb_policy_needs_refresh($stored['policy'])) {
         $merged['policy'] = brb_cancellation_summary();
     }
@@ -617,7 +628,7 @@ function brb_migrate_prices() {
 // [CONFIRM with Chris] Guests out by 11:30 PM. No smoking or vaping. Service animals only.
 function brb_faq_markup() {
     return <<<'HTML'
-<details><summary>How many guests can The Boardroom hold?</summary><p>Up to 75 people.</p></details><details><summary>Is parking available?</summary><p>Yes. Free parking on premises.</p></details><details><summary>Can we bring our own drinks?</summary><p>The Boardroom has a bar area and an ice machine. No cooking is allowed in the venue. The stove top may not be used. Food warmers (for keeping prepared food warm) and the bar area may be used. There are no taps. Draft taps are not available. BYOB is allowed, and the renter must obtain a one-day liquor license from the City of Moline, fee $50. See the <a href="/terms/">Rental Terms</a>.</p></details><details><summary>What is there to do?</summary><p>80in television, pinball, pool and shuffleboard.</p></details><details><summary>How much does it cost?</summary><p>Pricing starts at $600 per day and can reach about $2,000, depending on the date, how many people are coming, and the features you would like. Most events come to about $1,200. We confirm the final price with you before any check is due. The website does not guess a total.</p></details><details><summary>How is the space set up?</summary><p>The space arrives not set up. Seating and layout are yours to plan, so bring the arrangement that suits your gathering. If you would like a hand, our staff can help with setup for an extra fee.</p></details><details><summary>Do you provide decorations?</summary><p>Decorations are not provided. Christmas decorations are up in December.</p></details><details><summary>What are our responsibilities before we leave?</summary><p>Please leave it like you got it. Clean and tidy the space, and take the garbage out. Another event is often booked the following day, and a ready room lets the next hosts begin on time.</p></details><details><summary>How do I book and pay?</summary><p>Request a date on the <a href="/book/">Book</a> page. Bookings are subject to approval, and the owner may decline any request. No payment is due until the request is approved. A request does not hold the date. Your date is reserved once your deposit is received. The deposit (50% of the agreed total) holds the date. It is refundable if the Owner receives written cancellation 60 or more days before the event, less any non-refundable processing charges (including the 3% card processing fee) and costs already incurred. It is not refundable if cancellation is received less than 60 days before the event. Pay by check or in person, or online by card with a 3% processing fee. Mail or drop off checks payable to Mad Productions at 2212 37th Street, Moline, IL 61265. Bookings need at least 48 hours' notice. Until we confirm your price, your confirmation says price to be confirmed. The card processing fee is non-refundable.</p></details><details><summary>What is the cancellation policy?</summary><p>See the <a href="/terms/">Rental Terms</a>. If a summary and the signed agreement differ, the signed agreement controls.</p></details><details><summary>Are overnight stays allowed?</summary><p>No overnight stays. The Boardroom is an event space only.</p></details><details><summary>When does everyone have to be out?</summary><p>Everyone must be out of The Boardroom by 11:30 PM. This is firm, with no exceptions. Please finish in time to wrap up.</p></details><details><summary>What are the hours?</summary><p>A full day runs from 10:00 AM to 11:30 PM. Half days are generally available in June: 10:00 AM to 4:00 PM, or 5:00 PM to 11:30 PM.</p></details><details><summary>Can we sell tickets or charge admission?</summary><p>No. All events must be free to attend: no tickets, no cover charge, no paid admission, no door fees, and no ticket or merchandise sales. We do not host concerts or ticketed shows.</p></details><details><summary>Can we have a band?</summary><p>Yes. Guests may have a band or live music, as long as they are not charging for the event. We do not host concerts or ticketed shows.</p></details><details><summary>Is smoking allowed?</summary><p>No smoking or vaping.</p></details><details><summary>Can I bring a pet?</summary><p>Service animals only. No pets.</p></details><details><summary>Can I bring my own food?</summary><p>Yes. You can bring your own food. We have warmers and buffet-style warmers, but the stovetop can't be used. You can also have it catered by any caterer. The Boardroom does not provide catering.</p></details>
+<details><summary>How many guests can The Boardroom hold?</summary><p>Up to 75 people.</p></details><details><summary>Is parking available?</summary><p>Yes. Free parking on premises.</p></details><details><summary>Can we bring our own drinks?</summary><p>The Boardroom has a bar area and an ice machine. No cooking is allowed in the venue. The stove top may not be used. Food warmers (for keeping prepared food warm) and the bar area may be used. There are no taps. Draft taps are not available. BYOB is allowed, and the renter must obtain a one-day liquor license from the City of Moline, fee $50. See the <a href="/terms/">Rental Terms</a>.</p></details><details><summary>What is there to do?</summary><p>80in television, pinball, pool and shuffleboard.</p></details><details><summary>How much does it cost?</summary><p>Pricing starts at $600 per day and can reach about $2,000, depending on the date, how many people are coming, and the features you would like. Most events come to about $1,200. We confirm the final price with you before any check is due. The website does not guess a total.</p></details><details><summary>How is the space set up?</summary><p>The space arrives not set up. Seating and layout are yours to plan, so bring the arrangement that suits your gathering. Renters set up and tear down. Staff cannot set the room up. On a full day, setup can begin at 8:00 AM. On a half day, setup can begin one hour before the start.</p></details><details><summary>Do you provide decorations?</summary><p>Decorations are not provided. Christmas decorations are up in December.</p></details><details><summary>What are our responsibilities before we leave?</summary><p>Please leave it like you got it. Clean and tidy the space, and take the garbage out. Another event is often booked the following day, and a ready room lets the next hosts begin on time.</p></details><details><summary>How do I book and pay?</summary><p>Request a date on the <a href="/book/">Book</a> page. Bookings are subject to approval, and the owner may decline any request. No payment is due until the request is approved. A request does not hold the date. Your date is reserved once your deposit is received. The deposit (50% of the agreed total) holds the date. It is refundable if the Owner receives written cancellation 60 or more days before the event, less any non-refundable processing charges (including the 3% card processing fee) and costs already incurred. It is not refundable if cancellation is received less than 60 days before the event. Pay by check or in person, or online by card with a 3% processing fee. Mail or drop off checks payable to Mad Productions at 2212 37th Street, Moline, IL 61265. Bookings need at least 48 hours' notice. Until we confirm your price, your confirmation says price to be confirmed. The card processing fee is non-refundable.</p></details><details><summary>What is the cancellation policy?</summary><p>See the <a href="/terms/">Rental Terms</a>. If a summary and the signed agreement differ, the signed agreement controls.</p></details><details><summary>Are overnight stays allowed?</summary><p>No overnight stays. The Boardroom is an event space only.</p></details><details><summary>When does everyone have to be out?</summary><p>Everyone must be out of The Boardroom by 11:30 PM. This is firm, with no exceptions. Please finish in time to wrap up.</p></details><details><summary>What are the hours?</summary><p>A full day runs from 10:00 AM to 11:30 PM. Half days are generally available in June: 10:00 AM to 4:00 PM, or 5:00 PM to 11:30 PM.</p></details><details><summary>Can we sell tickets or charge admission?</summary><p>No. All events must be free to attend: no tickets, no cover charge, no paid admission, no door fees, and no ticket or merchandise sales. We do not host concerts or ticketed shows.</p></details><details><summary>Can we have a band?</summary><p>Yes. Guests may have a band or live music, as long as they are not charging for the event. We do not host concerts or ticketed shows.</p></details><details><summary>Is smoking allowed?</summary><p>No smoking or vaping.</p></details><details><summary>Can I bring a pet?</summary><p>Service animals only. No pets.</p></details><details><summary>Can I bring my own food?</summary><p>Yes. You can bring your own food. We have warmers and buffet-style warmers, but the stovetop can't be used. You can also have it catered by any caterer. The Boardroom does not provide catering.</p></details><details><summary>When is the balance due?</summary><p>The remaining balance is due the week of the event, no later than 48 hours before.</p></details><details><summary>Is there a refrigerator or ice?</summary><p>Yes. There is a refrigerator and an ice machine.</p></details><details><summary>Who is on site during an event?</summary><p>No one is on site during events. Our connected offices are available on demand if something is needed. Cell numbers are given when the contract is signed, and they are not listed on this site.</p></details><details><summary>Is there a private entrance?</summary><p>There is one main entrance. A back entrance can be used for a surprise guest when it is arranged ahead of time with our team.</p></details><details><summary>Are balloons allowed?</summary><p>Yes. Balloons are fine. Wall tape is not allowed. Glitter is not allowed.</p></details><details><summary>Is there an age limit for hosts?</summary><p>The minimum host age is 25 for every booking.</p></details><details><summary>What happens if something gets damaged?</summary><p>The damage deposit covers cleaning and damage. Anything beyond that deposit may be charged. See the Terms. Our team will go over it at the walk-through.</p></details><details><summary>Can I hold a vendor market or sell items?</summary><p>No. All events are free to attend. There are no merchandise sales and no ticket sales.</p></details>
 HTML;
 }
 function brb_patch_faq_drinks() {
@@ -677,6 +688,7 @@ function brb_refresh_faq() {
     $next = str_replace('less than 90 days before the event', 'less than 60 days before the event', $next);
     $next = str_replace('Yes, on-site parking.', 'Yes. Free parking on premises.', $next);
     $next = str_replace('Please clean and tidy the space, and take the garbage out.', 'Please leave it like you got it. Clean and tidy the space, and take the garbage out.', $next);
+    $next = str_replace('If you would like a hand, our staff can help with setup for an extra fee.', 'Renters set up and tear down. Staff cannot set the room up. On a full day, setup can begin at 8:00 AM. On a half day, setup can begin one hour before the start.', $next);
     $house = [
         'When does everyone have to be out?' => 'Everyone must be out of The Boardroom by 11:30 PM. This is firm, with no exceptions. Please finish in time to wrap up.',
         'What are the hours?' => 'A full day runs from 10:00 AM to 11:30 PM. Half days are generally available in June: 10:00 AM to 4:00 PM, or 5:00 PM to 11:30 PM.',
@@ -688,6 +700,14 @@ function brb_refresh_faq() {
         'Is smoking allowed?' => 'No smoking or vaping.',
         'Can I bring a pet?' => 'Service animals only. No pets.',
         'Can I bring my own food?' => 'Yes. You can bring your own food. We have warmers and buffet-style warmers, but the stovetop can\'t be used. You can also have it catered by any caterer. The Boardroom does not provide catering.',
+        'When is the balance due?' => 'The remaining balance is due the week of the event, no later than 48 hours before.',
+        'Is there a refrigerator or ice?' => 'Yes. There is a refrigerator and an ice machine.',
+        'Who is on site during an event?' => 'No one is on site during events. Our connected offices are available on demand if something is needed. Cell numbers are given when the contract is signed, and they are not listed on this site.',
+        'Is there a private entrance?' => 'There is one main entrance. A back entrance can be used for a surprise guest when it is arranged ahead of time with our team.',
+        'Are balloons allowed?' => 'Yes. Balloons are fine. Wall tape is not allowed. Glitter is not allowed.',
+        'Is there an age limit for hosts?' => 'The minimum host age is 25 for every booking.',
+        'What happens if something gets damaged?' => 'The damage deposit covers cleaning and damage. Anything beyond that deposit may be charged. See the Terms. Our team will go over it at the walk-through.',
+        'Can I hold a vendor market or sell items?' => 'No. All events are free to attend. There are no merchandise sales and no ticket sales.',
     ];
     foreach ($house as $question => $answer) {
         if (strpos($next, $question) !== false) continue;
@@ -1019,7 +1039,7 @@ function brb_payment_lines($b) {
         if ($balance > 0.009 && (float) $b->amount_paid + 0.009 < (float) $b->deposit_due) {
             $when = brb_balance_due_display($b);
             if ($when === 'Due now') $lines[] = 'After that deposit, the remaining balance of ' . brb_money($balance) . ' is due now.';
-            elseif ($when !== '' && $when !== 'Price to be confirmed' && $when !== 'Paid') $lines[] = 'After that deposit, the remaining balance of ' . brb_money($balance) . ' is due by ' . $when . ' (48 hours before the event).';
+            elseif ($when !== '' && $when !== 'Price to be confirmed' && $when !== 'Paid') $lines[] = 'After that deposit, the remaining balance of ' . brb_money($balance) . ' is due the week of the event, no later than ' . $when . ' (48 hours before the event).';
         }
     } else {
         $lines[] = 'Price to be confirmed. We will confirm the final price based on the date, guest count, and features, then tell you the deposit amount.';
@@ -1650,7 +1670,7 @@ function brb_view_addon($token) {
     $price = brb_money(brb_addon_price());
     echo '<h2>Setup or takedown day</h2>';
     echo '<p>' . esc_html(brb_guest_hello_line()) . ' ' . esc_html(brb_guest_review_line()) . '</p>';
-    echo '<p>If the night before is open, setup is 12:00 PM to 8:00 PM the day before. Please arrange it at least 72 hours before the event, or rent that day for ' . esc_html($price) . ' when it is open. There are no two-night rentals. If the next day is open, takedown can be the next day, or you can rent that day for ' . esc_html($price) . '. If the next day is booked, everything is picked up and tidy by midnight for the cleaning crew. The same choices apply on Sunday.</p>';
+    echo '<p>Renters set up and tear down. Staff cannot set the room up. On a full day, setup can begin at 8:00 AM. On a half day, setup can begin one hour before the start. If you want the whole day before, and that day is open, you can rent it for ' . esc_html($price) . '. Please arrange that at least 72 hours before the event. There are no two-night rentals. If the next day is open, you can rent that day for ' . esc_html($price) . ' for takedown. If the next day is booked, everything is picked up and tidy by midnight for the cleaning crew. The same choices apply on Sunday.</p>';
     echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
     echo '<input type="hidden" name="action" value="brb_addon"><input type="hidden" name="token" value="' . esc_attr($b->token) . '">';
     wp_nonce_field('brb_addon');
@@ -1790,12 +1810,12 @@ function brb_view_quote() {
           <input type="time" name="end_time" required max="23:30" step="60">
           <span class="brb-small"><?php echo esc_html(brb_out_by_line()); ?></span>
         </label>
-        <label>Host age bracket*<select name="host_age" required>
+        <label>Host age (25 or older for every booking)*<select name="host_age" required>
           <option value="">Choose one</option>
           <?php foreach (brb_host_ages() as $key => $label): ?>
           <option value="<?php echo esc_attr($key); ?>"><?php echo esc_html($label); ?></option>
           <?php endforeach; ?>
-        </select></label>
+        </select><span class="brb-small">The minimum host age is 25 for every booking.</span></label>
         <label>Tell us about your event*<textarea name="event_about" rows="4" required></textarea></label>
         <div class="brb-policy"><strong>Cancellation policy</strong><p><?php echo nl2br(esc_html($o['policy'])); ?></p><p><a href="<?php echo esc_url(home_url('/terms/')); ?>" target="_blank" rel="noopener">Read the Rental Terms</a></p></div>
         <label class="brb-check"><input type="checkbox" name="waiver" value="1" required> I and my guests assume all risk. The Boardroom is not responsible for injury, loss, or equipment issues, such as the ice maker or wifi, that affect an event.</label>
