@@ -44,7 +44,7 @@ add_filter('pre_wp_mail', function ($short, $atts) {
 $GLOBALS['brb_mails'] = [];
 
 try {
-    brb_t(get_option('brb_version') === '2.5.5', 'plugin storage version is 2.5.5');
+    brb_t(get_option('brb_version') === '2.5.6', 'plugin storage version is 2.5.6');
     brb_t(get_option('blog_public') === '0' || get_option('blog_public') === 0, 'staging discourages search engines');
     $cols = $wpdb->get_col('SHOW COLUMNS FROM ' . brb_table(), 0);
     foreach (['deposit_due', 'amount_paid', 'source', 'hold_until', 'balance_due_on', 'price_set', 'status', 'event_type'] as $col) {
@@ -494,7 +494,18 @@ try {
     }
     brb_t(!empty($data['days'][$later]['day_ok']) && $data['days'][$later]['status'] === 'free', 'a date outside the notice window is free');
     $cal_js = file_get_contents(dirname((new ReflectionFunction('brb_view_select'))->getFileName()) . '/assets/brb.js');
-    brb_t(is_string($cal_js) && strpos($cal_js, "credentials: 'omit'") !== false && strpos($cal_js, 'X-WP-Nonce') !== false && strpos($cal_js, 'no-store') !== false, 'the calendar request skips the logged-in cookie and does not use a cached failure');
+    brb_t(is_string($cal_js) && strpos($cal_js, "credentials: 'omit'") !== false && strpos($cal_js, 'X-WP-Nonce') === false && strpos($cal_js, 'no-store') !== false, 'the calendar request omits the login cookie and does not send a nonce that only matches that cookie');
+    $prev_user = get_current_user_id();
+    $admin_user = get_user_by('login', 'admin');
+    if ($admin_user) wp_set_current_user($admin_user->ID);
+    $logged_nonce = wp_create_nonce('wp_rest');
+    wp_set_current_user(0);
+    $cal_url = 'http://127.0.0.1/wp-json/brb/v1/availability?month=' . rawurlencode(brb_now()->format('Y-m'));
+    $open_cal = wp_remote_get($cal_url, ['timeout' => 15, 'headers' => ['Accept' => 'application/json']]);
+    $nonce_only = wp_remote_get($cal_url, ['timeout' => 15, 'headers' => ['Accept' => 'application/json', 'X-WP-Nonce' => $logged_nonce]]);
+    wp_set_current_user($prev_user);
+    brb_t(!is_wp_error($open_cal) && (int) wp_remote_retrieve_response_code($open_cal) === 200 && strpos((string) wp_remote_retrieve_body($open_cal), '"days"') !== false, 'availability loads with no login cookie and no nonce');
+    brb_t(!is_wp_error($nonce_only) && (int) wp_remote_retrieve_response_code($nonce_only) === 403, 'a logged-in REST nonce without its cookie is rejected');
     $routes = rest_get_server()->get_routes();
     $hook = '/brb/v1/' . $brand . '-webhook';
     $post_only = isset($routes[$hook]);

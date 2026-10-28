@@ -101,12 +101,13 @@
     cal.innerHTML = h + '</div>';
   }
   function load() {
-    var headers = { 'Accept': 'application/json' };
-    if (cfg.nonce) headers['X-WP-Nonce'] = cfg.nonce;
+    // A logged-in page nonce is tied to that user. Sending it without the
+    // login cookie makes WordPress reject the request. This feed is public,
+    // so omit the cookie and do not send the nonce.
     fetch(cfg.api + '?month=' + cur.getFullYear() + '-' + pad(cur.getMonth() + 1), {
       credentials: 'omit',
       cache: 'no-store',
-      headers: headers
+      headers: { 'Accept': 'application/json' }
     }).then(function (r) {
       if (!r.ok) throw new Error('calendar');
       return r.json();
