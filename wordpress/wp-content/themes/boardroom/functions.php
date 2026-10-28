@@ -4,8 +4,8 @@ add_action('after_setup_theme', function () {
     register_nav_menus(['primary' => 'Primary', 'footer' => 'Footer']);
 });
 add_action('wp_enqueue_scripts', function () {
-    wp_enqueue_style('boardroom', get_stylesheet_uri(), [], '1.2.12');
-    wp_enqueue_script('boardroom', get_template_directory_uri() . '/assets/site.js', [], '1.2.12', true);
+    wp_enqueue_style('boardroom', get_stylesheet_uri(), [], '1.2.13');
+    wp_enqueue_script('boardroom', get_template_directory_uri() . '/assets/site.js', [], '1.2.13', true);
 });
 function br_img($f) { return get_template_directory_uri() . '/assets/img/' . $f; }
 function br_photos() { return ['IMG_0223.jpeg', 'IMG_0231.jpeg', 'PXL_20220912_160615354.jpg', 'PXL_20220912_160655168.jpg', 'PXL_20220912_161645069.jpg']; }
@@ -136,6 +136,23 @@ function br_review_rotator_html() {
         $html .= '<blockquote class="review-card' . $on . '"' . $hidden . '><p class="stars" aria-label="5 out of 5 stars">★★★★★</p><p class="review-text">' . esc_html($review['text']) . '</p><footer><cite>' . esc_html($review['name']) . '</cite> <span>' . esc_html($review['when']) . '</span></footer></blockquote>';
     }
     $html .= '</div>';
+    return $html;
+}
+function br_tour_video_html() {
+    $base = get_template_directory_uri() . '/assets/video/';
+    $src = $base . 'boardroom-tour-720.mp4';
+    $poster = $base . 'boardroom-tour-poster.jpg';
+    $html = '<section class="block alt" id="take-a-tour"><div class="wrap">';
+    $html .= '<h2>Take a tour</h2>';
+    $html .= '<p class="tour-intro">Take a look around The Boardroom</p>';
+    $html .= '<div class="tour-frame">';
+    $html .= '<video id="boardroom-tour" controls preload="none" playsinline poster="' . esc_url($poster) . '">';
+    $html .= '<source src="' . esc_url($src) . '" type="video/mp4">';
+    $html .= '</video>';
+    $html .= '<button type="button" class="tour-play" aria-controls="boardroom-tour">Play</button>';
+    $html .= '</div>';
+    $html .= '<p class="tour-links"><a class="btn" href="' . esc_url(home_url('/book/')) . '">Book Now</a> <a class="btn ghost-dark" href="' . esc_url(home_url('/contact/')) . '">Request a tour</a></p>';
+    $html .= '</div></section>';
     return $html;
 }
 add_action('wp_head', function () { echo '<link rel="icon" href="' . esc_url(br_img('boardroom-siteicon-512.png')) . '">'; });
