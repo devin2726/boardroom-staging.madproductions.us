@@ -13,6 +13,7 @@ $GLOBALS['brb_ok'] = 0;
 function brb_screen($overrides = []) {
     return array_merge([
         'public_event' => 'no',
+        'free_admission' => '1',
         'alcohol' => 'yes',
         'end_time' => '21:30',
         'host_age' => 'age_25',
@@ -43,7 +44,7 @@ add_filter('pre_wp_mail', function ($short, $atts) {
 $GLOBALS['brb_mails'] = [];
 
 try {
-    brb_t(get_option('brb_version') === '2.5.4', 'plugin storage version is 2.5.4');
+    brb_t(get_option('brb_version') === '2.5.6', 'plugin storage version is 2.5.6');
     brb_t(get_option('blog_public') === '0' || get_option('blog_public') === 0, 'staging discourages search engines');
     $cols = $wpdb->get_col('SHOW COLUMNS FROM ' . brb_table(), 0);
     foreach (['deposit_due', 'amount_paid', 'source', 'hold_until', 'balance_due_on', 'price_set', 'status', 'event_type'] as $col) {
@@ -240,10 +241,49 @@ try {
     brb_t(!is_wp_error($b) && $b && $b->status === 'review', 'a request is pending review and does not hold the date');
     if ($b && !is_wp_error($b)) {
         $created_ids[] = (int) $b->id;
-        brb_t($b->public_event === 'no' && $b->alcohol === 'yes' && $b->end_time === '21:30' && $b->host_age === 'age_25' && strpos((string) $b->event_about, 'private dinner') !== false, 'screening answers are stored on the booking');
+        brb_t($b->public_event === 'no' && ($b->free_admission ?? '') === '1' && $b->alcohol === 'yes' && $b->end_time === '21:30' && $b->host_age === 'age_25' && strpos((string) $b->event_about, 'private dinner') !== false, 'screening answers are stored on the booking');
+        brb_t(brb_balance_due_display($b) === 'Price to be confirmed', 'an unpriced request does not show a balance due date');
+        if ($user) {
+            ob_start();
+            brb_admin_detail((int) $b->id);
+            $unpriced_admin = ob_get_clean();
+            brb_t(strpos($unpriced_admin, 'Price to be confirmed') !== false && strpos($unpriced_admin, 'Balance due') !== false, 'staff detail says the balance date waits for a price');
+            $past_label = brb_balance_due_label($b->balance_due_on);
+            brb_t($past_label !== '' && strpos($unpriced_admin, $past_label) === false, 'staff detail does not show a balance date before a price exists');
+        }
+        $late_day = brb_now()->modify('+21 days')->format('Y-m-d');
+        $late = brb_process_public_booking(array_merge($post, ['date' => $late_day, 'end_time' => '01:35']));
+        brb_t(is_wp_error($late) && $late->get_error_code() === 'end_time' && strpos($late->get_error_message(), '11:30 PM') !== false && stripos($late->get_error_message(), 'midnight') === false, '1:35 AM is rejected without mentioning midnight');
+        $too_late = brb_process_public_booking(array_merge($post, ['date' => $late_day, 'end_time' => '23:45']));
+        brb_t(is_wp_error($too_late) && $too_late->get_error_code() === 'end_time', 'an end time after 11:30 PM is rejected');
+        $on_time = brb_process_public_booking(array_merge($post, ['date' => brb_now()->modify('+22 days')->format('Y-m-d'), 'end_time' => '23:30']));
+        brb_t(!is_wp_error($on_time) && $on_time && $on_time->end_time === '23:30', '11:30 PM is the latest accepted end time');
+        if ($on_time && !is_wp_error($on_time)) $created_ids[] = (int) $on_time->id;
+        $before_start = brb_process_public_booking(array_merge($post, ['date' => brb_now()->modify('+23 days')->format('Y-m-d'), 'type' => 'hourly', 'start_hour' => 18, 'hours' => 2, 'end_time' => '17:00']));
+        brb_t(is_wp_error($before_start) && $before_start->get_error_code() === 'end_time' && strpos($before_start->get_error_message(), 'before the booking starts') !== false, 'an end time before the hourly start is rejected');
+        $js = file_get_contents(WP_PLUGIN_DIR . '/boardroom-booking/assets/brb.js');
+        brb_t(is_string($js) && strpos($js, '23 * 60 + 30') !== false && strpos($js, 'early-morning') !== false && strpos($js, 'before the booking starts') !== false, 'the booking form checks the end time in the browser');
+        $soon_day = brb_now()->modify('+4 days')->format('Y-m-d');
+        $soon = brb_process_public_booking(array_merge($post, ['date' => $soon_day, 'name' => 'Soon Balance', 'email' => 'soon-balance@example.com']));
+        if ($soon && !is_wp_error($soon)) {
+            $created_ids[] = (int) $soon->id;
+            $soon_priced = brb_set_agreed_price($soon->id, 800);
+            brb_t(!is_wp_error($soon_priced) && brb_balance_due_display($soon_priced) === 'Due now', 'a balance date before today is shown as due now');
+            $soon_past = brb_balance_due_label($soon_priced->balance_due_on);
+            ob_start();
+            brb_admin_detail((int) $soon_priced->id);
+            $soon_admin = ob_get_clean();
+            brb_t(strpos($soon_admin, 'Due now') !== false && strpos($soon_admin, $soon_past) === false, 'staff detail never shows a balance date in the past');
+            brb_t(strpos($soon_admin, 'Private, invitation-only') !== false && strpos($soon_admin, 'Free admission') !== false && strpos($soon_admin, 'Acknowledged') !== false, 'staff detail shows the admission acknowledgment and the private-gathering answer');
+        } else {
+            brb_t(false, 'a near-term request can be priced to check the balance date');
+        }
         $guest_mail = null;
         $admin_mail = null;
+        $ref_mail = brb_ref($b);
         foreach ($GLOBALS['brb_mails'] as $m) {
+            $blob = ($m['subject'] ?? '') . "\n" . ($m['message'] ?? '');
+            if (strpos($blob, $ref_mail) === false) continue;
             if (stripos($m['to'], 'flow-test@example.com') !== false && stripos($m['subject'], 'request') !== false) $guest_mail = $m;
             if (stripos($m['to'], 'admin@example.com') !== false) $admin_mail = $m;
         }
@@ -255,7 +295,7 @@ try {
             brb_t(strpos($body, 'A request does not hold the date.') !== false, 'request email says a request does not hold the date');
             brb_t(strpos($body, 'subject to approval') !== false && strpos($body, 'No payment is due until the request is approved.') !== false, 'request email says payment waits for approval');
             brb_t(strpos($body, 'Event type: Wedding') !== false, 'request email names the event type');
-            brb_t(strpos($body, 'Open to the public or ticketed: No') !== false && strpos($body, 'Alcohol served: Yes') !== false && strpos($body, 'Host age bracket: 25 or older') !== false && strpos($body, 'Planned end time: 9:30 PM') !== false && strpos($body, 'A private dinner for family.') !== false, 'request email includes the screening answers');
+            brb_t(strpos($body, 'Private, invitation-only: Yes') !== false && strpos($body, 'Free admission acknowledged: Yes') !== false && strpos($body, 'Alcohol served: Yes') !== false && strpos($body, 'Host age bracket: 25 or older') !== false && strpos($body, 'Planned end time: 9:30 PM') !== false && strpos($body, 'A private dinner for family.') !== false && strpos($body, '11:30 PM') !== false && strpos($body, 'no tickets') !== false, 'request email includes the screening answers and the house rules');
             brb_t(strpos($body, '[VERIFY] Test instructions.') === false && strpos($body, 'payable to [VERIFY] Test Payee') === false, 'request email does not include payment instructions');
             brb_t(strpos($body, 'Extra instructions for bringing the check') === false, 'the default extra-instructions placeholder is not in the request email');
             brb_t(stripos($body, 'price to be confirmed') !== false, 'email says price to be confirmed');
@@ -358,7 +398,7 @@ try {
             $settings_html = ob_get_clean();
             brb_t(strpos($settings_html, 'Minimum notice') !== false && strpos($settings_html, 'Hold length') === false, 'settings keep the notice rule and do not offer a hold length');
             brb_t(strpos($admin_html, '[VERIFY: attorney review]') !== false && strpos($settings_html, '[VERIFY: attorney review]') !== false, 'the attorney note is visible to staff');
-            brb_t(strpos($settings_html, '[VERIFY] latest end time') !== false, 'the latest end time is marked for staff only');
+            brb_t(strpos($settings_html, '11:30 PM') !== false && strpos($settings_html, '[VERIFY] latest end time') === false, 'settings state the 11:30 PM departure rule');
             brb_t(strpos($settings_html, 'Starting price') !== false && strpos($settings_html, 'Typical price text') !== false, 'settings show starting and typical price');
             brb_t(strpos($settings_html, 'Full-day rate') === false && strpos($settings_html, '$500') === false && strpos($settings_html, '$75') === false, 'settings do not show the old public rates');
             foreach ($banned as $w) brb_t(stripos($settings_html, $w) === false, "settings HTML has no $w");
@@ -454,7 +494,18 @@ try {
     }
     brb_t(!empty($data['days'][$later]['day_ok']) && $data['days'][$later]['status'] === 'free', 'a date outside the notice window is free');
     $cal_js = file_get_contents(dirname((new ReflectionFunction('brb_view_select'))->getFileName()) . '/assets/brb.js');
-    brb_t(is_string($cal_js) && strpos($cal_js, "credentials: 'omit'") !== false && strpos($cal_js, 'X-WP-Nonce') !== false && strpos($cal_js, 'no-store') !== false, 'the calendar request skips the logged-in cookie and does not use a cached failure');
+    brb_t(is_string($cal_js) && strpos($cal_js, "credentials: 'omit'") !== false && strpos($cal_js, 'X-WP-Nonce') === false && strpos($cal_js, 'no-store') !== false, 'the calendar request omits the login cookie and does not send a nonce that only matches that cookie');
+    $prev_user = get_current_user_id();
+    $admin_user = get_user_by('login', 'admin');
+    if ($admin_user) wp_set_current_user($admin_user->ID);
+    $logged_nonce = wp_create_nonce('wp_rest');
+    wp_set_current_user(0);
+    $cal_url = 'http://127.0.0.1/wp-json/brb/v1/availability?month=' . rawurlencode(brb_now()->format('Y-m'));
+    $open_cal = wp_remote_get($cal_url, ['timeout' => 15, 'headers' => ['Accept' => 'application/json']]);
+    $nonce_only = wp_remote_get($cal_url, ['timeout' => 15, 'headers' => ['Accept' => 'application/json', 'X-WP-Nonce' => $logged_nonce]]);
+    wp_set_current_user($prev_user);
+    brb_t(!is_wp_error($open_cal) && (int) wp_remote_retrieve_response_code($open_cal) === 200 && strpos((string) wp_remote_retrieve_body($open_cal), '"days"') !== false, 'availability loads with no login cookie and no nonce');
+    brb_t(!is_wp_error($nonce_only) && (int) wp_remote_retrieve_response_code($nonce_only) === 403, 'a logged-in REST nonce without its cookie is rejected');
     $routes = rest_get_server()->get_routes();
     $hook = '/brb/v1/' . $brand . '-webhook';
     $post_only = isset($routes[$hook]);
@@ -549,13 +600,13 @@ try {
     brb_t(is_string($contact_template) && strpos($contact_template, 'brb_map_embed') !== false && strpos($contact_template, 'mailto:boardroomqc@gmail.com') !== false && strpos($contact_template, 'brb_directions_markup') !== false, 'the contact template shows the email, map, and directions link');
     $footer = file_get_contents(get_stylesheet_directory() . '/footer.php');
     brb_t(is_string($footer) && strpos($footer, '2220 37th Street, Moline, IL 61265') !== false && strpos($footer, '2212 37th Street') === false, 'footer shows the venue address');
-    brb_t(is_string($footer) && strpos($footer, 'https://maps.app.goo.gl/nVqUsGTcy48nPzc18') !== false && strpos($footer, 'Get directions / View on Google Maps') !== false, 'footer links to Google Maps');
+    brb_t(is_string($footer) && strpos($footer, 'https://maps.app.goo.gl/nVqUsGTcy48nPzc18') !== false && strpos($footer, 'Get directions') !== false && strpos($footer, 'footer-map') !== false, 'footer links to Google Maps');
     ob_start();
     brb_place_schema();
     $schema = ob_get_clean();
     brb_t(strpos($schema, '41.4913116') !== false && strpos($schema, '-90.4820481') !== false && strpos($schema, '2220 37th Street') !== false && strpos($schema, '2212 37th Street') === false, 'schema geo uses the map coordinates and the venue address');
     brb_t(strpos($privacy_html, 'mailto:boardroomqc@gmail.com') !== false && strpos($privacy_html, '[VERIFY]</span>') === false, 'privacy email is confirmed without a verification marker');
-    brb_t(strpos($privacy_html, 'sets no advertising, analytics, or tracking cookies of its own') !== false && strpos($privacy_html, 'embedded Google Map on the Contact page may set cookies from Google') !== false && strpos($privacy_html, "Google's privacy policy applies") !== false && strpos($privacy_html, 'not asked to accept cookies') !== false, 'privacy explains our cookies and the Google map');
+    brb_t(strpos($privacy_html, 'sets no advertising, analytics, or tracking cookies of its own') !== false && strpos($privacy_html, 'embedded Google Maps in the footer and on the Contact page may set cookies from Google') !== false && strpos($privacy_html, "Google's privacy policy applies") !== false && strpos($privacy_html, 'not asked to accept cookies') !== false, 'privacy explains our cookies and the Google map');
     brb_t(strpos($privacy_html, 'does not process payments online') === false && strpos($privacy_html, 'Stripe processes card payments') !== false && strpos($privacy_html, 'Stripe may set cookies on its own checkout page') !== false, 'privacy says Stripe processes cards and may set cookies on its checkout page');
     brb_t(strpos($terms_html, 'online by card with a 3% processing fee') !== false && strpos($terms_html, 'The card processing fee is non-refundable.') !== false && strpos($terms_html, '[VERIFY with attorney]') === false && strpos($terms_html, '[VERIFY: attorney review]') === false, 'terms describe the card fee without an attorney note');
     brb_t(strpos($terms_html, 'less than 90 days before the event, the deposit is not refundable') !== false && strpos($agreement_html, 'ninety (90) days or more before the event') !== false && strpos($agreement_html, 'less than ninety (90) days before the event, the deposit is not refundable') !== false && strpos($privacy_html, '90 or more days before the event') !== false, 'terms, the rental agreement, and privacy state the 90-day deposit rule');
@@ -599,7 +650,7 @@ try {
     brb_t(strpos($quote_html, 'No overnight stays. The Boardroom is an event space only.') !== false && strpos($quote_html, 'guests attending') !== false, 'review step states the no-overnight rule and guests attending');
     brb_t(stripos($quote_html, 'check-in') === false && stripos($quote_html, 'check-out') === false && stripos($quote_html, 'per night') === false && stripos($quote_html, 'per-night') === false && stripos($quote_html, 'guests staying') === false && strpos($quote_html, '[VERIFY] latest end time') === false, 'review step uses event wording');
     brb_t(strpos($quote_html, 'name="event_type"') !== false && strpos($quote_html, 'Wedding') !== false && strpos($quote_html, 'Birthday') !== false && strpos($quote_html, 'Corporate') !== false && strpos($quote_html, 'Fundraiser') !== false && strpos($quote_html, 'Other') !== false, 'review page asks for an event type');
-    brb_t(strpos($quote_html, 'name="public_event"') !== false && strpos($quote_html, 'name="alcohol"') !== false && strpos($quote_html, 'name="end_time"') !== false && strpos($quote_html, 'name="host_age"') !== false && strpos($quote_html, 'Tell us about your event') !== false && strpos($quote_html, 'Under 21') !== false && strpos($quote_html, '21 to 24') !== false && strpos($quote_html, '25 or older') !== false, 'review page asks the screening questions');
+    brb_t(strpos($quote_html, 'name="private_event"') !== false && strpos($quote_html, 'name="public_event"') === false && strpos($quote_html, 'name="free_admission"') !== false && strpos($quote_html, 'open to the public or ticketed') === false && strpos($quote_html, 'name="alcohol"') !== false && strpos($quote_html, 'name="end_time"') !== false && strpos($quote_html, 'max="23:30"') !== false && strpos($quote_html, '11:30 PM') !== false && strpos($quote_html, 'name="host_age"') !== false && strpos($quote_html, 'Tell us about your event') !== false && strpos($quote_html, 'Under 21') !== false && strpos($quote_html, '21 to 24') !== false && strpos($quote_html, '25 or older') !== false && strpos($quote_html, 'invitation-only') !== false, 'review page asks the screening questions');
     brb_t(strpos($quote_html, '90 or more days before the event') !== false && strpos($quote_html, 'less than 90 days before the event') !== false && strpos($quote_html, 'subject to approval') !== false, 'review page states approval and the 90-day deposit rule');
     brb_t(strpos($quote_html, '[VERIFY] Test instructions.') === false && strpos($quote_html, 'Extra instructions for bringing the check') === false && strpos($quote_html, '[VERIFY: attorney review]') === false, 'review page hides payment instructions and the attorney note');
     brb_t(stripos($quote_html, 'cash') === false, 'the public review step stays check-only');

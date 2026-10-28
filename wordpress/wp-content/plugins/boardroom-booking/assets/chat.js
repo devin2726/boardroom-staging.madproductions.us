@@ -25,35 +25,46 @@
   }
   function openPanel() {
     panel.hidden = false;
-    launch.setAttribute('aria-expanded', 'true');
-    closeBtn.focus();
+    if (launch) launch.setAttribute('aria-expanded', 'true');
+    if (closeBtn) closeBtn.focus();
+    else if (input) input.focus();
   }
   function closePanel() {
     panel.hidden = true;
-    launch.setAttribute('aria-expanded', 'false');
-    launch.focus();
+    if (launch) {
+      launch.setAttribute('aria-expanded', 'false');
+      launch.focus();
+    }
   }
   function addMsg(role, text) {
     var p = document.createElement('p');
     p.className = 'brb-chat-msg ' + (role === 'user' ? 'user' : 'bot');
-    p.textContent = text;
+    var who = document.createElement('span');
+    who.className = 'brb-chat-who';
+    who.textContent = role === 'user' ? 'You' : 'Boardroom';
+    p.appendChild(who);
+    p.appendChild(document.createTextNode(text));
     log.appendChild(p);
-    log.scrollTop = log.scrollHeight;
+    var scroller = log.closest('.brb-chat-scroll') || log;
+    scroller.scrollTop = scroller.scrollHeight;
   }
   function showLead() {
     lead.hidden = false;
   }
-  launch.addEventListener('click', function () {
-    if (panel.hidden) openPanel();
-    else closePanel();
-  });
-  closeBtn.addEventListener('click', closePanel);
+  if (launch) {
+    launch.addEventListener('click', function () {
+      if (panel.hidden) openPanel();
+      else closePanel();
+    });
+  }
+  if (closeBtn) closeBtn.addEventListener('click', closePanel);
   leadToggle.addEventListener('click', function () {
     showLead();
     var name = lead.querySelector('[name="name"]');
     if (name) name.focus();
   });
   panel.addEventListener('keydown', function (e) {
+    if (!launch) return;
     if (e.key === 'Escape') {
       e.preventDefault();
       closePanel();

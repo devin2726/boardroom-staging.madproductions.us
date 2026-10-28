@@ -101,12 +101,13 @@
     cal.innerHTML = h + '</div>';
   }
   function load() {
-    var headers = { 'Accept': 'application/json' };
-    if (cfg.nonce) headers['X-WP-Nonce'] = cfg.nonce;
+    // A logged-in page nonce is tied to that user. Sending it without the
+    // login cookie makes WordPress reject the request. This feed is public,
+    // so omit the cookie and do not send the nonce.
     fetch(cfg.api + '?month=' + cur.getFullYear() + '-' + pad(cur.getMonth() + 1), {
       credentials: 'omit',
       cache: 'no-store',
-      headers: headers
+      headers: { 'Accept': 'application/json' }
     }).then(function (r) {
       if (!r.ok) throw new Error('calendar');
       return r.json();
@@ -139,4 +140,38 @@
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
   else boot();
+  function bindEnd() {
+    var input = document.querySelector('input[name="end_time"]');
+    if (!input || !input.form || input.dataset.brbBound) return;
+    input.dataset.brbBound = '1';
+    input.setAttribute('max', '23:30');
+    input.setAttribute('step', '60');
+    input.form.addEventListener('submit', function (e) {
+      var v = input.value || '';
+      var parts = v.split(':');
+      var msg = '';
+      if (parts.length >= 2) {
+        var mins = (+parts[0]) * 60 + (+parts[1]);
+        if (mins > 23 * 60 + 30 || mins < 5 * 60) msg = 'Everyone must be out of The Boardroom by 11:30 PM. Please choose an end time no later than 11:30 PM so there is time to wrap up. An early-morning time is not available.';
+        var type = input.form.querySelector('input[name="type"]');
+        var start = input.form.querySelector('input[name="start_hour"]');
+        if (!msg && type && type.value === 'hourly' && start && mins <= (+start.value) * 60) msg = 'That end time is before the booking starts. Please choose a time after the start and no later than 11:30 PM. Everyone must be out by 11:30 PM.';
+      }
+      var alert = input.form.querySelector('.brb-end-err');
+      if (!msg) {
+        if (alert) alert.remove();
+        return;
+      }
+      e.preventDefault();
+      if (!alert) {
+        alert = document.createElement('div');
+        alert.className = 'brb-alert brb-err brb-end-err';
+        input.form.insertBefore(alert, input.form.firstChild);
+      }
+      alert.textContent = msg;
+      input.focus();
+    });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bindEnd);
+  else bindEnd();
 })();

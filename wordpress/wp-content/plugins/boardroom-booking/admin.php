@@ -135,7 +135,7 @@ add_action('admin_post_brb_manual', function () {
     $event_type = sanitize_key($post['event_type'] ?? '');
     if (!isset(brb_event_types()[$event_type])) $event_type = '';
     $screen = brb_collect_screening($post, false);
-    if (is_wp_error($screen)) $screen = ['public_event' => '', 'alcohol' => '', 'end_time' => '', 'host_age' => '', 'event_about' => ''];
+    if (is_wp_error($screen)) $screen = ['public_event' => '', 'free_admission' => '', 'alcohol' => '', 'end_time' => '', 'host_age' => '', 'event_about' => ''];
     $about = $screen['event_about'] !== '' ? $screen['event_about'] : sanitize_textarea_field($post['notes'] ?? '');
     $b = brb_insert_booking($r, $q, [
         'name' => $name,
@@ -144,6 +144,7 @@ add_action('admin_post_brb_manual', function () {
         'notes' => $about,
         'event_type' => $event_type,
         'public_event' => $screen['public_event'],
+        'free_admission' => $screen['free_admission'] ?? '',
         'alcohol' => $screen['alcohol'],
         'end_time' => $screen['end_time'],
         'host_age' => $screen['host_age'],
@@ -229,7 +230,8 @@ function brb_admin_detail($id) {
         'When' => brb_when($b),
         'Guests' => (string) (int) $b->guests,
         'Event type' => brb_event_type_label($b->event_type ?? '') ?: '—',
-        'Open to the public or ticketed' => brb_yes_no_label($b->public_event ?? '') ?: '—',
+        'Free admission' => (($b->free_admission ?? '') === '1') ? 'Acknowledged' : '—',
+        'Private, invitation-only' => ($b->public_event ?? '') === 'no' ? 'Yes' : (($b->public_event ?? '') === 'yes' ? 'No, it is open to the public' : '—'),
         'Alcohol served' => brb_yes_no_label($b->alcohol ?? '') ?: '—',
         'Planned end time' => ($b->end_time ?? '') !== '' ? brb_end_time_label($b->end_time) : '—',
         'Host age bracket' => (brb_host_ages()[$b->host_age ?? ''] ?? '') ?: '—',
@@ -249,12 +251,15 @@ function brb_admin_detail($id) {
     $rows['Deposit that reserves the date'] = $set ? brb_money($b->deposit_due) : 'Price to be confirmed';
     $rows['Paid'] = brb_money($b->amount_paid);
     $rows['Balance'] = $set ? brb_money($balance) : 'Price to be confirmed';
-    $rows['Balance due'] = $b->balance_due_on ? brb_balance_due_label($b->balance_due_on) : '—';
+    $rows['Balance due'] = brb_balance_due_display($b);
     $rows['Date reserved'] = in_array($b->status, ['deposit_paid', 'paid', 'confirmed'], true) ? 'Yes, a deposit has been received' : 'No, not until the deposit is received';
     foreach ($rows as $label => $val) {
         echo '<tr><th style="width:280px">' . esc_html($label) . '</th><td>' . nl2br(esc_html((string) $val)) . '</td></tr>';
     }
     echo '</tbody></table>';
+    if (($b->public_event ?? '') === 'yes') {
+        echo '<div class="notice notice-warning"><p>Open to the public. Staff review: all events must be free to attend. The Boardroom does not host concerts or ticketed shows.</p></div>';
+    }
     if (!empty($b->attention)) {
         echo '<div class="notice notice-warning"><p>' . esc_html($b->attention) . '</p></div>';
     }
@@ -510,7 +515,7 @@ function brb_admin_settings() {
     echo '<div class="notice notice-warning"><p>' . esc_html(brb_attorney_notice()) . '</p></div>';
     brb_admin_note();
     echo '<p>Guests save a date on the website. They can pay by check or in person, or online by card when the Stripe secret key is set. ' . esc_html(brb_price_sentence()) . ' Staff set the final price on each booking. The venue and the check address are separate settings.</p>';
-    echo '<p>No overnight stays. The Boardroom is an event space only. Latest end time: [VERIFY] latest end time. Do not publish an end time until that is confirmed. Guests are not shown this note.</p>';
+    echo '<p>No overnight stays. The Boardroom is an event space only. ' . esc_html(brb_out_by_line()) . ' ' . esc_html(brb_free_admission_rule()) . ' Hourly bookings still end by 11:00 PM because the calendar uses whole hours.</p>';
     $sampleStart = brb_now()->modify('+10 days')->setTime(0, 0);
     echo '<div class="brb-paybox"><strong>What guests see before a price is set</strong>';
     brb_echo_lines(brb_preview_lines(['total' => 0, 'due' => 0, 'price_set' => 0], $sampleStart));

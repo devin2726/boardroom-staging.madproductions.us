@@ -33,7 +33,7 @@ $created = [];
 $snapshot = get_option('brb_settings');
 
 try {
-    brb_t(get_option('brb_version') === '2.5.4', 'plugin storage version is 2.5.4');
+    brb_t(get_option('brb_version') === '2.5.6', 'plugin storage version is 2.5.6');
     brb_t($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', brb_tour_table())) === brb_tour_table(), 'inquiry table still exists');
     $cols = $wpdb->get_col('SHOW COLUMNS FROM ' . brb_tour_table(), 0);
     brb_t(in_array('phone', $cols, true) && in_array('topic', $cols, true) && in_array('preferred', $cols, true), 'topic and preferred were added and phone was kept');
@@ -191,10 +191,9 @@ try {
     brb_t(is_string($gallery_tpl) && strpos($gallery_tpl, '/#amenities') !== false, 'the gallery page links to the amenities');
     brb_t(is_string($book_tpl) && strpos($book_tpl, 'book-amenities') !== false && strpos($book_tpl, '/#amenities') !== false, 'the book page links to the amenities');
     $reviews = br_reviews_html();
-    $more_at = strpos($reviews, 'id="more-reviews"');
     brb_t(strpos($home, 'br_reviews_html') !== false && strpos($home, 'br_reviews_html') < strpos($home, 'block dark cta'), 'guest reviews sit before the reservation call to action');
-    brb_t(strpos($reviews, 'What our guests say') !== false && strpos($reviews, '5.0 ★ from 29 guest reviews') !== false && strpos($reviews, 'Read more reviews') !== false && strpos($reviews, 'aria-expanded="false"') !== false, 'the reviews section has the rating badge and a reveal control');
-    brb_t($more_at !== false && strpos($reviews, 'Dixon N.') < $more_at && strpos($reviews, 'Nothing else like it in the QC.') < $more_at && strpos($reviews, 'Cresencia') > $more_at && strpos($reviews, 'grandma') > $more_at, 'three featured reviews show first and the rest stay in the reveal');
+    brb_t(strpos($reviews, 'What our guests say') !== false && strpos($reviews, '5.0 ★ from 29 guest reviews') !== false && strpos($reviews, 'Read more reviews') === false && substr_count($reviews, 'class="t-set"') === 2 && strpos($reviews, 'aria-hidden="true"') !== false && substr_count($reviews, 'class="t-card"') === 24, 'the reviews section is a marquee of every review with a hidden copy');
+    brb_t(strpos($reviews, 'Dixon N.') !== false && strpos($reviews, 'Nothing else like it in the QC.') !== false && strpos($reviews, 'Cresencia') !== false && strpos($reviews, 'grandma') !== false, 'featured and later reviews are all in the marquee');
     brb_t(stripos($reviews, 'airbnb') === false && strpos($reviews, 'Google') === false && strpos($reviews, 'tel:') === false && strpos($reviews, 'name="phone"') === false, 'guest reviews do not name a source or a phone number');
     $rotator = br_review_rotator_html();
     brb_t(is_string($book_tpl) && strpos($book_tpl, 'br_review_rotator_html') !== false && strpos($rotator, 'class="review-card on"') !== false && substr_count($rotator, '<blockquote') === 4, 'the book page rotates the featured quotes and shows the first without script');
@@ -228,6 +227,27 @@ try {
         }
     }
     brb_t(!$tour_nav, 'the primary menu has no tour link');
+    $home_nav = false;
+    $book_nav = false;
+    $faq_nav = false;
+    if (!empty($locs['primary'])) {
+        foreach ((array) wp_get_nav_menu_items($locs['primary']) as $item) {
+            $title = strtolower(trim(wp_strip_all_tags((string) $item->title)));
+            $path = trim((string) parse_url((string) $item->url, PHP_URL_PATH), '/');
+            if ($title === 'home') $home_nav = true;
+            if ($title === 'book' && substr($path, -4) === 'book') $book_nav = true;
+            if ($title === 'faq' && substr($path, -3) === 'faq') $faq_nav = true;
+        }
+    }
+    brb_t(!$home_nav && $book_nav && $faq_nav, 'the primary menu drops Home and keeps working Book and FAQ links');
+    $footer = file_get_contents(get_stylesheet_directory() . '/footer.php');
+    $footer_map = function_exists('br_footer_map') ? br_footer_map() : '';
+    brb_t(is_string($footer) && strpos($footer, 'br_footer_map') !== false && strpos($footer_map, 'https://www.google.com/maps?q=2220+37th+Street,+Moline,+IL+61265') !== false && strpos($footer_map, 'output=embed') !== false && strpos($footer_map, 'loading="lazy"') !== false && strpos($footer_map, 'referrerpolicy="no-referrer-when-downgrade"') !== false && strpos($footer, 'Get directions') !== false && strpos($footer, '2220 37th Street, Moline, IL 61265') !== false, 'the footer map uses the venue embed');
+    brb_t(is_string($contact_tpl) && strpos($contact_tpl, 'brb_chat_markup') !== false && strpos($contact_tpl, 'Contact the Boardroom') !== false, 'the contact page includes the inline assistant');
+    $css = file_get_contents(get_stylesheet_directory() . '/style.css');
+    $site_js = file_get_contents(get_stylesheet_directory() . '/assets/site.js');
+    brb_t(is_string($css) && strpos($css, 'z-index:400') !== false && strpos($css, 'body.admin-bar .site-header{top:32px}') !== false && strpos($css, '.nav.open{display:block}') !== false && strpos($css, 't-scroll') !== false && strpos($css, 'translateX(-50%)') !== false, 'the header stays above the page and the review track scrolls in CSS');
+    brb_t(is_string($site_js) && strpos($site_js, ".nav a") === false && strpos($site_js, "querySelectorAll('.gallery a')") !== false, 'the gallery lightbox does not capture menu links');
 
     $privacy = get_page_by_path('privacy');
     $privacy_html = $privacy ? (string) $privacy->post_content : '';

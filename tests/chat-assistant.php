@@ -36,7 +36,7 @@ function brb_chat_reply($text, $history = []) {
 }
 
 try {
-    brb_t(get_option('brb_version') === '2.5.4', 'plugin storage version is 2.5.4');
+    brb_t(get_option('brb_version') === '2.5.6', 'plugin storage version is 2.5.6');
     $cols = $wpdb->get_col('SHOW COLUMNS FROM ' . brb_tour_table(), 0);
     brb_t(in_array('source', $cols, true), 'inquiries can store a source');
     brb_t((string) brb_opt('quote_prices') === '1', 'price estimates are on by default');
@@ -53,7 +53,25 @@ try {
     foreach (['No overnight stays', 'No cooking', 'stovetop', 'no taps', 'BYOB', 'City of Moline', '$50', 'not set up', 'garbage', '75', 'Christmas decorations are up in December', 'insurance'] as $needle) {
         brb_t(stripos($rules, $needle) !== false, 'rules answer includes ' . $needle);
     }
-    brb_t(stripos($rules, 'owner') === false && stripos($rules, $other) === false, 'rules answer stays on the venue');
+    brb_t(stripos($rules, 'owner') === false && stripos($rules, $other) === false && strpos($rules, '11:30 PM') !== false && stripos($rules, 'midnight') === false && strpos($rules, 'no tickets') !== false, 'rules answer stays on the venue and states the departure and admission rules');
+    $food = brb_chat_reply('Can I bring my own food?');
+    brb_t(stripos($food, 'own food') !== false && stripos($food, 'warmers') !== false && stripos($food, 'stovetop') !== false && stripos($food, 'any caterer') !== false && stripos($food, 'does not provide catering') !== false, 'own food is allowed with warmers and without catering from us');
+    $byob = brb_chat_reply('Is BYOB allowed?');
+    brb_t(strpos($byob, 'BYOB') !== false && strpos($byob, 'City of Moline') !== false && strpos($byob, 'leave it like you got it') !== false && strpos($byob, 'garbage') !== false, 'BYOB includes the license and cleanup');
+    $out = brb_chat_reply('How late can we stay?');
+    brb_t(strpos($out, '11:30 PM') !== false && stripos($out, 'midnight') === false && stripos($out, 'permit') === false, 'end time questions say 11:30 PM');
+    $smoke = brb_chat_reply('Can we smoke or vape?');
+    brb_t(strpos($smoke, 'No smoking or vaping.') !== false, 'smoking and vaping are refused');
+    $pets = brb_chat_reply('Can I bring a pet?');
+    brb_t(strpos($pets, 'Service animals only') !== false && strpos($pets, 'No pets') !== false, 'only service animals are allowed');
+    $park = brb_chat_reply('Is there parking?');
+    brb_t(strpos($park, 'Free parking on premises') !== false, 'parking stays free on premises');
+    $tickets = brb_chat_reply('Can we sell tickets for a concert?');
+    brb_t(strpos($tickets, 'no tickets') !== false && strpos($tickets, 'no cover charge') !== false && strpos($tickets, 'no paid admission') !== false && strpos($tickets, 'do not host concerts') !== false, 'ticketed events are refused');
+    $band = brb_chat_reply('Can we have a band?');
+    brb_t(strpos($band, 'band or live music') !== false && strpos($band, 'not charging') !== false, 'a band is allowed when the event is free');
+    $fund = brb_chat_reply('Can our fundraiser sell tickets?');
+    brb_t(strpos($fund, 'no tickets') !== false && strpos($fund, 'no door fees') !== false, 'a fundraiser cannot sell tickets');
 
     $amenities = brb_chat_reply('What amenities are included?');
     brb_t(strpos($amenities, 'Wifi') !== false && strpos($amenities, 'Kitchen area is for serving and storage. Cooking and stovetop use are not permitted.') !== false && strpos($amenities, "Here's what the room includes:") === 0 && strpos($amenities, 'Great question') === false, 'amenities answer uses the checklist and leads with the list');
@@ -289,11 +307,12 @@ try {
     }
 
     $widget = brb_chat_markup();
-    brb_t(strpos($widget, 'brb-chat-launch') !== false && strpos($widget, '>Chat<') !== false && strpos($widget, 'role="dialog"') !== false && strpos($widget, 'aria-expanded') !== false && strpos($widget, 'A team member will reply using this info') !== false && strpos($widget, 'Hi there! I\'m the Boardroom\'s assistant. I\'d love to help you plan your event.') !== false, 'the chat button and panel are on the page');
+    brb_t(strpos($widget, 'brb-chat-launch') !== false && strpos($widget, 'Ask our Chat Bot') !== false && strpos($widget, '>Chat<') === false && strpos($widget, 'role="dialog"') !== false && strpos($widget, 'aria-expanded') !== false && strpos($widget, 'A team member will reply using this info') !== false && strpos($widget, 'Hi there! I\'m the Boardroom\'s assistant. I\'d love to help you plan your event.') !== false, 'the chat button and panel are on the page');
     brb_t(strpos($widget, '850') === false && strpos($widget, '1400') === false && strpos($widget, '1500') === false && stripos($widget, $other) === false && stripos($widget, 'owner') === false, 'the chat panel does not publish rates or private topics');
     $plugin_dir = dirname((new ReflectionFunction('brb_chat_markup'))->getFileName());
     $css = file_get_contents($plugin_dir . '/assets/chat.css');
     $js = file_get_contents($plugin_dir . '/assets/chat.js');
+    brb_t(is_string($css) && strpos($css, '.brb-chat-msg,.brb-chat-msg.user,.brb-chat-msg.bot{') !== false && strpos($css, 'color:#161616') !== false, 'guest and bot messages share one text color');
     brb_t(is_string($css) && strpos($css, 'EB Garamond') !== false && strpos($css, '#c4912e') !== false && strpos($css, 'position:fixed') !== false && strpos($css, 'brb-chat-scroll') !== false && strpos($css, 'min-height:0') !== false && strpos($css, '100dvh') !== false, 'the chat panel scrolls inside the viewport');
     brb_t(is_string($js) && strpos($js, 'credentials: \'omit\'') !== false && stripos($js, 'openai') === false && stripos($js, 'googleapis') === false && stripos($js, $other) === false, 'the chat script stays on this site and does not call an outside model');
     $public_price = brb_price_sentence();
