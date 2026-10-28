@@ -62,12 +62,32 @@
     if (btn) btn.disabled = block;
     return !block;
   }
+  function juneDate() {
+    if (!date || !date.value) return false;
+    return date.value.slice(5, 7) === '06';
+  }
   function syncType() {
-    var hourly = currentType() === 'hourly';
+    var kind = currentType();
+    var hourly = kind === 'hourly';
+    var half = kind === 'half';
     var dayBox = form.querySelector('.brb-day');
     var hourBox = form.querySelector('.brb-hourly');
-    if (dayBox) dayBox.style.display = hourly ? 'none' : '';
+    var halfBox = form.querySelector('.brb-half');
+    var halfRadio = form.querySelector('input[name=type][value=half]');
+    var note = document.getElementById('brb-half-note');
+    var june = juneDate();
+    if (halfRadio) halfRadio.disabled = date.value && !june;
+    if (halfRadio && halfRadio.disabled && halfRadio.checked) {
+      var dayRadio = form.querySelector('input[name=type][value=day]');
+      if (dayRadio) dayRadio.checked = true;
+      kind = 'day';
+      hourly = false;
+      half = false;
+    }
+    if (dayBox) dayBox.style.display = (hourly || half) ? 'none' : '';
     if (hourBox) hourBox.style.display = hourly ? '' : 'none';
+    if (halfBox) halfBox.style.display = half ? '' : 'none';
+    if (note) note.textContent = june ? 'Half days are available for this June date.' : 'Half days are generally available in June.';
     refreshHours();
     refreshNotice();
   }

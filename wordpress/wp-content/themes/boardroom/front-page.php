@@ -18,6 +18,7 @@
   <?php foreach (array_slice(br_gallery(), 0, 6) as $f) printf('<a href="%s"><img src="%s" alt="The Boardroom" loading="lazy"></a>', esc_url(br_gallery_src($f)), esc_url(br_gallery_src($f, true))); ?>
 </div><p class="gallery-more"><a class="btn" href="<?php echo esc_url(home_url('/gallery/')); ?>">View all photos</a></p></div></section>
 <section class="block alt" id="contact"><div class="wrap"><h2>Contact the Boardroom</h2>
+  <?php if (function_exists('brb_chat_markup')) echo brb_chat_markup('inline'); ?>
   <p>Questions about the venue or a date? <a href="<?php echo esc_url(home_url('/contact/')); ?>">Contact us</a>.</p>
   <p>Ready to reserve? <a href="<?php echo esc_url($book); ?>">Book your date</a>.</p>
 </div></section>
