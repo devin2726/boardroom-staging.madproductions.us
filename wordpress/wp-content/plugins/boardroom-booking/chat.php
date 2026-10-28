@@ -319,8 +319,11 @@ function brb_chat_intents($text) {
     return $hits;
 }
 
+function brb_chat_suggestions() {
+    return 'You can ask me whether a date is open, what\'s in the room, or how the deposit works.';
+}
 function brb_chat_refusal() {
-    return 'I\'m not sure about that one, but our team would be glad to help. I can only help with The Boardroom. I can chat about availability, amenities, house rules, an estimated price for a date, the deposit, or how to book, tour, or contact us. Please use the Contact form for anything else.';
+    return 'I\'m not sure about that one, but our team would be glad to help. I can only help with The Boardroom. ' . brb_chat_suggestions() . ' Please use the Contact form for anything else.';
 }
 
 function brb_chat_legal_refusal() {
@@ -346,32 +349,75 @@ function brb_chat_blocked_kind(DateTimeImmutable $day, DateTimeImmutable $next) 
     return 'partial';
 }
 
-function brb_chat_day_sentence($ymd) {
+function brb_chat_date_status($ymd) {
     $day = new DateTimeImmutable($ymd . ' 00:00:00', brb_tz());
     $next = $day->modify('+1 day');
-    $label = brb_chat_date_label($ymd);
-    $today = brb_now()->setTime(0, 0);
-    if ($day < $today) return $label . ' has already passed. I can check another date if you\'d like.';
-    if (in_array($ymd, brb_blackouts(), true)) return 'I\'m sorry, ' . $label . ' is unavailable.';
+    if ($day < brb_now()->setTime(0, 0)) return 'past';
+    if (in_array($ymd, brb_blackouts(), true)) return 'blackout';
+    if (!brb_is_free($day, $next)) return brb_chat_blocked_kind($day, $next);
     $slot = brb_slot_info($day);
-    if (!brb_is_free($day, $next)) {
-        $kind = brb_chat_blocked_kind($day, $next);
-        if ($kind === 'partial') return 'Part of ' . $label . ' is already reserved, so a full day may not be open.';
-        return $label . ' is already reserved. A date is reserved only once a deposit is paid.';
+    if (!$slot['any'] || !$slot['day_ok']) return 'notice';
+    return 'open';
+}
+function brb_chat_nearby_open($ymd, $limit = 3) {
+    $origin = new DateTimeImmutable($ymd . ' 00:00:00', brb_tz());
+    $today = brb_now()->setTime(0, 0);
+    $found = [];
+    for ($i = 1; $i <= 45 && count($found) < $limit; $i++) {
+        foreach ([-$i, $i] as $delta) {
+            $cand = $origin->modify(($delta > 0 ? '+' : '') . $delta . ' day');
+            if ($cand < $today) continue;
+            $key = $cand->format('Y-m-d');
+            if (brb_chat_date_status($key) === 'open' && !in_array($key, $found, true)) $found[] = $key;
+            if (count($found) >= $limit) break;
+        }
     }
-    $notice = 'Bookings need at least ' . brb_notice_hours() . ' hours\' notice.';
-    if (!$slot['any']) return $label . ' is inside the minimum notice window. ' . $notice;
-    if (!$slot['day_ok']) return 'A full day on ' . $label . ' starts too soon. ' . $notice . ' A shorter block may be possible later that day.';
-    return $label . ' looks open.';
+    sort($found);
+    return $found;
+}
+function brb_chat_list_dates($dates) {
+    $labels = array_map('brb_chat_date_label', $dates);
+    $n = count($labels);
+    if ($n === 0) return '';
+    if ($n === 1) return $labels[0];
+    $last = array_pop($labels);
+    return implode(', ', $labels) . ' and ' . $last;
+}
+function brb_chat_day_sentence($ymd) {
+    $label = brb_chat_date_label($ymd);
+    $status = brb_chat_date_status($ymd);
+    if ($status === 'past') return $label . ' has already passed. I can check another date if you\'d like.';
+    if ($status === 'blackout') return 'I\'m sorry, ' . $label . ' is unavailable.';
+    if ($status === 'partial') return 'Part of ' . $label . ' is already reserved, so that day isn\'t fully open.';
+    if ($status === 'reserved') return $label . ' is already reserved. A date is reserved only once a deposit is paid.';
+    if ($status === 'notice') {
+        $slot = brb_slot_info(new DateTimeImmutable($ymd . ' 00:00:00', brb_tz()));
+        $notice = 'Bookings need at least ' . brb_notice_hours() . ' hours\' notice.';
+        if (!empty($slot['any']) && empty($slot['day_ok'])) return $label . ' is a bit soon for a full day. ' . $notice . ' A shorter block may be possible later that day.';
+        return $label . ' is a bit soon. ' . $notice;
+    }
+    return $label . ' looks open. The date is reserved only once a deposit is paid.';
 }
 
 function brb_chat_availability_text($parsed) {
     if (!empty($parsed['too_long'])) return 'I can check up to 14 days at a time. Try a shorter range?';
-    $notice = 'Bookings need at least ' . brb_notice_hours() . ' hours\' notice. A request does not hold the date. The date is reserved only once a deposit is paid. This is not a binding commitment.';
-    if (empty($parsed['dates'])) return 'Tell me a date, like next Saturday or Dec 12, and I\'ll check it. ' . $notice;
+    if (empty($parsed['dates'])) return 'Tell me a date, like next Saturday or Dec 12, and I\'ll check it.';
     $lines = [];
-    foreach ($parsed['dates'] as $ymd) $lines[] = brb_chat_day_sentence($ymd);
-    $lines[] = $notice;
+    $blocked = [];
+    foreach ($parsed['dates'] as $ymd) {
+        $lines[] = brb_chat_day_sentence($ymd);
+        if (in_array(brb_chat_date_status($ymd), ['blackout', 'reserved', 'partial'], true)) $blocked[] = $ymd;
+    }
+    if ($blocked) {
+        $near = [];
+        foreach ($blocked as $ymd) {
+            foreach (brb_chat_nearby_open($ymd, 3) as $open) $near[$open] = true;
+        }
+        $near = array_keys($near);
+        sort($near);
+        $near = array_slice($near, 0, 3);
+        if ($near) $lines[] = 'A few nearby dates look open: ' . brb_chat_list_dates($near) . '.';
+    }
     return implode(' ', $lines);
 }
 
@@ -381,15 +427,11 @@ function brb_chat_price_for_dates($parsed) {
     }
     if (!empty($parsed['too_long'])) return 'I can estimate up to 14 days at a time. Please give me a shorter range. ' . ucfirst(brb_chat_estimate_phrase()) . '.';
     if (empty($parsed['dates'])) {
-        return 'Tell me a date and I\'ll share an estimate. Any figure is ' . brb_chat_estimate_phrase() . '. This is not a binding commitment.';
+        return 'Tell me a date and I\'ll share an estimate. Any figure is ' . brb_chat_estimate_phrase() . '.';
     }
     $lines = [];
     foreach ($parsed['dates'] as $ymd) {
-        $day = new DateTimeImmutable($ymd . ' 00:00:00', brb_tz());
-        if ($day < brb_now()->setTime(0, 0)) {
-            $lines[] = brb_chat_date_label($ymd) . ' has already passed. Tell me a future date for an estimate.';
-            continue;
-        }
+        if (brb_chat_date_status($ymd) !== 'open') continue;
         $amount = brb_estimate_amount($ymd);
         $due = brb_deposit_due_amount($amount);
         $pct = (float) brb_opt('deposit_pct');
@@ -400,8 +442,10 @@ function brb_chat_price_for_dates($parsed) {
             $label = (abs($pct - round($pct)) < 0.001) ? (string) (int) round($pct) : rtrim(rtrim(number_format($pct, 2, '.', ''), '0'), '.');
             $deposit = 'A ' . $label . '% deposit on that estimate is ' . brb_whole_money($due) . '.';
         }
-        $lines[] = brb_chat_date_label($ymd) . ' is ' . brb_whole_money($amount) . ', ' . brb_chat_estimate_phrase() . '. ' . $deposit . ' It is not refundable if cancellation is received less than 90 days before the event. The card processing fee is non-refundable. This is not a binding commitment.';
+        $lines[] = brb_chat_date_label($ymd) . ' is ' . brb_whole_money($amount) . ', ' . brb_chat_estimate_phrase() . '. ' . $deposit;
     }
+    if (!$lines) return '';
+    $lines[] = 'That\'s an estimate, not a binding commitment.';
     return implode(' ', $lines);
 }
 
@@ -426,24 +470,23 @@ function brb_chat_amenities_text() {
     return implode("\n", $lines);
 }
 
-function brb_chat_payment_text() {
-    $parts = [
-        'Bookings are subject to approval. No payment is due until the request is approved.',
-        brb_reserved_line(),
-        'The deposit is 50% of the agreed total. It is refundable if written cancellation is received 90 or more days before the event, less the non-refundable ' . brb_fee_percent_label() . ' card processing fee and costs already incurred. It is not refundable if cancellation is received less than 90 days before the event. Refunds are issued manually.',
-        'Mail or drop off checks payable to ' . brb_guest_payee() . ' at ' . brb_check_address() . '. That is the check address, not the event space.',
-    ];
-    if (brb_stripe_enabled()) {
-        $parts[] = 'After approval you can also pay by card. Stripe adds a ' . brb_fee_percent_label() . ' card processing fee, and that fee is non-refundable.';
+function brb_chat_asks_checks($text) {
+    return (bool) preg_match('/\b(check|checks|mail|drop[- ]?off|where to pay|where do i pay|payable)\b/i', (string) $text);
+}
+function brb_chat_payment_text($include_checks = false) {
+    $fee = brb_fee_percent_label();
+    $text = 'The deposit is 50% of the agreed total. It is refundable if written cancellation is received 90 or more days before the event, less the non-refundable ' . $fee . ' card processing fee and costs already incurred. It is not refundable if cancellation is received less than 90 days before the event. Want the full cancellation terms? See ' . home_url('/terms/') . '.';
+    if ($include_checks) {
+        $text .= ' Mail or drop off checks payable to ' . brb_guest_payee() . ' at ' . brb_check_address() . '. That is the check address, not the event space.';
     }
-    $parts[] = 'This is not a binding commitment.';
-    return implode(' ', $parts);
+    if (brb_stripe_enabled()) {
+        $text .= ' After approval you can also pay by card. Stripe adds a ' . $fee . ' card processing fee.';
+    }
+    return $text;
 }
 
 function brb_chat_book_text() {
-    return 'I\'d love to help you plan your event. Request a date on the Book page: ' . home_url('/book/') . '. Bookings are subject to approval. No payment is due until the request is approved. '
-        . brb_request_open_line() . ' ' . brb_reserved_line() . ' ' . brb_deposit_line()
-        . ' Leave your name and email below if you would like a team member to follow up.';
+    return 'I\'d love to help you plan your event. Request a date on the Book page: ' . home_url('/book/') . '. Bookings are subject to approval. No payment is due until the request is approved.';
 }
 
 function brb_chat_tour_text() {
@@ -455,13 +498,13 @@ function brb_chat_contact_text() {
 }
 function brb_chat_place_text($with_checks) {
     if ($with_checks) {
-        return 'The event is at ' . brb_venue_address() . '. Checks are mailed or dropped off at ' . brb_check_address() . '. Those are two different addresses.';
+        return 'The event is at ' . brb_venue_address() . '. Mail or drop off checks payable to ' . brb_guest_payee() . ' at ' . brb_check_address() . '. That is the check address, not the event space.';
     }
     return 'The venue is at ' . brb_venue_address() . '.';
 }
 
 function brb_chat_cancel_text() {
-    return 'You can cancel in writing. The deposit is refundable if written cancellation is received 90 or more days before the event, less the non-refundable card processing fee and costs already incurred. It is not refundable if cancellation is received less than 90 days before the event. Refunds are issued manually. This is not legal advice. The signed agreement controls: ' . home_url('/terms/') . '.';
+    return 'The deposit is 50% of the agreed total. It is refundable if written cancellation is received 90 or more days before the event, less the non-refundable 3% card processing fee and costs already incurred. It is not refundable if cancellation is received less than 90 days before the event. This is not legal advice. Want the full cancellation terms? See ' . home_url('/terms/') . '.';
 }
 
 function brb_chat_clean_reply($text) {
@@ -492,8 +535,11 @@ function brb_chat_answer($message, $history = []) {
         ];
     }
     if ($message === '' || preg_match('/^\s*(hi|hello|hey|help|good morning|good afternoon|good evening)\s*[!.]*\s*$/i', $message)) {
+        $hello = 'Hi there! I\'m the Boardroom\'s assistant.';
+        if (preg_match('/hello/i', $message)) $hello = 'Hello! I\'m the Boardroom\'s assistant.';
+        elseif (preg_match('/hey/i', $message)) $hello = 'Hey! I\'m the Boardroom\'s assistant.';
         return [
-            'reply' => 'Hi there! I\'m the Boardroom\'s assistant. I\'d love to help you plan your event. Ask me about a date, the room, or the deposit, and I\'ll keep it short.',
+            'reply' => $hello . ' I\'d love to help you plan your event. ' . brb_chat_suggestions(),
             'lead' => false,
             'intent' => 'greeting',
         ];
@@ -509,7 +555,15 @@ function brb_chat_answer($message, $history = []) {
     $intents = brb_chat_intents($message);
     if (!$intents && !empty($parsed['dates'])) $intents[] = 'availability';
     if (!$intents && !empty($parsed['too_long'])) $intents[] = 'availability';
-    if (!empty($parsed['dates']) && brb_quote_prices_enabled() && in_array('availability', $intents, true) && !in_array('pricing', $intents, true) && !in_array('rules', $intents, true)) {
+    $quotable = [];
+    foreach ($parsed['dates'] as $ymd) {
+        if (brb_chat_date_status($ymd) === 'open') $quotable[] = $ymd;
+    }
+    if (!empty($parsed['dates']) && !$quotable && in_array('pricing', $intents, true)) {
+        $intents = array_values(array_diff($intents, ['pricing']));
+        if (!in_array('availability', $intents, true)) $intents[] = 'availability';
+    }
+    if ($quotable && brb_quote_prices_enabled() && in_array('availability', $intents, true) && !in_array('pricing', $intents, true) && !in_array('rules', $intents, true)) {
         $intents[] = 'pricing';
     }
     if (preg_match('/^\s*(thanks|thank you)\s*[!.]*\s*$/i', $message)) {
@@ -525,7 +579,7 @@ function brb_chat_answer($message, $history = []) {
     $parts = [];
     if (in_array('availability', $intents, true)) $parts[] = brb_chat_availability_text($parsed);
     if (in_array('pricing', $intents, true)) $parts[] = brb_chat_price_for_dates($parsed);
-    if (in_array('payment', $intents, true)) $parts[] = brb_chat_payment_text();
+    if (in_array('payment', $intents, true)) $parts[] = brb_chat_payment_text(brb_chat_asks_checks($message) && !in_array('place', $intents, true));
     if (in_array('rules', $intents, true)) $parts[] = brb_chat_rules_text();
     if (in_array('amenities', $intents, true)) $parts[] = brb_chat_amenities_text();
     if (in_array('cancel', $intents, true)) $parts[] = brb_chat_cancel_text();

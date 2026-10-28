@@ -36,7 +36,7 @@ function brb_chat_reply($text, $history = []) {
 }
 
 try {
-    brb_t(get_option('brb_version') === '2.5.2', 'plugin storage version is 2.5.2');
+    brb_t(get_option('brb_version') === '2.5.3', 'plugin storage version is 2.5.3');
     $cols = $wpdb->get_col('SHOW COLUMNS FROM ' . brb_tour_table(), 0);
     brb_t(in_array('source', $cols, true), 'inquiries can store a source');
     brb_t((string) brb_opt('quote_prices') === '1', 'price estimates are on by default');
@@ -72,10 +72,10 @@ try {
     $settings['blackouts'] = trim((string) $settings['blackouts'] . "\n2030-06-15");
     update_option('brb_settings', $settings);
     $blackout = brb_chat_reply('Is June 15, 2030 available?');
-    brb_t(strpos($blackout, 'unavailable') !== false && strpos($blackout, '48 hours') !== false, 'a blackout date is unavailable and the notice rule is stated');
+    brb_t(strpos($blackout, 'unavailable') !== false && strpos($blackout, '48 hours') === false && strpos($blackout, '$') === false && strpos($blackout, 'nearby dates look open') !== false, 'a blackout date is unavailable, with nearby dates and no price or notice rule');
 
     $open = brb_chat_reply('Is September 10, 2030 available?');
-    brb_t(strpos($open, 'looks open') !== false && strpos($open, 'reserved only once a deposit is paid') !== false && strpos($open, 'not a binding commitment') !== false, 'an open date is not a binding commitment');
+    brb_t(strpos($open, 'looks open') !== false && strpos($open, 'reserved only once a deposit is paid') !== false && substr_count($open, 'not a binding commitment') === 1, 'an open date includes the estimate once and one binding sentence');
 
     $soon = brb_now()->modify('+1 day')->format('Y-m-d');
     $soon_reply = brb_chat_reply('Is ' . $soon . ' available?');
@@ -121,7 +121,7 @@ try {
 
     $price = brb_chat_reply('How much is December 24, 2026?');
     brb_t(strpos($price, '$1,500') !== false && strpos($price, '$750') !== false && strpos($price, 'an estimate for that date; final price is confirmed in writing by our team and depends on date, headcount and features needed') !== false, 'a priced date includes the estimate and the 50 percent deposit');
-    brb_t(strpos($price, 'non-refundable') !== false && strpos($price, 'not a binding commitment') !== false, 'a price answer says the deposit is non-refundable and not binding');
+    brb_t(substr_count($price, 'not a binding commitment') === 1 && strpos($price, '2212') === false, 'a price answer has one binding sentence and no check address');
     $list = brb_chat_reply('What are your prices?');
     brb_t(strpos($list, 'Tell me a date') !== false && strpos($list, '$850') === false && strpos($list, '$1,400') === false && strpos($list, '$1,500') === false && strpos($list, '$1,200') === false, 'a general price question does not publish the rate table');
 
@@ -134,8 +134,9 @@ try {
     update_option('brb_settings', $saved);
 
     $pay = brb_chat_reply('How do I pay the deposit?');
-    brb_t(strpos($pay, 'subject to approval') !== false && strpos($pay, '2212 37th Street, Moline, IL 61265') !== false && strpos($pay, '2220 37th Street') === false && strpos($pay, 'Mad Productions') !== false && strpos($pay, 'check address') !== false && stripos($pay, 'Stripe') === false, 'payment instructions name the check address and skip card payment when it is off');
-    brb_t(strpos($pay, 'non-refundable') !== false && strpos($pay, 'reserved once your deposit is received') !== false, 'payment instructions say the deposit reserves the date');
+    brb_t(strpos($pay, '50% of the agreed total') !== false && strpos($pay, '90 or more days before the event') !== false && strpos($pay, 'less than 90 days before the event') !== false && strpos($pay, 'Want the full cancellation terms?') !== false && strpos($pay, '2212') === false && strpos($pay, 'not a binding commitment') === false && stripos($pay, 'Stripe') === false, 'the deposit answer is short and skips the check address');
+    $checks = brb_chat_reply('Where do I mail a check?');
+    brb_t(strpos($checks, '2212 37th Street, Moline, IL 61265') !== false && strpos($checks, 'Mad Productions') !== false && strpos($checks, 'check address') !== false, 'a check question names the check address');
 
     putenv('BRB_STRIPE_SECRET_KEY=sk_test_ZZZexamplekey');
     $_ENV['BRB_STRIPE_SECRET_KEY'] = 'sk_test_ZZZexamplekey';
@@ -166,7 +167,9 @@ try {
     brb_t(!empty($later['lead']), 'a longer conversation offers follow-up');
 
     $hello = brb_chat_answer('Hi');
-    brb_t(strpos($hello['reply'], 'Hi there! I\'m the Boardroom\'s assistant.') !== false && strpos($hello['reply'], 'keep it short') !== false && $hello['reply'] !== 'Hi there! I\'m the Boardroom\'s assistant. I\'d love to help you plan your event.', 'a hello gets more than the panel greeting');
+    brb_t(strpos($hello['reply'], 'Hi there! I\'m the Boardroom\'s assistant.') !== false && strpos($hello['reply'], 'whether a date is open') !== false && strpos($hello['reply'], 'what\'s in the room') !== false && strpos($hello['reply'], 'how the deposit works') !== false, 'a hello suggests three things to ask');
+    $hey = brb_chat_answer('Hey');
+    brb_t(strpos($hey['reply'], 'Hey!') === 0 && strpos($hey['reply'], 'whether a date is open') !== false, 'hey gets its own greeting');
     $next_month = brb_now()->setTime(0, 0)->modify('first day of next month');
     $fifteenth = sprintf('%04d-%02d-15', (int) $next_month->format('Y'), (int) $next_month->format('n'));
     $rel = brb_chat_reply('Is the 15th of next month available?');
