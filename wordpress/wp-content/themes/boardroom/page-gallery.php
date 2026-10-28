@@ -8,5 +8,7 @@
         esc_url(br_gallery_src($file, true))
     );
 } ?>
-</div></div></div>
+</div>
+<p class="gallery-more"><a href="<?php echo esc_url(home_url('/#amenities')); ?>">See the amenities</a></p>
+</div></div>
 <?php get_footer();

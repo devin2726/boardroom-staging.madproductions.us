@@ -1,7 +1,7 @@
 /*
 Theme Name: The Boardroom
 Description: Lightweight theme replicating the look of boardroomqc.com (dark + gold, EB Garamond, full-width hero slider). Pairs with the Boardroom Booking plugin.
-Version: 1.2.10
+Version: 1.2.11
 Author: Mad Productions
 Text Domain: boardroom
 */
@@ -44,6 +44,15 @@ section.block{padding:80px 0}section.alt{background:var(--bg2)}section.dark{back
 .amen{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:28px}
 .amen .card{background:#fff;text-align:center;box-shadow:0 4px 18px rgba(0,0,0,.08);font-variant-numeric:lining-nums}.amen .card img{aspect-ratio:4/3;object-fit:cover;width:100%}
 .amen .card h3{margin:0;padding:22px 18px;font-size:20px;letter-spacing:.04em}
+.amenity-intro{text-align:center;max-width:40em;margin:40px auto 8px;color:var(--ink);font-family:'EB Garamond',Georgia,'Times New Roman',serif}
+.amenity-groups{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:32px 40px;margin-top:28px}
+.amenity-group h3{font-family:'EB Garamond',Georgia,'Times New Roman',serif;color:var(--ink);font-size:22px;letter-spacing:.05em;text-transform:uppercase;text-align:left;margin:0 0 8px}
+.amenity-group h3:after{content:"";display:block;width:36px;height:2px;background:var(--gold);margin:8px 0 0}
+.amenity-lead,.amenity-note{margin:8px 0 0;color:var(--txt);font-size:16px;font-family:'EB Garamond',Georgia,'Times New Roman',serif}
+.amenity-groups ul{list-style:none;margin:14px 0 0;padding:0}
+.amenity-groups li{position:relative;padding:3px 0 3px 26px;color:var(--ink);font-family:'EB Garamond',Georgia,'Times New Roman',serif}
+.amenity-groups li:before{content:"";position:absolute;left:2px;top:.62em;width:10px;height:6px;border-left:2px solid var(--gold);border-bottom:2px solid var(--gold);transform:rotate(-45deg)}
+.book-amenities{text-align:center;margin:0 0 8px;font-family:'EB Garamond',Georgia,'Times New Roman',serif}
 .cta{text-align:center}.cta p{font-size:18px;max-width:640px;margin:0 auto 28px}
 .gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}.gallery a{display:block;overflow:hidden}
 .gallery img{aspect-ratio:4/3;object-fit:cover;width:100%;transition:transform .4s}.gallery a:hover img{transform:scale(1.05)}
