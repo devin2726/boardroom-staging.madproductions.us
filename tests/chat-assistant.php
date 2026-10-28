@@ -36,7 +36,7 @@ function brb_chat_reply($text, $history = []) {
 }
 
 try {
-    brb_t(get_option('brb_version') === '2.5.8', 'plugin storage version is 2.5.8');
+    brb_t(get_option('brb_version') === '2.5.12', 'plugin storage version is 2.5.12');
     $cols = $wpdb->get_col('SHOW COLUMNS FROM ' . brb_tour_table(), 0);
     brb_t(in_array('source', $cols, true), 'inquiries can store a source');
     brb_t((string) brb_opt('quote_prices') === '1', 'price estimates are on by default');
@@ -50,20 +50,61 @@ try {
     brb_t(brb_estimate_amount('2027-01-10') === 850.0, 'a Sunday outside the holiday ranges uses the Sunday to Thursday rate');
 
     $rules = brb_chat_reply('What are the house rules?');
-    foreach (['No overnight stays', 'No cooking', 'stovetop', 'no taps', 'BYOB', 'City of Moline', '$50', 'not set up', 'garbage', '75', 'Christmas decorations are up in December', 'insurance'] as $needle) {
+    foreach (['No overnight stays', 'No cooking', 'stovetop', 'no taps', 'BYOB', 'City of Moline', 'https://moline.il.us/244/Liquor-Licensing', '309-524-2004', 'not set up', 'garbage', '75', 'Christmas decorations are up in December', 'insurance'] as $needle) {
         brb_t(stripos($rules, $needle) !== false, 'rules answer includes ' . $needle);
     }
+    brb_t(strpos($rules, '$50') === false && strpos($rules, 'fee $50') === false, 'rules do not state a liquor license fee');
     brb_t(stripos($rules, 'owner') === false && stripos($rules, $other) === false && strpos($rules, '11:30 PM') !== false && stripos($rules, 'midnight') === false && strpos($rules, 'no tickets') !== false, 'rules answer stays on the venue and states the departure and admission rules');
     $food = brb_chat_reply('Can I bring my own food?');
     brb_t(stripos($food, 'own food') !== false && stripos($food, 'warmers') !== false && stripos($food, 'stovetop') !== false && stripos($food, 'any caterer') !== false && stripos($food, 'does not provide catering') !== false, 'own food is allowed with warmers and without catering from us');
     $byob = brb_chat_reply('Is BYOB allowed?');
-    brb_t(strpos($byob, 'BYOB') !== false && strpos($byob, 'City of Moline') !== false && strpos($byob, 'leave it like you got it') !== false && strpos($byob, 'garbage') !== false, 'BYOB includes the license and cleanup');
+    brb_t(strpos($byob, 'BYOB') !== false && strpos($byob, 'https://moline.il.us/244/Liquor-Licensing') !== false && strpos($byob, '309-524-2004') !== false && strpos($byob, '$50') === false && strpos($byob, 'leave it like you got it') !== false && strpos($byob, 'garbage') !== false, 'BYOB points guests to the City of Moline and includes cleanup');
     $out = brb_chat_reply('How late can we stay?');
     brb_t(strpos($out, '11:30 PM') !== false && stripos($out, 'midnight') === false && stripos($out, 'permit') === false, 'end time questions say 11:30 PM');
     $hours = brb_chat_reply('What are your hours?');
     brb_t(strpos($hours, '10:00 AM') !== false && strpos($hours, '11:30 PM') !== false && strpos($hours, 'Half days') !== false && strpos($hours, 'June') !== false, 'hours include the full day and June half days');
     $wedding = brb_chat_reply('Can we have a wedding?');
-    brb_t(strpos($wedding, 'Weddings') !== false && strpos($wedding, 'free to attend') !== false && strpos($wedding, 'minimum host age is 21') !== false && strpos($wedding, 'Our team will confirm') !== false, 'event types are welcome and the host age is a neutral rule');
+    brb_t(strpos($wedding, 'Weddings') !== false && strpos($wedding, 'free to attend') !== false && strpos($wedding, 'minimum host age is 25') !== false && strpos($wedding, 'Our team will confirm') === false, 'event types are welcome and the host age is 25 for every booking');
+    $unknown = 'I\'m not sure about that one';
+    $house_prompts = [
+        'When is the balance due?' => ['week of the event', '48 hours'],
+        'Is there a refrigerator or ice?' => ['refrigerator', 'ice machine'],
+        'Who will be there during my event?' => ['No one is on site', 'connected offices', 'contract is signed'],
+        'Is there a private entrance?' => ['one main entrance', 'back entrance', 'surprise guest'],
+        'Can I talk to a person?' => ['Contact form', 'boardroomqc@gmail.com', 'contract is signed'],
+        'Is there an age limit for hosts?' => ['minimum host age is 25'],
+        'Is there a place for a food truck?' => ['place for a food truck'],
+    ];
+    foreach ($house_prompts as $prompt => $needles) {
+        $answer = brb_chat_answer($prompt);
+        $reply = $answer['reply'];
+        brb_t($answer['intent'] !== 'unknown' && strpos($reply, $unknown) === false, 'chat answers ' . $prompt);
+        foreach ($needles as $needle) {
+            brb_t(strpos($reply, $needle) !== false, 'chat answer for ' . $prompt . ' includes ' . $needle);
+        }
+    }
+    $setup_time = brb_chat_reply('What time can I get in to set up?');
+    brb_t(strpos($setup_time, 'No. Guests set up') !== false && strpos($setup_time, '8:00 AM') !== false && strpos($setup_time, 'one hour before') !== false && strpos($setup_time, $unknown) === false, 'setup time is the morning of the event');
+    $setup_help = brb_chat_reply('Can you set it up for me?');
+    brb_t(strpos($setup_help, 'No. Guests set up') !== false && strpos($setup_help, 'Staff cannot set the room up') !== false && stripos($setup_help, 'extra fee') === false, 'staff cannot set the room up');
+    $balloons = brb_chat_reply('Are balloons allowed?');
+    brb_t(strpos($balloons, 'Balloons are fine') !== false && strpos($balloons, 'Wall tape is not allowed') !== false && strpos($balloons, 'Glitter is not allowed') !== false && strpos($balloons, 'Our team will confirm') === false, 'balloons are allowed and wall tape is not');
+    $tape = brb_chat_reply('Can I use tape on the wall?');
+    brb_t(strpos($tape, 'Wall tape is not allowed') !== false, 'wall tape is not allowed');
+    $damaged = brb_chat_reply('What happens if something gets damaged?');
+    brb_t(strpos($damaged, 'damage deposit covers cleaning and damage') !== false && strpos($damaged, 'may be charged') !== false && strpos($damaged, 'Terms') !== false && strpos($damaged, 'walk-through') !== false && strpos($damaged, $unknown) === false, 'damage is covered by the deposit and explained at the walk-through');
+    $market = brb_chat_reply('Can I hold a vendor market or sell items?');
+    brb_t(strpos($market, 'No.') !== false && strpos($market, 'free to attend') !== false && strpos($market, 'no merchandise sales') !== false && strpos($market, 'no ticket sales') !== false && strpos($market, $unknown) === false, 'a vendor market is not allowed');
+    $receipt = brb_chat_reply('Can I get a receipt or an invoice?');
+    brb_t(strpos($receipt, 'Card payments get an emailed receipt') !== false && strpos($receipt, 'invoice or receipt for any payment on request') !== false && strpos($receipt, $unknown) === false, 'a receipt or invoice is offered on request');
+    $tax = brb_chat_reply('Is sales tax added?');
+    brb_t($tax === 'Sales tax is included in the price.', 'a tax question says sales tax is included in the price');
+    $tax_price = brb_chat_reply('Does the price include sales tax?');
+    brb_t($tax_price === 'Sales tax is included in the price.', 'a price-and-tax question says sales tax is included and does not add a tax line');
+    $truck_req = new WP_REST_Request('POST', '/brb/v1/chat');
+    $truck_req->set_param('message', 'Is there a place for a food truck?');
+    $truck = brb_chat_rest($truck_req);
+    brb_t(is_array($truck) && strpos($truck['reply'], 'place for a food truck') !== false, 'the food truck question is answered by the chat endpoint');
     $reserve = brb_chat_reply('How do I reserve?');
     brb_t(strpos($reserve, home_url('/book/')) !== false && strpos($reserve, 'approved by the Boardroom') !== false, 'reserve explains the book request and deposit');
     $photos = brb_chat_reply('Where are the photos?');
@@ -326,7 +367,7 @@ try {
     $js = file_get_contents($plugin_dir . '/assets/chat.js');
     brb_t(is_string($css) && strpos($css, '.brb-chat-msg,.brb-chat-msg.user,.brb-chat-msg.bot{') !== false && strpos($css, 'color:#161616') !== false, 'guest and bot messages share one text color');
     brb_t(is_string($css) && strpos($css, 'EB Garamond') !== false && strpos($css, '#c4912e') !== false && strpos($css, 'position:fixed') !== false && strpos($css, 'brb-chat-scroll') !== false && strpos($css, 'min-height:0') !== false && strpos($css, '100dvh') !== false, 'the chat panel scrolls inside the viewport');
-    brb_t(is_string($js) && strpos($js, 'credentials: \'omit\'') !== false && stripos($js, 'openai') === false && stripos($js, 'googleapis') === false && stripos($js, $other) === false, 'the chat script stays on this site and does not call an outside model');
+    brb_t(is_string($js) && strpos($js, 'credentials: \'omit\'') !== false && strpos($js, '503') !== false && strpos($js, 'Please try that once more in a moment. You can also use the Contact form.') !== false && stripos($js, 'openai') === false && stripos($js, 'googleapis') === false && stripos($js, $other) === false, 'the chat script stays on this site, retries a temporary failure, and does not call an outside model');
     $public_price = brb_price_sentence();
     brb_t(strpos($public_price, '$850') === false && strpos($public_price, '$1,400') === false && strpos($public_price, '$1,500') === false, 'the public price sentence does not list the assistant rates');
 

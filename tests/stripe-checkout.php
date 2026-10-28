@@ -368,7 +368,7 @@ try {
         'free_admission' => '1',
         'alcohol' => 'yes',
         'end_time' => '20:00',
-        'host_age' => 'age_21_24',
+        'host_age' => 'age_25',
         'event_about' => 'A corporate reception.',
     ]);
     brb_t(!is_wp_error($second_booking) && $second_booking && $second_booking->status === 'review', 'a second request can be created for a deposit card payment');

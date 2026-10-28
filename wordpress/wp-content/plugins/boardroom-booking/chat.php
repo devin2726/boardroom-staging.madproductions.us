@@ -457,7 +457,7 @@ function brb_chat_rules_text() {
         . 'All events must be free to attend: no tickets, no cover charge, no paid admission, no door fees, and no ticket or merchandise sales. Guests may have a band or live music, as long as they are not charging for the event. We do not host concerts or ticketed shows. '
         . 'No cooking is allowed. The stovetop may not be used. The kitchen area is for serving and storage. '
         . 'You can bring your own food. Warmers and buffet-style warmers are available. Any caterer is welcome. The Boardroom does not provide catering. '
-        . 'There are no taps. BYOB is allowed. The renter must obtain a one-day liquor license from the City of Moline, fee $50. '
+        . 'There are no taps. ' . brb_byob_line() . ' '
         . 'Please leave it like you got it, and take the garbage out. '
         . 'The room comes not set up. No more than 75 people. Decorations are not provided, except that Christmas decorations are up in December. '
         . 'Event liability insurance is required. If alcohol is served, liquor liability coverage is also required. Proof can be requested before access. '
@@ -467,13 +467,43 @@ function brb_chat_specific_text($text) {
     $t = strtolower((string) $text);
     if (preg_match('/\brules?\b/', $t)) return '';
     if (preg_match('/amenit|what is included|what do you have|what\'s included|whats included/', $t)) return '';
-    if (preg_match('/balloon|wall tape|tape on the wall|\breceipt\b/', $t)) return brb_chat_confirm_line();
+    if (preg_match('/\breceipt\b|\binvoice\b/', $t)) return brb_chat_receipt_line();
     $bits = [];
-    if (preg_match('/\bhours\b|what time are you open|half[- ]?day|10:00|10 am|open at|setup day|takedown|set-?up day/', $t)) {
-        $bits[] = brb_hours_line() . ' ' . brb_guest_out_line() . ' If the day before is open, setup is 12:00 PM to 8:00 PM, arranged at least 72 hours ahead, or that day can be rented for $500. If the next day is open, takedown can be the next day or that day can be rented for $500. If the next day is booked, everything is picked up and tidy by midnight for the cleaning crew. The same choices apply on Sunday. There are no two-night rentals.';
+    if (preg_match('/\bhours\b|what time are you open|half[- ]?day|10:00|10 am|open at/', $t)) {
+        $bits[] = brb_hours_line() . ' ' . brb_guest_out_line();
     }
-    if (preg_match('/wedding|shower|graduation|birthday|funeral|teen|host age|21/', $t)) {
-        $bits[] = 'Weddings, showers, graduations, kids birthdays, funerals, and teen events are welcome when the event is free to attend, within capacity, and finished by 11:30 PM. The minimum host age is 21 for every booking. Our team will confirm.';
+    if (preg_match('/wedding|shower|graduation|birthday|funeral|teen/', $t)) {
+        $bits[] = 'Weddings, showers, graduations, kids birthdays, funerals, and teen events are welcome when the event is free to attend, within capacity, and finished by 11:30 PM. The minimum host age is 25 for every booking.';
+    }
+    if (preg_match('/\bage limit\b|\bhost age\b|\bminimum host\b|\bhosts\b/', $t)) {
+        $bits[] = 'The minimum host age is 25 for every booking.';
+    }
+    if (preg_match('/balance due|when is the balance|the balance/', $t)) {
+        $bits[] = 'The balance is due the week of the event, no later than 48 hours before.';
+    }
+    if (preg_match('/refrigerator|\bfridge\b|\bice\b/', $t)) {
+        $bits[] = 'Yes. There is a refrigerator and an ice machine.';
+    }
+    if (preg_match('/who will be there|during my event|during the event|on site during/', $t)) {
+        $bits[] = 'No one is on site during events. Our connected offices are available on demand if something is needed. Cell numbers are given when the contract is signed, and they are not listed on this site.';
+    }
+    if (preg_match('/entrance|surprise guest/', $t)) {
+        $bits[] = 'There is one main entrance. A back entrance can be used for a surprise guest when it is arranged ahead of time with our team.';
+    }
+    if (preg_match('/talk to a person|speak to a person|speak with a person|real person/', $t)) {
+        $bits[] = 'Use the Contact form or email boardroomqc@gmail.com. Cell numbers are given when the contract is signed, and they are not listed on this site.';
+    }
+    if (preg_match('/balloon/', $t)) {
+        $bits[] = 'Yes. Balloons are fine. Wall tape is not allowed. Glitter is not allowed.';
+    }
+    if (preg_match('/wall tape|tape on the wall|\btape\b/', $t)) {
+        $bits[] = 'No. Wall tape is not allowed. Balloons are fine. Glitter is not allowed.';
+    }
+    if (preg_match('/damaged|gets damaged|something gets/', $t)) {
+        $bits[] = 'The damage deposit covers cleaning and damage. Anything beyond that deposit may be charged. See the Terms. Our team will go over it at the walk-through.';
+    }
+    if (preg_match('/vendor market|sell items|\bsell\b|merchandise/', $t)) {
+        $bits[] = 'No. All events are free to attend. There are no merchandise sales and no ticket sales.';
     }
     if (preg_match('/meet you|meet us|walk[- ]?through|in person/', $t)) {
         $bits[] = 'Yes. We meet every renter before approving a booking. It\'s a short, friendly visit to talk through your plans and the house rules. Our team will reach out to schedule it.';
@@ -481,7 +511,7 @@ function brb_chat_specific_text($text) {
     if (preg_match('/nonprofit|military|discount/', $t)) {
         $bits[] = 'Please contact us directly to discuss nonprofit or military discounts.';
     }
-    if (preg_match('/\btax\b|sales tax/', $t)) $bits[] = 'Sales tax is added.';
+    if (preg_match('/\btax\b|sales tax/', $t)) $bits[] = 'Sales tax is included in the price.';
     if (preg_match('/wheelchair|accessible|accessib/', $t)) $bits[] = 'Yes. The space is accessible.';
     if (preg_match('/\bnoise\b|quiet|outdoors/', $t)) $bits[] = 'Nothing is outdoors, and the space is quiet after 11:30 PM.';
     if (preg_match('/camera|staff on site|no staff/', $t)) $bits[] = 'There are security cameras on site. No staff are in the area, and a representative can be reached if something arises.';
@@ -502,12 +532,12 @@ function brb_chat_specific_text($text) {
         $bits[] = 'Photos are in the Gallery: ' . home_url('/gallery/') . '. The tour video is on the home page and the Contact page.';
     }
     if (preg_match('/table|chair/', $t)) {
-        $bits[] = 'Tables and chairs are on site. Guests set them up and put them away. The room comes not set up. Staff can help for an extra fee.';
+        $bits[] = 'Tables and chairs are on site. Guests set them up and put them away. The room comes not set up. Staff cannot set the room up.';
     }
     if (preg_match('/plate|cups|utensil|serving spoon|buffet/', $t)) {
         $bits[] = 'Please bring your own plates, cups, and utensils. Buffet units, pans, and some serving spoons are available when guests clean them before leaving.';
     }
-    if (preg_match('/food truck/', $t)) $bits[] = 'Yes. Food trucks are allowed.';
+    if (preg_match('/food truck/', $t)) $bits[] = 'Yes. There is a place for a food truck.';
     if (preg_match('/heat|air conditioning|\bac\b|wi-?fi|bluetooth/', $t)) {
         $bits[] = 'The room has heat and air conditioning, a TV, Wi-Fi, and Bluetooth sound throughout.';
     }
@@ -518,22 +548,22 @@ function brb_chat_specific_text($text) {
         $bits[] = 'There are two restrooms, with stalls and urinals.';
     }
     if (preg_match('/ice machine|\bbar\b/', $t)) {
-        $bits[] = 'Yes. There is a bar area and an ice machine. BYOB is allowed, and guests get the one-day City of Moline liquor license.';
+        $bits[] = 'Yes. There is a bar area and an ice machine. ' . brb_byob_line();
     }
     if (preg_match('/rental agreement|sign an agreement|signed agreement/', $t)) {
         $bits[] = 'Yes. A signed rental agreement is part of booking. The Terms page is ' . home_url('/terms/') . ' and the agreement is ' . home_url('/rental-agreement/') . '.';
     }
-    if (preg_match('/food|cater|warmer|buffet|\bcook|\bstove|stovetop/', $t)) {
+    if (!preg_match('/food truck/', $t) && preg_match('/\bfood\b|cater|warmer|buffet|\bcook|\bstove|stovetop/', $t)) {
         $bits[] = 'Yes. You can bring your own food. We have warmers and buffet-style warmers, but the stovetop can\'t be used. You can also have it catered by any caterer. The Boardroom does not provide catering.';
     }
     if (preg_match('/\bbyob\b|liquor|alcohol|\bdrinks?\b/', $t)) {
-        $bits[] = 'Yes, BYOB is allowed. Guests must get the one-day City of Moline liquor license, fee $50. Please leave it like you got it, and take the garbage out.';
+        $bits[] = brb_byob_line() . ' Please leave it like you got it, and take the garbage out.';
     }
     if (preg_match('/decorat/', $t)) {
         $bits[] = 'Decorations are not provided, except that Christmas decorations are up in December.';
     }
-    if (preg_match('/set-?up|setup/', $t)) {
-        $bits[] = 'The room comes not set up. Staff can help with setup for an extra fee.';
+    if (preg_match('/get in|set it up|set-?up|setup|tear ?down|put away/', $t)) {
+        $bits[] = 'No. Guests set up and put everything away. Staff cannot set the room up. On a full day, setup can begin at 8:00 AM. On a half day, setup can begin one hour before the start.';
     }
     if (preg_match('/parking/', $t)) {
         $bits[] = 'Yes. Free parking on premises, and there is free street parking too.';
@@ -595,6 +625,9 @@ function brb_chat_book_text() {
 }
 function brb_chat_confirm_line() {
     return 'Our team will confirm that for you.';
+}
+function brb_chat_receipt_line() {
+    return 'Yes. Card payments get an emailed receipt, and we can provide an invoice or receipt for any payment on request.';
 }
 function brb_chat_december_open() {
     $year = (int) brb_now()->format('Y');
@@ -669,6 +702,12 @@ function brb_chat_answer($message, $history = []) {
     }
     if ($sensitive === 'refuse') {
         return ['reply' => brb_chat_clean_reply(brb_chat_refusal()), 'lead' => true, 'intent' => 'refuse'];
+    }
+    if (preg_match('/\breceipt\b|\binvoice\b/i', $message)) {
+        return ['reply' => brb_chat_receipt_line(), 'lead' => false, 'intent' => 'topic'];
+    }
+    if (preg_match('/\btax\b|sales tax/i', $message)) {
+        return ['reply' => 'Sales tax is included in the price.', 'lead' => false, 'intent' => 'topic'];
     }
     $parsed = brb_chat_dates($message);
     $intents = brb_chat_intents($message);
@@ -869,8 +908,12 @@ function brb_chat_send_notice($row) {
 }
 
 function brb_chat_rest($req) {
-    $history = $req->get_param('history');
-    return brb_chat_answer((string) $req->get_param('message'), is_array($history) ? $history : []);
+    try {
+        $history = $req->get_param('history');
+        return brb_chat_answer((string) $req->get_param('message'), is_array($history) ? $history : []);
+    } catch (Throwable $e) {
+        return new WP_Error('brb_chat_unavailable', 'Please try that once more in a moment.', ['status' => 503]);
+    }
 }
 
 function brb_chat_lead_rest($req) {

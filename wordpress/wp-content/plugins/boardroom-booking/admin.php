@@ -249,7 +249,7 @@ function brb_admin_detail($id) {
         'Private, invitation-only' => ($b->public_event ?? '') === 'no' ? 'Yes' : (($b->public_event ?? '') === 'yes' ? 'No, it is open to the public' : '—'),
         'Alcohol served' => brb_yes_no_label($b->alcohol ?? '') ?: '—',
         'Planned end time' => ($b->end_time ?? '') !== '' ? brb_end_time_label($b->end_time) : '—',
-        'Host age bracket' => (brb_host_ages()[$b->host_age ?? ''] ?? '') ?: '—',
+        'Host age bracket' => brb_host_age_label($b->host_age ?? '') ?: '—',
         'About the event' => ($b->event_about ?? '') !== '' ? $b->event_about : '—',
         'Source' => brb_source_label($b->source),
         'Name' => $b->name,
@@ -473,7 +473,7 @@ function brb_admin_settings() {
                 $email = sanitize_email($raw);
                 $new[$k] = is_email($email) ? $email : $defaults['tour_email'];
             } else {
-                $new[$k] = in_array($k, ['policy', 'blackouts', 'pay_instructions'], true)
+                $new[$k] = in_array($k, ['policy', 'blackouts', 'pay_instructions', 'checklist'], true)
                     ? sanitize_textarea_field($raw)
                     : sanitize_text_field($raw);
             }
@@ -505,6 +505,7 @@ function brb_admin_settings() {
         echo '<div class="updated"><p>Saved.' . ($kept ? ' Blackout dates were kept because the list was empty and “clear all blackout dates” was not ticked.' : '') . '</p></div>';
     }
     $o = brb_opt();
+    if (trim((string) ($o['checklist'] ?? '')) === '') $o['checklist'] = brb_checklist_default();
     $groups = [
         'Pricing shown to guests' => [
             ['starting_price', 'Starting price ($ per day)', 'text', null, 'Guests see “from” this amount per day. Default 600. Whole dollars are shown without cents.'],
@@ -526,7 +527,7 @@ function brb_admin_settings() {
             ['deposit_type', 'Deposit that reserves the date', 'select', ['full' => 'Full amount', 'percent' => 'Percent of the agreed price', 'fixed' => 'Fixed dollar amount'], 'The deposit holds the date. It is refundable if written cancellation is received 60 or more days before the event, less non-refundable processing charges and costs already incurred, and it is not refundable inside 90 days. Staff process refunds manually. Default is 50% of the agreed price. Until staff set a price, the guest is told the price is to be confirmed.'],
             ['deposit_pct', 'Deposit percent', 'number', null, 'Used when the choice above is percent. Default 50.'],
             ['deposit_fixed', 'Fixed deposit amount ($)', 'text', null, 'Used when the choice above is a fixed dollar amount. Cannot exceed the total.'],
-            ['balance_due_days', 'Balance due note', 'number', null, 'The remaining balance is due 48 hours before the event. A past date is shown as due now. Until a price is set, the guest sees price to be confirmed.'],
+            ['balance_due_days', 'Balance due note', 'number', null, 'The remaining balance is due the week of the event, no later than 48 hours before. A past date is shown as due now. Until a price is set, the guest sees price to be confirmed.'],
             ['addon_price', 'Setup or takedown day ($)', 'number', null, 'Added when that day is open. Default 500. The same price applies on Sunday.'],
             ['venue_address', 'Venue address', 'text', null, 'The event space. Shown in the footer, on Contact, and in Terms and Privacy. Default is 2220 37th Street, Moline, IL 61265. This is not where checks go.'],
             ['payee', 'Check payable to [VERIFY]', 'text', null, 'The name guests write on the payee line. Until this placeholder is replaced, guest check instructions say Mad Productions.'],
@@ -540,6 +541,7 @@ function brb_admin_settings() {
         'Calendar and policy' => [
             ['blackouts', 'Blackout dates (YYYY-MM-DD, one per line)', 'textarea', null, 'Saved dates stay in the database when the plugin is updated. Emptying this box does not delete them unless you tick the box under it.'],
             ['policy', 'Cancellation policy', 'textarea', null, 'Shown before a guest saves a date, and included in emails.'],
+            ['checklist', 'Rental checklist', 'textarea', null, 'Emailed when a request is approved and again about 7 days before the event. Also shown on the Rental Checklist page. One item per line. Leave the saved text in place to keep the current list.'],
         ],
     ];
     echo '<div class="wrap"><h1>Booking Settings</h1>';
