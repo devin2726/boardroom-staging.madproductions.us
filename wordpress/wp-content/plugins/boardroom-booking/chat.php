@@ -494,7 +494,7 @@ function brb_chat_specific_text($text) {
         $bits[] = 'Use the Contact form or email boardroomqc@gmail.com. Cell numbers are given when the contract is signed, and they are not listed on this site.';
     }
     if (preg_match('/balloon/', $t)) {
-        $bits[] = 'Yes. Balloons are fine. Wall tape is not allowed, and glitter is not allowed.';
+        $bits[] = 'Yes. Balloons are fine. Wall tape is not allowed. Glitter is not allowed.';
     }
     if (preg_match('/wall tape|tape on the wall|\btape\b/', $t)) {
         $bits[] = 'No. Wall tape is not allowed. Balloons are fine. Glitter is not allowed.';
