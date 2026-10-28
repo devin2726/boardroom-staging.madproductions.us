@@ -36,7 +36,7 @@ function brb_chat_reply($text, $history = []) {
 }
 
 try {
-    brb_t(get_option('brb_version') === '2.5.0', 'plugin storage version is 2.5.0');
+    brb_t(get_option('brb_version') === '2.5.1', 'plugin storage version is 2.5.1');
     $cols = $wpdb->get_col('SHOW COLUMNS FROM ' . brb_tour_table(), 0);
     brb_t(in_array('source', $cols, true), 'inquiries can store a source');
     brb_t((string) brb_opt('quote_prices') === '1', 'price estimates are on by default');
@@ -64,7 +64,7 @@ try {
     $competitor = brb_chat_reply('How do you compare with ' . $other . '?');
     brb_t(strpos($competitor, 'Contact form') !== false && stripos($competitor, $other) === false, 'questions about other businesses are refused without repeating them');
     $politics = brb_chat_reply('What do you think about the election?');
-    brb_t(strpos($politics, 'I can only help with The Boardroom') !== false, 'politics is out of scope');
+    brb_t(strpos($politics, 'I\'m not sure about that one, but our team would be glad to help') !== false && strpos($politics, 'I can only help with The Boardroom') !== false, 'politics is out of scope');
     $legal = brb_chat_reply('Can you give legal advice about suing?');
     brb_t(strpos($legal, 'legal advice') !== false && strpos($legal, 'Contact form') !== false && stripos($legal, 'owner') === false, 'legal advice is refused');
 
@@ -165,6 +165,12 @@ try {
     ]);
     brb_t(!empty($later['lead']), 'a longer conversation offers follow-up');
 
+    $hello = brb_chat_answer('Hi');
+    brb_t($hello['reply'] === 'Hi there! I\'m the Boardroom\'s assistant. I\'d love to help you plan your event.', 'the greeting is warm');
+    $rules_reply = brb_chat_answer('What are the house rules?');
+    brb_t(strpos($rules_reply['reply'], '✨') === false && strpos($rules_reply['reply'], '90 or more days') === false, 'rules replies stay plain');
+    $refund_reply = brb_chat_answer('What is the cancellation policy?');
+    brb_t(strpos($refund_reply['reply'], '90 or more days before the event') !== false && strpos($refund_reply['reply'], 'less than 90 days before the event') !== false && strpos($refund_reply['reply'], '✨') === false, 'the assistant explains the 90-day deposit rule without an emoji');
     $long = brb_chat_answer(str_repeat('a', 501));
     brb_t($long['intent'] === 'unknown' && strpos($long['reply'], 'shorten') !== false, 'a very long message is refused');
 
@@ -203,7 +209,7 @@ try {
         'transcript' => 'Guest asked about December 24.',
         'company' => '',
     ]);
-    brb_t(is_array($lead) && !empty($lead['stored']) && $lead['message'] === 'Thanks, someone from our team will get right back to you.', 'a chat lead is saved and thanks the guest');
+    brb_t(is_array($lead) && !empty($lead['stored']) && $lead['message'] === 'Thanks so much, someone from our team will get right back to you!', 'a chat lead is saved and thanks the guest');
     $row = !empty($lead['id']) ? brb_tour((int) $lead['id']) : null;
     if ($row) $created_inquiries[] = (int) $row->id;
     brb_t($row && $row->source === 'chat assistant' && $row->email === 'chat-guest@example.com' && $row->phone === '309-555-0144' && strpos($row->notes, 'Guest asked about December 24.') !== false && strpos($row->notes, 'Birthday') !== false, 'the inquiry stores the source, the note, and the transcript summary');
@@ -247,7 +253,7 @@ try {
     }
 
     $widget = brb_chat_markup();
-    brb_t(strpos($widget, 'brb-chat-launch') !== false && strpos($widget, '>Chat<') !== false && strpos($widget, 'role="dialog"') !== false && strpos($widget, 'aria-expanded') !== false && strpos($widget, 'A team member will reply using this info') !== false, 'the chat button and panel are on the page');
+    brb_t(strpos($widget, 'brb-chat-launch') !== false && strpos($widget, '>Chat<') !== false && strpos($widget, 'role="dialog"') !== false && strpos($widget, 'aria-expanded') !== false && strpos($widget, 'A team member will reply using this info') !== false && strpos($widget, 'Hi there! I\'m the Boardroom\'s assistant. I\'d love to help you plan your event.') !== false, 'the chat button and panel are on the page');
     brb_t(strpos($widget, '850') === false && strpos($widget, '1400') === false && strpos($widget, '1500') === false && stripos($widget, $other) === false && stripos($widget, 'owner') === false, 'the chat panel does not publish rates or private topics');
     $plugin_dir = dirname((new ReflectionFunction('brb_chat_markup'))->getFileName());
     $css = file_get_contents($plugin_dir . '/assets/chat.css');

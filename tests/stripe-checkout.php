@@ -176,7 +176,7 @@ try {
     brb_t(strpos($pay_page, 'Amount applied to your booking: $100.00') !== false, 'the pay page shows the amount applied to the booking');
     brb_t(strpos($pay_page, 'Card processing fee (3%): $3.00') !== false, 'the pay page shows the 3 percent fee before redirect');
     brb_t(strpos($pay_page, 'Total charged to your card: $103.00') !== false, 'the pay page shows the card total before redirect');
-    brb_t(strpos($pay_page, 'I understand a 3% card processing fee applies') !== false && strpos($pay_page, 'non-refundable and holds the date') !== false && strpos($pay_page, '>Terms<') !== false && strpos($pay_page, '>Rental Agreement<') !== false, 'the pay page requires the fee, the non-refundable deposit, and the agreement checkbox');
+    brb_t(strpos($pay_page, 'I understand a 3% card processing fee applies') !== false && strpos($pay_page, '90 or more days before the event') !== false && strpos($pay_page, 'less than 90 days before the event') !== false && strpos($pay_page, '>Terms<') !== false && strpos($pay_page, '>Rental Agreement<') !== false, 'the pay page requires the fee, the 90-day deposit rule, and the agreement checkbox');
     brb_t(strpos($pay_page, 'name="card_fee_agree"') !== false && strpos($pay_page, 'required') !== false, 'the fee checkbox is required');
     brb_t(strpos($pay_page, 'js.stripe.com') === false && stripos($pay_page, 'card number') === false && strpos($pay_page, 'cardnumber') === false, 'the pay page has no card fields');
     brb_t(strpos($pay_page, $secret_marker) === false && strpos($pay_page, $whsec_marker) === false, 'the pay page does not show key material');

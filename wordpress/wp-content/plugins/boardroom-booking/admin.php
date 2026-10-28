@@ -258,7 +258,7 @@ function brb_admin_detail($id) {
         return ($p->method ?? '') === 'card';
     });
     if ($card_rows || !empty($b->attention)) {
-        echo '<p>The deposit is non-refundable. The card processing fee is non-refundable. Card payments are resolved manually in the Stripe dashboard. [VERIFY: attorney review]</p>';
+        echo '<p>The deposit follows the 90-day written cancellation rule. The card processing fee is non-refundable. Card payments and refunds are resolved manually in the Stripe dashboard. [VERIFY: attorney review]</p>';
     }
 
     if ($b->status !== 'cancelled') {
@@ -484,7 +484,7 @@ function brb_admin_settings() {
             ['min_notice_hours', 'Minimum notice (hours)', 'number', null, 'A booking must start at least this many hours from now. Default 48. The owner described the rule as not renting inside 48 hours; change this number here if that rule changes. Set 0 to allow same-day starts. A request does not hold the date.'],
         ],
         'Check payment' => [
-            ['deposit_type', 'Deposit that reserves the date', 'select', ['full' => 'Full amount', 'percent' => 'Percent of the agreed price', 'fixed' => 'Fixed dollar amount'], 'The deposit is non-refundable and holds the date. Default is 50% of the agreed price. Until staff set a price, the guest is told the price is to be confirmed.'],
+            ['deposit_type', 'Deposit that reserves the date', 'select', ['full' => 'Full amount', 'percent' => 'Percent of the agreed price', 'fixed' => 'Fixed dollar amount'], 'The deposit holds the date. It is refundable if written cancellation is received 90 or more days before the event, less non-refundable processing charges and costs already incurred, and it is not refundable inside 90 days. Staff process refunds manually. Default is 50% of the agreed price. Until staff set a price, the guest is told the price is to be confirmed.'],
             ['deposit_pct', 'Deposit percent', 'number', null, 'Used when the choice above is percent. Default 50.'],
             ['deposit_fixed', 'Fixed deposit amount ($)', 'text', null, 'Used when the choice above is a fixed dollar amount. Cannot exceed the total.'],
             ['balance_due_days', 'Balance due (days before the event)', 'number', null, '[VERIFY] Used when the first check is less than the total. 7 means the rest is due 7 days before the start date.'],

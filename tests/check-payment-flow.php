@@ -43,7 +43,7 @@ add_filter('pre_wp_mail', function ($short, $atts) {
 $GLOBALS['brb_mails'] = [];
 
 try {
-    brb_t(get_option('brb_version') === '2.5.0', 'plugin storage version is 2.5.0');
+    brb_t(get_option('brb_version') === '2.5.1', 'plugin storage version is 2.5.1');
     brb_t(get_option('blog_public') === '0' || get_option('blog_public') === 0, 'staging discourages search engines');
     $cols = $wpdb->get_col('SHOW COLUMNS FROM ' . brb_table(), 0);
     foreach (['deposit_due', 'amount_paid', 'source', 'hold_until', 'balance_due_on', 'price_set', 'status', 'event_type'] as $col) {
@@ -313,7 +313,7 @@ try {
         brb_t($approve_mail && strpos($approve_mail['message'], 'Your date is not held until the deposit is received.') !== false, 'the approval email says the date is not held until the deposit is received');
         brb_t($approve_mail && strpos($approve_mail['message'], 'payable to [VERIFY] Test Payee') !== false && strpos($approve_mail['message'], '[VERIFY] Test Window') !== false && strpos($approve_mail['message'], '[VERIFY] Test Hours') !== false, 'the approval email names the payee and the drop-off place and hours');
         brb_t($approve_mail && strpos($approve_mail['message'], 'Write booking reference ' . brb_ref($priced) . ' on the memo line.') !== false && strpos($approve_mail['message'], '[VERIFY] Test instructions.') !== false, 'the approval email includes the memo line and custom instructions');
-        brb_t($approve_mail && strpos($approve_mail['message'], 'non-refundable and holds the date') !== false && strpos($approve_mail['message'], '[VERIFY: attorney review]') === false, 'the approval email says the deposit is non-refundable and has no attorney note');
+        brb_t($approve_mail && strpos($approve_mail['message'], '90 or more days before the event') !== false && strpos($approve_mail['message'], 'less than 90 days before the event') !== false && strpos($approve_mail['message'], 'Refunds are issued manually.') !== false && strpos($approve_mail['message'], '[VERIFY: attorney review]') === false, 'the approval email states the 90-day deposit rule and has no attorney note');
         $b = $approved;
 
         $first = round((float) $b->deposit_due, 2);
@@ -414,7 +414,7 @@ try {
         foreach ($GLOBALS['brb_mails'] as $m) {
             if (stripos($m['to'], 'flow-test@example.com') !== false) $decline_mail = $m;
         }
-        brb_t($decline_mail && strpos($decline_mail['message'], 'not reserved') !== false && stripos($decline_mail['message'], 'refund') === false, 'the decline email does not promise a refund');
+        brb_t($decline_mail && strpos($decline_mail['message'], 'not reserved') !== false && strpos($decline_mail['message'], '90 or more days before the event') !== false && strpos($decline_mail['message'], 'less than 90 days before the event') !== false && strpos($decline_mail['message'], 'Refunds are issued manually.') !== false && strpos($decline_mail['message'], 'resolve it manually') !== false, 'the decline email states the 90-day rule and says refunds are manual');
         brb_t(brb_is_free($es, $ee), 'declining the paid request releases the date');
     }
 
@@ -478,7 +478,7 @@ try {
     brb_t(stripos($faq_html, 'take the garbage out') !== false && stripos($faq_html, 'following day') !== false, 'faq explains cleanup');
     brb_t(stripos($faq_html, '48 hours') !== false && stripos($faq_html, 'price to be confirmed') !== false, 'faq explains the hold, the notice, and an unconfirmed price');
     brb_t(strpos($faq_html, 'Mail or drop off checks payable to Mad Productions at 2212 37th Street, Moline, IL 61265.') !== false && strpos($faq_html, '2220 37th Street') === false, 'faq tells guests where to mail or drop off checks');
-    brb_t(strpos($faq_html, 'online by card with a 3% processing fee') !== false && strpos($faq_html, 'non-refundable and holds the date') !== false && strpos($faq_html, '[VERIFY with attorney]') === false && strpos($faq_html, '[VERIFY: attorney review]') === false, 'faq says the deposit is non-refundable and has no attorney note');
+    brb_t(strpos($faq_html, 'online by card with a 3% processing fee') !== false && strpos($faq_html, '90 or more days before the event') !== false && strpos($faq_html, 'less than 90 days before the event') !== false && strpos($faq_html, '[VERIFY with attorney]') === false && strpos($faq_html, '[VERIFY: attorney review]') === false, 'faq states the 90-day deposit rule and has no attorney note');
     brb_t(strpos($faq_html, 'Are overnight stays allowed?') !== false && strpos($faq_html, 'No overnight stays. The Boardroom is an event space only.') !== false && stripos($faq_html, 'check-in') === false && stripos($faq_html, 'check-out') === false && strpos($faq_html, '[VERIFY] latest end time') === false, 'faq states the no-overnight rule without a public end time');
     brb_t(stripos($faq_html, 'How many guests can The Boardroom hold') !== false && stripos($faq_html, 'Up to 75') !== false, 'faq keeps the capacity answer');
     brb_t(strpos($faq_html, 'No cooking is allowed in the venue') !== false && strpos($faq_html, 'The stove top may not be used') !== false && strpos($faq_html, 'Food warmers (for keeping prepared food warm)') !== false, 'faq says no cooking and allows food warmers');
@@ -516,7 +516,7 @@ try {
         'Christmas decorations are up in December' => $terms_html,
         'not set up' => $terms_html,
         'Last updated: October 27, 2026' => $terms_html,
-        'non-refundable and holds the date' => $terms_html,
+        '90 or more days before the event' => $terms_html,
         'MAD Productions, LLC' => $privacy_html,
         'boardroomqc@gmail.com' => $privacy_html,
         'We never see or store card numbers' => $privacy_html,
@@ -556,7 +556,7 @@ try {
     brb_t(strpos($privacy_html, 'sets no advertising, analytics, or tracking cookies of its own') !== false && strpos($privacy_html, 'embedded Google Map on the Contact page may set cookies from Google') !== false && strpos($privacy_html, "Google's privacy policy applies") !== false && strpos($privacy_html, 'not asked to accept cookies') !== false, 'privacy explains our cookies and the Google map');
     brb_t(strpos($privacy_html, 'does not process payments online') === false && strpos($privacy_html, 'Stripe processes card payments') !== false && strpos($privacy_html, 'Stripe may set cookies on its own checkout page') !== false, 'privacy says Stripe processes cards and may set cookies on its checkout page');
     brb_t(strpos($terms_html, 'online by card with a 3% processing fee') !== false && strpos($terms_html, 'The card processing fee is non-refundable.') !== false && strpos($terms_html, '[VERIFY with attorney]') === false && strpos($terms_html, '[VERIFY: attorney review]') === false, 'terms describe the card fee without an attorney note');
-    brb_t(strpos($terms_html, 'does not entitle you to a refund of the deposit') !== false && strpos($agreement_html, 'non-refundable and holds the date') !== false && strpos($privacy_html, 'non-refundable and holds the date') !== false, 'terms, the rental agreement, and privacy say the deposit is non-refundable');
+    brb_t(strpos($terms_html, 'less than 90 days before the event, the deposit is not refundable') !== false && strpos($agreement_html, 'ninety (90) days or more before the event') !== false && strpos($agreement_html, 'less than ninety (90) days before the event, the deposit is not refundable') !== false && strpos($privacy_html, '90 or more days before the event') !== false, 'terms, the rental agreement, and privacy state the 90-day deposit rule');
     brb_t(strpos($agreement_html, 'may be entitled to a refund of amounts paid') === false && strpos($agreement_html, 'shall refund amounts paid') === false, 'the rental agreement does not promise a deposit refund');
     brb_t(strpos($terms_html, 'No overnight stays. The Boardroom is an event space only.') !== false && strpos($agreement_html, 'Overnight stays are not permitted. The Venue is an event space only.') !== false, 'terms and the rental agreement forbid overnight stays');
     brb_t(strpos($terms_html, '[VERIFY] latest end time') === false && strpos($agreement_html, '[VERIFY] latest end time') === false && stripos($terms_html, 'check-in') === false && stripos($agreement_html, 'check-in') === false, 'terms and the rental agreement do not publish an end time or check-in wording');
@@ -598,7 +598,7 @@ try {
     brb_t(stripos($quote_html, 'check-in') === false && stripos($quote_html, 'check-out') === false && stripos($quote_html, 'per night') === false && stripos($quote_html, 'per-night') === false && stripos($quote_html, 'guests staying') === false && strpos($quote_html, '[VERIFY] latest end time') === false, 'review step uses event wording');
     brb_t(strpos($quote_html, 'name="event_type"') !== false && strpos($quote_html, 'Wedding') !== false && strpos($quote_html, 'Birthday') !== false && strpos($quote_html, 'Corporate') !== false && strpos($quote_html, 'Fundraiser') !== false && strpos($quote_html, 'Other') !== false, 'review page asks for an event type');
     brb_t(strpos($quote_html, 'name="public_event"') !== false && strpos($quote_html, 'name="alcohol"') !== false && strpos($quote_html, 'name="end_time"') !== false && strpos($quote_html, 'name="host_age"') !== false && strpos($quote_html, 'Tell us about your event') !== false && strpos($quote_html, 'Under 21') !== false && strpos($quote_html, '21 to 24') !== false && strpos($quote_html, '25 or older') !== false, 'review page asks the screening questions');
-    brb_t(strpos($quote_html, 'non-refundable and holds the date') !== false && strpos($quote_html, 'subject to approval') !== false, 'review page states approval and a non-refundable deposit');
+    brb_t(strpos($quote_html, '90 or more days before the event') !== false && strpos($quote_html, 'less than 90 days before the event') !== false && strpos($quote_html, 'subject to approval') !== false, 'review page states approval and the 90-day deposit rule');
     brb_t(strpos($quote_html, '[VERIFY] Test instructions.') === false && strpos($quote_html, 'Extra instructions for bringing the check') === false && strpos($quote_html, '[VERIFY: attorney review]') === false, 'review page hides payment instructions and the attorney note');
     brb_t(stripos($quote_html, 'cash') === false, 'the public review step stays check-only');
     brb_t(strpos($quote_html, 'Pricing from $600 per day (most events around $1,200), final price confirmed based on date, guest count and features.') !== false, 'review page shows the from price');

@@ -278,11 +278,11 @@ function brb_chat_intents($text) {
 }
 
 function brb_chat_refusal() {
-    return 'I can only help with The Boardroom. I can answer questions about availability, amenities, house rules, an estimated price for a date, the deposit and payment, or how to book, tour, or contact us. For anything else, please use the Contact form.';
+    return 'I\'m not sure about that one, but our team would be glad to help. I can only help with The Boardroom. I can chat about availability, amenities, house rules, an estimated price for a date, the deposit, or how to book, tour, or contact us. Please use the Contact form for anything else.';
 }
 
 function brb_chat_legal_refusal() {
-    return 'I can\'t give legal advice. Cancellation and payment are summarized on the Rental Terms page, and the signed Rental Agreement controls. For anything else, please use the Contact form.';
+    return 'I\'m not able to give legal advice. I\'m happy to share what the Rental Terms say, and the signed Rental Agreement controls. For anything else, our team would be glad to help through the Contact form.';
 }
 
 function brb_chat_estimate_phrase() {
@@ -309,8 +309,8 @@ function brb_chat_day_sentence($ymd) {
     $next = $day->modify('+1 day');
     $label = brb_chat_date_label($ymd);
     $today = brb_now()->setTime(0, 0);
-    if ($day < $today) return $label . ' has already passed.';
-    if (in_array($ymd, brb_blackouts(), true)) return $label . ' is unavailable.';
+    if ($day < $today) return $label . ' has already passed. I\'d be glad to check another date.';
+    if (in_array($ymd, brb_blackouts(), true)) return 'I\'m sorry, ' . $label . ' is unavailable.';
     $slot = brb_slot_info($day);
     if (!brb_is_free($day, $next)) {
         $kind = brb_chat_blocked_kind($day, $next);
@@ -324,9 +324,9 @@ function brb_chat_day_sentence($ymd) {
 }
 
 function brb_chat_availability_text($parsed) {
-    if (!empty($parsed['too_long'])) return 'I can check up to 14 days at a time. Please give me a shorter range.';
-    $notice = 'Bookings need at least ' . brb_notice_hours() . ' hours\' notice. Blackout dates are unavailable. A date is reserved only once a deposit is paid. Pending requests do not block the calendar. This is not a binding commitment.';
-    if (empty($parsed['dates'])) return 'Tell me a date or a short range and I can check it. ' . $notice;
+    if (!empty($parsed['too_long'])) return 'I can check up to 14 days at a time. Send me a shorter range and I\'ll take a look.';
+    $notice = 'Bookings need at least ' . brb_notice_hours() . ' hours\' notice. Blackout dates are unavailable. A date is reserved only once a deposit is paid. Pending requests don\'t block the calendar. This is not a binding commitment.';
+    if (empty($parsed['dates'])) return 'Tell me a date or a short range and I\'ll check it for you. ' . $notice;
     $lines = [];
     foreach ($parsed['dates'] as $ymd) $lines[] = brb_chat_day_sentence($ymd);
     $lines[] = $notice;
@@ -335,11 +335,11 @@ function brb_chat_availability_text($parsed) {
 
 function brb_chat_price_for_dates($parsed) {
     if (!brb_quote_prices_enabled()) {
-        return 'Our team will confirm pricing. I can\'t share an estimate here. Final price is confirmed in writing by our team and depends on date, headcount and features needed.';
+        return 'Our team will confirm pricing. I can\'t share an estimate here, but they\'d be glad to help. Final price is confirmed in writing by our team and depends on date, headcount and features needed.';
     }
     if (!empty($parsed['too_long'])) return 'I can estimate up to 14 days at a time. Please give me a shorter range. ' . ucfirst(brb_chat_estimate_phrase()) . '.';
     if (empty($parsed['dates'])) {
-        return 'Tell me a date and I can share an estimate. Any figure is ' . brb_chat_estimate_phrase() . '. This is not a binding commitment.';
+        return 'Tell me a date and I\'ll share an estimate. Any figure is ' . brb_chat_estimate_phrase() . '. This is not a binding commitment.';
     }
     $lines = [];
     foreach ($parsed['dates'] as $ymd) {
@@ -364,7 +364,7 @@ function brb_chat_price_for_dates($parsed) {
 }
 
 function brb_chat_rules_text() {
-    return 'No overnight stays. The Boardroom is an event space only. '
+    return 'Here\'s the short version. No overnight stays. The Boardroom is an event space only. '
         . 'No cooking is allowed. The stovetop may not be used. The kitchen area is for serving and storage. '
         . 'There are no taps. BYOB is allowed. The renter must obtain a one-day liquor license from the City of Moline, fee $50. '
         . 'The room comes not set up. Guests clean the space and take the garbage out. '
@@ -374,7 +374,7 @@ function brb_chat_rules_text() {
 
 function brb_chat_amenities_text() {
     $groups = function_exists('br_amenity_groups') ? br_amenity_groups() : [];
-    $parts = ['The room comes not set up. No overnight stays. The Boardroom is an event space only.'];
+    $parts = ['The room comes not set up. No overnight stays. The Boardroom is an event space only. I hope this helps you picture the day.'];
     foreach ($groups as $group) {
         $line = $group['title'] . ': ' . implode(', ', $group['items']) . '.';
         if (!empty($group['note'])) $line .= ' ' . $group['note'];
@@ -386,7 +386,7 @@ function brb_chat_amenities_text() {
 
 function brb_chat_payment_text() {
     $parts = [
-        'Bookings are subject to approval. No payment is due until the request is approved.',
+        'Happy to walk you through payment. Bookings are subject to approval. No payment is due until the request is approved.',
         brb_request_open_line(),
         brb_reserved_line(),
         brb_deposit_line(),
@@ -401,23 +401,23 @@ function brb_chat_payment_text() {
 }
 
 function brb_chat_book_text() {
-    return 'Request a date on the Book page: ' . home_url('/book/') . '. Bookings are subject to approval. No payment is due until the request is approved. '
+    return 'I\'d love to help you plan your event. Request a date on the Book page: ' . home_url('/book/') . '. Bookings are subject to approval. No payment is due until the request is approved. '
         . brb_request_open_line() . ' ' . brb_reserved_line() . ' ' . brb_deposit_line()
         . ' Leave your name and email below if you would like a team member to follow up.';
 }
 
 function brb_chat_tour_text() {
-    return 'To tour the space, use the Contact form: ' . home_url('/contact/') . '. Email boardroomqc@gmail.com. A tour request does not hold a date. Leave your name and email below and a team member will follow up.';
+    return 'A tour is a lovely way to see the room. Use the Contact form: ' . home_url('/contact/') . '. Email boardroomqc@gmail.com. A tour request does not hold a date. Leave your name and email below and a team member will follow up.';
 }
 
 function brb_chat_contact_text() {
-    return 'Use the Contact form: ' . home_url('/contact/') . '. Email boardroomqc@gmail.com. There is no phone number on this site. The venue is at ' . brb_venue_address() . '.';
+    return 'We\'d love to hear from you. Use the Contact form: ' . home_url('/contact/') . '. Email boardroomqc@gmail.com. There is no phone number on this site. The venue is at ' . brb_venue_address() . '.';
 }
 
 function brb_chat_cancel_text() {
     return 'Bookings are subject to approval. No payment is due until a request is approved, and a request may be declined. '
         . brb_request_open_line() . ' ' . brb_reserved_line() . ' ' . brb_deposit_line()
-        . ' Cancelling does not entitle you to a refund of the deposit. The card processing fee is non-refundable. '
+        . ' The card processing fee is non-refundable. '
         . 'This is a summary of the Rental Terms, not legal advice. The signed Rental Agreement controls. Read the terms: ' . home_url('/terms/') . '.';
 }
 
@@ -443,14 +443,14 @@ function brb_chat_answer($message, $history = []) {
     $message = trim((string) $message);
     if (mb_strlen($message) > 500) {
         return [
-            'reply' => 'Please shorten that to a few sentences.',
+            'reply' => 'Could you shorten that to a few sentences? I\'m happy to help.',
             'lead' => true,
             'intent' => 'unknown',
         ];
     }
     if ($message === '' || preg_match('/^\s*(hi|hello|hey|help|good morning|good afternoon|good evening)\s*[!.]*\s*$/i', $message)) {
         return [
-            'reply' => 'Hello. I can help with availability, amenities, house rules, an estimated price for a date, the deposit and payment, or how to book, tour, or contact The Boardroom.',
+            'reply' => 'Hi there! I\'m the Boardroom\'s assistant. I\'d love to help you plan your event.',
             'lead' => false,
             'intent' => 'greeting',
         ];
@@ -468,7 +468,7 @@ function brb_chat_answer($message, $history = []) {
     if (!$intents && !empty($parsed['too_long'])) $intents[] = 'availability';
     if (preg_match('/^\s*(thanks|thank you)\s*[!.]*\s*$/i', $message)) {
         return [
-            'reply' => 'You are welcome. If you would like a team member to follow up, leave your name and email below. A team member will reply using this info.',
+            'reply' => 'You\'re so welcome! If you\'d like a team member to follow up, leave your name and email below. A team member will reply using this info.',
             'lead' => true,
             'intent' => 'thanks',
         ];
@@ -477,6 +477,15 @@ function brb_chat_answer($message, $history = []) {
         return ['reply' => brb_chat_clean_reply(brb_chat_refusal()), 'lead' => true, 'intent' => 'unknown'];
     }
     $parts = [];
+    $prefix = '';
+    $emoji = '';
+    $quiet = array_intersect($intents, ['rules', 'cancel', 'payment']);
+    if (!$quiet && in_array('pricing', $intents, true)) $prefix = 'Great question! ';
+    elseif (!$quiet && in_array('amenities', $intents, true)) {
+        $prefix = 'Great question! ';
+        $emoji = ' ✨';
+    } elseif (!$quiet && in_array('availability', $intents, true)) $prefix = 'Happy to help with that! ';
+    elseif (!$quiet) $prefix = 'I\'d love to help with that. ';
     if (in_array('availability', $intents, true)) $parts[] = brb_chat_availability_text($parsed);
     if (in_array('pricing', $intents, true)) $parts[] = brb_chat_price_for_dates($parsed);
     if (in_array('payment', $intents, true)) $parts[] = brb_chat_payment_text();
@@ -487,7 +496,7 @@ function brb_chat_answer($message, $history = []) {
     if (in_array('tour', $intents, true)) $parts[] = brb_chat_tour_text();
     if (in_array('contact', $intents, true)) $parts[] = brb_chat_contact_text();
     return [
-        'reply' => brb_chat_clean_reply(implode("\n\n", $parts)),
+        'reply' => brb_chat_clean_reply($prefix . implode("\n\n", $parts) . $emoji),
         'lead' => brb_chat_lead_flag($intents, $history),
         'intent' => $intents[0],
     ];
@@ -541,7 +550,7 @@ function brb_chat_permission($req) {
 }
 
 function brb_chat_thanks() {
-    return 'Thanks, someone from our team will get right back to you.';
+    return 'Thanks so much, someone from our team will get right back to you!';
 }
 
 function brb_chat_save_lead($input) {
@@ -653,7 +662,7 @@ function brb_chat_markup() {
     echo '<button type="button" class="brb-chat-launch" aria-expanded="false" aria-controls="brb-chat-panel">Chat</button>';
     echo '<section id="brb-chat-panel" class="brb-chat-panel" role="dialog" aria-modal="true" aria-labelledby="brb-chat-title" hidden>';
     echo '<header class="brb-chat-head"><h2 id="brb-chat-title">The Boardroom</h2><button type="button" class="brb-chat-close" aria-label="Close chat">Close</button></header>';
-    echo '<div class="brb-chat-log" aria-live="polite"><p class="brb-chat-msg bot">Ask about availability, amenities, house rules, an estimated price, the deposit, or how to book.</p></div>';
+    echo '<div class="brb-chat-log" aria-live="polite"><p class="brb-chat-msg bot">Hi there! I\'m the Boardroom\'s assistant. I\'d love to help you plan your event.</p></div>';
     echo '<form class="brb-chat-ask"><label class="brb-chat-sr" for="brb-chat-input">Your question</label><input id="brb-chat-input" class="brb-chat-input" type="text" maxlength="500" autocomplete="off"><button type="submit" class="brb-chat-send">Send</button></form>';
     echo '<button type="button" class="brb-chat-lead-toggle">Leave your details</button>';
     echo '<form class="brb-chat-lead" hidden>';
