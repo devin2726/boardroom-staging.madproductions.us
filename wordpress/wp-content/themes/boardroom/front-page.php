@@ -4,6 +4,7 @@
   <div class="cap"><h1>Welcome to The Boardroom</h1><a class="btn" href="<?php echo esc_url($book); ?>">Book Now</a></div>
   <button class="arrow prev" aria-label="Previous">‹</button><button class="arrow next" aria-label="Next">›</button><div class="dots"></div>
 </section>
+<?php echo br_tour_video_html(); ?>
 <section class="block alt" id="amenities"><div class="wrap"><h2>Amenities</h2><div class="amen">
   <div class="card"><img src="<?php echo esc_url(br_img($p[2])); ?>" alt="Game room"><h3>80in Television, Pinball, Pool, Shuffleboard</h3></div>
   <div class="card"><img src="<?php echo esc_url(br_img($p[1])); ?>" alt="Bar"><h3>BYOB Bar and Ice Machine</h3></div>

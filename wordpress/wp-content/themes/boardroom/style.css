@@ -1,7 +1,7 @@
 /*
 Theme Name: The Boardroom
 Description: Lightweight theme replicating the look of boardroomqc.com (dark + gold, EB Garamond, full-width hero slider). Pairs with the Boardroom Booking plugin.
-Version: 1.2.12
+Version: 1.2.13
 Author: Mad Productions
 Text Domain: boardroom
 */
@@ -92,3 +92,15 @@ section.block{padding:80px 0}section.alt{background:var(--bg2)}section.dark{back
 @media(prefers-reduced-motion:reduce){
 .review-rotator .review-card{transition:none}
 }
+#take-a-tour{text-align:center}
+#take-a-tour h2,#take-a-tour .tour-intro{font-family:'EB Garamond',Georgia,'Times New Roman',serif}
+.tour-intro{margin:-12px auto 24px;color:var(--ink)}
+.tour-frame{position:relative;width:min(960px,100%);margin:0 auto;aspect-ratio:16/9;background:#161616}
+.tour-frame video{width:100%;height:100%;display:block;object-fit:contain;background:#161616}
+.tour-play{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:88px;height:88px;border-radius:50%;border:0;background:var(--gold);color:#161616;font-family:'EB Garamond',Georgia,'Times New Roman',serif;font-weight:700;font-size:18px;letter-spacing:.06em;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.35)}
+.tour-play:hover,.tour-play:focus{background:var(--gold-d);color:#fff}
+.tour-play[hidden]{display:none}
+.tour-links{margin:24px 0 0}
+.tour-links .btn{margin:0 8px 8px}
+.btn.ghost-dark{background:transparent;color:var(--ink)!important;border:2px solid var(--ink)}
+.content #take-a-tour{padding:0 0 12px}

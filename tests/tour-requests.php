@@ -204,6 +204,22 @@ try {
     brb_place_schema();
     $plain_schema = ob_get_clean();
     brb_t(strpos($plain_schema, 'aggregateRating') === false, 'review stars are not added to the venue schema off the home page');
+    $video = br_tour_video_html();
+    $contact_tpl = file_get_contents(get_stylesheet_directory() . '/page-contact.php');
+    brb_t(strpos($home, 'br_tour_video_html') !== false && strpos($home, 'br_tour_video_html') < strpos($home, 'id="amenities"'), 'the tour video sits after the hero and before amenities');
+    brb_t(strpos($video, 'Take a tour') !== false && strpos($video, 'Take a look around The Boardroom') !== false && strpos($video, '<video') !== false && strpos($video, 'controls') !== false && strpos($video, 'preload="none"') !== false && strpos($video, 'playsinline') !== false && strpos($video, 'poster=') !== false && strpos($video, 'autoplay') === false && strpos($video, 'tour-play') !== false, 'the tour video is a native player with a poster and a play button');
+    brb_t(strpos($video, home_url('/book/')) !== false && strpos($video, home_url('/contact/')) !== false && strpos($video, 'boardroom-tour-720.mp4') !== false, 'the tour video links to booking and the contact form');
+    brb_t(is_string($contact_tpl) && strpos($contact_tpl, 'br_tour_video_html') !== false, 'the contact page includes the tour video');
+    brb_t(stripos($video, 'airbnb') === false && stripos($video, 'google') === false && strpos($video, 'tel:') === false, 'the tour video does not name an outside source or a phone number');
+    $mp4 = get_stylesheet_directory() . '/assets/video/boardroom-tour-720.mp4';
+    $poster = get_stylesheet_directory() . '/assets/video/boardroom-tour-poster.jpg';
+    $head_bytes = is_file($mp4) ? file_get_contents($mp4, false, null, 0, 32) : '';
+    brb_t(is_file($mp4) && filesize($mp4) > 1000000 && is_file($poster) && strpos($head_bytes, 'ftyp') !== false && strpos($head_bytes, 'git-lfs') === false, 'the tour video is a real mp4 in the theme, not a pointer');
+    $video_url = 'http://127.0.0.1/wp-content/themes/boardroom/assets/video/boardroom-tour-720.mp4';
+    $headers = shell_exec('curl -sI ' . escapeshellarg($video_url));
+    $ranged = shell_exec('curl -sI -H ' . escapeshellarg('Range: bytes=0-1') . ' ' . escapeshellarg($video_url));
+    brb_t(is_string($headers) && stripos($headers, 'Accept-Ranges: bytes') !== false, 'the mp4 advertises byte ranges');
+    brb_t(is_string($ranged) && strpos($ranged, '206') !== false && stripos($ranged, 'Content-Range:') !== false, 'the mp4 answers a range request');
     $tour_nav = false;
     $locs = get_nav_menu_locations();
     if (!empty($locs['primary'])) {
