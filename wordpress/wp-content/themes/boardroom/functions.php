@@ -4,10 +4,18 @@ add_action('after_setup_theme', function () {
     register_nav_menus(['primary' => 'Primary', 'footer' => 'Footer']);
 });
 add_action('wp_enqueue_scripts', function () {
-    wp_enqueue_style('boardroom', get_stylesheet_uri(), [], '1.2.19');
-    wp_enqueue_script('boardroom', get_template_directory_uri() . '/assets/site.js', [], '1.2.19', true);
+    wp_enqueue_style('boardroom', get_stylesheet_uri(), [], '1.2.20');
+    wp_enqueue_script('boardroom', get_template_directory_uri() . '/assets/site.js', [], '1.2.20', true);
 });
 function br_img($f) { return get_template_directory_uri() . '/assets/img/' . $f; }
+function br_logo($place) {
+    $sizes = [
+        'header' => [110, 64, 'boardroom-logo-header.png', 'boardroom-logo-header-2x.png'],
+        'footer' => [193, 112, 'boardroom-logo-footer.png', 'boardroom-logo-footer-2x.png'],
+    ];
+    [$w, $h, $one, $two] = $sizes[$place];
+    return '<img src="' . esc_url(br_img($one)) . '" srcset="' . esc_url(br_img($one)) . ' 1x, ' . esc_url(br_img($two)) . ' 2x" width="' . (int) $w . '" height="' . (int) $h . '" alt="The Boardroom QC">';
+}
 function br_photos() { return ['IMG_0223.jpeg', 'IMG_0231.jpeg', 'PXL_20220912_160615354.jpg', 'PXL_20220912_160655168.jpg', 'PXL_20220912_161645069.jpg']; }
 function br_gallery() {
     $skip = ['21', '30', '36'];
