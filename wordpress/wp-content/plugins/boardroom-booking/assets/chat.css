@@ -1,7 +1,10 @@
 .brb-chat{font-family:"EB Garamond",Georgia,"Times New Roman",serif;color:#161616;font-size:17px;line-height:1.6}
 .brb-chat-launch{position:fixed;right:16px;bottom:calc(16px + env(safe-area-inset-bottom));z-index:200;width:auto;height:auto;max-width:calc(100vw - 32px);border-radius:999px;border:0;background:#c4912e;color:#fff;font-family:"EB Garamond",Georgia,"Times New Roman",serif;font-weight:700;font-size:17px;letter-spacing:.04em;line-height:1.3;padding:14px 18px;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.25)}
 .brb-chat-launch:hover,.brb-chat-launch:focus{background:#996f1d}
-.brb-chat-launch:focus,.brb-chat-close:focus,.brb-chat-send:focus,.brb-chat-lead-toggle:focus,.brb-chat-input:focus{outline:2px solid #161616;outline-offset:2px}
+.brb-chat-launch:focus,.brb-chat-close:focus,.brb-chat-send:focus,.brb-chat-lead-toggle:focus,.brb-chat-input:focus,.brb-chat-chip:focus{outline:2px solid #161616;outline-offset:2px}
+.brb-chat-suggestions{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px}
+.brb-chat-chip{background:#161616;color:#c4912e;border:1px solid #c4912e;border-radius:999px;padding:10px 14px;min-height:44px;font:inherit;font-weight:700;cursor:pointer;text-align:center}
+.brb-chat-chip:hover,.brb-chat-chip:focus{background:#c4912e;color:#161616}
 .brb-chat-panel{position:fixed;right:16px;bottom:calc(88px + env(safe-area-inset-bottom));z-index:200;width:min(380px,calc(100vw - 24px));max-height:calc(100vh - 104px - env(safe-area-inset-bottom));max-height:calc(100dvh - 104px - env(safe-area-inset-bottom));display:flex;flex-direction:column;overflow:hidden;background:#fff;color:#161616;border:1px solid #161616;box-shadow:0 12px 32px rgba(0,0,0,.28);font-family:"EB Garamond",Georgia,"Times New Roman",serif}
 .brb-chat-panel[hidden]{display:none!important}
 .brb-chat-scroll{overflow:auto;flex:1 1 auto;min-height:0;-webkit-overflow-scrolling:touch}
@@ -33,6 +36,7 @@ body.contact-page .brb-chat-inline,body.contact-page .brb-chat-inline .brb-chat-
 body.contact-page .brb-chat-inline .brb-chat-head h2{font-size:clamp(22px,3vw,32px)}
 body.contact-page .brb-chat-inline .brb-chat-panel{max-width:none;width:100%;margin:0 0 36px}
 @media(max-width:600px){
+.brb-chat-chip{flex:1 1 calc(50% - 8px)}
 .brb-chat-panel{left:8px;right:8px;width:auto;max-height:calc(100dvh - 96px - env(safe-area-inset-bottom))}
 .brb-chat-inline .brb-chat-panel{left:auto;right:auto;max-height:70vh}
 body.contact-page .brb-chat-inline .brb-chat-panel{max-height:70vh}
