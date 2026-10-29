@@ -36,7 +36,7 @@ function brb_chat_reply($text, $history = []) {
 }
 
 try {
-    brb_t(get_option('brb_version') === '2.5.15', 'plugin storage version is 2.5.15');
+    brb_t(get_option('brb_version') === '2.5.16', 'plugin storage version is 2.5.16');
     $cols = $wpdb->get_col('SHOW COLUMNS FROM ' . brb_tour_table(), 0);
     brb_t(in_array('source', $cols, true), 'inquiries can store a source');
     brb_t((string) brb_opt('quote_prices') === '1', 'price estimates are on by default');
@@ -378,6 +378,17 @@ try {
 
     $routes = rest_get_server()->get_routes();
     brb_t(isset($routes['/brb/v1/chat']) && isset($routes['/brb/v1/chat-lead']), 'the chat routes are registered');
+    $price_chips = brb_chat_answer('How much does it cost?');
+    $chip_labels = [];
+    foreach ((array) ($price_chips['suggestions'] ?? []) as $chip) $chip_labels[] = $chip['label'] ?? '';
+    brb_t(count($chip_labels) >= 2 && count($chip_labels) <= 3 && in_array('Check dates', $chip_labels, true) && in_array('Deposit', $chip_labels, true) && in_array('BYOB', $chip_labels, true), 'a price answer offers check dates, deposit, and BYOB');
+    brb_t(strpos($js, 'brb-chat-chip') !== false && strpos($js, 'Suggested questions') !== false && strpos($js, "b.type = 'button'") !== false, 'suggestion chips are real buttons');
+    brb_t(strpos($css, '.brb-chat-chip{background:#161616;color:#c4912e') !== false && strpos($css, 'min-height:44px') !== false, 'suggestion chips use black and gold and a large tap target');
+    require __DIR__ . '/chat-score.php';
+    $corpus = brb_chat_score_corpus();
+    foreach ($corpus['groups'] as $group_name => $group_stats) {
+        brb_t($group_stats['pass'] === $group_stats['n'], $group_name . ' chat questions pass (' . $group_stats['pass'] . '/' . $group_stats['n'] . ')');
+    }
 } finally {
     if ($created_bookings) {
         $in = implode(',', array_map('intval', $created_bookings));

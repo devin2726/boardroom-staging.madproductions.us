@@ -178,6 +178,16 @@ function brb_chat_weekdays() {
 function brb_chat_extra_dates($text) {
     $found = [];
     $now = brb_now()->setTime(0, 0);
+    if (preg_match('/\bnew year\'?s eve\b|\bnew years eve\b|\bnye\b|\bdecember 31\b/i', $text, $m, PREG_OFFSET_CAPTURE)) {
+        $year = (int) $now->format('Y');
+        $ymd = sprintf('%04d-12-31', $year);
+        if ($ymd < $now->format('Y-m-d')) $ymd = sprintf('%04d-12-31', $year + 1);
+        $found[] = ['date' => $ymd, 'pos' => $m[0][1], 'end' => $m[0][1] + strlen($m[0][0])];
+    }
+    if (preg_match('/\btomorrow\b/i', $text, $m, PREG_OFFSET_CAPTURE)) {
+        $ymd = $now->modify('+1 day')->format('Y-m-d');
+        $found[] = ['date' => $ymd, 'pos' => $m[0][1], 'end' => $m[0][1] + strlen($m[0][0])];
+    }
     if (preg_match_all('/\b(?:the\s+)?(\d{1,2})(?:st|nd|rd|th)?\s+of\s+next\s+month\b/i', $text, $m, PREG_OFFSET_CAPTURE)) {
         $next = $now->modify('first day of next month');
         foreach ($m[0] as $i => $full) {
@@ -251,7 +261,8 @@ function brb_chat_find_dates($text) {
 
 function brb_chat_dates($text) {
     $found = brb_chat_find_dates($text);
-    if (!$found) return ['dates' => [], 'too_long' => false];
+    $invalid = brb_chat_invalid_date($text);
+    if (!$found) return ['dates' => [], 'too_long' => false, 'invalid' => $invalid];
     if (count($found) >= 2) {
         $between = substr($text, $found[0]['end'], $found[1]['pos'] - $found[0]['end']);
         if (preg_match('/\b(to|through|until|thru)\b|–|—|\s-\s/u', $between)) {
@@ -265,9 +276,9 @@ function brb_chat_dates($text) {
             $dates = [];
             for ($d = $start; $d <= $end; $d = $d->modify('+1 day')) {
                 $dates[] = $d->format('Y-m-d');
-                if (count($dates) > 14) return ['dates' => [], 'too_long' => true];
+                if (count($dates) > 14) return ['dates' => [], 'too_long' => true, 'invalid' => $invalid];
             }
-            return ['dates' => $dates, 'too_long' => false];
+            return ['dates' => $dates, 'too_long' => false, 'invalid' => $invalid];
         }
     }
     $dates = [];
@@ -275,7 +286,7 @@ function brb_chat_dates($text) {
         if (!in_array($row['date'], $dates, true)) $dates[] = $row['date'];
         if (count($dates) >= 7) break;
     }
-    return ['dates' => $dates, 'too_long' => false];
+    return ['dates' => $dates, 'too_long' => false, 'invalid' => $invalid];
 }
 
 function brb_chat_date_label($ymd) {
@@ -289,34 +300,252 @@ function brb_chat_sensitive($text) {
     if (preg_match('/\b' . $other . '\b/', $t)) return 'refuse';
     if (preg_match('/\b(owner|owners)\b/', $t)) return 'refuse';
     if (preg_match('/\b(politic|election|democrat|republican|personal life|biograph|founded|history of|competitor|vrbo|who works|staff names)\b/', $t)) return 'refuse';
-    if (preg_match('/\b(legal advice|lawsuit|attorney|lawyer)\b/', $t) || preg_match('/\bsue\b/', $t)) return 'legal';
+    if (preg_match('/\b(legal advice|lawsuit|attorney|lawyer|legal)\b/', $t) || preg_match('/\bsue\b/', $t)) return 'legal';
+    if (preg_match('/ignore (your|the|all|my|these|previous)\b.{0,48}\b(rules|instructions|prompt|policy|terms)/', $t)) return 'refuse';
+    if (preg_match('/\b(jailbreak|developer mode|you are now|act as if|pretend)\b/', $t)) return 'refuse';
     return '';
 }
 
+function brb_chat_slang_map() {
+    return [
+        'bday' => 'birthday', 'booze' => 'alcohol', 'beer' => 'alcohol', 'wine' => 'alcohol',
+        'ppl' => 'people', 'peeps' => 'people', 'cuz' => 'because', 'bc' => 'because',
+        'pls' => 'please', 'plz' => 'please', 'u' => 'you', 'ur' => 'your', 'r' => 'are',
+        'thru' => 'through', 'tmrw' => 'tomorrow', 'tmr' => 'tomorrow', 'gonna' => 'going to',
+        'wanna' => 'want to', 'gotta' => 'have to', 'ya' => 'you', 'yall' => 'you all',
+        'thx' => 'thanks', 'ty' => 'thanks', 'pics' => 'photos', 'pic' => 'photo', 'vid' => 'video',
+        'avail' => 'available', 'hrs' => 'hours', 'hr' => 'hour', 'wknd' => 'weekend',
+        'nxt' => 'next', 'sat' => 'saturday', 'fri' => 'friday', 'thu' => 'thursday', 'thur' => 'thursday',
+        'wed' => 'wednesday', 'mon' => 'monday', 'tue' => 'tuesday', 'tix' => 'tickets',
+        'merch' => 'merchandise', 'liq' => 'liquor', 'alc' => 'alcohol', 'ac' => 'air conditioning',
+        'info' => 'information', 'im' => 'i am', 'dont' => 'do not', 'cant' => 'cannot',
+        'wont' => 'will not', 'whats' => 'what is', 'hows' => 'how is', 'wheres' => 'where is',
+        'kiddos' => 'kids', 'kiddo' => 'kid', 'loo' => 'restroom', 'n' => 'and',
+    ];
+}
+function brb_chat_lexicon() {
+    return [
+        'parking', 'available', 'availability', 'birthday', 'alcohol', 'people', 'deposit', 'kitchen',
+        'overnight', 'cooking', 'capacity', 'wheelchair', 'accessible', 'decorations', 'cancellation',
+        'refund', 'receipt', 'invoice', 'insurance', 'agreement', 'projector', 'shuffleboard', 'pinball',
+        'restroom', 'bathroom', 'refrigerator', 'garbage', 'smoking', 'vaping', 'balloon', 'balloons',
+        'glitter', 'confetti', 'catering', 'warmer', 'warmers', 'stovetop', 'weekday', 'discount',
+        'military', 'nonprofit', 'saturday', 'sunday', 'monday', 'tuesday', 'wednesday', 'thursday',
+        'friday', 'december', 'january', 'february', 'november', 'october', 'september', 'tomorrow',
+        'tonight', 'liquor', 'license', 'permit', 'wedding', 'graduation', 'funeral', 'tickets',
+        'admission', 'concert', 'fundraiser', 'merchandise', 'kitchen', 'oven', 'stove', 'caterer',
+        'television', 'wifi', 'bluetooth', 'accessible', 'entrance', 'address', 'location', 'hours',
+        'notice', 'reschedule', 'balance', 'receipt', 'invoice', 'cleaning', 'security', 'damage',
+        'walkthrough', 'capacity', 'children', 'birthday', 'corporate', 'meeting', 'band', 'music',
+        'tables', 'chairs', 'setup', 'decorations', 'tape', 'photos', 'gallery', 'video', 'contact',
+        'phone', 'email', 'person', 'human', 'rules', 'cleanup', 'trash', 'pets', 'cameras', 'noise',
+        'contract', 'signed', 'payment', 'check', 'card', 'price', 'estimate', 'quote', 'reserve',
+        'booking', 'available', 'holiday', 'half', 'june', 'deposit', 'refundable', 'weather',
+        'snowstorm', 'outage', 'insurance', 'liability', 'utensils', 'plates', 'cups', 'heater',
+        'heating', 'conditioning', 'restrooms', 'bathrooms', 'accessibility', 'directions', 'located',
+        'premises', 'truck', 'garbage', 'smoking', 'vaping', 'service', 'animals', 'overnight',
+        'cooking', 'stovetop', 'bartender', 'alcohol', 'byob', 'host', 'teenagers', 'shower',
+        'reception', 'celebration', 'admission', 'cover', 'charge', 'speakers', 'sonos', 'projector',
+        'television', 'pinball', 'shuffleboard', 'pool', 'kitchen', 'refrigerator', 'freezer',
+        'microwave', 'dishwasher', 'wheelchair', 'handicap', 'private', 'entrance', 'surprise',
+        'cancellation', 'reschedule', 'invoice', 'receipt', 'tax', 'included', 'methods', 'cash',
+        'payable', 'processing', 'nonrefundable', 'emergency', 'hurricane', 'flat', 'tire',
+    ];
+}
+function brb_chat_word_ok($word) {
+    static $ok = null;
+    if ($ok === null) {
+        $ok = array_fill_keys(brb_chat_lexicon(), true);
+        foreach (brb_chat_slang_map() as $from => $to) $ok[$from] = true;
+        $common = 'a an the and or but if to for of in on at by with from into over after before about than then this that these those you your our we they them it its is are was were be been being do does did can could should would will just not no yes ok okay please thanks thank hello hi hey help have has had get got need want like more most some any all out up so too very also here there when where what which who how why me my mine us our ours your yours their theirs i am let make made take taken come came look see know known think say said tell told give given use used using cheaper cheapest lower lowest day days time times date dates week weeks month months year years next last this today tomorrow tonight early late same other another such than into onto per via off own our you can we us just really maybe around still already again here there yes no not but and or if so too very much many few more most less least only even also back down off out up over under again before after during while because since until though although plus vs per each every both either neither into onto from with without within about across against among around between during except toward towards upon within hello thanks please sorry hi hey help question questions room space event events guest guests party parties bring bringing allowed allow allows fine okay sure free full half open closed start starting starts stop end ending ends leave left stay staying here there site staff team member members form page link links check checks mail mailing mailed drop card cards cash pay paying paid payment payments price prices cost costs rate rates quote quotes estimate estimates date dates book books booking bookings hold holds holding tour tours visit visits photo photos video videos rule rules food foods drink drinks cake cakes dog dogs cat cats kid kids child children host hosts age ages old older young teen teens band bands music dj djs sell selling sold ticket tickets show shows concert concerts market markets item items wall walls tape tapes glitter balloon balloons confetti table tables chair chairs set setup setting hour hours minute minutes am pm june july dec jan feb saturday sunday monday tuesday wednesday thursday friday week weekend weekday weekdays people person persons human humans phone phones email emails call calls text texts number numbers address addresses located location directions map maps parking park parks lot lots free street premise premises wifi internet tv tvs television sound speaker speakers system systems heat heating air conditioning ac cool cooler cold hot warm warmer warmers ice fridge refrigerator machine machines bar bars kitchen kitchens cook cooking stove oven ovens stovetop tap taps permit permits license licenses alcohol liquor beer wine booze byob cater caterer catering plate plates cup cups utensil utensils bathroom bathrooms restroom restrooms accessible access wheelchair ada entrance door doors main back private surprise guest guests capacity max maximum minimum notice advance same row rows night nights overnight stay stays hotel checkin checkout smoke smoking vape vaping cigarette cigarettes pet pets animal animals service camera cameras noise quiet insurance policy policies agreement contract contracts sign signed damage damaged deposit deposits refund refunds cancel cancellation canceling reschedule balance receipt invoice tax taxes included include sales fee fees method methods cash card processing stripe person real talk speak contact reach touch cleaning clean cleanup garbage trash tidy security walk through walkthrough christmas decoration decorations decorate decorated provided provide provides included includes crash';
+        foreach (preg_split('/\s+/', $common) as $w) {
+            if ($w !== '') $ok[$w] = true;
+        }
+    }
+    return isset($ok[$word]);
+}
+function brb_chat_fuzzy_word($word) {
+    if (brb_chat_word_ok($word)) return $word;
+    $len = strlen($word);
+    if ($len < 4) return $word;
+    $max = ($len >= 6) ? 2 : 1;
+    $best = '';
+    $bestD = 99;
+    $ties = 0;
+    foreach (brb_chat_lexicon() as $target) {
+        if (abs(strlen($target) - $len) > $max) continue;
+        $d = levenshtein($word, $target);
+        if ($d < 1 || $d > $max) continue;
+        if ($d < $bestD) {
+            $bestD = $d;
+            $best = $target;
+            $ties = 1;
+        } elseif ($d === $bestD && $target !== $best) {
+            $ties++;
+        }
+    }
+    if ($best === '' || $ties !== 1) return $word;
+    similar_text($word, $best, $pct);
+    if ($pct < 72) return $word;
+    return $best;
+}
+function brb_chat_normalize($text) {
+    $t = strtolower((string) $text);
+    $t = str_replace(["\u{2019}", "\u{2018}", '`'], "'", $t);
+    $phrases = [
+        "new year's eve" => 'december 31',
+        'new years eve' => 'december 31',
+        'wi fi' => 'wifi',
+        'wi-fi' => 'wifi',
+        'sleep over' => 'overnight',
+        'spend the night' => 'overnight',
+        'stay the night' => 'overnight',
+        'food truck' => 'food truck',
+    ];
+    foreach ($phrases as $from => $to) {
+        $t = preg_replace('/\b' . preg_quote($from, '/') . '\b/u', $to, $t);
+    }
+    $t = preg_replace('/\b1130\b/', '11:30', $t);
+    $t = preg_replace('/\bnye\b/', 'december 31', $t);
+    $t = preg_replace('/\bcheck in\b(?!\s+to)/', 'check-in', $t);
+    $t = preg_replace('/\bcheck out\b(?!\s+to)/', 'check-out', $t);
+    $slang = brb_chat_slang_map();
+    $parts = preg_split('/([^a-z0-9\/:.]+)/', $t, -1, PREG_SPLIT_DELIM_CAPTURE);
+    $out = '';
+    foreach ($parts as $part) {
+        if ($part === '') continue;
+        if (!preg_match('/^[a-z0-9\/:.]+$/', $part) || preg_match('/\d/', $part)) {
+            $out .= $part;
+            continue;
+        }
+        if (isset($slang[$part])) {
+            $out .= $slang[$part];
+            continue;
+        }
+        $out .= brb_chat_fuzzy_word($part);
+    }
+    $out = preg_replace('/\s+/', ' ', $out);
+    return trim($out);
+}
+function brb_chat_keyword_hit($text, $word) {
+    $stem = false;
+    if (substr($word, -1) === '*') {
+        $stem = true;
+        $word = substr($word, 0, -1);
+    }
+    if (strpos($word, ' ') !== false) return strpos($text, $word) !== false;
+    $q = preg_quote($word, '/');
+    if ($stem) return (bool) preg_match('/\b' . $q . '/i', $text);
+    return (bool) preg_match('/\b' . $q . '\b/i', $text);
+}
 function brb_chat_intents($text) {
     $t = strtolower($text);
+    if (preg_match('/\bcheck-in\b|\bcheck-out\b|\bcheck in\b(?!\s+to)|\bcheck out\b(?!\s+to)/', $t)) {
+        $t = preg_replace('/\bcheck(?:-|\s)?(?:in|out)\b(?!\s+to)/', ' ', $t);
+    }
     $map = [
         'availability' => ['available', 'availability', 'blackout', 'is the date', 'open on', 'free on', 'reserved'],
-        'amenities' => ['amenit', 'wifi', 'wi-fi', 'parking', 'pool table', 'kitchen', 'fridge', 'sound system', 'air conditioning', 'what is included', 'what do you have'],
-        'rules' => ['rule', 'overnight', 'cook', 'stove', 'stovetop', 'tap', 'byob', 'liquor', 'alcohol', 'insurance', 'decorat', 'garbage', 'trash', 'occupan', '75', 'not set up', 'clean', 'allowed'],
-        'pricing' => ['price', 'pricing', 'cost', 'how much', 'rate', 'estimate', 'quote'],
-        'payment' => ['deposit', 'check', 'payment', 'pay ', 'card', 'fee', 'non-refundable', 'stripe'],
-        'book' => ['book', 'reserve a', 'request a date', 'hold a date', 'how do i reserve', 'how to reserve'],
-        'tour' => ['tour', 'visit', 'see the space', 'walk through'],
+        'amenities' => ['amenit*', 'wifi', 'wi-fi', 'parking', 'pool table', 'kitchen', 'fridge', 'sound system', 'air conditioning', 'what is included', 'what do you have', 'television', 'restroom', 'bathroom'],
+        'rules' => ['rule*', 'overnight', 'cook*', 'stove', 'stovetop', 'tap', 'byob', 'liquor', 'alcohol', 'insurance', 'decorat*', 'garbage', 'trash', 'occupan*', '75', 'not set up', 'clean*', 'allowed'],
+        'pricing' => ['price*', 'cost*', 'how much', 'rate', 'estimate*', 'quote*'],
+        'payment' => ['deposit', 'check', 'payment', 'pay', 'card', 'fee', 'non-refundable', 'stripe'],
+        'book' => ['book*', 'reserve a', 'request a date', 'hold a date', 'how do i reserve', 'how to reserve'],
+        'tour' => ['tour', 'visit', 'see the space', 'walk through', 'walk-through'],
         'contact' => ['contact', 'email', 'reach', 'get in touch', 'phone number', 'call'],
-        'place' => ['where', 'address', 'located', 'directions'],
-        'cancel' => ['cancel', 'cancellation'],
+        'place' => ['where', 'address', 'located', 'directions', 'location'],
+        'cancel' => ['cancel*', 'cancellation', 'refund'],
     ];
     $hits = [];
     foreach ($map as $intent => $words) {
         foreach ($words as $word) {
-            if (strpos($t, $word) !== false) {
+            if (brb_chat_keyword_hit($t, $word)) {
                 $hits[] = $intent;
                 break;
             }
         }
     }
     return $hits;
+}
+function brb_chat_chips($intent) {
+    $catalog = [
+        ['Check dates', 'Is a date open?'],
+        ['How much', 'How much does it cost?'],
+        ['Deposit', 'How much is the deposit?'],
+        ['BYOB', 'Can we bring alcohol?'],
+        ['Hours', 'What are your hours?'],
+        ['Parking', 'Is there parking?'],
+        ['Wi-Fi', 'Is there Wi-Fi?'],
+        ['Capacity', 'How many people does it hold?'],
+        ['Cancellation', 'What is the cancellation policy?'],
+        ['Book', 'How do I book?'],
+    ];
+    $pick = [
+        'pricing' => [0, 2, 3],
+        'availability' => [1, 2, 4],
+        'payment' => [0, 8, 3],
+        'rules' => [4, 3, 7],
+        'amenities' => [5, 6, 7],
+        'book' => [0, 2, 4],
+        'cancel' => [2, 0, 9],
+        'contact' => [9, 4, 5],
+        'tour' => [0, 9, 4],
+        'place' => [5, 9, 4],
+        'greeting' => [0, 1, 2],
+        'unknown' => [0, 4, 9],
+        'refuse' => [0, 4, 9],
+        'legal' => [8, 9, 0],
+        'thanks' => [0, 9, 2],
+        'topic' => [0, 2, 3],
+    ];
+    $idx = $pick[$intent] ?? [0, 2, 4];
+    $out = [];
+    foreach ($idx as $i) {
+        $out[] = ['label' => $catalog[$i][0], 'question' => $catalog[$i][1]];
+    }
+    return $out;
+}
+function brb_chat_dedupe($text) {
+    $text = trim((string) $text);
+    $parts = preg_split('/(?<=[.!?])\s+/', $text);
+    if (!$parts) return $text;
+    $seen = [];
+    $out = [];
+    foreach ($parts as $part) {
+        $key = strtolower(preg_replace('/\s+/', ' ', trim($part)));
+        if ($key === '' || isset($seen[$key])) continue;
+        $seen[$key] = true;
+        $out[] = trim($part);
+    }
+    return implode(' ', $out);
+}
+function brb_chat_finish($reply, $lead, $intent) {
+    return [
+        'reply' => brb_chat_dedupe(brb_chat_clean_reply($reply)),
+        'lead' => (bool) $lead,
+        'intent' => $intent,
+        'suggestions' => brb_chat_chips($intent),
+    ];
+}
+function brb_chat_extra_lead($message) {
+    return (bool) preg_match('/\bdiscount\b|haggle|best price|cheaper|% off|percent off|secret\s+\w+\s+rate|reschedul|change my date|move my date|hear back|when will you reply|get back to me|nonprofit|military/i', (string) $message);
+}
+function brb_chat_invalid_date($text) {
+    $t = strtolower((string) $text);
+    if (preg_match('/\b(\d{1,2})(?:st|nd|rd|th)\b/', $t, $m) && (int) $m[1] > 31) return true;
+    $months = brb_chat_months();
+    if (preg_match_all('/\b(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sept|sep|oct|nov|dec)\.?\s+(\d{1,2})\b/i', $t, $all, PREG_SET_ORDER)) {
+        foreach ($all as $row) {
+            $month = $months[strtolower($row[1])] ?? 0;
+            if ($month && !checkdate($month, (int) $row[2], 2024)) return true;
+        }
+    }
+    if (preg_match('/\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/', $t, $m)) {
+        $year = (($m[3] ?? '') !== '') ? (int) $m[3] : 2024;
+        if ($year < 100) $year += 2000;
+        if (!checkdate((int) $m[1], (int) $m[2], $year)) return true;
+    }
+    if (preg_match('/\b(\d{1,2})(?:st|nd|rd|th)?\s+of\s+(?:next\s+)?month\b/', $t, $m) && ((int) $m[1] > 31 || (int) $m[1] < 1)) return true;
+    return false;
 }
 
 function brb_chat_suggestions() {
@@ -402,6 +631,7 @@ function brb_chat_day_sentence($ymd) {
 
 function brb_chat_availability_text($parsed) {
     if (!empty($parsed['too_long'])) return 'I can check up to 14 days at a time. Try a shorter range?';
+    if (empty($parsed['dates']) && !empty($parsed['invalid'])) return 'I couldn\'t find that date. Tell me a date, like next Saturday or Dec 12, and I\'ll check it.';
     if (empty($parsed['dates'])) return 'Tell me a date, like next Saturday or Dec 12, and I\'ll check it.';
     $lines = [];
     $blocked = [];
@@ -461,32 +691,66 @@ function brb_chat_rules_text() {
 }
 function brb_chat_specific_text($text) {
     $t = strtolower((string) $text);
-    if (preg_match('/\brules?\b/', $t)) return '';
+    if (preg_match('/\b(house rules|the rules|your rules|what are the rules)\b|\brules\s*\?/', $t)) return '';
     if (preg_match('/amenit|what is included|what do you have|what\'s included|whats included/', $t)) return '';
-    if (preg_match('/\breceipt\b|\binvoice\b/', $t)) return brb_chat_receipt_line();
     $bits = [];
-    if (preg_match('/\bhours\b|what time are you open|half[- ]?day|10:00|10 am|open at/', $t)) {
+    if (preg_match('/\breceipt\b|\binvoice\b/', $t)) $bits[] = brb_chat_receipt_line();
+    if (preg_match('/\bhours\b|what time are you open|half[- ]?day|10:00|10 am|open at|open and close|when do you open/', $t)) {
         $bits[] = brb_hours_line() . ' ' . brb_guest_out_line() . ' Want me to check a date?';
     }
-    if (preg_match('/wedding|shower|graduation|birthday|funeral|teen/', $t)) {
-        $bits[] = 'We\'d love to host you. Weddings, showers, graduations, kids birthdays, funerals, and teen events are welcome when the event is free to attend, within capacity, and finished by 11:30 PM. The minimum host age is 25 for every booking. Want me to check a date?';
+    if (preg_match('/\b(monday|tuesday|wednesday|thursday|weekday)s?\b/', $t) && !preg_match('/\b(this|next)\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/', $t) && !preg_match('/discount|cheaper|secret/', $t)) {
+        $bits[] = brb_hours_line();
     }
-    if (preg_match('/\bage limit\b|\bhost age\b|\bminimum host\b|\bhosts\b/', $t)) {
+    if (preg_match('/wedding|shower|graduation|\bgrad\b|birthday|funeral|celebration of life|\bteens?\b|\bteenagers?\b|corporate|business meeting|\bmeeting\b/', $t)) {
+        $bits[] = 'We\'d love to host you. Weddings, showers, graduations, kids birthdays, funerals, business meetings, and teen events are welcome when the event is free to attend, within capacity, and finished by 11:30 PM. The minimum host age is 25 for every booking. Want me to check a date?';
+    }
+    if (preg_match('/\bage limit\b|\bhost age\b|\bminimum host\b|\bhosts\b|\bhow old\b|\bthe host\b/', $t)) {
         $bits[] = 'The host must be 25 or older. The minimum host age is 25 for every booking.';
     }
-    if (preg_match('/balance due|when is the balance|the balance/', $t)) {
+    if (preg_match('/balance due|when is the balance|the balance|remaining balance|\bthe rest\b/', $t)) {
         $bits[] = 'The balance is due the week of the event, no later than 48 hours before. We\'ll confirm the amount with you.';
+    }
+    if (preg_match('/minimum notice|how far in advance|how far ahead|same day|how soon|hours\'? notice|how much notice|\btonight\b/', $t)) {
+        $bits[] = 'Bookings need at least ' . brb_notice_hours() . ' hours\' notice.';
+    }
+    if (preg_match('/hold (a|the) date|hold it|without paying|submit(?:ting)? the form|once i submit|reserved once/', $t)) {
+        $bits[] = 'A request does not hold the date. Your date is reserved once the meeting is complete and your deposit is received and approved by the Boardroom.';
+    }
+    if (preg_match('/hear back|how long to hear|when will you reply|get back to me|response time/', $t)) {
+        $bits[] = 'Please use the Contact form: ' . home_url('/contact/') . '. Email boardroomqc@gmail.com. A team member will follow up.';
+    }
+    if (preg_match('/more than one day|two days|in a row|back to back|consecutive|multi-?day/', $t)) {
+        $bits[] = 'Tell me the dates and I\'ll check them. I can check up to 14 days at a time.';
+    }
+    if (preg_match('/reschedul|change my date|move my date|switch my date/', $t)) {
+        $bits[] = brb_chat_cancel_text() . ' Please use the Contact form to ask about a different date.';
+    }
+    if (preg_match('/\bdiscount\b|haggle|best price|cheaper|% off|percent off|secret\s+\w+\s+rate/', $t)) {
+        if (preg_match('/nonprofit|military/', $t)) $bits[] = 'Please contact us directly to discuss nonprofit or military discounts.';
+        $bits[] = 'Final price is confirmed in writing by our team and depends on date, headcount and features needed. Please use the Contact form.';
+    }
+    if (preg_match('/why .{0,24}price|price change|one date more/', $t)) {
+        $bits[] = 'Any figure is ' . brb_chat_estimate_phrase() . '.';
+    }
+    if (preg_match('/overnight|sleep over|crash there|\bhotel\b|check-in/', $t)) {
+        $bits[] = 'No overnight stays. The Boardroom is an event space only.';
+    }
+    if (preg_match('/night before|day before/', $t) && preg_match('/decorat|set-?up|setup|\bcome\b/', $t)) {
+        $bits[] = 'On a full day, setup can begin at 8:00 AM. On a half day, setup can begin one hour before the start. Optional setup or takedown day add-ons, when that day is open, can be added within 72 hours of the event for ' . brb_whole_money(brb_addon_price()) . '.';
+    }
+    if (preg_match('/cleaning fee|security deposit|damage deposit|extra for cleaning|pays for damage|who pays for damage/', $t)) {
+        $bits[] = 'The damage deposit is $100 to $500 depending on event size, mainly for cleaning.';
     }
     if (preg_match('/refrigerator|\bfridge\b|\bice\b/', $t)) {
         $bits[] = 'Yes. There is a refrigerator and an ice machine.';
     }
-    if (preg_match('/who will be there|during my event|during the event|on site during/', $t)) {
+    if (preg_match('/who will be there|during my event|during the event|on site during|someone be there|staff on site|will someone be there/', $t)) {
         $bits[] = 'No one is on site during events. Our connected offices are available on demand if something is needed. Cell numbers are given when the contract is signed, and they are not listed on this site.';
     }
     if (preg_match('/entrance|surprise guest/', $t)) {
         $bits[] = 'There is one main entrance. A back entrance can be used for a surprise guest when it is arranged ahead of time with our team.';
     }
-    if (preg_match('/talk to a person|speak to a person|speak with a person|real person/', $t)) {
+    if (preg_match('/talk to a person|speak to a person|speak with a person|real person|\bhuman\b/', $t)) {
         $bits[] = 'Use the Contact form or email boardroomqc@gmail.com. Cell numbers are given when the contract is signed, and they are not listed on this site.';
     }
     if (preg_match('/balloon/', $t)) {
@@ -495,22 +759,22 @@ function brb_chat_specific_text($text) {
     if (preg_match('/wall tape|tape on the wall|\btape\b/', $t)) {
         $bits[] = 'No. Wall tape is not allowed. Balloons are fine. Glitter is not allowed.';
     }
-    if (preg_match('/damaged|gets damaged|something gets/', $t)) {
+    if (preg_match('/damaged|gets damaged|something gets|damage deposit|who pays for damage/', $t)) {
         $bits[] = 'The damage deposit covers cleaning and damage. Anything beyond that deposit may be charged. See the Terms. Our team will go over it at the walk-through.';
     }
-    if (preg_match('/vendor market|sell items|\bsell\b|merchandise/', $t)) {
+    if (preg_match('/vendor market|sell items|\bsell\b|merchandise/', $t) && !preg_match('/alcohol|liquor|drink|booze|beer/', $t)) {
         $bits[] = 'No. All events are free to attend. There are no merchandise sales and no ticket sales.';
     }
     if (preg_match('/meet you|meet us|walk[- ]?through|in person/', $t)) {
         $bits[] = 'Yes. We meet every renter before approving a booking. It\'s a short, friendly visit to talk through your plans and the house rules. Our team will reach out to schedule it.';
     }
-    if (preg_match('/nonprofit|military|discount/', $t)) {
+    if (preg_match('/nonprofit|military/', $t) && !preg_match('/\bdiscount\b/', $t)) {
         $bits[] = 'Please contact us directly to discuss nonprofit or military discounts.';
     }
     if (preg_match('/\btax\b|sales tax/', $t)) $bits[] = 'Sales tax is included in the price.';
-    if (preg_match('/wheelchair|accessible|accessib/', $t)) $bits[] = 'Yes. The space is accessible.';
+    if (preg_match('/wheelchair|accessible|accessib|\bada\b|handicap/', $t)) $bits[] = 'Yes. The space is accessible.';
     if (preg_match('/\bnoise\b|quiet|outdoors/', $t)) $bits[] = 'Nothing is outdoors, and the space is quiet after 11:30 PM.';
-    if (preg_match('/camera|staff on site|no staff/', $t)) $bits[] = 'There are security cameras on site. No staff are in the area, and a representative can be reached if something arises.';
+    if (preg_match('/\bcameras?\b|no staff/', $t)) $bits[] = 'There are security cameras on site. No staff are in the area, and a representative can be reached if something arises.';
     if (preg_match('/cooler/', $t)) $bits[] = 'Yes. There is a cooler and an ice machine.';
     if (preg_match('/force majeure|hurricane|snowstorm|power outage|flat tire|bad weather/', $t)) {
         $bits[] = 'Bad weather or an emergency out of our control, such as a hurricane, a snowstorm, or a power outage, is refundable. A personal issue, such as a flat tire, is not refundable.';
@@ -518,16 +782,16 @@ function brb_chat_specific_text($text) {
     if (preg_match('/\binsurance\b|liability|assumption of risk/', $t)) {
         $bits[] = 'We recommend that renters carry their own home or renters policy. If event insurance is needed, the renter carries that policy. The renter and guests assume the risk of the event. The Boardroom is not responsible for injury, loss, or equipment issues.';
     }
-    if (preg_match('/damage deposit|glitter|dumpster|venmo|paypal/', $t)) {
+    if (preg_match('/dumpster|venmo|paypal/', $t)) {
         $bits[] = 'The damage deposit is $100 to $500 depending on event size, mainly for cleaning. It may be applied to excessive cleaning or garbage. A dumpster is on site. It is returned within 72 hours when Venmo or PayPal is on file. A check takes 1 to 2 weeks. No glitter. Vaping leaves a residue and can affect the deposit. All smoking, including cigars and cigarettes, is outside only.';
     }
-    if (preg_match('/december/', $t) && preg_match('/open|available|dates/', $t) && !preg_match('/\d/', $t)) {
+    if (preg_match('/\bdecember\b|\bdec\b/', $t) && preg_match('/open|available|availability|dates/', $t) && !preg_match('/\d/', $t)) {
         $bits[] = brb_chat_december_open();
     }
     if (preg_match('/\bphoto|\bpicture|\bgallery\b|tour video|\bvideo\b/', $t)) {
         $bits[] = 'Photos are in the Gallery: ' . home_url('/gallery/') . '. The tour video is on the home page and the Contact page.';
     }
-    if (preg_match('/table|chair/', $t)) {
+    if (preg_match('/table|chair|already set|room set/', $t)) {
         $bits[] = 'Tables and chairs are on site. Guests set them up and put them away. The room comes not set up. Staff cannot set the room up.';
     }
     if (preg_match('/plate|cups|utensil|serving spoon|buffet/', $t)) {
@@ -537,31 +801,35 @@ function brb_chat_specific_text($text) {
     if (preg_match('/heat|air conditioning|\bac\b|wi-?fi|bluetooth/', $t)) {
         $bits[] = 'The room has heat and air conditioning, a TV, Wi-Fi, and Bluetooth sound throughout.';
     }
-    if (preg_match('/\btv\b|television|pinball|shuffleboard|pool table/', $t)) {
+    if (preg_match('/\btv\b|television|pinball|shuffleboard|pool table|\bgames\b/', $t)) {
         $bits[] = 'Yes. The room has an 80in television, pinball, a pool table, and shuffleboard.';
     }
     if (preg_match('/restroom|bathroom/', $t)) {
         $bits[] = 'There are two restrooms, with stalls and urinals.';
     }
-    if (preg_match('/ice machine|\bbar\b/', $t)) {
+    if (preg_match('/\bbar\b/', $t) && !preg_match('/bartender/', $t)) {
         $bits[] = 'Yes. There is a bar area and an ice machine. ' . brb_byob_line();
     }
-    if (preg_match('/rental agreement|sign an agreement|signed agreement/', $t)) {
+    if (preg_match('/rental agreement|sign an agreement|signed agreement|\bcontract\b/', $t)) {
         $bits[] = 'Yes. A signed rental agreement is part of booking. The Terms page is ' . home_url('/terms/') . ' and the agreement is ' . home_url('/rental-agreement/') . '.';
     }
-    if (!preg_match('/food truck/', $t) && preg_match('/\bfood\b|cater|warmer|buffet|\bcook|\bstove|stovetop/', $t)) {
+    if (!preg_match('/food truck/', $t) && preg_match('/\bfood\b|cater|warmer|buffet|\bcook|\bstove|stovetop|\boven\b/', $t)) {
         $bits[] = 'Yes. You can bring your own food. We have warmers and buffet-style warmers, but the stovetop can\'t be used. You can also have it catered by any caterer. The Boardroom does not provide catering.';
     }
-    if (preg_match('/\bbyob\b|liquor|alcohol|\bdrinks?\b/', $t)) {
+    if (preg_match('/sell or serve|do you sell|do u sell|\bserve alcohol\b|\bbartender\b/', $t)) {
+        $bits[] = 'We don\'t supply food, drinks, catering, or bartending. ' . brb_byob_line();
+    } elseif (preg_match('/\bbyob\b|liquor|alcohol|\bdrinks?\b/', $t)) {
         $bits[] = 'Yes. ' . brb_byob_line() . ' Please leave it like you got it, and take the garbage out.';
     }
     if (preg_match('/decorat/', $t)) {
         $bits[] = 'Decorations are not provided, except that Christmas decorations are up in December.';
     }
-    if (preg_match('/get in|set it up|set-?up|setup|tear ?down|put away/', $t)) {
+    if (preg_match('/confetti/', $t)) $bits[] = 'Confetti is not allowed.';
+    if (preg_match('/\bglitter\b/', $t) && !preg_match('/balloon/', $t)) $bits[] = 'Glitter is not allowed.';
+    if (preg_match('/get in|set it up|set the room|set up|set-?up|setup|tear ?down|put away/', $t)) {
         $bits[] = 'No. Guests set up and put everything away. Our staff can\'t set the room for you. Staff cannot set the room up. On a full day, setup can begin at 8:00 AM. On a half day, setup can begin one hour before the start.';
     }
-    if (preg_match('/parking/', $t)) {
+    if (preg_match('/\bparking\b|\bpark\b/', $t)) {
         $bits[] = 'Yes. Free parking on premises, and there is free street parking too.';
     }
     if (preg_match('/music|sound system|sonos|\bvolume\b|speaker/', $t)) {
@@ -576,14 +844,14 @@ function brb_chat_specific_text($text) {
     if (preg_match('/\bpets?\b|service animal|\bdogs?\b|\bcats?\b/', $t)) {
         $bits[] = 'Service animals only. No pets.';
     }
-    if (preg_match('/capacity|how many (people|guests)|75 people|how many can/', $t)) {
+    if (preg_match('/capacity|how many (people|guests)|75 people|how many can|\b75\b|how many fit/', $t)) {
         $bits[] = 'The Boardroom holds up to 75 people.';
     }
-    $paid = preg_match('/ticket|cover charge|concert|paid admission|door fee|fundrais|merchandise|charge admission|paid event/', $t);
-    $band = preg_match('/\bband\b|live music/', $t);
+    $paid = preg_match('/ticket|cover charge|charge a cover|concert|paid admission|door fee|fundrais|merchandise|charge admission|paid event/', $t);
+    $band = preg_match('/\bband\b|live music|\bdj\b/', $t);
     if ($paid) $bits[] = 'All events must be free to attend: no tickets, no cover charge, no paid admission, no door fees, and no ticket or merchandise sales. Guests may have a band or live music, as long as they are not charging for the event. We do not host concerts or ticketed shows.';
     elseif ($band) $bits[] = 'Yes. Guests may have a band or live music, as long as they are not charging for the event. We do not host concerts or ticketed shows.';
-    if (preg_match('/how late|end time|have to leave|be out|what time do we|stay until|out by|11:30|wrap up/', $t)) {
+    if (preg_match('/how late|end time|have to leave|be out|what time do we|stay until|out by|11:30|wrap up|everyone out|3\s?am/', $t)) {
         $bits[] = 'Everyone must be out of The Boardroom by 11:30 PM. That is firm, with no exceptions. Please plan to wrap up before then.';
     }
     return implode(' ', $bits);
@@ -602,11 +870,16 @@ function brb_chat_amenities_text() {
 }
 
 function brb_chat_asks_checks($text) {
-    return (bool) preg_match('/\b(check|checks|mail|drop[- ]?off|where to pay|where do i pay|payable)\b/i', (string) $text);
+    $text = (string) $text;
+    $lodging = preg_match('/\bcheck-in\b|\bcheck-out\b|\bcheck in\b(?!\s+to)|\bcheck out\b(?!\s+to)/i', $text);
+    if ($lodging && !preg_match('/\b(mail|payable|pay by check|pay with a check|write a check|personal check)\b/i', $text)) {
+        return false;
+    }
+    return (bool) preg_match('/\b(check|checks|mail|drop[- ]?off|where to pay|where do i pay|payable)\b/i', $text);
 }
 function brb_chat_payment_text($include_checks = false) {
     $fee = brb_fee_percent_label();
-    $text = 'Happy to help. ' . brb_guest_review_line() . ' The deposit is 50% of the agreed total. It is refundable if written cancellation is received 60 or more days before the event, less the non-refundable ' . $fee . ' card processing fee and costs already incurred. It is not refundable if cancellation is received less than 60 days before the event. Want the full cancellation terms? See ' . home_url('/terms/') . '.';
+    $text = 'Happy to help. ' . brb_guest_review_line() . ' The deposit is 50% of the agreed total. It is due within 1 day of signing. Pay by check, in person, or by card once approved. It is refundable if written cancellation is received 60 or more days before the event, less the non-refundable ' . $fee . ' card processing fee and costs already incurred. It is not refundable if cancellation is received less than 60 days before the event. Want the full cancellation terms? See ' . home_url('/terms/') . '.';
     if ($include_checks) {
         $text .= ' Mail or drop off checks payable to ' . brb_guest_payee() . ' at ' . brb_check_address() . '. That is the check address, not the event space.';
     }
@@ -673,44 +946,53 @@ function brb_chat_lead_flag($intents, $history) {
     return $n >= 4;
 }
 
+function brb_chat_only_about($message, $pattern) {
+    $parts = preg_split('/\?|\band\b|&/i', strtolower((string) $message));
+    $n = 0;
+    foreach ($parts as $part) {
+        if (trim($part) === '') continue;
+        $n++;
+        if (!preg_match($pattern, $part)) return false;
+    }
+    return $n > 0;
+}
 function brb_chat_answer($message, $history = []) {
     $message = trim((string) $message);
     if (mb_strlen($message) > 500) {
-        return [
-            'reply' => 'Could you shorten that to a few sentences? I\'m happy to help.',
-            'lead' => true,
-            'intent' => 'unknown',
-        ];
+        return brb_chat_finish('Could you shorten that to a few sentences? I\'m happy to help.', true, 'unknown');
     }
     if ($message === '' || preg_match('/^\s*(hi|hello|hey|help|good morning|good afternoon|good evening)\s*[!.]*\s*$/i', $message)) {
         $hello = 'Hi there! I\'m the Boardroom\'s assistant.';
         if (preg_match('/hello/i', $message)) $hello = 'Hello! I\'m the Boardroom\'s assistant.';
         elseif (preg_match('/hey/i', $message)) $hello = 'Hey! I\'m the Boardroom\'s assistant.';
-        return [
-            'reply' => $hello . ' I\'d love to help you plan your event. ' . brb_chat_suggestions(),
-            'lead' => false,
-            'intent' => 'greeting',
-        ];
+        return brb_chat_finish($hello . ' I\'d love to help you plan your event. ' . brb_chat_suggestions(), false, 'greeting');
     }
+    $norm = brb_chat_normalize($message);
     $sensitive = brb_chat_sensitive($message);
-    if ($sensitive === 'legal') {
-        return ['reply' => brb_chat_clean_reply(brb_chat_legal_refusal()), 'lead' => true, 'intent' => 'legal'];
+    if ($sensitive === '') $sensitive = brb_chat_sensitive($norm);
+    if ($sensitive === 'legal') return brb_chat_finish(brb_chat_legal_refusal(), true, 'legal');
+    if ($sensitive === 'refuse') return brb_chat_finish(brb_chat_refusal(), true, 'refuse');
+    if (brb_chat_only_about($message, '/\breceipt\b|\binvoice\b/') || brb_chat_only_about($norm, '/\breceipt\b|\binvoice\b/')) {
+        return brb_chat_finish(brb_chat_receipt_line(), false, 'topic');
     }
-    if ($sensitive === 'refuse') {
-        return ['reply' => brb_chat_clean_reply(brb_chat_refusal()), 'lead' => true, 'intent' => 'refuse'];
-    }
-    if (preg_match('/\breceipt\b|\binvoice\b/i', $message)) {
-        return ['reply' => brb_chat_receipt_line(), 'lead' => false, 'intent' => 'topic'];
-    }
-    if (preg_match('/\btax\b|sales tax/i', $message)) {
-        return ['reply' => 'Sales tax is included in the price.', 'lead' => false, 'intent' => 'topic'];
+    if (brb_chat_only_about($message, '/\btax\b|sales tax/') || brb_chat_only_about($norm, '/\btax\b|sales tax/')) {
+        return brb_chat_finish('Sales tax is included in the price.', false, 'topic');
     }
     $parsed = brb_chat_dates($message);
-    $intents = brb_chat_intents($message);
-    $specific = brb_chat_specific_text($message);
+    $parsedNorm = brb_chat_dates($norm);
+    foreach ($parsedNorm['dates'] as $ymd) {
+        if (!in_array($ymd, $parsed['dates'], true)) $parsed['dates'][] = $ymd;
+    }
+    $parsed['invalid'] = !empty($parsed['invalid']) || !empty($parsedNorm['invalid']);
+    $parsed['too_long'] = !empty($parsed['too_long']) || !empty($parsedNorm['too_long']);
+    $intents = array_values(array_unique(array_merge(brb_chat_intents($message), brb_chat_intents($norm))));
+    $specific = brb_chat_specific_text($norm);
+    if ($specific === '') $specific = brb_chat_specific_text($message);
     if ($specific !== '') $intents = array_values(array_diff($intents, ['rules', 'amenities']));
     if (!$intents && !empty($parsed['dates'])) $intents[] = 'availability';
+    if (!empty($parsed['dates']) && !in_array('availability', $intents, true) && preg_match('/\b(open|available|availability|free)\b/i', $norm . ' ' . $message)) $intents[] = 'availability';
     if (!$intents && !empty($parsed['too_long'])) $intents[] = 'availability';
+    if (!empty($parsed['invalid']) && empty($parsed['dates']) && !in_array('availability', $intents, true)) $intents[] = 'availability';
     $quotable = [];
     foreach ($parsed['dates'] as $ymd) {
         if (brb_chat_date_status($ymd) === 'open') $quotable[] = $ymd;
@@ -723,20 +1005,16 @@ function brb_chat_answer($message, $history = []) {
         $intents[] = 'pricing';
     }
     if (preg_match('/^\s*(thanks|thank you)\s*[!.]*\s*$/i', $message)) {
-        return [
-            'reply' => 'You\'re so welcome! If you\'d like a team member to follow up, leave your name and email below. A team member will reply using this info.',
-            'lead' => true,
-            'intent' => 'thanks',
-        ];
+        return brb_chat_finish('You\'re so welcome! If you\'d like a team member to follow up, leave your name and email below. A team member will reply using this info.', true, 'thanks');
     }
     if (!$intents && $specific === '') {
-        return ['reply' => brb_chat_clean_reply(brb_chat_refusal()), 'lead' => true, 'intent' => 'unknown'];
+        return brb_chat_finish(brb_chat_refusal(), true, 'unknown');
     }
     $parts = [];
     if ($specific !== '') $parts[] = $specific;
     if (in_array('availability', $intents, true)) $parts[] = brb_chat_availability_text($parsed);
     if (in_array('pricing', $intents, true)) $parts[] = brb_chat_price_for_dates($parsed);
-    if (in_array('payment', $intents, true)) $parts[] = brb_chat_payment_text(brb_chat_asks_checks($message) && !in_array('place', $intents, true));
+    if (in_array('payment', $intents, true)) $parts[] = brb_chat_payment_text((brb_chat_asks_checks($message) || brb_chat_asks_checks($norm)) && !in_array('place', $intents, true));
     if (in_array('rules', $intents, true)) $parts[] = brb_chat_rules_text();
     if (in_array('amenities', $intents, true)) $parts[] = brb_chat_amenities_text();
     if (in_array('cancel', $intents, true)) $parts[] = brb_chat_cancel_text();
@@ -744,11 +1022,8 @@ function brb_chat_answer($message, $history = []) {
     if (in_array('tour', $intents, true)) $parts[] = brb_chat_tour_text();
     if (in_array('contact', $intents, true)) $parts[] = brb_chat_contact_text();
     if (in_array('place', $intents, true)) $parts[] = brb_chat_place_text(in_array('payment', $intents, true));
-    return [
-        'reply' => brb_chat_clean_reply(implode("\n\n", $parts)),
-        'lead' => brb_chat_lead_flag($intents, $history),
-        'intent' => $intents ? $intents[0] : 'topic',
-    ];
+    $lead = brb_chat_lead_flag($intents, $history) || brb_chat_extra_lead($message) || brb_chat_extra_lead($norm);
+    return brb_chat_finish(implode("\n\n", $parts), $lead, $intents ? $intents[0] : 'topic');
 }
 
 function brb_chat_rate_key($bucket) {

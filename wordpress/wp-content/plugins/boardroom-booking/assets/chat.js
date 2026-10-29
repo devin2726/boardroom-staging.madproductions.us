@@ -83,10 +83,35 @@
       first.focus();
     }
   });
-  ask.addEventListener('submit', function (e) {
-    e.preventDefault();
-    var text = input.value.trim();
+  function clearSuggestions() {
+    var old = log.querySelectorAll('.brb-chat-suggestions');
+    for (var i = 0; i < old.length; i++) old[i].parentNode.removeChild(old[i]);
+  }
+  function addSuggestions(items) {
+    clearSuggestions();
+    if (!items || !items.length) return;
+    var wrap = document.createElement('div');
+    wrap.className = 'brb-chat-suggestions';
+    wrap.setAttribute('role', 'group');
+    wrap.setAttribute('aria-label', 'Suggested questions');
+    items.slice(0, 3).forEach(function (item) {
+      if (!item || !item.question) return;
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'brb-chat-chip';
+      b.textContent = item.label || item.question;
+      b.setAttribute('aria-label', 'Ask: ' + (item.label || item.question));
+      b.addEventListener('click', function () { sendMessage(item.question); });
+      wrap.appendChild(b);
+    });
+    log.appendChild(wrap);
+    var scroller = log.closest('.brb-chat-scroll') || log;
+    scroller.scrollTop = scroller.scrollHeight;
+  }
+  function sendMessage(text) {
+    text = (text || '').trim();
     if (!text) return;
+    clearSuggestions();
     addMsg('user', text);
     input.value = '';
     turns.push({ role: 'user', text: text });
@@ -106,8 +131,9 @@
         });
       });
     }
-    askChat(0).then(function (data) {
+    return askChat(0).then(function (data) {
       addMsg('bot', data.reply);
+      addSuggestions(data.suggestions);
       turns.push({ role: 'assistant', text: data.reply });
       history.push({ role: 'user', text: text });
       if (history.length > 8) history = history.slice(-8);
@@ -115,6 +141,10 @@
     }).catch(function () {
       addMsg('bot', 'Please try that once more in a moment. You can also use the Contact form.');
     });
+  }
+  ask.addEventListener('submit', function (e) {
+    e.preventDefault();
+    sendMessage(input.value);
   });
   lead.addEventListener('submit', function (e) {
     e.preventDefault();
