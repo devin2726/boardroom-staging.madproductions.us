@@ -2,11 +2,11 @@
 /**
  * Plugin Name: Boardroom Booking
  * Description: Self-hosted direct booking for The Boardroom — full-day and hourly blocks, availability calendar, agreed prices, approval before payment, blackout dates, and emails.
- * Version: 2.5.16
+ * Version: 2.5.17
  * Author: Mad Productions
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.5.16');
+define('BRB_VER', '2.5.17');
 define('BRB_VENUE_ADDRESS', '2220 37th Street, Moline, IL 61265');
 define('BRB_CHECK_ADDRESS', '2212 37th Street, Moline, IL 61265');
 define('BRB_MAPS_URL', 'https://maps.app.goo.gl/nVqUsGTcy48nPzc18');
@@ -16,6 +16,7 @@ require_once __DIR__ . '/legal-content.php';
 require_once __DIR__ . '/tour.php';
 require_once __DIR__ . '/stripe.php';
 require_once __DIR__ . '/chat.php';
+require_once __DIR__ . '/lines.php';
 define('BRB_URL', plugin_dir_url(__FILE__));
 
 function brb_table() { global $wpdb; return $wpdb->prefix . 'br_bookings'; }
@@ -85,6 +86,7 @@ function brb_defaults() {
         'deposit_fixed' => '0',
         'balance_due_days' => '2',
         'addon_price' => '500',
+        'damage_deposit_amount' => '250',
         'max_guests' => '75',
         'max_days' => '7',
         'min_notice_hours' => '48',
@@ -303,7 +305,7 @@ function brb_checklist_default() {
         'Complete the in-person walk-through.',
         'The deposit is received and approved.',
         'The balance is due the week of the event, no later than 48 hours before.',
-        'The damage deposit is $100 to $500 depending on event size, mainly for cleaning. Please leave the room as you found it.',
+        'The refundable damage deposit is a flat $250. It is charged with the booking deposit and returned if the room is left as you found it.',
         'Optional setup or takedown day add-ons, when that day is open, can be added within 72 hours of the event for ' . brb_whole_money(brb_addon_price()) . '.',
         'Setup is the morning of the event. On a full day, setup can begin at 8:00 AM. On a half day, setup can begin one hour before the start.',
         'Everyone is out by 11:30 PM.',
@@ -560,6 +562,9 @@ function brb_install_tables() {
     brb_ensure_column($t, 'takedown_addon', 'tinyint(1) NOT NULL DEFAULT 0');
     brb_ensure_column($t, 'addon_prompted', 'tinyint(1) NOT NULL DEFAULT 0');
     brb_ensure_column($t, 'checklist_reminded', 'datetime NULL DEFAULT NULL');
+    brb_ensure_column($t, 'damage_paid', 'decimal(10,2) NOT NULL DEFAULT 0.00');
+    brb_ensure_column($t, 'damage_refunded', 'tinyint(1) NOT NULL DEFAULT 0');
+    brb_install_line_table();
     $p = brb_pay_table();
     dbDelta("CREATE TABLE $p (
       id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
@@ -728,7 +733,7 @@ function brb_faq_markup() {
 <details><summary>What is the cancellation policy?</summary><p>If we receive written cancellation 60 or more days before the event, the deposit is refundable, less any non-refundable processing charges (including the 3% card processing fee) and costs already incurred. It is not refundable if cancellation is received less than 60 days before the event. See the <a href="/terms/">Rental Terms</a>. If a summary and the signed agreement differ, the signed agreement controls.</p></details>
 <details><summary>What if there is bad weather?</summary><p>Bad weather or an emergency out of our control, such as a hurricane, a snowstorm, or a power outage, is refundable. A personal issue, such as a flat tire, is not refundable.</p></details>
 <details><summary>What happens if something gets damaged?</summary><p>The damage deposit covers cleaning and damage. Anything beyond that deposit may be charged. Our team will go over it at the walk-through. See the <a href="/terms/">Terms</a>.</p></details>
-<details><summary>Is there a damage deposit?</summary><p>The damage deposit is $100 to $500 depending on event size, mainly for cleaning. A dumpster is on site. It is returned within 72 hours when Venmo or PayPal is on file. A check takes 1 to 2 weeks.</p></details>
+<details><summary>Is there a damage deposit?</summary><p>The refundable damage deposit is a flat $250. It is charged with the booking deposit and mainly covers cleaning. A dumpster is on site. It is returned within 72 hours when Venmo or PayPal is on file. A check takes 1 to 2 weeks.</p></details>
 <details><summary>What are our responsibilities before we leave?</summary><p>Please leave it like you got it. Clean and tidy the space, and take the garbage out. Another event is often booked the following day, and a ready room lets the next hosts begin on time.</p></details>
 
 <h2>Facilities</h2>
@@ -813,7 +818,7 @@ function brb_refresh_faq() {
         'What are the hours?' => 'A full day runs from 10:00 AM to 11:30 PM. Half days are generally available in June: 10:00 AM to 4:00 PM, or 5:00 PM to 11:30 PM.',
         'Do I have to meet you?' => 'Yes. We meet every renter before approving a booking. It is a short, friendly visit to talk through your plans and the house rules. Our team will reach out to schedule it.',
         'What if there is bad weather?' => 'Bad weather or an emergency out of our control, such as a hurricane, a snowstorm, or a power outage, is refundable. A personal issue, such as a flat tire, is not refundable.',
-        'Is there a damage deposit?' => 'The damage deposit is $100 to $500 depending on event size, mainly for cleaning. It may be applied to excessive cleaning or garbage. A dumpster is on site. It is returned within 72 hours when Venmo or PayPal is on file. A check takes 1 to 2 weeks. No glitter. Vaping leaves a residue and can affect the deposit. All smoking, including cigars and cigarettes, is outside only.',
+        'Is there a damage deposit?' => 'The refundable damage deposit is a flat $250. It is charged with the booking deposit and mainly covers cleaning. It may be applied to excessive cleaning or garbage. A dumpster is on site. It is returned within 72 hours when Venmo or PayPal is on file. A check takes 1 to 2 weeks. No glitter. Vaping leaves a residue and can affect the deposit. All smoking, including cigars and cigarettes, is outside only.',
         'Can we sell tickets or charge admission?' => 'No. All events must be free to attend: no tickets, no cover charge, no paid admission, no door fees, and no ticket or merchandise sales. We do not host concerts or ticketed shows.',
         'Can we have a band?' => 'Yes. Guests may have a band or live music, as long as they are not charging for the event. We do not host concerts or ticketed shows.',
         'Is smoking allowed?' => 'No smoking or vaping.',
@@ -850,6 +855,9 @@ function brb_scrub_copy_string($c) {
     $c = str_replace('online processing fee', 'card processing fee', $c);
     $c = str_replace('Sales tax is added.', 'Sales tax is included in the price.', $c);
     $c = str_replace('Sales tax is added', 'Sales tax is included in the price.', $c);
+    $c = str_replace('The damage deposit is $100 to $500 depending on event size, mainly for cleaning. It may be applied to excessive cleaning or garbage.', 'The refundable damage deposit is a flat $250. It is charged with the booking deposit and mainly covers cleaning. It may be applied to excessive cleaning or garbage.', $c);
+    $c = str_replace('The damage deposit is $100 to $500 depending on event size, mainly for cleaning.', 'The refundable damage deposit is a flat $250. It is charged with the booking deposit and mainly covers cleaning.', $c);
+    $c = str_replace('The damage deposit is $100 to $500, depending on event size, and mostly covers cleaning and garbage.', 'The refundable damage deposit is a flat $250. It is charged with the booking deposit and mostly covers cleaning and garbage.', $c);
     $c = preg_replace('/\b(ze' . 'lle|air' . 'bnb)\b/i', '', $c);
     $c = preg_replace('/[ \t]{2,}/', ' ', $c);
     return $c;
@@ -891,6 +899,7 @@ function brb_maybe_upgrade() {
     brb_refresh_contact();
     brb_patch_faq_drinks();
     brb_install_legal_pages();
+    brb_backfill_line_items();
     brb_install_checklist_page();
     brb_ensure_tour_on_contact();
     wp_clear_scheduled_hook('brb_cron_expire');
@@ -1069,15 +1078,12 @@ function brb_apply_addon($booking_id, $which) {
     $col = $which . '_addon';
     if (!empty($b->$col)) return $b;
     if (!brb_addon_day_open($b, $which)) return new WP_Error('busy', 'That day is not open.');
-    $price = brb_addon_price();
-    $total = round((float) $b->total + $price, 2);
-    $fields = [$col => 1, 'total' => brb_dec($total), 'subtotal' => brb_dec($total)];
+    $wpdb->update(brb_table(), [$col => 1], ['id' => (int) $b->id]);
+    brb_ensure_addon_line($b->id, $which);
     if (brb_price_is_set($b) || (float) $b->total > 0.009) {
-        $fields['deposit_due'] = brb_dec(round($total * 0.5, 2));
-        $fields['amount_due'] = $fields['deposit_due'];
-        $fields['price_set'] = 1;
+        $wpdb->update(brb_table(), ['price_set' => 1], ['id' => (int) $b->id]);
+        return brb_recalc_booking($b->id);
     }
-    $wpdb->update(brb_table(), $fields, ['id' => (int) $b->id]);
     return brb_booking($b->id);
 }
 function brb_send_addon_prompts() {
@@ -1167,10 +1173,15 @@ function brb_payment_lines($b) {
         $lines[] = brb_check_sentence('a check for ' . brb_money(brb_amount_to_bring($b)));
         $lines[] = 'Write booking reference ' . $ref . ' on the memo line.';
         $balance = round((float) $b->total - (float) $b->deposit_due, 2);
+        $damage_left = brb_damage_left($b);
         if ($balance > 0.009 && (float) $b->amount_paid + 0.009 < (float) $b->deposit_due) {
             $when = brb_balance_due_display($b);
-            if ($when === 'Due now') $lines[] = 'After that deposit, the remaining balance of ' . brb_money($balance) . ' is due now.';
-            elseif ($when !== '' && $when !== 'Price to be confirmed' && $when !== 'Paid') $lines[] = 'After that deposit, the remaining balance of ' . brb_money($balance) . ' is due the week of the event, no later than ' . $when . ' (48 hours before the event).';
+            $later = round($balance + $damage_left, 2);
+            if ($when === 'Due now') $lines[] = 'After that deposit, the remaining balance of ' . brb_money($later) . ' is due now.';
+            elseif ($when !== '' && $when !== 'Price to be confirmed' && $when !== 'Paid') $lines[] = 'After that deposit, the remaining balance of ' . brb_money($later) . ' is due the week of the event, no later than ' . $when . ' (48 hours before the event).';
+            if ($damage_left > 0.009) $lines[] = 'The refundable damage deposit of ' . brb_money($damage_left) . ' is charged with that deposit. If it is still unpaid, it is due with the balance.';
+        } elseif ($damage_left > 0.009 && brb_rental_left($b) > 0.009) {
+            $lines[] = 'The unpaid refundable damage deposit of ' . brb_money($damage_left) . ' is due with the remaining balance of ' . brb_money(round(brb_rental_left($b) + $damage_left, 2)) . '.';
         }
     } else {
         $lines[] = 'Price to be confirmed. We will confirm the final price based on the date, guest count, and features, then tell you the deposit amount.';
@@ -1378,7 +1389,7 @@ function brb_payment_date_label($ymd) {
     }
 }
 function brb_receipt_block($b, $amount, $method, $received_on) {
-    $balance = brb_money(max(0, round((float) $b->total - (float) $b->amount_paid, 2)));
+        $balance = brb_money(max(0, round(brb_rental_left($b) + brb_damage_left($b), 2)));
     return "Amount: " . brb_money($amount) . "\n"
         . "Date: " . brb_payment_date_label($received_on) . "\n"
         . "Method: " . brb_pay_method_label($method) . "\n"
@@ -1416,11 +1427,18 @@ function brb_send_payment_email($b, $amount, $check_number, $method = 'check') {
     } else {
         $check = 'This booking is marked paid in full.';
     }
+    if ($last_pay && preg_match('/Refundable damage deposit \$[\d,.]+/', (string) $last_pay->notes, $damage_note)) {
+        $check .= ' ' . $damage_note[0] . '.';
+    }
     $follow = '';
     if ($b->status !== 'paid') {
         $due = brb_balance_due_display($b);
         if ($due === 'Due now') $follow = 'The balance remaining is due now.';
         elseif ($due && $due !== 'Price to be confirmed' && $due !== 'Paid') $follow = 'The balance remaining is due the week of the event, no later than ' . $due . '.';
+        $still = round(brb_rental_left($b) + brb_damage_left($b), 2);
+        if ($still > 0.009 && brb_damage_left($b) > 0.009) {
+            $follow .= ' The amount still due is ' . brb_money($still) . ', including the unpaid refundable damage deposit of ' . brb_money(brb_damage_left($b)) . '.';
+        }
         $follow .= "\n\n" . brb_check_sentence('the remaining balance as a check') . "\nWrite booking reference {$ref} on the memo line.";
         if ($method === 'card') $follow .= "\nYou can also pay the rest online from your booking page.";
     } else {
@@ -1511,6 +1529,10 @@ function brb_insert_booking($r, $q, $guest, $source = 'online', $notify = true) 
     } finally {
         $wpdb->query("SELECT RELEASE_LOCK('brb_book')");
     }
+    if ($result && !is_wp_error($result)) {
+        brb_ensure_damage_line($result->id);
+        if (!empty($q['price_set']) && (float) $q['total'] > 0.009) brb_ensure_rental_line($result->id, $q['total']);
+    }
     if ($notify && $result && !is_wp_error($result)) brb_send_request_emails($result);
     return $result;
 }
@@ -1569,8 +1591,11 @@ function brb_record_payment($booking_id, $amount, $check_number, $received_on, $
     }
     $amount = round((float) $amount, 2);
     if ($amount <= 0) return new WP_Error('amount', 'Enter an amount greater than zero.');
-    $remaining = round((float) $b->total - (float) $b->amount_paid, 2);
-    if ($amount - $remaining > 0.009) return new WP_Error('amount', 'That amount is more than the balance of ' . brb_money($remaining) . '.');
+    brb_ensure_damage_line($b->id);
+    $b = brb_booking($b->id);
+    $damage_explicit = array_key_exists('damage', $extra) ? $extra['damage'] : null;
+    $split = brb_split_payment($b, $amount, $damage_explicit);
+    if (is_wp_error($split)) return $split;
     $method = sanitize_key((string) $method);
     if (!brb_pay_method_known($method)) $method = 'check';
     if (!is_array($extra)) $extra = [];
@@ -1607,16 +1632,23 @@ function brb_record_payment($booking_id, $amount, $check_number, $received_on, $
         $wpdb->query("SELECT RELEASE_LOCK('brb_book')");
         return new WP_Error('db', 'Could not record the payment.');
     }
-    $paid = round((float) $b->amount_paid + $amount, 2);
-    $fields = ['amount_paid' => brb_dec($paid)];
+    $pay_id = (int) $wpdb->insert_id;
+    $paid = round((float) $b->amount_paid + $split['rental'], 2);
+    $damage_paid = round((float) ($b->damage_paid ?? 0) + $split['damage'], 2);
+    $fields = ['amount_paid' => brb_dec($paid), 'damage_paid' => brb_dec($damage_paid)];
     if ($taken && $method === 'card') {
         $fields['attention'] = 'A card payment arrived after this date was already reserved by another paid deposit. Resolve it manually. [VERIFY: attorney review]';
     } else {
         $fields['status'] = ($paid + 0.009 >= (float) $b->total) ? 'paid' : 'deposit_paid';
     }
     $wpdb->update(brb_table(), $fields, ['id' => (int) $b->id]);
+    brb_lock_lines($b->id);
     $wpdb->query("SELECT RELEASE_LOCK('brb_book')");
     $b = brb_booking($b->id);
+    if ($split['damage'] > 0.009) {
+        $notes = trim($notes . ' Refundable damage deposit ' . brb_money($split['damage']) . '.');
+        $wpdb->update(brb_pay_table(), ['notes' => $notes], ['id' => $pay_id]);
+    }
     if ($taken && $method === 'card') {
         $notice = brb_guest_hello_line() . "\n\nHere is your receipt.\n\n" . brb_receipt_block($b, $amount, 'card', $received_on) . "\n\nWe received your card payment. Staff will follow up about this date.\n";
         brb_send_receipt_copies($b, 'Your Boardroom receipt for ' . brb_ref($b), 'Card payment needs attention ' . brb_ref($b), $notice . "\n" . $b->attention . "\n");
@@ -1630,8 +1662,8 @@ function brb_mark_paid_full($booking_id) {
     if (!$b) return new WP_Error('missing', 'Booking not found.');
     if (in_array($b->status, ['cancelled', 'expired', 'declined'], true)) return new WP_Error('status', 'Cancelled or declined bookings cannot be marked paid.');
     if (!brb_price_is_set($b)) return new WP_Error('price', 'Set the agreed price before marking the booking paid.');
-    $remaining = round((float) $b->total - (float) $b->amount_paid, 2);
-    if ($remaining <= 0.009) {
+    $remaining = round(brb_rental_left($b) + brb_damage_left($b), 2);
+    if (brb_rental_left($b) <= 0.009) {
         global $wpdb;
         $wpdb->update(brb_table(), ['status' => 'paid'], ['id' => (int) $b->id]);
         $b = brb_booking($b->id);
@@ -1647,26 +1679,17 @@ function brb_set_agreed_price($booking_id, $amount) {
     if (in_array($b->status, ['cancelled', 'declined'], true)) return new WP_Error('status', 'That booking cannot take a price.');
     $amount = round((float) $amount, 2);
     if ($amount <= 0) return new WP_Error('amount', 'Enter an agreed price greater than zero.');
-    $amount = round($amount + ((int) $b->setup_addon + (int) $b->takedown_addon) * brb_addon_price(), 2);
-    if ((float) $b->amount_paid - $amount > 0.009) {
+    brb_ensure_damage_line($b->id);
+    if (!empty($b->setup_addon)) brb_ensure_addon_line($b->id, 'setup');
+    if (!empty($b->takedown_addon)) brb_ensure_addon_line($b->id, 'takedown');
+    $rental = brb_ensure_rental_line($b->id, $amount);
+    if (is_wp_error($rental)) return $rental;
+    $wpdb->update(brb_table(), ['price_set' => 1, 'cleaning' => '0.00', 'tax' => '0.00'], ['id' => (int) $b->id]);
+    $b = brb_recalc_booking($b->id);
+    if (!$b) return new WP_Error('db', 'Could not save the agreed price.');
+    if ((float) $b->amount_paid - (float) $b->total > 0.009) {
         return new WP_Error('amount', 'The agreed price cannot be less than the ' . brb_money($b->amount_paid) . ' already recorded.');
     }
-    $due = brb_deposit_due_amount($amount);
-    $status = $b->status;
-    if ((float) $b->amount_paid + 0.009 >= $amount) $status = 'paid';
-    elseif ((float) $b->amount_paid > 0.009) $status = 'deposit_paid';
-    $ok = $wpdb->update(brb_table(), [
-        'subtotal' => brb_dec($amount),
-        'cleaning' => '0.00',
-        'tax' => '0.00',
-        'total' => brb_dec($amount),
-        'amount_due' => brb_dec($due),
-        'deposit_due' => brb_dec($due),
-        'price_set' => 1,
-        'status' => $status,
-    ], ['id' => (int) $b->id]);
-    if ($ok === false) return new WP_Error('db', 'Could not save the agreed price.');
-    $b = brb_booking($b->id);
     brb_send_price_email($b);
     return $b;
 }
@@ -1729,6 +1752,7 @@ function brb_delete_booking($booking_id) {
     if (!$b) return new WP_Error('missing', 'Booking not found.');
     if ($b->status !== 'cancelled') return new WP_Error('status', 'Only a cancelled booking can be deleted.');
     $wpdb->delete(brb_pay_table(), ['booking_id' => (int) $b->id], ['%d']);
+    $wpdb->delete(brb_line_table(), ['booking_id' => (int) $b->id], ['%d']);
     $ok = $wpdb->delete(brb_table(), ['id' => (int) $b->id], ['%d']);
     if (!$ok) return new WP_Error('db', 'Could not delete that booking.');
     return true;

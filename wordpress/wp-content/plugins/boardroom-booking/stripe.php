@@ -49,8 +49,8 @@ function brb_card_fee_cents($base_cents, $percent = null) {
 function brb_amount_due_now($b) {
     if (!$b || !brb_price_is_set($b)) return 0.0;
     if (!in_array($b->status, ['approved', 'held', 'deposit_paid'], true)) return 0.0;
-    $due = round((float) brb_amount_to_bring($b), 2);
-    return $due > 0 ? $due : 0.0;
+    $due = round((float) brb_amount_to_bring($b) + brb_damage_left($b), 2);
+    return $due > 0.009 ? $due : 0.0;
 }
 function brb_pay_signature($token) {
     return hash_hmac('sha256', 'brb-pay|' . (string) $token, wp_salt('auth'));
@@ -84,7 +84,9 @@ function brb_stripe_create_session($b) {
     if (!brb_stripe_enabled()) return new WP_Error('stripe', 'Online card payment is not available.');
     $due = brb_amount_due_now($b);
     if ($due <= 0) return new WP_Error('amount', 'There is no balance to pay online.');
-    $base_cents = brb_cents_from_amount($due);
+    $charge = brb_checkout_lines($b);
+    $base_cents = (int) $charge['base_cents'];
+    if ($base_cents <= 0) return new WP_Error('amount', 'There is no balance to pay online.');
     $percent = brb_card_fee_percent();
     $fee_cents = brb_card_fee_cents($base_cents, $percent);
     $success = add_query_arg(['br_token' => $b->token, 'card' => 'pending'], home_url('/book/'));
@@ -99,17 +101,22 @@ function brb_stripe_create_session($b) {
         'metadata[token]' => (string) $b->token,
         'metadata[base_cents]' => (string) $base_cents,
         'metadata[fee_cents]' => (string) $fee_cents,
-        'line_items[0][quantity]' => '1',
-        'line_items[0][price_data][currency]' => 'usd',
-        'line_items[0][price_data][unit_amount]' => (string) $base_cents,
-        'line_items[0][price_data][product_data][name]' => 'Boardroom booking ' . brb_ref($b),
-        'line_items[1][quantity]' => '1',
-        'line_items[1][price_data][currency]' => 'usd',
-        'line_items[1][price_data][unit_amount]' => (string) $fee_cents,
-        'line_items[1][price_data][product_data][name]' => 'Card processing fee (' . brb_fee_percent_label($percent) . ')',
+        'metadata[damage_cents]' => (string) (int) $charge['damage_cents'],
     ];
-    if ($fee_cents <= 0) {
-        unset($body['line_items[1][quantity]'], $body['line_items[1][price_data][currency]'], $body['line_items[1][price_data][unit_amount]'], $body['line_items[1][price_data][product_data][name]']);
+    $i = 0;
+    foreach ($charge['lines'] as $line) {
+        if ((int) $line['cents'] <= 0) continue;
+        $body['line_items[' . $i . '][quantity]'] = '1';
+        $body['line_items[' . $i . '][price_data][currency]'] = 'usd';
+        $body['line_items[' . $i . '][price_data][unit_amount]'] = (string) (int) $line['cents'];
+        $body['line_items[' . $i . '][price_data][product_data][name]'] = (string) $line['name'];
+        $i++;
+    }
+    if ($fee_cents > 0) {
+        $body['line_items[' . $i . '][quantity]'] = '1';
+        $body['line_items[' . $i . '][price_data][currency]'] = 'usd';
+        $body['line_items[' . $i . '][price_data][unit_amount]'] = (string) $fee_cents;
+        $body['line_items[' . $i . '][price_data][product_data][name]'] = 'Card processing fee (' . brb_fee_percent_label($percent) . ')';
     }
     $encoded = http_build_query($body, '', '&');
     $encoded = str_replace(['%7BCHECKOUT_SESSION_ID%7D', '%7bCHECKOUT_SESSION_ID%7d'], '{CHECKOUT_SESSION_ID}', $encoded);
@@ -175,7 +182,8 @@ function brb_view_pay($token, $sig) {
         echo '<p><a href="' . esc_url(brb_guest_link($b)) . '">Back to your booking</a></p>';
         return;
     }
-    $base_cents = brb_cents_from_amount($due);
+    $charge = brb_checkout_lines($b);
+    $base_cents = (int) $charge['base_cents'];
     $fee_cents = brb_card_fee_cents($base_cents);
     $total_cents = $base_cents + $fee_cents;
     $label = brb_fee_percent_label();
@@ -185,7 +193,9 @@ function brb_view_pay($token, $sig) {
       <p>Reference <strong><?php echo esc_html(brb_ref($b)); ?></strong></p>
       <p><?php echo esc_html(brb_when($b)); ?></p>
       <div class="brb-paybox">
-        <p>Amount applied to your booking: <?php echo esc_html(brb_money($base_cents / 100)); ?></p>
+        <?php foreach ($charge['lines'] as $line) { ?>
+        <p><?php echo esc_html($line['name']); ?>: <?php echo esc_html(brb_money($line['cents'] / 100)); ?></p>
+        <?php } ?>
         <p>Card processing fee (<?php echo esc_html($label); ?>): <?php echo esc_html(brb_money($fee_cents / 100)); ?></p>
         <p><strong>Total charged to your card: <?php echo esc_html(brb_money($total_cents / 100)); ?></strong></p>
         <p>The processing fee is not part of the booking balance. You can still pay by check or in person. <?php echo esc_html(brb_deposit_line()); ?> <?php echo esc_html(brb_fee_public_line()); ?></p>
@@ -254,8 +264,9 @@ function brb_stripe_apply_session($session) {
     $booking_id = (int) ($meta['booking_id'] ?? $session['client_reference_id'] ?? 0);
     $base_cents = (int) ($meta['base_cents'] ?? 0);
     $fee_cents = (int) ($meta['fee_cents'] ?? 0);
+    $damage_cents = (int) ($meta['damage_cents'] ?? 0);
     $amount_total = (int) ($session['amount_total'] ?? 0);
-    if ($booking_id <= 0 || $base_cents <= 0 || $amount_total !== $base_cents + $fee_cents) {
+    if ($booking_id <= 0 || $base_cents <= 0 || $damage_cents < 0 || $damage_cents > $base_cents || $amount_total !== $base_cents + $fee_cents) {
         return new WP_Error('amount', 'Payment total does not match the booking charge.', ['status' => 400]);
     }
     $pi = brb_stripe_id_value($session['payment_intent'] ?? '');
@@ -277,6 +288,7 @@ function brb_stripe_apply_session($session) {
             'fee' => $fee_cents / 100,
             'stripe_id' => $pi !== '' ? $pi : $sid,
             'stripe_session' => $sid,
+            'damage' => $damage_cents / 100,
         ]);
         if (is_wp_error($res)) {
             brb_flag_booking($b->id, 'A card payment could not be applied: ' . $res->get_error_message());

@@ -152,7 +152,7 @@ try {
     brb_t(is_wp_error($off_session) && $off_session->get_error_code() === 'stripe', 'checkout cannot start while the secret key is missing');
 
     $priced = brb_set_agreed_price($held->id, 100);
-    brb_t(!is_wp_error($priced) && abs(brb_amount_due_now($priced) - 100) < 0.001, 'the amount due is the full balance when no deposit is outstanding separately');
+    brb_t(!is_wp_error($priced) && abs(brb_amount_due_now($priced) - 350) < 0.001, 'the amount due is the rental balance plus the refundable damage deposit');
     brb_t(brb_pay_link($priced) === '', 'the pay link stays empty until the secret key is set');
     $secret = 'sk_test_' . $secret_marker;
     $publishable = 'pk_test_' . $secret_marker;
@@ -177,9 +177,9 @@ try {
     ob_start();
     brb_view_pay($priced->token, $sig);
     $pay_page = ob_get_clean();
-    brb_t(strpos($pay_page, 'Amount applied to your booking: $100.00') !== false, 'the pay page shows the amount applied to the booking');
-    brb_t(strpos($pay_page, 'Card processing fee (3%): $3.00') !== false, 'the pay page shows the 3 percent fee before redirect');
-    brb_t(strpos($pay_page, 'Total charged to your card: $103.00') !== false, 'the pay page shows the card total before redirect');
+    brb_t(strpos($pay_page, 'Deposit: $100.00') !== false && strpos($pay_page, 'Refundable damage deposit: $250.00') !== false, 'the pay page itemizes the deposit and the refundable damage deposit');
+    brb_t(strpos($pay_page, 'Card processing fee (3%): $10.50') !== false, 'the pay page shows the 3 percent fee on the deposit and the damage deposit');
+    brb_t(strpos($pay_page, 'Total charged to your card: $360.50') !== false, 'the pay page shows the card total before redirect');
     brb_t(strpos($pay_page, 'I understand a 3% card processing fee applies') !== false && strpos($pay_page, '60 or more days before the event') !== false && strpos($pay_page, 'less than 60 days before the event') !== false && strpos($pay_page, '>Terms<') !== false && strpos($pay_page, '>Rental Agreement<') !== false, 'the pay page requires the fee, the 60-day deposit rule, and the agreement checkbox');
     brb_t(strpos($pay_page, 'name="card_fee_agree"') !== false && strpos($pay_page, 'required') !== false, 'the fee checkbox is required');
     brb_t(strpos($pay_page, 'js.stripe.com') === false && stripos($pay_page, 'card number') === false && strpos($pay_page, 'cardnumber') === false, 'the pay page has no card fields');
@@ -207,10 +207,16 @@ try {
     brb_t(strpos($raw_body, '{CHECKOUT_SESSION_ID}') !== false && strpos($raw_body, '%7BCHECKOUT_SESSION_ID%7D') === false, 'the success URL keeps the session placeholder unencoded');
     $parsed = [];
     parse_str($raw_body, $parsed);
-    brb_t(($parsed['line_items'][0]['price_data']['unit_amount'] ?? '') === '10000', 'the booking line is the base amount in cents');
-    brb_t(($parsed['line_items'][1]['price_data']['product_data']['name'] ?? '') === 'Card processing fee (3%)', 'the fee is its own checkout line');
-    brb_t(($parsed['line_items'][1]['price_data']['unit_amount'] ?? '') === '300', 'the fee line is 300 cents');
-    brb_t(($parsed['metadata']['booking_id'] ?? '') === (string) $priced->id && ($parsed['metadata']['token'] ?? '') === $priced->token, 'checkout metadata carries the booking and token');
+    brb_t(($parsed['line_items'][0]['price_data']['product_data']['name'] ?? '') === 'Deposit' && ($parsed['line_items'][0]['price_data']['unit_amount'] ?? '') === '10000', 'the deposit line is the rental amount in cents');
+    brb_t(($parsed['line_items'][1]['price_data']['product_data']['name'] ?? '') === 'Refundable damage deposit' && ($parsed['line_items'][1]['price_data']['unit_amount'] ?? '') === '25000', 'the damage deposit is its own checkout line');
+    brb_t(($parsed['line_items'][2]['price_data']['product_data']['name'] ?? '') === 'Card processing fee (3%)', 'the fee is its own checkout line');
+    brb_t(($parsed['line_items'][2]['price_data']['unit_amount'] ?? '') === '1050', 'the fee line includes 3 percent of the damage deposit');
+    brb_t(($parsed['metadata']['booking_id'] ?? '') === (string) $priced->id && ($parsed['metadata']['token'] ?? '') === $priced->token && ($parsed['metadata']['damage_cents'] ?? '') === '25000', 'checkout metadata carries the booking, token, and damage deposit');
+    $negative = false;
+    foreach (($parsed['line_items'] ?? []) as $item) {
+        if ((int) ($item['price_data']['unit_amount'] ?? 0) < 0) $negative = true;
+    }
+    brb_t(!$negative, 'checkout lines are not negative');
     brb_t(strpos($raw_body, $secret_marker) === false, 'the checkout body does not contain the secret key');
 
     remove_all_filters('pre_http_request');
@@ -257,8 +263,8 @@ try {
     brb_t(strpos($waiting, 'the receipt is sent when the payment is confirmed') !== false && $priced->status === 'approved', 'returning from checkout does not mark the booking paid');
     brb_t(strpos($confirm, $secret_marker) === false, 'the confirmation page does not show key material');
 
-    $base = 10000;
-    $fee = 300;
+    $base = 35000;
+    $fee = 1050;
     $session = [
         'id' => 'cs_test_one',
         'payment_status' => 'paid',
@@ -270,6 +276,7 @@ try {
             'token' => $priced->token,
             'base_cents' => (string) $base,
             'fee_cents' => (string) $fee,
+            'damage_cents' => '25000',
         ],
     ];
     $bad_token = $session;
@@ -290,16 +297,16 @@ try {
     $first = brb_test_post($body, $whsec);
     $paid = brb_booking($priced->id);
     brb_t($first->get_status() === 200 && $paid && $paid->status === 'paid', 'a paid checkout session marks the booking paid in full');
-    brb_t($paid && abs((float) $paid->amount_paid - 100) < 0.001, 'only the base amount is applied to the balance');
+    brb_t($paid && abs((float) $paid->amount_paid - 100) < 0.001 && abs((float) $paid->damage_paid - 250) < 0.001, 'the rental portion hits the balance and the damage deposit is recorded separately');
     $rows = brb_payments($priced->id);
-    brb_t(count($rows) === 1 && $rows[0]->method === 'card' && abs((float) $rows[0]->fee - 3) < 0.001 && $rows[0]->stripe_id === 'pi_test_one' && $rows[0]->check_number === '', 'the payment stores the card method, fee, and payment intent');
+    brb_t(count($rows) === 1 && $rows[0]->method === 'card' && abs((float) $rows[0]->fee - 10.5) < 0.001 && $rows[0]->stripe_id === 'pi_test_one' && $rows[0]->check_number === '', 'the payment stores the card method, fee, and payment intent');
     $guest_receipt = null;
     $admin_receipt = null;
     foreach ($GLOBALS['brb_mails'] as $m) {
         if (stripos($m['to'], 'stripe-flow@example.com') !== false) $guest_receipt = $m;
         if (stripos($m['subject'], 'Payment recorded') !== false) $admin_receipt = $m;
     }
-    brb_t($guest_receipt && strpos($guest_receipt['message'], 'We recorded a card payment for $100.00') !== false && strpos($guest_receipt['message'], 'A card processing fee of $3.00') !== false && stripos($guest_receipt['subject'], 'confirmed') !== false, 'the guest receipt names the card amount and the fee');
+    brb_t($guest_receipt && strpos($guest_receipt['message'], 'We recorded a card payment for $350.00') !== false && strpos($guest_receipt['message'], 'A card processing fee of $10.50') !== false && strpos($guest_receipt['message'], 'Refundable damage deposit') !== false && stripos($guest_receipt['subject'], 'confirmed') !== false, 'the guest receipt names the card amount, the damage deposit, and the fee');
     brb_t((bool) $admin_receipt, 'staff are notified when the card payment is recorded');
     $mail_count = count($GLOBALS['brb_mails']);
     $async = wp_json_encode(['id' => 'evt_async', 'type' => 'checkout.session.async_payment_succeeded', 'data' => ['object' => $session]]);
@@ -343,7 +350,7 @@ try {
         ob_start();
         brb_admin_detail((int) $priced->id);
         $card_admin = ob_get_clean();
-        brb_t(strpos($card_admin, 'Card (Stripe)') !== false && strpos($card_admin, '$3.00') !== false && strpos($card_admin, 'pi_test_one') !== false, 'the payments list shows the card method, fee, and payment id');
+        brb_t(strpos($card_admin, 'Card (Stripe)') !== false && strpos($card_admin, '$10.50') !== false && strpos($card_admin, 'pi_test_one') !== false, 'the payments list shows the card method, fee, and payment id');
         brb_t(strpos($card_admin, 'dashboard.stripe.com') === false && strpos($card_admin, 'https://stripe.com') === false, 'the payment id is plain text');
         brb_t(strpos($card_admin, 'resolved manually in the Stripe dashboard') !== false && strpos($card_admin, '[VERIFY: attorney review]') !== false, 'the booking screen says card payments are resolved manually and marks the wording for attorney review');
         brb_t(strpos($card_admin, 'value="card"') === false, 'staff cannot record a card payment by hand');
@@ -377,24 +384,31 @@ try {
         $wpdb->update(brb_table(), ['walkthrough_done' => 1], ['id' => (int) $second_booking->id]);
         $second_booking = brb_approve_booking($second_booking->id);
         $second_priced = !is_wp_error($second_booking) ? brb_set_agreed_price($second_booking->id, 200) : $second_booking;
-        brb_t(!is_wp_error($second_priced) && abs(brb_amount_due_now($second_priced) - 100) < 0.001, 'with a 50 percent deposit the card amount is the deposit');
+        brb_t(!is_wp_error($second_priced) && abs(brb_amount_due_now($second_priced) - 350) < 0.001, 'with a 50 percent deposit the card amount is the deposit plus the damage deposit');
         $deposit_session = [
             'id' => 'cs_test_deposit',
             'payment_status' => 'paid',
-            'amount_total' => 10300,
+            'amount_total' => 36050,
             'payment_intent' => 'pi_test_deposit',
             'metadata' => [
                 'booking_id' => (string) $second_booking->id,
                 'token' => $second_booking->token,
-                'base_cents' => '10000',
-                'fee_cents' => '300',
+                'base_cents' => '35000',
+                'fee_cents' => '1050',
+                'damage_cents' => '25000',
             ],
         ];
         $deposit_body = wp_json_encode(['id' => 'evt_deposit', 'type' => 'checkout.session.completed', 'data' => ['object' => $deposit_session]]);
         $deposit_res = brb_test_post($deposit_body, $whsec);
         $deposit_paid = brb_booking($second_booking->id);
-        brb_t($deposit_res->get_status() === 200 && $deposit_paid && $deposit_paid->status === 'deposit_paid' && abs((float) $deposit_paid->amount_paid - 100) < 0.001, 'a card deposit records deposit paid and leaves the fee off the balance');
+        brb_t($deposit_res->get_status() === 200 && $deposit_paid && $deposit_paid->status === 'deposit_paid' && abs((float) $deposit_paid->amount_paid - 100) < 0.001 && abs((float) $deposit_paid->damage_paid - 250) < 0.001, 'a card deposit records the rental deposit and the damage deposit, and leaves the fee off the balance');
         brb_t(abs(brb_amount_due_now($deposit_paid) - 100) < 0.001, 'after the deposit the next card amount is the remaining balance');
+        $card_balance = brb_checkout_lines($deposit_paid);
+        brb_t((int) $card_balance['damage_cents'] === 0 && (int) $card_balance['base_cents'] === 10000, 'a card deposit already collected the damage deposit, so the balance checkout does not charge it again');
+        $locked_line = brb_find_line_kind($second_booking->id, 'rental');
+        brb_t($locked_line && !empty($locked_line->locked), 'paid rental lines lock');
+        $edit_locked = brb_save_custom_line($second_booking->id, 'Rental', 10, (int) $locked_line->id);
+        brb_t(is_wp_error($edit_locked), 'a locked line cannot be edited');
         $balance_session = [
             'id' => 'cs_test_balance',
             'payment_status' => 'paid',
@@ -414,6 +428,55 @@ try {
         $_GET = ['br_token' => $second_booking->token, 'card' => 'pending'];
         $pending = do_shortcode('[boardroom_booking]');
         brb_t(strpos($pending, 'paid in full') !== false && strpos($pending, 'the receipt is sent when the payment is confirmed') === false, 'a paid booking confirmation does not wait on the return URL');
+        $open_credit = brb_save_custom_line($second_booking->id, 'Courtesy credit', -20);
+        brb_t(!is_wp_error($open_credit), 'a credit can be added after a payment');
+    }
+
+    $discount_day = brb_now()->modify('+37 days')->format('Y-m-d');
+    $discount_booking = brb_process_public_booking([
+        'date' => $discount_day,
+        'type' => 'day',
+        'days' => 1,
+        'guests' => 6,
+        'name' => 'Stripe Flow',
+        'email' => 'stripe-flow@example.com',
+        'policy' => '1', 'waiver' => '1',
+        'event_type' => 'corporate',
+        'public_event' => 'no',
+        'free_admission' => '1',
+        'alcohol' => 'no',
+        'end_time' => '21:00',
+        'host_age' => 'age_25',
+        'event_about' => 'A small meeting.',
+    ]);
+    if (!is_wp_error($discount_booking) && $discount_booking) {
+        $created_ids[] = (int) $discount_booking->id;
+        $wpdb->update(brb_table(), ['walkthrough_done' => 1], ['id' => (int) $discount_booking->id]);
+        brb_approve_booking($discount_booking->id);
+        $discount_priced = brb_set_agreed_price($discount_booking->id, 200);
+        $discounted = brb_save_custom_line($discount_booking->id, 'Weekday credit', -20);
+        brb_t(!is_wp_error($discounted) && abs((float) $discounted->total - 180) < 0.01 && abs((float) $discounted->deposit_due - 90) < 0.01, 'a discount lowers the rental total and the 50 percent deposit');
+        brb_t(abs(brb_amount_due_now($discounted) - 340) < 0.001, 'the card amount is the net deposit plus the damage deposit');
+        $discount_captured = null;
+        add_filter('pre_http_request', function ($pre, $args) use (&$discount_captured) {
+            $discount_captured = $args;
+            return [
+                'headers' => [],
+                'body' => wp_json_encode(['id' => 'cs_test_discount', 'url' => 'https://checkout.stripe.com/c/pay/cs_test_discount']),
+                'response' => ['code' => 200, 'message' => 'OK'],
+                'cookies' => [],
+                'filename' => null,
+            ];
+        }, 10, 2);
+        brb_stripe_create_session(brb_booking($discount_booking->id));
+        $discount_parsed = [];
+        parse_str((string) ($discount_captured['body'] ?? ''), $discount_parsed);
+        $saw_negative = false;
+        foreach (($discount_parsed['line_items'] ?? []) as $item) {
+            if ((int) ($item['price_data']['unit_amount'] ?? 0) < 0) $saw_negative = true;
+        }
+        brb_t(($discount_parsed['line_items'][0]['price_data']['unit_amount'] ?? '') === '9000' && ($discount_parsed['metadata']['damage_cents'] ?? '') === '25000' && !$saw_negative, 'a discounted deposit is netted into Checkout and the damage deposit is still charged');
+        remove_all_filters('pre_http_request');
     }
 
     brb_test_env('BRB_STRIPE_SECRET_KEY', null);

@@ -85,7 +85,7 @@ function brb_terms_html() {
 <p>Before your time is up, please take out everything you brought: decorations, food, drinks, rentals, and trash. There's a dumpster on site. Anything left behind may be tossed or stored at your cost. Extra cleaning, stain or odor removal, or disposal may be charged to you or taken from your deposit.</p>
 
 <h2>11. Damage and your damage deposit</h2>
-<p>Your damage deposit is $100 to $500, depending on event size, and mostly covers cleaning and garbage. It's separate from the 50% booking deposit that holds your date. If all's well, it comes back within 72 hours by Venmo or PayPal, or in 1 to 2 weeks by check. Vape residue can affect it.</p>
+<p>Your refundable damage deposit is a flat $250. It is charged with the booking deposit and mostly covers cleaning and garbage. It's separate from the 50% booking deposit that holds your date. If all's well, it comes back within 72 hours by Venmo or PayPal, or in 1 to 2 weeks by check. Vape residue can affect it.</p>
 <p>You're responsible for any damage, loss, theft, extra cleaning, fines, lost use of the venue, or other costs tied to your event or anyone connected with it. We may apply your deposit to what's owed, and you're responsible for anything beyond it.</p>
 
 <h2>12. Your risk</h2>
