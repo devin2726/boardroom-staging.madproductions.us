@@ -363,14 +363,16 @@ function brb_admin_detail($id) {
     if (!$set && !in_array($b->status, ['cancelled', 'expired', 'paid'], true)) {
         echo '<h2>Record payment</h2><p>Set the agreed price before recording a payment.</p>';
     }
-    if ($set && !in_array($b->status, ['cancelled', 'expired', 'paid'], true) && $balance > 0.009) {
+    $damage_left_now = brb_damage_left($b);
+    if ($set && !in_array($b->status, ['cancelled', 'expired', 'paid'], true) && ($balance > 0.009 || $damage_left_now > 0.009)) {
         echo '<h2>Record payment</h2><form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="max-width:640px">';
         echo '<input type="hidden" name="action" value="brb_payment"><input type="hidden" name="booking" value="' . (int) $b->id . '">';
         wp_nonce_field('brb_payment');
         $toward = round((float) $b->deposit_due - (float) $b->amount_paid, 2);
-        $bundle = ($toward > 0.009) ? round($toward + brb_damage_left($b), 2) : $balance;
-        $cap = round(brb_rental_left($b) + brb_damage_left($b), 2);
-        echo '<table class="form-table"><tr><th><label for="amount">Amount</label></th><td><input name="amount" id="amount" type="number" step="0.01" min="0.01" max="' . esc_attr(brb_dec($cap)) . '" value="' . esc_attr(brb_dec($bundle)) . '" required> <span class="description">The suggested amount is the booking deposit plus the $250 refundable damage deposit. Anything above the rental amount due is applied to that deposit. Rental balance is ' . esc_html(brb_money($balance)) . '.</span></td></tr>';
+        $rental_due = ($toward > 0.009) ? $toward : brb_rental_left($b);
+        $bundle = round($rental_due + $damage_left_now, 2);
+        $cap = round(brb_rental_left($b) + $damage_left_now, 2);
+        echo '<table class="form-table"><tr><th><label for="amount">Amount</label></th><td><input name="amount" id="amount" type="number" step="0.01" min="0.01" max="' . esc_attr(brb_dec($cap)) . '" value="' . esc_attr(brb_dec($bundle)) . '" required> <span class="description">Suggested amount includes any unpaid refundable damage deposit. On the balance, that deposit is applied first, then the rental balance. Rental balance is ' . esc_html(brb_money($balance)) . '.</span></td></tr>';
         echo '<tr><th><label for="method">Method</label></th><td><select name="method" id="method">';
         foreach (brb_pay_methods() as $key => $label) {
             printf('<option value="%s">%s</option>', esc_attr($key), esc_html($label));
@@ -547,6 +549,7 @@ function brb_admin_settings() {
         $new['balance_due_days'] = (string) max(0, (int) $new['balance_due_days']);
         $new['deposit_pct'] = (string) max(1, min(100, (float) $new['deposit_pct']));
         $new['card_fee_percent'] = (string) max(0, min(100, round((float) ($new['card_fee_percent'] ?? 3), 2)));
+        $new['damage_deposit_amount'] = brb_dec(max(0, round((float) ($new['damage_deposit_amount'] ?? 250), 2)));
         $new['deposit_fixed'] = brb_dec(max(0, (float) $new['deposit_fixed']));
         $new['starting_price'] = brb_dec(max(0, (float) $new['starting_price']));
         if (trim((string) $new['typical_price']) === '') $new['typical_price'] = $defaults['typical_price'];
@@ -591,6 +594,7 @@ function brb_admin_settings() {
             ['deposit_fixed', 'Fixed deposit amount ($)', 'text', null, 'Used when the choice above is a fixed dollar amount. Cannot exceed the total.'],
             ['balance_due_days', 'Balance due note', 'number', null, 'The remaining balance is due the week of the event, no later than 48 hours before. A past date is shown as due now. Until a price is set, the guest sees price to be confirmed.'],
             ['addon_price', 'Setup or takedown day ($)', 'number', null, 'Added when that day is open. Default 500. The same price applies on Sunday.'],
+            ['damage_deposit_amount', 'Damage deposit amount ($)', 'number', null, 'Flat refundable damage deposit added to new bookings. Default 250. Changing this does not change bookings that already have a damage deposit line. Use 0 if a new booking should not include one.'],
             ['venue_address', 'Venue address', 'text', null, 'The event space. Shown in the footer, on Contact, and in Terms and Privacy. Default is 2220 37th Street, Moline, IL 61265. This is not where checks go.'],
             ['payee', 'Check payable to [VERIFY]', 'text', null, 'The name guests write on the payee line. Until this placeholder is replaced, guest check instructions say Mad Productions.'],
             ['pay_location', 'Where to mail or drop off checks', 'text', null, 'Check mail and drop-off only. Default is 2212 37th Street, Moline, IL 61265. A saved placeholder, or the old 2212 47 Ave line, is replaced on upgrade.'],

@@ -6,9 +6,10 @@ function brb_line_table() {
     return $wpdb->prefix . 'br_line_items';
 }
 function brb_damage_amount() {
-    $n = (float) brb_opt('damage_deposit_amount');
-    if ($n <= 0) $n = 250;
-    return round($n, 2);
+    $raw = brb_opt('damage_deposit_amount');
+    if ($raw === '' || $raw === null) return 250.0;
+    $n = round((float) $raw, 2);
+    return $n < 0 ? 0.0 : $n;
 }
 function brb_install_line_table() {
     global $wpdb;
@@ -113,6 +114,7 @@ function brb_recalc_booking($booking_id) {
 function brb_ensure_damage_line($booking_id) {
     $existing = brb_find_line_kind($booking_id, 'damage_deposit');
     if ($existing) return $existing;
+    if (brb_damage_amount() <= 0.009) return null;
     $id = brb_insert_line($booking_id, 'Refundable damage deposit', brb_damage_amount(), 'damage_deposit', 1, 90);
     if (!$id) return null;
     $b = brb_booking($booking_id);
@@ -199,9 +201,9 @@ function brb_split_payment($b, $amount, $damage_explicit = null) {
             $to_damage = min($damage_left, $rest);
             $to_rental = round($to_deposit + ($rest - $to_damage), 2);
         } else {
-            $to_rental = min($rental_left, $amount);
-            $to_damage = 0.0;
-            if ($amount - $to_rental > 0.009) return new WP_Error('amount', 'That amount is more than the balance of ' . brb_money($rental_left) . '.');
+            $to_damage = min($damage_left, $amount);
+            $to_rental = round($amount - $to_damage, 2);
+            if ($to_rental - $rental_left > 0.009) return new WP_Error('amount', 'That amount is more than the balance of ' . brb_money($rental_left + $damage_left) . '.');
         }
     } else {
         $to_damage = round((float) $damage_explicit, 2);

@@ -404,11 +404,22 @@ try {
             if (stripos($m['to'], 'flow-test@example.com') !== false) $dep_mail = $m;
         }
         brb_t($dep_mail && strpos($dep_mail['message'], '1001') !== false, 'deposit email confirms the check number');
+        brb_t(abs((float) $after->damage_paid) < 0.01, 'a check for exactly the rental deposit does not pay the damage deposit');
+        brb_t(abs(brb_amount_due_now($after) - ($second + brb_damage_left($after))) < 0.01, 'the balance due includes the unpaid damage deposit');
+        brb_t($dep_mail && strpos($dep_mail['message'], 'unpaid refundable damage deposit') !== false, 'the deposit receipt says the unpaid damage deposit is still due');
+        $balance_charge = brb_checkout_lines($after);
+        $damage_line = null;
+        foreach ($balance_charge['lines'] as $line) {
+            if ($line['name'] === 'Refundable damage deposit') $damage_line = $line;
+        }
+        brb_t($damage_line && (int) $damage_line['cents'] === 25000 && (int) $balance_charge['base_cents'] === (int) round(($second + 250) * 100), 'the balance checkout itemizes the unpaid damage deposit');
+        brb_t(brb_card_fee_cents($balance_charge['base_cents']) === (int) round(($second + 250) * 3), 'the balance card fee includes 3 percent of the unpaid damage deposit');
 
         $GLOBALS['brb_mails'] = [];
-        $done = brb_record_payment($after->id, $second, '1002', brb_now()->format('Y-m-d'), 'Balance check', true);
-        brb_t(!is_wp_error($done) && $done->status === 'paid', 'recording the balance marks the booking paid in full');
-        brb_t(abs((float) $done->total - (float) $done->amount_paid) < 0.02, 'balance is zero');
+        $with_damage = round($second + brb_damage_left($after), 2);
+        $done = brb_record_payment($after->id, $with_damage, '1002', brb_now()->format('Y-m-d'), 'Balance check', true);
+        brb_t(!is_wp_error($done) && $done->status === 'paid', 'recording the balance and the unpaid damage deposit marks the booking paid in full');
+        brb_t(abs((float) $done->total - (float) $done->amount_paid) < 0.02 && abs((float) $done->damage_paid - 250) < 0.01, 'the balance check pays the rental remainder and the damage deposit');
         $paid_mail = null;
         foreach ($GLOBALS['brb_mails'] as $m) {
             if (stripos($m['to'], 'flow-test@example.com') !== false) $paid_mail = $m;
@@ -436,7 +447,51 @@ try {
             brb_t(strpos($settings_html, '11:30 PM') !== false && strpos($settings_html, '[VERIFY] latest end time') === false, 'settings state the 11:30 PM departure rule');
             brb_t(strpos($settings_html, 'Starting price') !== false && strpos($settings_html, 'Typical price text') !== false, 'settings show starting and typical price');
             brb_t(strpos($settings_html, 'Full-day rate') === false && strpos($settings_html, '$75') === false && strpos($settings_html, 'name="checklist"') !== false, 'settings do not show the old public rates and include the checklist');
+            brb_t(strpos($settings_html, 'name="damage_deposit_amount"') !== false && strpos($settings_html, 'Damage deposit amount') !== false, 'settings include the damage deposit amount');
             foreach ($banned as $w) brb_t(stripos($settings_html, $w) === false, "settings HTML has no $w");
+            $kept_line = brb_find_line_kind($b->id, 'damage_deposit');
+            $_POST = brb_opt();
+            $_POST['brb_save'] = '1';
+            $_POST['damage_deposit_amount'] = '300';
+            $_REQUEST['_wpnonce'] = wp_create_nonce('brb_settings');
+            $_POST['_wpnonce'] = $_REQUEST['_wpnonce'];
+            ob_start();
+            brb_admin_settings();
+            ob_end_clean();
+            brb_t((string) brb_opt('damage_deposit_amount') === '300.00', 'a damage deposit amount saves as dollars');
+            $fresh_day = brb_now()->modify('+45 days')->format('Y-m-d');
+            $fresh = brb_process_public_booking([
+                'date' => $fresh_day,
+                'type' => 'day',
+                'days' => 1,
+                'guests' => 8,
+                'name' => 'Damage Amount',
+                'email' => 'flow-test@example.com',
+                'policy' => '1',
+                'waiver' => '1',
+                'event_type' => 'birthday',
+            ] + brb_screen());
+            if ($fresh && !is_wp_error($fresh)) $created_ids[] = (int) $fresh->id;
+            $fresh_line = ($fresh && !is_wp_error($fresh)) ? brb_find_line_kind($fresh->id, 'damage_deposit') : null;
+            $kept_after = brb_find_line_kind($b->id, 'damage_deposit');
+            brb_t($fresh_line && abs((float) $fresh_line->amount - 300) < 0.01 && $kept_line && $kept_after && abs((float) $kept_after->amount - (float) $kept_line->amount) < 0.01, 'a new damage deposit amount applies to new bookings only');
+            $_POST = brb_opt();
+            $_POST['brb_save'] = '1';
+            $_POST['damage_deposit_amount'] = '-20';
+            $_REQUEST['_wpnonce'] = wp_create_nonce('brb_settings');
+            $_POST['_wpnonce'] = $_REQUEST['_wpnonce'];
+            ob_start();
+            brb_admin_settings();
+            ob_end_clean();
+            brb_t((string) brb_opt('damage_deposit_amount') === '0.00', 'a negative damage deposit amount is saved as zero');
+            $_POST = brb_opt();
+            $_POST['brb_save'] = '1';
+            $_POST['damage_deposit_amount'] = '250';
+            $_REQUEST['_wpnonce'] = wp_create_nonce('brb_settings');
+            $_POST['_wpnonce'] = $_REQUEST['_wpnonce'];
+            ob_start();
+            brb_admin_settings();
+            ob_end_clean();
         }
     }
 

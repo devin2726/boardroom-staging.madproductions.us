@@ -49,9 +49,8 @@ function brb_card_fee_cents($base_cents, $percent = null) {
 function brb_amount_due_now($b) {
     if (!$b || !brb_price_is_set($b)) return 0.0;
     if (!in_array($b->status, ['approved', 'held', 'deposit_paid'], true)) return 0.0;
-    $due = round((float) brb_amount_to_bring($b), 2);
-    if ((float) $b->amount_paid + 0.009 < (float) $b->deposit_due) $due += brb_damage_left($b);
-    return $due > 0.009 ? round($due, 2) : 0.0;
+    $due = round((float) brb_amount_to_bring($b) + brb_damage_left($b), 2);
+    return $due > 0.009 ? $due : 0.0;
 }
 function brb_pay_signature($token) {
     return hash_hmac('sha256', 'brb-pay|' . (string) $token, wp_salt('auth'));

@@ -1173,10 +1173,15 @@ function brb_payment_lines($b) {
         $lines[] = brb_check_sentence('a check for ' . brb_money(brb_amount_to_bring($b)));
         $lines[] = 'Write booking reference ' . $ref . ' on the memo line.';
         $balance = round((float) $b->total - (float) $b->deposit_due, 2);
+        $damage_left = brb_damage_left($b);
         if ($balance > 0.009 && (float) $b->amount_paid + 0.009 < (float) $b->deposit_due) {
             $when = brb_balance_due_display($b);
-            if ($when === 'Due now') $lines[] = 'After that deposit, the remaining balance of ' . brb_money($balance) . ' is due now.';
-            elseif ($when !== '' && $when !== 'Price to be confirmed' && $when !== 'Paid') $lines[] = 'After that deposit, the remaining balance of ' . brb_money($balance) . ' is due the week of the event, no later than ' . $when . ' (48 hours before the event).';
+            $later = round($balance + $damage_left, 2);
+            if ($when === 'Due now') $lines[] = 'After that deposit, the remaining balance of ' . brb_money($later) . ' is due now.';
+            elseif ($when !== '' && $when !== 'Price to be confirmed' && $when !== 'Paid') $lines[] = 'After that deposit, the remaining balance of ' . brb_money($later) . ' is due the week of the event, no later than ' . $when . ' (48 hours before the event).';
+            if ($damage_left > 0.009) $lines[] = 'The refundable damage deposit of ' . brb_money($damage_left) . ' is charged with that deposit. If it is still unpaid, it is due with the balance.';
+        } elseif ($damage_left > 0.009 && brb_rental_left($b) > 0.009) {
+            $lines[] = 'The unpaid refundable damage deposit of ' . brb_money($damage_left) . ' is due with the remaining balance of ' . brb_money(round(brb_rental_left($b) + $damage_left, 2)) . '.';
         }
     } else {
         $lines[] = 'Price to be confirmed. We will confirm the final price based on the date, guest count, and features, then tell you the deposit amount.';
@@ -1384,7 +1389,7 @@ function brb_payment_date_label($ymd) {
     }
 }
 function brb_receipt_block($b, $amount, $method, $received_on) {
-    $balance = brb_money(max(0, round((float) $b->total - (float) $b->amount_paid, 2)));
+        $balance = brb_money(max(0, round(brb_rental_left($b) + brb_damage_left($b), 2)));
     return "Amount: " . brb_money($amount) . "\n"
         . "Date: " . brb_payment_date_label($received_on) . "\n"
         . "Method: " . brb_pay_method_label($method) . "\n"
@@ -1430,6 +1435,10 @@ function brb_send_payment_email($b, $amount, $check_number, $method = 'check') {
         $due = brb_balance_due_display($b);
         if ($due === 'Due now') $follow = 'The balance remaining is due now.';
         elseif ($due && $due !== 'Price to be confirmed' && $due !== 'Paid') $follow = 'The balance remaining is due the week of the event, no later than ' . $due . '.';
+        $still = round(brb_rental_left($b) + brb_damage_left($b), 2);
+        if ($still > 0.009 && brb_damage_left($b) > 0.009) {
+            $follow .= ' The amount still due is ' . brb_money($still) . ', including the unpaid refundable damage deposit of ' . brb_money(brb_damage_left($b)) . '.';
+        }
         $follow .= "\n\n" . brb_check_sentence('the remaining balance as a check') . "\nWrite booking reference {$ref} on the memo line.";
         if ($method === 'card') $follow .= "\nYou can also pay the rest online from your booking page.";
     } else {

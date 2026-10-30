@@ -403,6 +403,8 @@ try {
         $deposit_paid = brb_booking($second_booking->id);
         brb_t($deposit_res->get_status() === 200 && $deposit_paid && $deposit_paid->status === 'deposit_paid' && abs((float) $deposit_paid->amount_paid - 100) < 0.001 && abs((float) $deposit_paid->damage_paid - 250) < 0.001, 'a card deposit records the rental deposit and the damage deposit, and leaves the fee off the balance');
         brb_t(abs(brb_amount_due_now($deposit_paid) - 100) < 0.001, 'after the deposit the next card amount is the remaining balance');
+        $card_balance = brb_checkout_lines($deposit_paid);
+        brb_t((int) $card_balance['damage_cents'] === 0 && (int) $card_balance['base_cents'] === 10000, 'a card deposit already collected the damage deposit, so the balance checkout does not charge it again');
         $locked_line = brb_find_line_kind($second_booking->id, 'rental');
         brb_t($locked_line && !empty($locked_line->locked), 'paid rental lines lock');
         $edit_locked = brb_save_custom_line($second_booking->id, 'Rental', 10, (int) $locked_line->id);
