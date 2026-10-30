@@ -403,6 +403,16 @@ try {
         $deposit_paid = brb_booking($second_booking->id);
         brb_t($deposit_res->get_status() === 200 && $deposit_paid && $deposit_paid->status === 'deposit_paid' && abs((float) $deposit_paid->amount_paid - 100) < 0.001 && abs((float) $deposit_paid->damage_paid - 250) < 0.001, 'a card deposit records the rental deposit and the damage deposit, and leaves the fee off the balance');
         brb_t(abs(brb_amount_due_now($deposit_paid) - 100) < 0.001, 'after the deposit the next card amount is the remaining balance');
+        $_GET = ['br_token' => $second_booking->token, 'card' => 'pending'];
+        $after_card = do_shortcode('[boardroom_booking]');
+        brb_t(strpos($after_card, 'Total $200.00') !== false && strpos($after_card, 'Paid $100.00') !== false && strpos($after_card, 'Balance $100.00') !== false, 'the card return page keeps the rental total, paid amount, and balance');
+        brb_t(strpos($after_card, 'The refundable damage deposit of $250.00 was received.') !== false && strpos($after_card, 'is still due') === false, 'the card return page says the refundable damage deposit was received');
+        brb_t(strpos($after_card, 'The card processing fee of $10.50 was charged separately and is not part of this balance.') !== false, 'the card return page says the card fee was charged separately');
+        brb_t(strpos($after_card, 'the receipt is sent when the payment is confirmed') !== false, 'a deposit that is not the full rental still shows the card confirmation note');
+        ob_start();
+        brb_admin_detail((int) $second_booking->id);
+        $card_admin = ob_get_clean();
+        brb_t(strpos($card_admin, 'partially paid, $100.00 of $200.00') !== false && strpos($card_admin, 'Refundable damage deposit <em>(paid)</em>') !== false, 'after a card deposit the rental line is partial and the damage deposit line is paid');
         $card_balance = brb_checkout_lines($deposit_paid);
         brb_t((int) $card_balance['damage_cents'] === 0 && (int) $card_balance['base_cents'] === 10000, 'a card deposit already collected the damage deposit, so the balance checkout does not charge it again');
         $locked_line = brb_find_line_kind($second_booking->id, 'rental');

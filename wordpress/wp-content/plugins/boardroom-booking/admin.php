@@ -325,6 +325,7 @@ function brb_admin_detail($id) {
     }
 
     $charge_lines = brb_lines($b->id);
+    $coverage = brb_line_coverage($b);
     $running = brb_nonrefundable_total($b->id);
     echo '<h2>Charges</h2>';
     echo '<table class="widefat" style="max-width:960px"><thead><tr><th>Label</th><th>Amount</th><th>Kind</th><th></th></tr></thead><tbody>';
@@ -339,7 +340,8 @@ function brb_admin_detail($id) {
             echo '<input name="amount" type="number" step="0.01" value="' . esc_attr(brb_dec($line->amount)) . '" required> ';
             echo '<button class="button">Save</button> <button class="button" name="remove" value="1">Remove</button></form>';
         } else {
-            echo esc_html($line->label) . (empty($line->locked) ? '' : ' <em>(paid)</em>');
+            $state = brb_line_state_text($coverage[(int) $line->id]['paid'] ?? 0, $coverage[(int) $line->id]['amount'] ?? $line->amount);
+            echo esc_html($line->label) . ($state !== '' ? ' <em>(' . esc_html($state) . ')</em>' : '');
         }
         echo '</td><td>' . esc_html(brb_money($line->amount)) . '</td><td>' . esc_html($line->kind) . (!empty($line->refundable) ? ', refundable' : '') . '</td><td></td></tr>';
     }
@@ -537,7 +539,7 @@ function brb_admin_settings() {
                 $email = sanitize_email($raw);
                 $new[$k] = is_email($email) ? $email : $defaults['tour_email'];
             } else {
-                $new[$k] = in_array($k, ['policy', 'blackouts', 'pay_instructions', 'checklist'], true)
+                $new[$k] = in_array($k, ['policy', 'blackouts', 'pay_instructions', 'checklist', 'admin_email'], true)
                     ? sanitize_textarea_field($raw)
                     : sanitize_text_field($raw);
             }
@@ -601,7 +603,7 @@ function brb_admin_settings() {
             ['pay_hours', 'In-person hours [VERIFY]', 'text', null, 'Days and hours a guest can drop off a check.'],
             ['pay_instructions', 'Payment instructions', 'textarea', null, 'Optional extra text in the approval email and on an approved booking. Leave blank and this line stays hidden. It is not shown before the request is approved.'],
             ['card_fee_percent', 'Card processing fee (%)', 'number', null, 'Added on top of an online card payment. Default 3. It is not applied to the booking balance. Card payment stays off until the Stripe secret key is set on the server.'],
-            ['admin_email', 'Admin notification email', 'text', null, 'Request, payment, and contact inquiry emails are sent here. Separate more than one address with a comma.'],
+            ['admin_email', 'Admin notification email', 'textarea', null, 'Request, payment, and contact inquiry emails are sent here. Separate more than one address with a comma, semicolon, or a new line. An address that is not valid is skipped and shown in a warning.'],
             ['tour_email', 'Inquiry email', 'text', null, 'Contact inquiries are also emailed here. Default is boardroomqc@gmail.com.'],
         ],
         'Calendar and policy' => [
@@ -611,6 +613,8 @@ function brb_admin_settings() {
         ],
     ];
     echo '<div class="wrap"><h1>Booking Settings</h1>';
+    $email_warn = brb_admin_email_notice_html();
+    if ($email_warn !== '') echo $email_warn;
     echo '<div class="notice notice-warning"><p>' . esc_html(brb_attorney_notice()) . '</p></div>';
     brb_admin_note();
     echo '<p>Guests save a date on the website. They can pay by check or in person, or online by card when the Stripe secret key is set. ' . esc_html(brb_price_sentence()) . ' Staff set the final price on each booking. The venue and the check address are separate settings.</p>';

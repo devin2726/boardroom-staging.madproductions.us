@@ -1100,7 +1100,7 @@ function brb_send_addon_prompts() {
     foreach ((array) $rows as $b) {
         $link = add_query_arg('br_addon', $b->token, home_url('/book/'));
         $body = brb_guest_hello_line() . "\n\nYour event is coming up. If the day before is open, you can add a setup day for " . brb_money(brb_addon_price()) . ". If the day after is open, you can add a takedown day for the same amount. This includes Sunday.\n\n" . $link . "\n";
-        brb_mail($b->email, 'Setup or takedown day for ' . brb_ref($b), $body, brb_opt('admin_email'));
+        brb_mail($b->email, 'Setup or takedown day for ' . brb_ref($b), $body, brb_staff_reply());
         $wpdb->update(brb_table(), ['addon_prompted' => 1], ['id' => (int) $b->id]);
     }
 }
@@ -1170,18 +1170,23 @@ function brb_payment_lines($b) {
     $lines[] = brb_deposit_line();
     $lines[] = brb_fee_public_line();
     if ($set) {
-        $lines[] = brb_check_sentence('a check for ' . brb_money(brb_amount_to_bring($b)));
-        $lines[] = 'Write booking reference ' . $ref . ' on the memo line.';
-        $balance = round((float) $b->total - (float) $b->deposit_due, 2);
+        $deposit_left = max(0, round((float) $b->deposit_due - (float) $b->amount_paid, 2));
         $damage_left = brb_damage_left($b);
-        if ($balance > 0.009 && (float) $b->amount_paid + 0.009 < (float) $b->deposit_due) {
-            $when = brb_balance_due_display($b);
-            $later = round($balance + $damage_left, 2);
-            if ($when === 'Due now') $lines[] = 'After that deposit, the remaining balance of ' . brb_money($later) . ' is due now.';
-            elseif ($when !== '' && $when !== 'Price to be confirmed' && $when !== 'Paid') $lines[] = 'After that deposit, the remaining balance of ' . brb_money($later) . ' is due the week of the event, no later than ' . $when . ' (48 hours before the event).';
-            if ($damage_left > 0.009) $lines[] = 'The refundable damage deposit of ' . brb_money($damage_left) . ' is charged with that deposit. If it is still unpaid, it is due with the balance.';
-        } elseif ($damage_left > 0.009 && brb_rental_left($b) > 0.009) {
-            $lines[] = 'The unpaid refundable damage deposit of ' . brb_money($damage_left) . ' is due with the remaining balance of ' . brb_money(round(brb_rental_left($b) + $damage_left, 2)) . '.';
+        $due_now = round(brb_amount_to_bring($b) + $damage_left, 2);
+        $lines[] = brb_check_sentence('a check for ' . brb_money($due_now));
+        $lines[] = 'Write booking reference ' . $ref . ' on the memo line.';
+        $rental_after = max(0, round((float) $b->total - (float) $b->deposit_due, 2));
+        if ($deposit_left > 0.009) {
+            if ($damage_left > 0.009) {
+                $lines[] = 'That amount is the ' . brb_money($deposit_left) . ' deposit plus the ' . brb_money($damage_left) . ' refundable damage deposit.';
+            }
+            if ($rental_after > 0.009) {
+                $when = brb_balance_due_display($b);
+                if ($when === 'Due now') $lines[] = 'After that payment, the remaining balance of ' . brb_money($rental_after) . ' is due now.';
+                elseif ($when !== '' && $when !== 'Price to be confirmed' && $when !== 'Paid') $lines[] = 'After that payment, the remaining balance of ' . brb_money($rental_after) . ' is due the week of the event, no later than ' . $when . ' (48 hours before the event).';
+            }
+        } elseif ($damage_left > 0.009) {
+            $lines[] = 'The amount due now includes the unpaid refundable damage deposit of ' . brb_money($damage_left) . ' and the remaining rental balance of ' . brb_money(brb_rental_left($b)) . '.';
         }
     } else {
         $lines[] = 'Price to be confirmed. We will confirm the final price based on the date, guest count, and features, then tell you the deposit amount.';
@@ -1267,18 +1272,60 @@ function brb_redact_secret($text) {
     if ($pass !== '') $text = str_replace($pass, '[redacted]', $text);
     return $text;
 }
-function brb_admin_emails() {
-    $out = [];
-    foreach (preg_split('/[,;\s]+/', (string) brb_opt('admin_email')) as $part) {
-        $part = sanitize_email(trim($part));
-        if (is_email($part)) $out[strtolower($part)] = $part;
+function brb_parse_email_list($raw) {
+    $valid = [];
+    $invalid = [];
+    $parts = preg_split('/[,;\s]+/', (string) $raw, -1, PREG_SPLIT_NO_EMPTY);
+    if (!is_array($parts)) $parts = [];
+    foreach ($parts as $part) {
+        $part = trim($part, " \t\"'<>");
+        if ($part === '') continue;
+        if (is_email($part)) $valid[strtolower($part)] = $part;
+        else $invalid[] = $part;
     }
+    return ['valid' => array_values($valid), 'invalid' => $invalid];
+}
+function brb_admin_emails() {
+    $parsed = brb_parse_email_list(brb_opt('admin_email'));
+    if ($parsed['invalid']) {
+        static $logged = false;
+        if (!$logged) {
+            $logged = true;
+            error_log('Boardroom booking skipped invalid admin notification email(s): ' . implode(', ', $parsed['invalid']));
+        }
+    }
+    $out = [];
+    foreach ($parsed['valid'] as $email) $out[strtolower($email)] = $email;
     if (!$out) {
         $fallback = sanitize_email((string) get_option('admin_email'));
         if (is_email($fallback)) $out[strtolower($fallback)] = $fallback;
     }
     return array_values($out);
 }
+function brb_staff_reply() {
+    $list = brb_admin_emails();
+    return $list ? $list[0] : '';
+}
+function brb_mail_staff($subject, $body, $reply = '') {
+    $sent = false;
+    foreach (brb_admin_emails() as $to) {
+        if (brb_mail($to, $subject, $body, $reply)) $sent = true;
+    }
+    return $sent;
+}
+function brb_admin_email_notice_html() {
+    $parsed = brb_parse_email_list(brb_opt('admin_email'));
+    if (!$parsed['invalid']) return '';
+    return '<div class="notice notice-error"><p>The admin notification email list in Bookings → Settings has an entry that is not a valid email address: <strong>' . esc_html(implode(', ', $parsed['invalid'])) . '</strong>. Separate each address with a comma, semicolon, or a new line. Invalid entries are not emailed.</p></div>';
+}
+function brb_admin_email_notice() {
+    if (!is_admin() || !current_user_can('manage_options')) return;
+    $page = isset($_GET['page']) ? sanitize_key(wp_unslash($_GET['page'])) : '';
+    if ($page === 'brb-settings') return;
+    $html = brb_admin_email_notice_html();
+    if ($html !== '') echo $html;
+}
+add_action('admin_notices', 'brb_admin_email_notice');
 function brb_mail($to, $subject, $body, $reply = '', $from = '') {
     $to = sanitize_email($to);
     if (!$to || !is_email($to)) return false;
@@ -1326,9 +1373,9 @@ function brb_send_request_emails($b) {
     $facts = brb_approval_line() . "\n\n" . brb_request_open_line() . "\n\n" . brb_reserved_line() . "\n\n" . brb_deposit_line() . "\n\n" . brb_not_held_line();
     $detail = "When: " . brb_when($b) . "\n" . brb_event_type_line($b) . "Guests attending: {$b->guests}\n" . ($screen !== '' ? $screen . "\n" : '') . "Price: {$price}\n";
     $body = brb_guest_hello_line() . "\n\n" . brb_guest_review_line() . "\n\n{$detail}\n" . brb_no_overnight_line() . "\n" . brb_guest_out_line() . "\n" . brb_guest_free_line() . "\n" . brb_hours_line() . "\n\nCancellation policy:\n{$o['policy']}\n\nView your request: " . brb_guest_link($b) . "\n";
-    brb_mail($b->email, 'We received your Boardroom request (' . $ref . ')', $body, $o['admin_email']);
+    brb_mail($b->email, 'We received your Boardroom request (' . $ref . ')', $body, brb_staff_reply());
     $admin = "A new request is pending review. The date is not held.\n\nReference: {$ref}\nWhen: " . brb_when($b) . "\nGuest: {$b->name}\nEmail: {$b->email}\nPhone: {$b->phone}\n" . brb_event_type_line($b) . "Guests: {$b->guests}\n" . ($screen !== '' ? $screen . "\n" : '') . "Price: {$price}\nSource: " . brb_source_label($b->source) . "\nNotes: {$b->notes}\n\n" . admin_url('admin.php?page=brb&booking=' . (int) $b->id) . "\n";
-    brb_mail($o['admin_email'], 'Request pending review ' . $ref . ' – ' . $b->name, $admin, $b->email);
+    brb_mail_staff('Request pending review ' . $ref . ' – ' . $b->name, $admin, $b->email);
 }
 function brb_send_hold_emails($b) {
     brb_send_request_emails($b);
@@ -1341,23 +1388,23 @@ function brb_send_approve_email($b) {
         return !in_array($line, [brb_not_held_line(), brb_reserved_line(), brb_approval_line(), brb_request_open_line()], true);
     })));
     $body = brb_guest_hello_line() . "\n\nYour request is approved.\n\n" . brb_guest_review_line() . "\n\n" . $guest_facts . "\n\n" . brb_guest_out_line() . "\n" . brb_guest_free_line() . "\n\nWhen: " . brb_when($b) . "\n" . brb_event_type_line($b) . "Guests attending: {$b->guests}\nReference: {$ref}\n\n" . brb_checklist_plain() . "\nView your booking: " . brb_guest_link($b) . "\n";
-    brb_mail($b->email, 'Your Boardroom request is approved (' . $ref . ')', $body, $o['admin_email']);
+    brb_mail($b->email, 'Your Boardroom request is approved (' . $ref . ')', $body, brb_staff_reply());
     $staff = "Request approved.\n\n{$facts}\n\nWhen: " . brb_when($b) . "\n" . brb_event_type_line($b) . "Guests attending: {$b->guests}\nReference: {$ref}\n\n" . admin_url('admin.php?page=brb&booking=' . (int) $b->id) . "\n";
-    brb_mail($o['admin_email'], 'Request approved ' . $ref . ' – ' . $b->name, $staff, $b->email);
+    brb_mail_staff('Request approved ' . $ref . ' – ' . $b->name, $staff, $b->email);
 }
 function brb_send_decline_email($b) {
     $o = brb_opt();
     $ref = brb_ref($b);
     $body = brb_guest_hello_line() . "\n\n" . brb_guest_review_line() . "\n\nThis request ({$ref}, " . brb_when($b) . ") is not approved because it does not meet our event rules or the date is not available. The date is not reserved.\n\n" . brb_deposit_line() . "\n\nIf a payment was recorded, our team will resolve it manually.\n";
-    brb_mail($b->email, 'Your Boardroom request was declined (' . $ref . ')', $body, $o['admin_email']);
+    brb_mail($b->email, 'Your Boardroom request was declined (' . $ref . ')', $body, brb_staff_reply());
     $staff = "Request declined.\n\n{$ref}, " . brb_when($b) . "\nThe date is not reserved.\n\n" . brb_deposit_line() . "\n\n" . admin_url('admin.php?page=brb&booking=' . (int) $b->id) . "\n";
-    brb_mail($o['admin_email'], 'Request declined ' . $ref . ' – ' . $b->name, $staff, $b->email);
+    brb_mail_staff('Request declined ' . $ref . ' – ' . $b->name, $staff, $b->email);
 }
 function brb_send_checklist_reminder($b) {
     $o = brb_opt();
     $ref = brb_ref($b);
     $body = brb_guest_hello_line() . "\n\nYour event is about a week away. Here is the rental checklist again.\n\n" . brb_checklist_plain() . "\nWhen: " . brb_when($b) . "\nReference: {$ref}\n\nView your booking: " . brb_guest_link($b) . "\n";
-    return brb_mail($b->email, 'Your Boardroom checklist for ' . $ref, $body, $o['admin_email']);
+    return brb_mail($b->email, 'Your Boardroom checklist for ' . $ref, $body, brb_staff_reply());
 }
 function brb_checklist_reminders() {
     global $wpdb;
@@ -1467,8 +1514,8 @@ function brb_send_cancel_email($b) {
     $o = brb_opt();
     $ref = brb_ref($b);
     $body = brb_guest_hello_line() . "\n\nBooking {$ref} (" . brb_when($b) . ") has been cancelled. The date is no longer reserved.\n\nCancellation policy:\n{$o['policy']}\n";
-    brb_mail($b->email, 'Boardroom booking cancelled (' . $ref . ')', $body, $o['admin_email']);
-    brb_mail($o['admin_email'], 'Booking cancelled ' . $ref, "Booking {$ref} was cancelled.\n\n" . admin_url('admin.php?page=brb&booking=' . (int) $b->id) . "\n", $b->email);
+    brb_mail($b->email, 'Boardroom booking cancelled (' . $ref . ')', $body, brb_staff_reply());
+    brb_mail_staff('Booking cancelled ' . $ref, "Booking {$ref} was cancelled.\n\n" . admin_url('admin.php?page=brb&booking=' . (int) $b->id) . "\n", $b->email);
 }
 
 function brb_expire_holds() {
@@ -1704,8 +1751,8 @@ function brb_send_price_email($b) {
         $body .= "Payment instructions are sent when the request is approved.\n\n" . brb_deposit_line() . "\n\n";
     }
     $body .= 'When: ' . brb_when($b) . "\n" . brb_event_type_line($b) . "Guests attending: {$b->guests}\nReference: {$ref}\n\nView your booking: " . brb_guest_link($b) . "\n";
-    brb_mail($b->email, 'Your Boardroom price is confirmed (' . $ref . ')', $body, $o['admin_email']);
-    brb_mail($o['admin_email'], 'Price set for ' . $ref . ' – ' . $b->name, $body . "\n" . admin_url('admin.php?page=brb&booking=' . (int) $b->id) . "\n", $b->email);
+    brb_mail($b->email, 'Your Boardroom price is confirmed (' . $ref . ')', $body, brb_staff_reply());
+    brb_mail_staff('Price set for ' . $ref . ' – ' . $b->name, $body . "\n" . admin_url('admin.php?page=brb&booking=' . (int) $b->id) . "\n", $b->email);
 }
 function brb_extend_hold($booking_id, $hours) {
     unset($booking_id, $hours);
@@ -2069,6 +2116,26 @@ function brb_view_confirmation($token) {
       ?></p>
       <?php if ($priced): ?>
       <p>Total <?php echo esc_html(brb_money($b->total)); ?> · Paid <?php echo esc_html(brb_money($b->amount_paid)); ?> · Balance <?php echo esc_html(brb_money(max(0, $paid_off))); ?></p>
+      <?php
+        $damage_due = round((float) ($b->damage_deposit ?? 0), 2);
+        $damage_got = round((float) ($b->damage_paid ?? 0), 2);
+        $card_fee = 0.0;
+        foreach ($recorded as $pay) {
+            if (($pay->method ?? '') === 'card') $card_fee += (float) ($pay->fee ?? 0);
+        }
+        if ($damage_due > 0.009) {
+            if ($damage_got + 0.009 >= $damage_due) {
+                echo '<p>The refundable damage deposit of ' . esc_html(brb_money($damage_due)) . ' was received.</p>';
+            } elseif ($damage_got > 0.009) {
+                echo '<p>The refundable damage deposit of ' . esc_html(brb_money($damage_due)) . ' is partly paid. ' . esc_html(brb_money(max(0, round($damage_due - $damage_got, 2)))) . ' is still due.</p>';
+            } else {
+                echo '<p>The refundable damage deposit of ' . esc_html(brb_money($damage_due)) . ' is still due.</p>';
+            }
+        }
+        if ($card_fee > 0.009) {
+            echo '<p>The card processing fee of ' . esc_html(brb_money($card_fee)) . ' was charged separately and is not part of this balance.</p>';
+        }
+      ?>
       <?php else: ?>
       <p>price to be confirmed</p>
       <?php endif; ?>
@@ -2094,8 +2161,18 @@ function brb_view_confirmation($token) {
           $due_bit = '';
           if ($due === 'Due now') $due_bit = ' is due now';
           elseif ($due && $due !== 'Price to be confirmed' && $due !== 'Paid') $due_bit = ' is due by ' . $due;
+          $rental_left = max(0, $paid_off);
+          $damage_open = brb_damage_left($b);
+          $still = round($rental_left + $damage_open, 2);
           echo '<div class="brb-paybox"><p>' . esc_html($received) . '</p>';
-          echo '<p>Balance of ' . esc_html(brb_money(max(0, $paid_off))) . esc_html($due_bit) . '.</p>';
+          if ($damage_open > 0.009 && $rental_left > 0.009) {
+              $now_line = 'The amount due now is ' . brb_money($still) . ', which is the remaining rental balance of ' . brb_money($rental_left) . ' plus the unpaid refundable damage deposit of ' . brb_money($damage_open) . '.';
+              if ($due === 'Due now') $now_line .= ' It is due now.';
+              elseif ($due && $due !== 'Price to be confirmed' && $due !== 'Paid') $now_line .= ' It is due by ' . $due . '.';
+              echo '<p>' . esc_html($now_line) . '</p>';
+          } else {
+              echo '<p>Balance of ' . esc_html(brb_money($still)) . esc_html($due_bit) . '.</p>';
+          }
           echo '<p>' . esc_html(brb_check_sentence('the remaining balance as a check')) . ' You can also pay the rest online when card payment is offered. Write booking reference ' . esc_html(brb_ref($b)) . ' on the memo line.</p></div>';
       } elseif ($b->status === 'paid') {
           echo '<div class="brb-paybox"><p>This booking is paid in full and confirmed.</p></div>';
