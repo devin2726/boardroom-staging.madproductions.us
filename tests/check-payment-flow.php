@@ -389,6 +389,16 @@ try {
         brb_t($approve_mail && strpos($approve_mail['message'], 'Write booking reference ' . brb_ref($priced) . ' on the memo line.') !== false && strpos($approve_mail['message'], '[VERIFY] Test instructions.') !== false, 'the approval email includes the memo line and custom instructions');
         brb_t($approve_mail && strpos($approve_mail['message'], '60 or more days before the event') !== false && strpos($approve_mail['message'], 'less than 60 days before the event') !== false && strpos($approve_mail['message'], 'Refunds are issued manually.') !== false && strpos($approve_mail['message'], '[VERIFY: attorney review]') === false, 'the approval email states the 60-day deposit rule and has no attorney note');
         brb_t($approve_mail && strpos($approve_mail['message'], 'Rental checklist') !== false && strpos($approve_mail['message'], '8:00 AM') !== false && strpos($approve_mail['message'], 'https://moline.il.us/244/Liquor-Licensing') !== false && strpos($approve_mail['message'], 'fee $50') === false && strpos($approve_mail['message'], 'minimum host age is 25') !== false, 'the approval email includes the rental checklist');
+        brb_t($approve_mail && strpos($approve_mail['message'], 'a check for $850.00') !== false && strpos($approve_mail['message'], 'That amount is the $600.00 deposit plus the $250.00 refundable damage deposit.') !== false && strpos($approve_mail['message'], 'the remaining balance of $600.00') !== false, 'the approval email asks for the deposit plus the unpaid damage deposit, then the rental remainder');
+        $sample = clone $approved;
+        $sample->total = 1000;
+        $sample->deposit_due = 500;
+        $sample->amount_paid = 0;
+        $sample->damage_deposit = 250;
+        $sample->damage_paid = 0;
+        $sample->damage_refunded = 0;
+        $sample_text = implode("\n", brb_payment_lines($sample));
+        brb_t(strpos($sample_text, 'a check for $750.00') !== false && strpos($sample_text, 'That amount is the $500.00 deposit plus the $250.00 refundable damage deposit.') !== false && strpos($sample_text, 'the remaining balance of $500.00') !== false && strpos($sample_text, 'payable to') !== false && strpos($sample_text, 'on the memo line.') !== false, 'a $1,000 booking asks for $750.00 now and leaves a $500.00 rental balance');
         $b = $approved;
 
         $first = round((float) $b->deposit_due, 2);
@@ -407,6 +417,18 @@ try {
         brb_t(abs((float) $after->damage_paid) < 0.01, 'a check for exactly the rental deposit does not pay the damage deposit');
         brb_t(abs(brb_amount_due_now($after) - ($second + brb_damage_left($after))) < 0.01, 'the balance due includes the unpaid damage deposit');
         brb_t($dep_mail && strpos($dep_mail['message'], 'unpaid refundable damage deposit') !== false, 'the deposit receipt says the unpaid damage deposit is still due');
+        $rental_line = brb_find_line_kind($after->id, 'rental');
+        $damage_row = brb_find_line_kind($after->id, 'damage_deposit');
+        $coverage = brb_line_coverage($after);
+        brb_t($rental_line && ($coverage[(int) $rental_line->id]['paid'] ?? null) !== null && brb_line_state_text($coverage[(int) $rental_line->id]['paid'], $coverage[(int) $rental_line->id]['amount']) === 'partially paid, $600.00 of $1,200.00', 'a half-paid rental line is partially paid');
+        brb_t($damage_row && brb_line_state_text($coverage[(int) $damage_row->id]['paid'], $coverage[(int) $damage_row->id]['amount']) === 'unpaid', 'an unpaid damage deposit line stays unpaid');
+        if ($user) {
+            ob_start();
+            brb_admin_detail((int) $after->id);
+            $partial_admin = ob_get_clean();
+            brb_t(strpos($partial_admin, 'partially paid, $600.00 of $1,200.00') !== false && strpos($partial_admin, 'Rental <em>(paid)</em>') === false, 'the rental line shows the partial payment instead of paid in full');
+            brb_t(strpos($partial_admin, '(unpaid)') !== false, 'the unpaid damage deposit line is not marked paid');
+        }
         $balance_charge = brb_checkout_lines($after);
         $damage_line = null;
         foreach ($balance_charge['lines'] as $line) {
@@ -982,6 +1004,29 @@ try {
         brb_t($allowed, 'an admin with the nonce can send a test email');
         remove_all_filters('wp_die_handler');
     }
+    $mail_list_saved = get_option('brb_settings');
+    $mail_list = is_array($mail_list_saved) ? $mail_list_saved : [];
+    $mail_list['admin_email'] = "one@example.com, bad-address\ntwo@example.com; three@example.com  four@example.com";
+    update_option('brb_settings', $mail_list);
+    $parsed_list = brb_parse_email_list(brb_opt('admin_email'));
+    brb_t($parsed_list['valid'] === ['one@example.com', 'two@example.com', 'three@example.com', 'four@example.com'], 'staff addresses split on commas, semicolons, spaces, and new lines');
+    brb_t($parsed_list['invalid'] === ['bad-address'], 'an address without @ is kept out of the recipient list');
+    $mashed_by_wp = sanitize_email('first@example.com,second@example.com');
+    $split_pair = brb_parse_email_list('first@example.com,second@example.com');
+    brb_t($split_pair['valid'] === ['first@example.com', 'second@example.com'] && $split_pair['invalid'] === [] && $mashed_by_wp !== 'first@example.com,second@example.com', 'a comma-separated list is two addresses, and it is split before WordPress can mash it');
+    ob_start();
+    echo brb_admin_email_notice_html();
+    $notice_html = ob_get_clean();
+    brb_t(strpos($notice_html, 'notice-error') !== false && strpos($notice_html, 'bad-address') !== false && strpos($notice_html, 'not a valid email') !== false && strpos($notice_html, 'Invalid entries are not emailed.') !== false, 'an invalid staff address shows an admin warning');
+    $GLOBALS['brb_mails'] = [];
+    brb_mail_staff('Staff list check', 'Separate copies.');
+    $staff_tos = [];
+    foreach ($GLOBALS['brb_mails'] as $m) {
+        if (($m['subject'] ?? '') === 'Staff list check') $staff_tos[] = $m['to'];
+    }
+    brb_t($staff_tos === ['one@example.com', 'two@example.com', 'three@example.com', 'four@example.com'], 'each valid staff address gets its own message');
+    brb_t(implode('', $staff_tos) !== '' && strpos(implode('|', $staff_tos), 'one@example.comtwo@example.com') === false, 'staff recipients are not concatenated into one address');
+    update_option('brb_settings', $mail_list_saved);
     $GLOBALS['brb_mails'] = [];
     $sent = brb_send_test_email();
     brb_t($sent === ['admin@example.com'], 'the test email goes to the admin notification email');

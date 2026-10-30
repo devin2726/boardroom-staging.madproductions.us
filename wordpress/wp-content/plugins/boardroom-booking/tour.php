@@ -106,11 +106,9 @@ function brb_tour_rate_bump() {
 
 function brb_tour_recipients() {
     $out = [];
-    foreach (preg_split('/[,;\s]+/', (string) brb_opt('admin_email')) as $part) {
-        $part = sanitize_email(trim($part));
-        if (is_email($part)) $out[strtolower($part)] = $part;
-    }
-    $tour = sanitize_email((string) brb_opt('tour_email'));
+    foreach (brb_admin_emails() as $email) $out[strtolower($email)] = $email;
+    $parsed = brb_parse_email_list(brb_opt('tour_email'));
+    $tour = $parsed['valid'][0] ?? '';
     if (!is_email($tour)) $tour = 'boardroomqc@gmail.com';
     $out[strtolower($tour)] = $tour;
     return array_values($out);

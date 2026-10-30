@@ -51,6 +51,35 @@ function brb_find_line_kind($booking_id, $kind) {
 function brb_line_kinds() {
     return ['rental', 'addon', 'fee', 'discount', 'damage_deposit'];
 }
+function brb_line_coverage($b) {
+    $map = [];
+    if (!$b) return $map;
+    $rental_credit = (float) ($b->amount_paid ?? 0);
+    foreach (brb_lines($b->id) as $line) {
+        $amt = round((float) $line->amount, 2);
+        if ((string) $line->kind === 'damage_deposit') {
+            $paid = min(max(0, $amt), (float) ($b->damage_paid ?? 0));
+            $map[(int) $line->id] = ['paid' => $paid, 'amount' => $amt];
+            continue;
+        }
+        if ($amt <= 0.009) {
+            $map[(int) $line->id] = ['paid' => 0, 'amount' => $amt];
+            continue;
+        }
+        $paid = min($amt, max(0, $rental_credit));
+        $rental_credit = round($rental_credit - $paid, 2);
+        $map[(int) $line->id] = ['paid' => $paid, 'amount' => $amt];
+    }
+    return $map;
+}
+function brb_line_state_text($paid, $amount) {
+    $paid = round((float) $paid, 2);
+    $amount = round((float) $amount, 2);
+    if ($amount <= 0.009) return '';
+    if ($paid + 0.009 >= $amount) return 'paid';
+    if ($paid > 0.009) return 'partially paid, ' . brb_money($paid) . ' of ' . brb_money($amount);
+    return 'unpaid';
+}
 function brb_damage_left($b) {
     if (!$b || !empty($b->damage_refunded)) return 0.0;
     return max(0, round((float) ($b->damage_deposit ?? 0) - (float) ($b->damage_paid ?? 0), 2));
@@ -280,7 +309,7 @@ function brb_send_payment_link($booking_id) {
     $url = brb_pay_link($b);
     if ($url === '') return new WP_Error('link', 'There is no pay link to send yet. The walk-through, the price, and card payment all need to be ready.');
     $body = brb_guest_hello_line() . "\n\n" . brb_payment_link_body($b);
-    brb_mail($b->email, 'Your Boardroom payment link (' . brb_ref($b) . ')', $body, brb_opt('admin_email'));
+    brb_mail($b->email, 'Your Boardroom payment link (' . brb_ref($b) . ')', $body, brb_staff_reply());
     return $b;
 }
 function brb_mark_damage_refunded($booking_id) {
