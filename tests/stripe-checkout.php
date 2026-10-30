@@ -352,7 +352,7 @@ try {
         $card_admin = ob_get_clean();
         brb_t(strpos($card_admin, 'Card (Stripe)') !== false && strpos($card_admin, '$10.50') !== false && strpos($card_admin, 'pi_test_one') !== false, 'the payments list shows the card method, fee, and payment id');
         brb_t(strpos($card_admin, 'dashboard.stripe.com') === false && strpos($card_admin, 'https://stripe.com') === false, 'the payment id is plain text');
-        brb_t(strpos($card_admin, 'resolved manually in the Stripe dashboard') !== false && strpos($card_admin, '[VERIFY: attorney review]') !== false, 'the booking screen says card payments are resolved manually and marks the wording for attorney review');
+        brb_t(strpos($card_admin, 'resolved manually in the Stripe dashboard') !== false && strpos($card_admin, 'attorney review') === false, 'the booking screen says card payments are resolved manually');
         brb_t(strpos($card_admin, 'value="card"') === false, 'staff cannot record a card payment by hand');
         brb_t(strpos($card_admin, $secret_marker) === false, 'the booking screen does not show key material');
     }

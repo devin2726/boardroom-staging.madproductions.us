@@ -50,6 +50,7 @@ CREATE TABLE `wp_br_bookings` (
 
 --
 -- Dumping data for table `wp_br_bookings`
+-- A fresh install starts with zero bookings. Do not add sample rows here.
 --
 
 SET @OLD_AUTOCOMMIT=@@AUTOCOMMIT, @@AUTOCOMMIT=0;

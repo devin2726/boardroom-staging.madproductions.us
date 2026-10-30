@@ -42,7 +42,7 @@ Bookings → Settings. Anything still marked `[VERIFY]` is shown to guests until
 | Venue address | 2220 37th Street, Moline, IL 61265 | The event space. Footer, Contact, Terms, and Privacy. A blank value, a placeholder, or the check address saved here by mistake is replaced on upgrade. |
 | Map | https://maps.app.goo.gl/nVqUsGTcy48nPzc18 | Contact embeds a Google Map for the Boardroom (41.4913116, -90.4820481) with `loading="lazy"`. The same short link is the “Get directions / View on Google Maps” fallback on Contact and in the footer. Schema geo uses those coordinates. |
 | Where to mail or drop off checks | 2212 37th Street, Moline, IL 61265 | Checks only. A saved placeholder, or the old 2212 47 Ave line, is replaced on upgrade. |
-| In-person hours | `[VERIFY] In-person hours` | |
+| Meetings and check drop-off | By appointment | There is no hours setting. Guests are told we meet on demand and set a time together. |
 | Payment instructions | blank | Optional extra text on the review step, confirmation page, and hold email. The old “[VERIFY] Extra instructions for bringing the check.” placeholder is cleared on upgrade and the line stays hidden while this is blank. |
 | Starting price | $600 per day | Shown to guests as “from” this amount. Whole dollars display without cents. |
 | Typical price text | most events around $1,200 | Shown in parentheses. Edit the words here. |
@@ -65,7 +65,53 @@ Outbound mail uses SMTP only when `BRB_SMTP_USER` and `BRB_SMTP_PASS` are set on
 
 Online card payment uses Stripe Checkout only when `BRB_STRIPE_SECRET_KEY` is set. Also set `BRB_STRIPE_WEBHOOK_SECRET` for `POST /wp-json/brb/v1/stripe-webhook`. `BRB_STRIPE_PUBLISHABLE_KEY` is passed through and is not used for hosted Checkout. Do not commit the keys. Guests can pay by check or in person, or by card with a processing fee (default 3%) that is not part of the booking balance.
 
-Staging stays out of search indexes while `DISCOURAGE_SEARCH=1` (the default).
+Search indexing follows `BRB_ENV` and `DISCOURAGE_SEARCH`. Indexing is on when `BRB_ENV=production` or `DISCOURAGE_SEARCH=0`. Anything else, including both unset, sets `blog_public=0` (noindex). Staging leaves `BRB_ENV` unset and keeps the default `DISCOURAGE_SEARCH=1`.
+
+## Production
+
+Production is a second copy of this repo, for example at `https://boardroomqc.com`. Do not point it at the staging database volume. Docker Compose names the database volume `mariadb-data` and the WordPress files volume `wordpress-files`. Compose prefixes those names with the project name, so a separate Coolify resource or a different `COMPOSE_PROJECT_NAME` gets its own database. The SQL in `db/boardroom-db.sql` is imported only when `mariadb-data` is empty. That import has the site pages and zero booking rows. Deleting `mariadb-data` wipes bookings, blackout dates, and pages. Do not reuse staging’s volume for production.
+
+The public site URL is not hardcoded. Set `WP_HOME` and `WP_SITEURL` (both `https://boardroomqc.com` in production). If `WP_SITEURL` is empty, it follows `WP_HOME`. On startup the entrypoint rewrites the stored site URL to that value. A scheme-less value is treated as `https://`.
+
+Empty WordPress salt variables are removed before WordPress writes `wp-config.php`, so a staging boot that does not set them still gets unique generated salts. Production should set all eight so a new files volume keeps the same secrets. Do not commit the values.
+
+Indexing is applied on container start and again on each WordPress request.
+
+### Environment variables production needs
+
+| Variable | Production | If unset |
+|---|---|---|
+| `BRB_ENV` | `production` | not production; stays noindex unless `DISCOURAGE_SEARCH=0` |
+| `DISCOURAGE_SEARCH` | `0` | defaults to `1` (noindex) |
+| `WP_HOME` | `https://boardroomqc.com` | local default `http://localhost:8080` via `SERVICE_FQDN_WORDPRESS` |
+| `WP_SITEURL` | `https://boardroomqc.com` | follows `WP_HOME` |
+| `MYSQL_DATABASE` | database name | `boardroom` |
+| `SERVICE_USER_MYSQL` / `WORDPRESS_DB_USER` | database user | `boardroom` |
+| `SERVICE_PASSWORD_MYSQL` / `WORDPRESS_DB_PASSWORD` | database password | local placeholder only; set a real password |
+| `SERVICE_PASSWORD_ROOT` / `MYSQL_ROOT_PASSWORD` | database root password | local placeholder only; set a real password |
+| `WORDPRESS_DB_HOST` | set by Compose to `db:3306` | |
+| `WORDPRESS_TABLE_PREFIX` | set by Compose to `wp_` | |
+| `WORDPRESS_AUTH_KEY` | unique secret | generated on first boot if empty |
+| `WORDPRESS_SECURE_AUTH_KEY` | unique secret | generated on first boot if empty |
+| `WORDPRESS_LOGGED_IN_KEY` | unique secret | generated on first boot if empty |
+| `WORDPRESS_NONCE_KEY` | unique secret | generated on first boot if empty |
+| `WORDPRESS_AUTH_SALT` | unique secret | generated on first boot if empty |
+| `WORDPRESS_SECURE_AUTH_SALT` | unique secret | generated on first boot if empty |
+| `WORDPRESS_LOGGED_IN_SALT` | unique secret | generated on first boot if empty |
+| `WORDPRESS_NONCE_SALT` | unique secret | generated on first boot if empty |
+| `WP_ADMIN_PASSWORD` | set once, on first boot | existing admin password is kept |
+| `WP_ADMIN_EMAIL` | staff admin email | existing admin email is kept |
+| `BRB_SMTP_HOST` | `smtp.gmail.com` | `smtp.gmail.com` |
+| `BRB_SMTP_PORT` | `587` | `587` |
+| `BRB_SMTP_USER` | mailbox user | SMTP stays off |
+| `BRB_SMTP_PASS` | mailbox password | SMTP stays off |
+| `BRB_SMTP_FROM` | `boardroomqc@gmail.com` | `boardroomqc@gmail.com` |
+| `BRB_SMTP_FROM_NAME` | `The Boardroom` | `The Boardroom` |
+| `BRB_STRIPE_SECRET_KEY` | live secret key | card payment stays off |
+| `BRB_STRIPE_WEBHOOK_SECRET` | webhook signing secret | webhooks are rejected |
+| `BRB_STRIPE_PUBLISHABLE_KEY` | publishable key | passed through; hosted Checkout does not use it |
+
+`docker-compose.yml` passes `BRB_ENV`, `WP_SITEURL`, `DISCOURAGE_SEARCH`, and the eight `WORDPRESS_*` key and salt variables into the wordpress container. Staging can leave `BRB_ENV`, `WP_SITEURL`, and the salts empty.
 
 Local test:
 

@@ -4,6 +4,14 @@
 #  2) after WP files + DB are ready, rewrites the site URL from whatever is stored to $WP_HOME (idempotent)
 set -e
 WP_DIR=/var/www/html
+# An empty salt would be stored as a blank secret. Staging does not set these, so drop
+# empty values and let the official entrypoint generate unique ones on first boot.
+for salt in \
+  WORDPRESS_AUTH_KEY WORDPRESS_SECURE_AUTH_KEY WORDPRESS_LOGGED_IN_KEY WORDPRESS_NONCE_KEY \
+  WORDPRESS_AUTH_SALT WORDPRESS_SECURE_AUTH_SALT WORDPRESS_LOGGED_IN_SALT WORDPRESS_NONCE_SALT
+do
+  if [ -z "${!salt:-}" ]; then unset "$salt"; fi
+done
 post_start() {
   for i in $(seq 1 90); do [ -f "$WP_DIR/wp-config.php" ] && [ -d "$WP_DIR/wp-content" ] && break; sleep 2; done
   mkdir -p "$WP_DIR/wp-content/themes" "$WP_DIR/wp-content/plugins" "$WP_DIR/wp-content/uploads"
@@ -14,8 +22,9 @@ post_start() {
   chown -R www-data:www-data "$WP_DIR/wp-content"
   WP="wp --path=$WP_DIR --allow-root --skip-themes --skip-plugins"
   for i in $(seq 1 90); do $WP db check >/dev/null 2>&1 && $WP core is-installed 2>/dev/null && break; sleep 2; done
-  if [ -n "$WP_HOME" ]; then
-    NEW="${WP_HOME%/}"; case "$NEW" in http://*|https://*) ;; *) NEW="https://$NEW";; esac
+  SITE_TARGET="${WP_HOME:-${WP_SITEURL:-}}"
+  if [ -n "$SITE_TARGET" ]; then
+    NEW="${SITE_TARGET%/}"; case "$NEW" in http://*|https://*) ;; *) NEW="https://$NEW";; esac
     OLD=$($WP db query "SELECT option_value FROM ${WORDPRESS_TABLE_PREFIX:-wp_}options WHERE option_name='siteurl'" --skip-column-names 2>/dev/null | tr -d '\r')
     OLD="${OLD%/}"
     if [ -n "$OLD" ] && [ "$OLD" != "$NEW" ]; then
@@ -33,7 +42,14 @@ post_start() {
     $WP user update admin --user_pass="$WP_ADMIN_PASSWORD" --skip-email >/dev/null && touch "$WP_DIR/wp-content/.boardroom-admin-pw-set" && echo "[boardroom] admin password set from WP_ADMIN_PASSWORD"
   fi
   if [ -n "$WP_ADMIN_EMAIL" ]; then $WP user update admin --user_email="$WP_ADMIN_EMAIL" --skip-email >/dev/null || true; fi
-  [ "${DISCOURAGE_SEARCH:-1}" = "1" ] && $WP option update blog_public 0 >/dev/null
+  # Index only for production, or when search discouragement is explicitly off. Unset stays noindex.
+  if [ "${BRB_ENV:-}" = "production" ] || [ "${DISCOURAGE_SEARCH:-1}" = "0" ]; then
+    $WP option update blog_public 1 >/dev/null
+    echo "[boardroom] search indexing on"
+  else
+    $WP option update blog_public 0 >/dev/null
+    echo "[boardroom] search indexing off"
+  fi
   $WP rewrite flush --hard >/dev/null 2>&1 || true
   # Load the booking plugin so its upgrade runs (adds columns, keeps saved options). Does not import or reset the database.
   BRB_VER_NOW=$(wp --path="$WP_DIR" --allow-root eval 'echo get_option("brb_version");' 2>/dev/null || true)

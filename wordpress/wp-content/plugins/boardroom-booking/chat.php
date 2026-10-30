@@ -696,7 +696,7 @@ function brb_chat_specific_text($text) {
     $bits = [];
     if (preg_match('/\breceipt\b|\binvoice\b/', $t)) $bits[] = brb_chat_receipt_line();
     if (preg_match('/\bhours\b|what time are you open|half[- ]?day|10:00|10 am|open at|open and close|when do you open/', $t)) {
-        $bits[] = brb_hours_line() . ' ' . brb_guest_out_line() . ' Want me to check a date?';
+        $bits[] = brb_hours_line() . ' ' . brb_guest_out_line() . ' ' . brb_appointment_line() . ' Want me to check a date?';
     }
     if (preg_match('/\b(monday|tuesday|wednesday|thursday|weekday)s?\b/', $t) && !preg_match('/\b(this|next)\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/', $t) && !preg_match('/discount|cheaper|secret/', $t)) {
         $bits[] = brb_hours_line();
@@ -766,7 +766,7 @@ function brb_chat_specific_text($text) {
         $bits[] = 'No. All events are free to attend. There are no merchandise sales and no ticket sales.';
     }
     if (preg_match('/meet you|meet us|walk[- ]?through|in person/', $t)) {
-        $bits[] = 'Yes. We meet every renter before approving a booking. It\'s a short, friendly visit to talk through your plans and the house rules. Our team will reach out to schedule it.';
+        $bits[] = 'Yes. We meet every renter before approving a booking. It\'s a short, friendly visit to talk through your plans and the house rules. ' . brb_appointment_line();
     }
     if (preg_match('/nonprofit|military/', $t) && !preg_match('/\bdiscount\b/', $t)) {
         $bits[] = 'Please contact us directly to discuss nonprofit or military discounts.';

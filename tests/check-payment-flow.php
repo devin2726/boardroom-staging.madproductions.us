@@ -44,8 +44,26 @@ add_filter('pre_wp_mail', function ($short, $atts) {
 $GLOBALS['brb_mails'] = [];
 
 try {
-    brb_t(get_option('brb_version') === '2.5.17', 'plugin storage version is 2.5.17');
+    brb_t(get_option('brb_version') === '2.5.18', 'plugin storage version is 2.5.18');
     brb_t(get_option('blog_public') === '0' || get_option('blog_public') === 0, 'staging discourages search engines');
+    brb_t(!brb_search_indexing_allowed(), 'indexing stays off unless production mode or search discouragement is turned off');
+    putenv('BRB_ENV=production');
+    $_ENV['BRB_ENV'] = 'production';
+    $_SERVER['BRB_ENV'] = 'production';
+    brb_apply_search_visibility();
+    brb_t(brb_search_indexing_allowed() && ((string) get_option('blog_public') === '1'), 'BRB_ENV=production allows search indexing');
+    putenv('BRB_ENV');
+    unset($_ENV['BRB_ENV'], $_SERVER['BRB_ENV']);
+    putenv('DISCOURAGE_SEARCH=0');
+    $_ENV['DISCOURAGE_SEARCH'] = '0';
+    $_SERVER['DISCOURAGE_SEARCH'] = '0';
+    brb_apply_search_visibility();
+    brb_t(brb_search_indexing_allowed() && ((string) get_option('blog_public') === '1'), 'DISCOURAGE_SEARCH=0 allows search indexing');
+    putenv('DISCOURAGE_SEARCH=1');
+    $_ENV['DISCOURAGE_SEARCH'] = '1';
+    $_SERVER['DISCOURAGE_SEARCH'] = '1';
+    brb_apply_search_visibility();
+    brb_t(!brb_search_indexing_allowed() && ((string) get_option('blog_public') === '0'), 'staging without BRB_ENV stays noindex');
     $cols = $wpdb->get_col('SHOW COLUMNS FROM ' . brb_table(), 0);
     foreach (['deposit_due', 'amount_paid', 'source', 'hold_until', 'balance_due_on', 'price_set', 'status', 'event_type'] as $col) {
         brb_t(in_array($col, $cols, true), "column $col exists");
@@ -64,7 +82,7 @@ try {
     brb_t((string) brb_opt('venue_address') === '2220 37th Street, Moline, IL 61265', 'venue address defaults to 2220 37th Street');
     brb_t((string) brb_opt('pay_location') === '2212 37th Street, Moline, IL 61265', 'check address defaults to 2212 37th Street');
     brb_t(brb_check_sentence() === 'Mail or drop off checks payable to Mad Productions at 2212 37th Street, Moline, IL 61265.', 'the default check sentence names Mad Productions and 2212 37th Street');
-    brb_t(strpos((string) brb_opt('pay_hours'), '[VERIFY]') !== false, 'hours placeholder is marked [VERIFY]');
+    brb_t(strpos((string) brb_opt('pay_hours'), '[VERIFY]') === false && strpos(brb_appointment_line(), 'by appointment') !== false && strpos(brb_appointment_line(), 'set hours') !== false, 'in-person hours are not a placeholder; guests are told meetings are by appointment');
     $blank_instructions = brb_opt();
     $blank_instructions['pay_instructions'] = '[VERIFY] Extra instructions for bringing the check.';
     update_option('brb_settings', $blank_instructions);
@@ -385,7 +403,7 @@ try {
             if (stripos($m['to'], 'flow-test@example.com') !== false && stripos($m['subject'], 'approved') !== false) $approve_mail = $m;
         }
         brb_t($approve_mail && strpos($approve_mail['message'], 'Thank you for contacting The Boardroom!') === 0 && strpos($approve_mail['message'], 'we meet every renter in person') !== false, 'the approval email thanks the guest and mentions the walk-through');
-        brb_t($approve_mail && strpos($approve_mail['message'], 'payable to [VERIFY] Test Payee') !== false && strpos($approve_mail['message'], '[VERIFY] Test Window') !== false && strpos($approve_mail['message'], '[VERIFY] Test Hours') !== false, 'the approval email names the payee and the drop-off place and hours');
+        brb_t($approve_mail && strpos($approve_mail['message'], 'payable to [VERIFY] Test Payee') !== false && strpos($approve_mail['message'], '[VERIFY] Test Window') !== false && strpos($approve_mail['message'], '[VERIFY] Test Hours') === false && strpos($approve_mail['message'], 'by appointment') !== false, 'the approval email names the payee and the drop-off place, and meetings are by appointment');
         brb_t($approve_mail && strpos($approve_mail['message'], 'Write booking reference ' . brb_ref($priced) . ' on the memo line.') !== false && strpos($approve_mail['message'], '[VERIFY] Test instructions.') !== false, 'the approval email includes the memo line and custom instructions');
         brb_t($approve_mail && strpos($approve_mail['message'], '60 or more days before the event') !== false && strpos($approve_mail['message'], 'less than 60 days before the event') !== false && strpos($approve_mail['message'], 'Refunds are issued manually.') !== false && strpos($approve_mail['message'], '[VERIFY: attorney review]') === false, 'the approval email states the 60-day deposit rule and has no attorney note');
         brb_t($approve_mail && strpos($approve_mail['message'], 'Rental checklist') !== false && strpos($approve_mail['message'], '8:00 AM') !== false && strpos($approve_mail['message'], 'https://moline.il.us/244/Liquor-Licensing') !== false && strpos($approve_mail['message'], 'fee $50') === false && strpos($approve_mail['message'], 'minimum host age is 25') !== false, 'the approval email includes the rental checklist');
@@ -465,7 +483,7 @@ try {
             brb_admin_settings();
             $settings_html = ob_get_clean();
             brb_t(strpos($settings_html, 'Minimum notice') !== false && strpos($settings_html, 'Hold length') === false, 'settings keep the notice rule and do not offer a hold length');
-            brb_t(strpos($admin_html, '[VERIFY: attorney review]') !== false && strpos($settings_html, '[VERIFY: attorney review]') !== false, 'the attorney note is visible to staff');
+            brb_t(strpos($admin_html, '[VERIFY: attorney review]') === false && strpos($settings_html, '[VERIFY: attorney review]') === false && strpos($admin_html, '[ATTORNEY REVIEW]') === false && strpos($settings_html, 'name="pay_hours"') === false && strpos($settings_html, 'In-person hours') === false, 'attorney review markers and the in-person hours setting are gone');
             brb_t(strpos($settings_html, '11:30 PM') !== false && strpos($settings_html, '[VERIFY] latest end time') === false, 'settings state the 11:30 PM departure rule');
             brb_t(strpos($settings_html, 'Starting price') !== false && strpos($settings_html, 'Typical price text') !== false, 'settings show starting and typical price');
             brb_t(strpos($settings_html, 'Full-day rate') === false && strpos($settings_html, '$75') === false && strpos($settings_html, 'name="checklist"') !== false, 'settings do not show the old public rates and include the checklist');
@@ -561,7 +579,7 @@ try {
         brb_t(!is_wp_error($late), 'the booking that already reserved the date can still take another payment');
         $GLOBALS['brb_mails'] = [];
         $declined = brb_decline_booking($exp->id);
-        brb_t(!is_wp_error($declined) && $declined->status === 'declined' && strpos((string) $declined->attention, 'Resolve it manually. [VERIFY: attorney review]') !== false, 'declining after a payment flags it for staff and does not promise a refund in the flag');
+        brb_t(!is_wp_error($declined) && $declined->status === 'declined' && strpos((string) $declined->attention, 'Resolve it manually.') !== false && strpos((string) $declined->attention, 'attorney review') === false, 'declining after a payment flags it for staff and does not promise a refund in the flag');
         $decline_mail = null;
         foreach ($GLOBALS['brb_mails'] as $m) {
             if (stripos($m['to'], 'flow-test@example.com') !== false) $decline_mail = $m;
@@ -770,7 +788,7 @@ try {
     brb_t(strpos($privacy_html, 'mailto:boardroomqc@gmail.com') !== false && strpos($privacy_html, '[VERIFY]</span>') === false, 'privacy email is confirmed without a verification marker');
     brb_t(strpos($privacy_html, 'sets no advertising, analytics, or tracking cookies of its own') !== false && strpos($privacy_html, 'embedded Google Maps in the footer and on the Contact page may set cookies from Google') !== false && strpos($privacy_html, "Google's privacy policy applies") !== false && strpos($privacy_html, 'not asked to accept cookies') !== false, 'privacy explains our cookies and the Google map');
     brb_t(strpos($privacy_html, 'does not process payments online') === false && strpos($privacy_html, 'Stripe processes card payments') !== false && strpos($privacy_html, 'Stripe may set cookies on its own checkout page') !== false, 'privacy says Stripe processes cards and may set cookies on its checkout page');
-    brb_t(strpos($terms_html, 'Card payments add a 3% processing fee on top of the amount paid, and that fee isn\'t refundable.') !== false && strpos($terms_html, '[VERIFY with attorney]') === false && strpos($terms_html, '[VERIFY: attorney review]') === false && strpos($terms_html, '[ATTORNEY REVIEW]') === false, 'terms describe the card fee without an attorney note');
+    brb_t(strpos($terms_html, 'Card payments add a 3% processing fee on top of the amount paid, and that fee isn\'t refundable.') !== false && strpos($terms_html, '[VERIFY with attorney]') === false && strpos($terms_html, '[VERIFY: attorney review]') === false && strpos($terms_html, '[ATTORNEY REVIEW]') === false && strpos($agreement_html, '[ATTORNEY REVIEW]') === false && strpos($agreement_html, 'Renter and guests assume all risk.') !== false, 'terms and the rental agreement keep the approved wording and have no attorney-review marker');
     brb_t(strpos($terms_html, '60 or more days before your event') !== false && strpos($terms_html, 'the deposit isn\'t refundable') !== false && strpos($agreement_html, 'sixty (60) days or more before the event') !== false && strpos($agreement_html, 'less than sixty (60) days before the event, the deposit is not refundable') !== false && strpos($privacy_html, '60 or more days before the event') !== false, 'terms, the rental agreement, and privacy state the 60-day deposit rule');
     brb_t(strpos($agreement_html, 'may be entitled to a refund of amounts paid') === false && strpos($agreement_html, 'shall refund amounts paid') === false, 'the rental agreement does not promise a deposit refund');
     brb_t(stripos($terms_html, 'no overnight stays') !== false && strpos($agreement_html, 'Overnight stays are not permitted. The Venue is an event space only.') !== false, 'terms and the rental agreement forbid overnight stays');
