@@ -739,7 +739,7 @@ function brb_chat_specific_text($text) {
         $bits[] = 'On a full day, setup can begin at 8:00 AM. On a half day, setup can begin one hour before the start. Optional setup or takedown day add-ons, when that day is open, can be added within 72 hours of the event for ' . brb_whole_money(brb_addon_price()) . '.';
     }
     if (preg_match('/cleaning fee|security deposit|damage deposit|extra for cleaning|pays for damage|who pays for damage/', $t)) {
-        $bits[] = 'The damage deposit is $100 to $500 depending on event size, mainly for cleaning.';
+        $bits[] = 'The refundable damage deposit is a flat $250. It is charged with the booking deposit and mainly covers cleaning.';
     }
     if (preg_match('/refrigerator|\bfridge\b|\bice\b/', $t)) {
         $bits[] = 'Yes. There is a refrigerator and an ice machine.';
@@ -783,7 +783,7 @@ function brb_chat_specific_text($text) {
         $bits[] = 'We recommend that renters carry their own home or renters policy. If event insurance is needed, the renter carries that policy. The renter and guests assume the risk of the event. The Boardroom is not responsible for injury, loss, or equipment issues.';
     }
     if (preg_match('/dumpster|venmo|paypal/', $t)) {
-        $bits[] = 'The damage deposit is $100 to $500 depending on event size, mainly for cleaning. It may be applied to excessive cleaning or garbage. A dumpster is on site. It is returned within 72 hours when Venmo or PayPal is on file. A check takes 1 to 2 weeks. No glitter. Vaping leaves a residue and can affect the deposit. All smoking, including cigars and cigarettes, is outside only.';
+        $bits[] = 'The refundable damage deposit is a flat $250. It is charged with the booking deposit and mainly covers cleaning. It may be applied to excessive cleaning or garbage. A dumpster is on site. It is returned within 72 hours when Venmo or PayPal is on file. A check takes 1 to 2 weeks. No glitter. Vaping leaves a residue and can affect the deposit. All smoking, including cigars and cigarettes, is outside only.';
     }
     if (preg_match('/\bdecember\b|\bdec\b/', $t) && preg_match('/open|available|availability|dates/', $t) && !preg_match('/\d/', $t)) {
         $bits[] = brb_chat_december_open();

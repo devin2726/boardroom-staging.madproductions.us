@@ -51,8 +51,8 @@ function brb_chat_topic_spec($topic) {
         'pay_methods' => ['facts' => ['check', 'in person', 'card'], 'money' => 'none'],
         'cash_check' => ['facts' => ['2212 37th Street, Moline, IL 61265', 'Mad Productions', 'check address'], 'money' => 'none', 'checks' => true],
         'card_fee' => ['facts' => ['3%', 'card'], 'any' => [['non-refundable', "isn't refundable"]], 'money' => 'none'],
-        'cleaning' => ['facts' => ['damage deposit', '$100', '$500', 'cleaning'], 'money' => 'damage'],
-        'security' => ['facts' => ['damage deposit', '$100', '$500'], 'money' => 'damage'],
+        'cleaning' => ['facts' => ['damage deposit', '$250', 'cleaning'], 'money' => 'damage'],
+        'security' => ['facts' => ['damage deposit', '$250'], 'money' => 'damage'],
         'tax' => ['exact' => 'Sales tax is included in the price.', 'money' => 'none'],
         'receipt' => ['facts' => ['Card payments get an emailed receipt', 'invoice or receipt for any payment on request'], 'money' => 'none'],
         'tax_receipt' => ['facts' => ['Sales tax is included in the price.', 'Card payments get an emailed receipt'], 'money' => 'none'],
@@ -157,8 +157,7 @@ function brb_chat_allowed_money($spec, $question) {
     $allowed = [];
     if ($spec['money'] === 'damage' || $spec['money'] === 'addon') {
         if ($spec['money'] === 'damage') {
-            $allowed['$100'] = true;
-            $allowed['$500'] = true;
+            $allowed['$250'] = true;
         }
         if ($spec['money'] === 'addon') $allowed[brb_whole_money(brb_addon_price())] = true;
     }

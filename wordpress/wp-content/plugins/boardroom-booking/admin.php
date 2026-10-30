@@ -71,6 +71,31 @@ add_action('admin_post_brb_payment', function () {
     if (is_wp_error($res)) brb_admin_back($id, $res->get_error_message());
     brb_admin_back($id, brb_ref($res) . ' updated: ' . brb_status_label($res->status) . '. The guest was emailed.');
 });
+add_action('admin_post_brb_line', function () {
+    brb_admin_gate('brb_line');
+    $id = (int) ($_POST['booking'] ?? 0);
+    if (!empty($_POST['remove'])) {
+        $res = brb_remove_custom_line($id, (int) ($_POST['line_id'] ?? 0));
+    } else {
+        $res = brb_save_custom_line($id, wp_unslash($_POST['label'] ?? ''), wp_unslash($_POST['amount'] ?? ''), (int) ($_POST['line_id'] ?? 0));
+    }
+    if (is_wp_error($res)) brb_admin_back($id, $res->get_error_message());
+    brb_admin_back($id, 'Charges updated.');
+});
+add_action('admin_post_brb_send_pay_link', function () {
+    brb_admin_gate('brb_send_pay_link');
+    $id = (int) ($_POST['booking'] ?? 0);
+    $res = brb_send_payment_link($id);
+    if (is_wp_error($res)) brb_admin_back($id, $res->get_error_message());
+    brb_admin_back($id, 'Payment link emailed to ' . $res->email . '.');
+});
+add_action('admin_post_brb_refund_damage', function () {
+    brb_admin_gate('brb_refund_damage');
+    $id = (int) ($_POST['booking'] ?? 0);
+    $res = brb_mark_damage_refunded($id);
+    if (is_wp_error($res)) brb_admin_back($id, $res->get_error_message());
+    brb_admin_back($id, 'Refundable damage deposit marked refunded. The refund itself is done in the Stripe Dashboard.');
+});
 add_action('admin_post_brb_mark_paid', function () {
     brb_admin_gate('brb_mark_paid');
     $id = (int) ($_POST['booking'] ?? 0);
@@ -86,7 +111,6 @@ add_action('admin_post_brb_flags', function () {
     global $wpdb;
     $fields = [
         'walkthrough_done' => empty($_POST['walkthrough_done']) ? 0 : 1,
-        'damage_deposit' => brb_dec(max(0, min(500, (float) ($_POST['damage_deposit'] ?? 0)))),
     ];
     $wpdb->update(brb_table(), $fields, ['id' => $id]);
     if (!empty($_POST['setup_addon'])) brb_apply_addon($id, 'setup');
@@ -268,7 +292,7 @@ function brb_admin_detail($id) {
     $rows['Balance'] = $set ? brb_money($balance) : 'Price to be confirmed';
     $rows['Balance due'] = brb_balance_due_display($b);
     $rows['Walk-through'] = !empty($b->walkthrough_done) ? 'Completed' : 'Not yet';
-    $rows['Damage deposit'] = ((float) ($b->damage_deposit ?? 0) > 0.009) ? brb_money($b->damage_deposit) : '—';
+    $rows['Refundable damage deposit'] = brb_money($b->damage_deposit ?? 0) . ((float) ($b->damage_paid ?? 0) > 0.009 ? ' paid ' . brb_money($b->damage_paid) : ' not paid yet') . (!empty($b->damage_refunded) ? ' (marked refunded)' : '');
     $rows['Setup day'] = !empty($b->setup_addon) ? 'Added' : 'No';
     $rows['Takedown day'] = !empty($b->takedown_addon) ? 'Added' : 'No';
     $rows['Date reserved'] = in_array($b->status, ['deposit_paid', 'paid', 'confirmed'], true) ? 'Yes, a deposit has been received' : 'No, not until the deposit is received';
@@ -283,7 +307,7 @@ function brb_admin_detail($id) {
     echo '<input type="hidden" name="action" value="brb_flags"><input type="hidden" name="booking" value="' . (int) $b->id . '">';
     wp_nonce_field('brb_flags');
     echo '<p><label><input type="checkbox" name="walkthrough_done" value="1"' . (!empty($b->walkthrough_done) ? ' checked' : '') . '> Walk-through completed</label></p>';
-    echo '<p><label>Damage deposit <input type="number" name="damage_deposit" min="0" max="500" step="1" value="' . esc_attr((string) (int) ($b->damage_deposit ?? 0)) . '"> <span class="description">$100 to $500, mainly for cleaning.</span></label></p>';
+    echo '<p>The refundable damage deposit is a flat ' . esc_html(brb_money(brb_damage_amount())) . '. It is charged with the booking deposit and is separate from the 50% that holds the date.</p>';
     echo '<p><label><input type="checkbox" name="setup_addon" value="1"' . (!empty($b->setup_addon) ? ' checked' : '') . '> Setup day</label></p>';
     echo '<p><label><input type="checkbox" name="takedown_addon" value="1"' . (!empty($b->takedown_addon) ? ' checked' : '') . '> Takedown day</label></p>';
     echo '<p><button class="button">Save booking record</button></p></form>';
@@ -300,11 +324,38 @@ function brb_admin_detail($id) {
         echo '<p>The deposit follows the 60-day written cancellation rule. The card processing fee is non-refundable. Card payments and refunds are resolved manually in the Stripe dashboard. [VERIFY: attorney review]</p>';
     }
 
+    $charge_lines = brb_lines($b->id);
+    $running = brb_nonrefundable_total($b->id);
+    echo '<h2>Charges</h2>';
+    echo '<table class="widefat" style="max-width:960px"><thead><tr><th>Label</th><th>Amount</th><th>Kind</th><th></th></tr></thead><tbody>';
+    if (!$charge_lines) echo '<tr><td colspan="4">No charges yet.</td></tr>';
+    foreach ($charge_lines as $line) {
+        echo '<tr><td>';
+        if (empty($line->locked) && in_array((string) $line->kind, ['fee', 'discount'], true)) {
+            echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
+            echo '<input type="hidden" name="action" value="brb_line"><input type="hidden" name="booking" value="' . (int) $b->id . '"><input type="hidden" name="line_id" value="' . (int) $line->id . '">';
+            wp_nonce_field('brb_line');
+            echo '<input name="label" value="' . esc_attr($line->label) . '" required> ';
+            echo '<input name="amount" type="number" step="0.01" value="' . esc_attr(brb_dec($line->amount)) . '" required> ';
+            echo '<button class="button">Save</button> <button class="button" name="remove" value="1">Remove</button></form>';
+        } else {
+            echo esc_html($line->label) . (empty($line->locked) ? '' : ' <em>(paid)</em>');
+        }
+        echo '</td><td>' . esc_html(brb_money($line->amount)) . '</td><td>' . esc_html($line->kind) . (!empty($line->refundable) ? ', refundable' : '') . '</td><td></td></tr>';
+    }
+    echo '</tbody></table>';
+    echo '<p>Rental total (damage deposit not included): <strong>' . esc_html(brb_money($running)) . '</strong>. Refundable damage deposit: <strong>' . esc_html(brb_money($b->damage_deposit ?? 0)) . '</strong>.</p>';
+    echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="max-width:640px">';
+    echo '<input type="hidden" name="action" value="brb_line"><input type="hidden" name="booking" value="' . (int) $b->id . '">';
+    wp_nonce_field('brb_line');
+    echo '<p><input name="label" placeholder="Label" required> <input name="amount" type="number" step="0.01" placeholder="Amount" required> <span class="description">Use a negative amount for a discount or credit. Paid lines stay locked.</span> <button class="button">Add charge</button></p></form>';
+
     if ($b->status !== 'cancelled') {
         echo '<h2>Agreed price</h2><form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="max-width:640px">';
         echo '<input type="hidden" name="action" value="brb_price"><input type="hidden" name="booking" value="' . (int) $b->id . '">';
         wp_nonce_field('brb_price');
-        $suggest = $set ? brb_dec($b->total) : '';
+        $rental_line = brb_find_line_kind($b->id, 'rental');
+        $suggest = $rental_line ? brb_dec($rental_line->amount) : ($set ? brb_dec($b->total) : '');
         echo '<table class="form-table"><tr><th><label for="agreed_price">Final price</label></th><td><input name="agreed_price" id="agreed_price" type="number" step="0.01" min="0.01" value="' . esc_attr($suggest) . '" required> <span class="description">The guest is emailed this price. Payment instructions go out when the request is approved. Until you save a price, the guest sees “price to be confirmed”.</span></td></tr></table>';
         echo '<p><button class="button button-primary">Set agreed price and email guest</button></p></form>';
     }
@@ -317,8 +368,9 @@ function brb_admin_detail($id) {
         echo '<input type="hidden" name="action" value="brb_payment"><input type="hidden" name="booking" value="' . (int) $b->id . '">';
         wp_nonce_field('brb_payment');
         $toward = round((float) $b->deposit_due - (float) $b->amount_paid, 2);
-        $suggest = ($toward > 0.009) ? min($balance, $toward) : $balance;
-        echo '<table class="form-table"><tr><th><label for="amount">Amount</label></th><td><input name="amount" id="amount" type="number" step="0.01" min="0.01" max="' . esc_attr(brb_dec($balance)) . '" value="' . esc_attr(brb_dec($suggest)) . '" required> <span class="description">Balance is ' . esc_html(brb_money($balance)) . '. Record the deposit, then record the balance when the rest arrives.</span></td></tr>';
+        $bundle = ($toward > 0.009) ? round($toward + brb_damage_left($b), 2) : $balance;
+        $cap = round(brb_rental_left($b) + brb_damage_left($b), 2);
+        echo '<table class="form-table"><tr><th><label for="amount">Amount</label></th><td><input name="amount" id="amount" type="number" step="0.01" min="0.01" max="' . esc_attr(brb_dec($cap)) . '" value="' . esc_attr(brb_dec($bundle)) . '" required> <span class="description">The suggested amount is the booking deposit plus the $250 refundable damage deposit. Anything above the rental amount due is applied to that deposit. Rental balance is ' . esc_html(brb_money($balance)) . '.</span></td></tr>';
         echo '<tr><th><label for="method">Method</label></th><td><select name="method" id="method">';
         foreach (brb_pay_methods() as $key => $label) {
             printf('<option value="%s">%s</option>', esc_attr($key), esc_html($label));
@@ -340,6 +392,16 @@ function brb_admin_detail($id) {
         echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" onsubmit="return confirm(\'Decline this request? The date is not reserved.\');"><input type="hidden" name="action" value="brb_decline"><input type="hidden" name="booking" value="' . (int) $b->id . '">';
         wp_nonce_field('brb_decline');
         echo '<button class="button">Decline</button></form>';
+    }
+    if (brb_pay_link($b) !== '') {
+        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '"><input type="hidden" name="action" value="brb_send_pay_link"><input type="hidden" name="booking" value="' . (int) $b->id . '">';
+        wp_nonce_field('brb_send_pay_link');
+        echo '<button class="button">Send payment link</button></form>';
+    }
+    if ((float) ($b->damage_paid ?? 0) > 0.009 && empty($b->damage_refunded)) {
+        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '"><input type="hidden" name="action" value="brb_refund_damage"><input type="hidden" name="booking" value="' . (int) $b->id . '">';
+        wp_nonce_field('brb_refund_damage');
+        echo '<button class="button">Mark damage deposit refunded</button></form>';
     }
     if ($set && !in_array($b->status, ['paid', 'cancelled', 'expired', 'declined'], true) && $balance > 0.009) {
         echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '"><input type="hidden" name="action" value="brb_mark_paid"><input type="hidden" name="booking" value="' . (int) $b->id . '">';
