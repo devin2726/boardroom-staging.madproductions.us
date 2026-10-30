@@ -6,13 +6,23 @@ services:
     environment:
       - SERVICE_FQDN_WORDPRESS_80
       - WP_HOME=${SERVICE_FQDN_WORDPRESS:-http://localhost:8080}
+      - WP_SITEURL=${WP_SITEURL:-}
       - WORDPRESS_DB_HOST=db:3306
       - WORDPRESS_DB_NAME=${MYSQL_DATABASE:-boardroom}
       - WORDPRESS_DB_USER=${SERVICE_USER_MYSQL:-boardroom}
       - WORDPRESS_DB_PASSWORD=${SERVICE_PASSWORD_MYSQL:-boardroom-local}
       - WORDPRESS_TABLE_PREFIX=wp_
+      - WORDPRESS_AUTH_KEY=${WORDPRESS_AUTH_KEY:-}
+      - WORDPRESS_SECURE_AUTH_KEY=${WORDPRESS_SECURE_AUTH_KEY:-}
+      - WORDPRESS_LOGGED_IN_KEY=${WORDPRESS_LOGGED_IN_KEY:-}
+      - WORDPRESS_NONCE_KEY=${WORDPRESS_NONCE_KEY:-}
+      - WORDPRESS_AUTH_SALT=${WORDPRESS_AUTH_SALT:-}
+      - WORDPRESS_SECURE_AUTH_SALT=${WORDPRESS_SECURE_AUTH_SALT:-}
+      - WORDPRESS_LOGGED_IN_SALT=${WORDPRESS_LOGGED_IN_SALT:-}
+      - WORDPRESS_NONCE_SALT=${WORDPRESS_NONCE_SALT:-}
       - WP_ADMIN_PASSWORD=${WP_ADMIN_PASSWORD:-}
       - WP_ADMIN_EMAIL=${WP_ADMIN_EMAIL:-}
+      - BRB_ENV=${BRB_ENV:-}
       - DISCOURAGE_SEARCH=${DISCOURAGE_SEARCH:-1}
       - BRB_SMTP_HOST=${BRB_SMTP_HOST:-smtp.gmail.com}
       - BRB_SMTP_PORT=${BRB_SMTP_PORT:-587}
@@ -27,7 +37,10 @@ services:
         WORDPRESS_CONFIG_EXTRA=
         if (isset($$_SERVER['HTTP_X_FORWARDED_PROTO']) && $$_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') { $$_SERVER['HTTPS'] = 'on'; }
         $$br_home = rtrim((string) getenv('WP_HOME'), '/'); if ($$br_home && !preg_match('#^https?://#', $$br_home)) { $$br_home = 'https://' . $$br_home; }
-        if ($$br_home) { define('WP_HOME', $$br_home); define('WP_SITEURL', $$br_home); }
+        $$br_site = rtrim((string) getenv('WP_SITEURL'), '/'); if ($$br_site && !preg_match('#^https?://#', $$br_site)) { $$br_site = 'https://' . $$br_site; }
+        if (!$$br_site) { $$br_site = $$br_home; }
+        if ($$br_home) { define('WP_HOME', $$br_home); }
+        if ($$br_site) { define('WP_SITEURL', $$br_site); }
         define('DISALLOW_FILE_EDIT', true);
     volumes:
       - wordpress-files:/var/www/html

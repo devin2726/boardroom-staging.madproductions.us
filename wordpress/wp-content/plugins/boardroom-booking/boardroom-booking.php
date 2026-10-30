@@ -2,11 +2,11 @@
 /**
  * Plugin Name: Boardroom Booking
  * Description: Self-hosted direct booking for The Boardroom — full-day and hourly blocks, availability calendar, agreed prices, approval before payment, blackout dates, and emails.
- * Version: 2.5.17
+ * Version: 2.5.18
  * Author: Mad Productions
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.5.17');
+define('BRB_VER', '2.5.18');
 define('BRB_VENUE_ADDRESS', '2220 37th Street, Moline, IL 61265');
 define('BRB_CHECK_ADDRESS', '2212 37th Street, Moline, IL 61265');
 define('BRB_MAPS_URL', 'https://maps.app.goo.gl/nVqUsGTcy48nPzc18');
@@ -97,7 +97,7 @@ function brb_defaults() {
         'payee' => '[VERIFY] Name on the check',
         'venue_address' => BRB_VENUE_ADDRESS,
         'pay_location' => BRB_CHECK_ADDRESS,
-        'pay_hours' => '[VERIFY] In-person hours',
+        'pay_hours' => '',
         'pay_instructions' => '',
         'card_fee_percent' => '3',
         'blackouts' => '',
@@ -134,9 +134,10 @@ function brb_guest_payee() {
     return $payee;
 }
 function brb_check_sentence($item = 'checks') {
-    $hours = trim((string) brb_opt('pay_hours'));
-    $suffix = ($hours !== '' && $hours !== '[VERIFY] In-person hours') ? ' (' . $hours . ')' : '';
-    return 'Mail or drop off ' . $item . ' payable to ' . brb_guest_payee() . ' at ' . brb_check_address() . $suffix . '.';
+    return 'Mail or drop off ' . $item . ' payable to ' . brb_guest_payee() . ' at ' . brb_check_address() . '.';
+}
+function brb_appointment_line() {
+    return 'We don\'t keep set hours. We meet on demand and set a time together, by appointment.';
 }
 function brb_directions_markup() {
     return '<p><a href="' . esc_url(BRB_MAPS_URL) . '" rel="noopener noreferrer">Get directions / View on Google Maps</a></p>';
@@ -280,7 +281,7 @@ function brb_guest_hello_line() {
     return 'Thank you for contacting The Boardroom!';
 }
 function brb_guest_review_line() {
-    return 'As part of our review, we meet every renter in person before approving a booking. It\'s a quick, friendly walk-through where we go over your event plans, the space and our house rules together. Your date will be reserved once the meeting is complete and your deposit is received and approved by the Boardroom.';
+    return 'As part of our review, we meet every renter in person before approving a booking. It\'s a quick, friendly walk-through where we go over your event plans, the space and our house rules together. ' . brb_appointment_line() . ' Your date will be reserved once the meeting is complete and your deposit is received and approved by the Boardroom.';
 }
 function brb_terms_review_line() {
     return 'All bookings are subject to review and approval by the Boardroom, which includes an in-person meeting with the renter. Approval is based on the event details provided, availability and our house rules.';
@@ -414,9 +415,6 @@ function brb_request_open_line() {
 }
 function brb_fee_public_line() {
     return 'The ' . brb_fee_percent_label() . ' card processing fee is non-refundable.';
-}
-function brb_attorney_notice() {
-    return 'Deposit and refund wording updated October 27, 2026: the deposit (50% of the agreed total) is refundable if written cancellation is received 60 or more days before the event, less any non-refundable processing charges (including the 3% card processing fee) and costs already incurred. It is not refundable if cancellation is received less than 60 days before the event. Staff process refunds manually. [VERIFY: attorney review] Sections 12, 14, and 15 of the public Rental Terms still need attorney review. [ATTORNEY REVIEW]';
 }
 function brb_screening_lines($b) {
     $lines = [];
@@ -642,6 +640,7 @@ function brb_migrate_settings() {
     if (trim((string) ($merged['pay_instructions'] ?? '')) === '[VERIFY] Extra instructions for bringing the check.') {
         $merged['pay_instructions'] = '';
     }
+    if (stripos((string) ($merged['pay_hours'] ?? ''), '[VERIFY]') !== false) $merged['pay_hours'] = '';
     if (!isset($stored['card_fee_percent']) || trim((string) $stored['card_fee_percent']) === '') $merged['card_fee_percent'] = '3';
     $old_summaries = [
         'A date saved on the website is held for 48 hours. Mail or drop off checks payable to Mad Productions at 2212 37th Street, Moline, IL 61265. If the check is not received by then, the hold is released. Under the Rental Agreement, 50% of the invoice is due within 1 day after signing unless the Owner agrees otherwise in writing. The invoice notes require full payment 30 days before the event. If you cancel in writing 90 days or more before the rental period, amounts paid may be refunded, less any non-refundable processing charges or costs already incurred. If you cancel less than 90 days before the rental period, security deposits and cleaning fees already paid are non-refundable. Rental fees are non-refundable if cancellation is received less than 30 days before the rental period, unless the Owner agrees otherwise in writing. The signed Rental Agreement controls if it differs from this summary.',
@@ -704,12 +703,12 @@ function brb_faq_markup() {
 
 <h2>Pricing and payment</h2>
 <details><summary>How much does it cost?</summary><p>Pricing starts at $600 per day and can reach about $2,000, depending on the date, how many people are coming, and the features you'd like. Most events come to about $1,200. We confirm the final price with you before any check is due.</p></details>
-<details><summary>How do I pay?</summary><p>After we approve the request, pay by check or in person, or online by card with a 3% processing fee. Mail or drop off checks payable to Mad Productions at 2212 37th Street, Moline, IL 61265. The deposit (50% of the agreed total) holds the date. The remaining balance is due the week of the event, no later than 48 hours before. Sales tax is included in the price. The card processing fee is non-refundable.</p></details>
+<details><summary>How do I pay?</summary><p>After we approve the request, pay by check or in person, or online by card with a 3% processing fee. Mail or drop off checks payable to Mad Productions at 2212 37th Street, Moline, IL 61265. We don't keep set hours. We meet on demand and set a time together, by appointment. The deposit (50% of the agreed total) holds the date. The remaining balance is due the week of the event, no later than 48 hours before. Sales tax is included in the price. The card processing fee is non-refundable.</p></details>
 <details><summary>Can I get an invoice or a receipt?</summary><p>Yes. Card payments get an emailed receipt, and we can provide an invoice or receipt for any payment on request.</p></details>
 <details><summary>Is sales tax included?</summary><p>Sales tax is included in the price.</p></details>
 
 <h2>Setup and hours</h2>
-<details><summary>What are the hours?</summary><p>A full day runs from 10:00 AM to 11:30 PM. Half days are generally available in June: 10:00 AM to 4:00 PM, or 5:00 PM to 11:30 PM.</p></details>
+<details><summary>What are the hours?</summary><p>A full day runs from 10:00 AM to 11:30 PM. Half days are generally available in June: 10:00 AM to 4:00 PM, or 5:00 PM to 11:30 PM. We don't keep set hours for meetings or check drop-off. We meet on demand and set a time together, by appointment.</p></details>
 <details><summary>When does everyone have to be out?</summary><p>Out by 11:30 PM. This one's firm, no exceptions. Everyone must be out of The Boardroom by 11:30 PM so there's time to wrap up.</p></details>
 <details><summary>How is the space set up?</summary><p>The space arrives not set up. You set up and tear down. Our staff can't set the room for you. Staff cannot set the room up. Setup starts at 8:00 AM on full days, or one hour before your start time on half days.</p></details>
 <details><summary>Do you provide decorations?</summary><p>The room isn't decorated when you arrive, except in December, when our Christmas décor is up. Christmas decorations are up in December.</p></details>
@@ -813,10 +812,15 @@ function brb_refresh_faq() {
     $next = str_replace('Sales tax is added.', 'Sales tax is included in the price.', $next);
     $next = str_replace('Sales tax is added', 'Sales tax is included in the price.', $next);
     $next = brb_replace_liquor_fee($next);
+    $hours_plain = 'A full day runs from 10:00 AM to 11:30 PM. Half days are generally available in June: 10:00 AM to 4:00 PM, or 5:00 PM to 11:30 PM.';
+    $hours_meet = $hours_plain . ' We don\'t keep set hours for meetings or check drop-off. We meet on demand and set a time together, by appointment.';
+    if (strpos($next, $hours_meet) === false) $next = str_replace($hours_plain, $hours_meet, $next);
+    $next = str_replace('Our team will reach out to schedule it.', 'We don\'t keep set hours. We meet on demand and set a time together, by appointment.', $next);
+    $next = str_replace('Mail or drop off checks payable to Mad Productions at 2212 37th Street, Moline, IL 61265. The deposit (50% of the agreed total) holds the date.', 'Mail or drop off checks payable to Mad Productions at 2212 37th Street, Moline, IL 61265. We don\'t keep set hours. We meet on demand and set a time together, by appointment. The deposit (50% of the agreed total) holds the date.', $next);
     $house = [
         'When does everyone have to be out?' => 'Everyone must be out of The Boardroom by 11:30 PM. This is firm, with no exceptions. Please finish in time to wrap up.',
-        'What are the hours?' => 'A full day runs from 10:00 AM to 11:30 PM. Half days are generally available in June: 10:00 AM to 4:00 PM, or 5:00 PM to 11:30 PM.',
-        'Do I have to meet you?' => 'Yes. We meet every renter before approving a booking. It is a short, friendly visit to talk through your plans and the house rules. Our team will reach out to schedule it.',
+        'What are the hours?' => 'A full day runs from 10:00 AM to 11:30 PM. Half days are generally available in June: 10:00 AM to 4:00 PM, or 5:00 PM to 11:30 PM. We don\'t keep set hours for meetings or check drop-off. We meet on demand and set a time together, by appointment.',
+        'Do I have to meet you?' => 'Yes. We meet every renter before approving a booking. It is a short, friendly visit to talk through your plans and the house rules. We don\'t keep set hours. We meet on demand and set a time together, by appointment.',
         'What if there is bad weather?' => 'Bad weather or an emergency out of our control, such as a hurricane, a snowstorm, or a power outage, is refundable. A personal issue, such as a flat tire, is not refundable.',
         'Is there a damage deposit?' => 'The refundable damage deposit is a flat $250. It is charged with the booking deposit and mainly covers cleaning. It may be applied to excessive cleaning or garbage. A dumpster is on site. It is returned within 72 hours when Venmo or PayPal is on file. A check takes 1 to 2 weeks. No glitter. Vaping leaves a residue and can affect the deposit. All smoking, including cigars and cigarettes, is outside only.',
         'Can we sell tickets or charge admission?' => 'No. All events must be free to attend: no tickets, no cover charge, no paid admission, no door fees, and no ticket or merchandise sales. We do not host concerts or ticketed shows.',
@@ -1174,6 +1178,7 @@ function brb_payment_lines($b) {
         $damage_left = brb_damage_left($b);
         $due_now = round(brb_amount_to_bring($b) + $damage_left, 2);
         $lines[] = brb_check_sentence('a check for ' . brb_money($due_now));
+        $lines[] = brb_appointment_line();
         $lines[] = 'Write booking reference ' . $ref . ' on the memo line.';
         $rental_after = max(0, round((float) $b->total - (float) $b->deposit_due, 2));
         if ($deposit_left > 0.009) {
@@ -1214,6 +1219,18 @@ function brb_preview_lines($q, DateTimeImmutable $start) {
     ];
 }
 
+function brb_is_production() {
+    return strtolower(brb_env('BRB_ENV')) === 'production';
+}
+function brb_search_indexing_allowed() {
+    if (brb_is_production()) return true;
+    return brb_env('DISCOURAGE_SEARCH') === '0';
+}
+function brb_apply_search_visibility() {
+    $public = brb_search_indexing_allowed() ? '1' : '0';
+    if ((string) get_option('blog_public') !== $public) update_option('blog_public', $public);
+}
+add_action('init', 'brb_apply_search_visibility', 0);
 function brb_env($name) {
     $value = getenv($name);
     if (!is_string($value) || $value === '') {
@@ -1486,7 +1503,7 @@ function brb_send_payment_email($b, $amount, $check_number, $method = 'check') {
         if ($still > 0.009 && brb_damage_left($b) > 0.009) {
             $follow .= ' The amount still due is ' . brb_money($still) . ', including the unpaid refundable damage deposit of ' . brb_money(brb_damage_left($b)) . '.';
         }
-        $follow .= "\n\n" . brb_check_sentence('the remaining balance as a check') . "\nWrite booking reference {$ref} on the memo line.";
+        $follow .= "\n\n" . brb_check_sentence('the remaining balance as a check') . "\n" . brb_appointment_line() . "\nWrite booking reference {$ref} on the memo line.";
         if ($method === 'card') $follow .= "\nYou can also pay the rest online from your booking page.";
     } else {
         $follow = 'Your booking is paid in full.';
@@ -1684,7 +1701,7 @@ function brb_record_payment($booking_id, $amount, $check_number, $received_on, $
     $damage_paid = round((float) ($b->damage_paid ?? 0) + $split['damage'], 2);
     $fields = ['amount_paid' => brb_dec($paid), 'damage_paid' => brb_dec($damage_paid)];
     if ($taken && $method === 'card') {
-        $fields['attention'] = 'A card payment arrived after this date was already reserved by another paid deposit. Resolve it manually. [VERIFY: attorney review]';
+        $fields['attention'] = 'A card payment arrived after this date was already reserved by another paid deposit. Resolve it manually.';
     } else {
         $fields['status'] = ($paid + 0.009 >= (float) $b->total) ? 'paid' : 'deposit_paid';
     }
@@ -1776,7 +1793,7 @@ function brb_decline_booking($booking_id) {
     if (!in_array($b->status, ['review', 'approved', 'pending', 'held', 'deposit_paid'], true)) return new WP_Error('status', 'Only a request that is pending review, approved, or deposit paid can be declined.');
     $fields = ['status' => 'declined', 'hold_until' => null];
     if ((float) $b->amount_paid > 0.009) {
-        $fields['attention'] = 'A payment was recorded before this request was declined. Resolve it manually. [VERIFY: attorney review]';
+        $fields['attention'] = 'A payment was recorded before this request was declined. Resolve it manually.';
     }
     $wpdb->update(brb_table(), $fields, ['id' => (int) $b->id]);
     $b = brb_booking($b->id);
@@ -2173,7 +2190,7 @@ function brb_view_confirmation($token) {
           } else {
               echo '<p>Balance of ' . esc_html(brb_money($still)) . esc_html($due_bit) . '.</p>';
           }
-          echo '<p>' . esc_html(brb_check_sentence('the remaining balance as a check')) . ' You can also pay the rest online when card payment is offered. Write booking reference ' . esc_html(brb_ref($b)) . ' on the memo line.</p></div>';
+          echo '<p>' . esc_html(brb_check_sentence('the remaining balance as a check')) . ' ' . esc_html(brb_appointment_line()) . ' You can also pay the rest online when card payment is offered. Write booking reference ' . esc_html(brb_ref($b)) . ' on the memo line.</p></div>';
       } elseif ($b->status === 'paid') {
           echo '<div class="brb-paybox"><p>This booking is paid in full and confirmed.</p></div>';
           echo '<p>A confirmation email was sent to ' . esc_html($b->email) . '.</p>';

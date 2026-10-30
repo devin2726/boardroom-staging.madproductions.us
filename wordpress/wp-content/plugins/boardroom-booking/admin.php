@@ -14,17 +14,11 @@ add_action('admin_enqueue_scripts', function ($h) {
 });
 add_action('admin_notices', function () {
     if (!current_user_can('manage_options')) return;
-    $page = isset($_GET['page']) ? sanitize_key(wp_unslash($_GET['page'])) : '';
-    $prints_its_own = ($page === 'brb-settings') || ($page === 'brb' && !empty($_GET['booking']));
-    if (!$prints_its_own) {
-        echo '<div class="notice notice-warning"><p>' . esc_html(brb_attorney_notice()) . '</p></div>';
-    }
     $o = brb_opt();
     $missing = [];
     foreach ([
         'payee' => 'check payable-to name',
-        'pay_location' => 'in-person payment location',
-        'pay_hours' => 'in-person hours',
+        'pay_location' => 'check mail or drop-off address',
     ] as $k => $label) {
         if (strpos((string) $o[$k], '[VERIFY]') !== false) $missing[] = $label;
     }
@@ -254,7 +248,6 @@ function brb_admin_list() {
 function brb_admin_detail($id) {
     $b = brb_booking($id);
     echo '<div class="wrap"><h1>Booking</h1>';
-    echo '<div class="notice notice-warning"><p>' . esc_html(brb_attorney_notice()) . '</p></div>';
     brb_admin_note();
     if (!$b) {
         echo '<p>Booking not found.</p></div>';
@@ -321,7 +314,7 @@ function brb_admin_detail($id) {
         return ($p->method ?? '') === 'card';
     });
     if ($card_rows || !empty($b->attention)) {
-        echo '<p>The deposit follows the 60-day written cancellation rule. The card processing fee is non-refundable. Card payments and refunds are resolved manually in the Stripe dashboard. [VERIFY: attorney review]</p>';
+        echo '<p>The deposit follows the 60-day written cancellation rule. The card processing fee is non-refundable. Card payments and refunds are resolved manually in the Stripe dashboard.</p>';
     }
 
     $charge_lines = brb_lines($b->id);
@@ -599,8 +592,7 @@ function brb_admin_settings() {
             ['damage_deposit_amount', 'Damage deposit amount ($)', 'number', null, 'Flat refundable damage deposit added to new bookings. Default 250. Changing this does not change bookings that already have a damage deposit line. Use 0 if a new booking should not include one.'],
             ['venue_address', 'Venue address', 'text', null, 'The event space. Shown in the footer, on Contact, and in Terms and Privacy. Default is 2220 37th Street, Moline, IL 61265. This is not where checks go.'],
             ['payee', 'Check payable to [VERIFY]', 'text', null, 'The name guests write on the payee line. Until this placeholder is replaced, guest check instructions say Mad Productions.'],
-            ['pay_location', 'Where to mail or drop off checks', 'text', null, 'Check mail and drop-off only. Default is 2212 37th Street, Moline, IL 61265. A saved placeholder, or the old 2212 47 Ave line, is replaced on upgrade.'],
-            ['pay_hours', 'In-person hours [VERIFY]', 'text', null, 'Days and hours a guest can drop off a check.'],
+            ['pay_location', 'Where to mail or drop off checks', 'text', null, 'Check mail and drop-off only. Default is 2212 37th Street, Moline, IL 61265. A saved placeholder, or the old 2212 47 Ave line, is replaced on upgrade. Guests are told we meet on demand and set a time together, by appointment. There are no set drop-off hours.'],
             ['pay_instructions', 'Payment instructions', 'textarea', null, 'Optional extra text in the approval email and on an approved booking. Leave blank and this line stays hidden. It is not shown before the request is approved.'],
             ['card_fee_percent', 'Card processing fee (%)', 'number', null, 'Added on top of an online card payment. Default 3. It is not applied to the booking balance. Card payment stays off until the Stripe secret key is set on the server.'],
             ['admin_email', 'Admin notification email', 'textarea', null, 'Request, payment, and contact inquiry emails are sent here. Separate more than one address with a comma, semicolon, or a new line. An address that is not valid is skipped and shown in a warning.'],
@@ -615,7 +607,6 @@ function brb_admin_settings() {
     echo '<div class="wrap"><h1>Booking Settings</h1>';
     $email_warn = brb_admin_email_notice_html();
     if ($email_warn !== '') echo $email_warn;
-    echo '<div class="notice notice-warning"><p>' . esc_html(brb_attorney_notice()) . '</p></div>';
     brb_admin_note();
     echo '<p>Guests save a date on the website. They can pay by check or in person, or online by card when the Stripe secret key is set. ' . esc_html(brb_price_sentence()) . ' Staff set the final price on each booking. The venue and the check address are separate settings.</p>';
     echo '<p>No overnight stays. The Boardroom is an event space only. ' . esc_html(brb_out_by_line()) . ' ' . esc_html(brb_free_admission_rule()) . ' Hourly bookings still end by 11:00 PM because the calendar uses whole hours.</p>';
