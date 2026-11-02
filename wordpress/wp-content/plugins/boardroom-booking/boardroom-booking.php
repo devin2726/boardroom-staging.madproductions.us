@@ -1908,7 +1908,6 @@ add_shortcode('boardroom_booking', function () {
     ]);
     ob_start();
     echo '<div class="brb">';
-    echo '<p class="brb-small"><a href="' . esc_url(home_url('/rental-checklist/')) . '">Rental checklist</a></p>';
     echo '<p class="brb-lead">' . esc_html(brb_price_sentence()) . '</p>';
     echo '<p class="brb-lead">' . esc_html(brb_approval_line()) . ' ' . esc_html(brb_request_open_line()) . ' ' . esc_html(brb_reserved_line()) . ' ' . esc_html(brb_deposit_line()) . ' ' . esc_html(brb_fee_public_line()) . '</p>';
     if (!empty($_GET['br_err'])) echo '<div class="brb-alert brb-err">' . esc_html(wp_unslash($_GET['br_err'])) . '</div>';
