@@ -24,8 +24,6 @@ function brb_chat_corpus_items() {
 }
 
 function brb_chat_topic_spec($topic) {
-    $clerk = '309-524-2004';
-    $byob = 'https://moline.il.us/244/Liquor-Licensing';
     $specs = [
         'date_check' => ['dynamic' => 'date', 'money' => 'date', 'dates' => true],
         'nye' => ['dynamic' => 'nye', 'money' => 'date', 'dates' => true],
@@ -80,9 +78,9 @@ function brb_chat_topic_spec($topic) {
         'food' => ['facts_i' => ['own food', 'warmers', 'stovetop', 'any caterer', 'does not provide catering'], 'money' => 'none'],
         'kitchen' => ['facts' => ['stovetop'], 'any' => [["can't be used", 'not permitted', 'may not be used', 'No cooking']], 'money' => 'none'],
         'fridge' => ['facts' => ['refrigerator', 'ice machine'], 'money' => 'none'],
-        'alcohol' => ['facts' => ['BYOB', $byob, $clerk, 'leave it like you got it', 'garbage'], 'money' => 'none', 'phone' => 'clerk', 'forbid' => ['$50']],
-        'serve_alcohol' => ['facts' => ["don't supply", 'BYOB', $byob, $clerk], 'money' => 'none', 'phone' => 'clerk', 'forbid' => ['$50', 'Yes. BYOB']],
-        'bar' => ['facts' => ['bar area', 'ice machine', 'BYOB', $clerk], 'money' => 'none', 'phone' => 'clerk', 'forbid' => ['$50']],
+        'alcohol' => ['facts' => ['BYOB', 'City of Moline', 'Want more details?'], 'money' => 'none', 'phone' => 'never', 'forbid' => ['$50']],
+        'serve_alcohol' => ['facts' => ["don't supply", 'BYOB', 'Want more details?'], 'money' => 'none', 'phone' => 'never', 'forbid' => ['$50', 'Yes. BYOB']],
+        'bar' => ['facts' => ['bar area', 'ice machine', 'BYOB', 'Want more details?'], 'money' => 'none', 'phone' => 'never', 'forbid' => ['$50']],
         'plates' => ['facts' => ['bring your own plates'], 'money' => 'none'],
         'tables' => ['facts' => ['Tables and chairs', 'not set up', 'Staff cannot set the room up'], 'money' => 'none'],
         'setup_help' => ['facts' => ['No. Guests set up', 'Staff cannot set the room up'], 'money' => 'none', 'forbid' => ['extra fee']],
@@ -103,7 +101,7 @@ function brb_chat_topic_spec($topic) {
         'place' => ['facts' => ['2220 37th Street, Moline, IL 61265'], 'money' => 'none', 'forbid' => ['2212']],
         'parking' => ['facts' => ['Free parking on premises'], 'money' => 'none'],
         'truck' => ['facts' => ['place for a food truck'], 'money' => 'none'],
-        'rules' => ['facts' => ['No overnight stays', 'No cooking', 'stovetop', 'no taps', 'BYOB', 'City of Moline', $byob, $clerk, 'not set up', 'garbage', '75', 'Christmas decorations are up in December', 'insurance', '11:30 PM', 'no tickets'], 'money' => 'none', 'phone' => 'clerk', 'forbid' => ['$50', 'midnight', '90 or more days']],
+        'rules' => ['facts' => ['No overnight stays', 'no cooking', '11:30 PM', 'no tickets', '75', 'Want more details?'], 'money' => 'none', 'phone' => 'never', 'forbid' => ['$50', 'midnight', '90 or more days']],
         'cleanup' => ['facts' => ['leave it like you got it', 'garbage'], 'money' => 'none'],
         'smoke' => ['facts' => ['outside only', 'Vaping'], 'money' => 'none'],
         'pets' => ['facts' => ['Service animals only', 'No pets'], 'money' => 'none'],
