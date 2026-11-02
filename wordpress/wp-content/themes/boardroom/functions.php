@@ -4,8 +4,8 @@ add_action('after_setup_theme', function () {
     register_nav_menus(['primary' => 'Primary', 'footer' => 'Footer']);
 });
 add_action('wp_enqueue_scripts', function () {
-    wp_enqueue_style('boardroom', get_stylesheet_uri(), [], '1.2.20');
-    wp_enqueue_script('boardroom', get_template_directory_uri() . '/assets/site.js', [], '1.2.20', true);
+    wp_enqueue_style('boardroom', get_stylesheet_uri(), [], '1.2.21');
+    wp_enqueue_script('boardroom', get_template_directory_uri() . '/assets/site.js', [], '1.2.21', true);
 });
 function br_img($f) { return get_template_directory_uri() . '/assets/img/' . $f; }
 function br_logo($place) {
@@ -58,9 +58,8 @@ function br_amenity_groups() {
         [
             'title' => 'Kitchen area',
             'icon' => 'M6 10h12l-1 8H7l-1-8zM9 10V7M12 10V5M15 10V7',
-            'lead' => 'Serving and storage only, no cooking.',
+            'lead' => 'Serving and storage only, no cooking or stovetop use.',
             'items' => ['Refrigerator (large)', 'Freezer', 'Mini fridge', 'Microwave', 'Dishwasher', 'Coffee maker (drip and pour-over)', 'Hot water kettle', 'Toaster', 'Blender', 'Wine glasses'],
-            'note' => 'Kitchen area is for serving and storage. Cooking and stovetop use are not permitted.',
         ],
         [
             'title' => 'Safety',
@@ -78,13 +77,13 @@ function br_amenities_html() {
             $safety = implode(', ', $group['items']);
             continue;
         }
-        $html .= '<section class="amenity-group">';
+        $class = 'amenity-group' . (($group['title'] ?? '') === 'Kitchen area' ? ' amenity-kitchen' : '');
+        $html .= '<section class="' . $class . '">';
         $html .= '<h3>' . (!empty($group['icon']) ? br_amenity_icon($group['icon']) : '') . esc_html($group['title']) . '</h3>';
         if (!empty($group['lead'])) $html .= '<p class="amenity-lead">' . esc_html($group['lead']) . '</p>';
         $html .= '<ul>';
         foreach ($group['items'] as $item) $html .= '<li>' . esc_html($item) . '</li>';
         $html .= '</ul>';
-        if (!empty($group['note'])) $html .= '<p class="amenity-note">' . esc_html($group['note']) . '</p>';
         $html .= '</section>';
     }
     $html .= '</div>';
@@ -180,6 +179,21 @@ function br_tour_video_html() {
     return $html;
 }
 add_action('wp_head', function () { echo '<link rel="icon" href="' . esc_url(br_img('boardroom-siteicon-512.png')) . '">'; });
+function br_book_shortcuts_html() {
+    $items = [
+        ['href' => home_url('/#amenities'), 'label' => 'See the amenities', 'sub' => "What's in the room", 'icon' => 'M12 3l1.2 3.6L17 8l-3.8 1.4L12 13l-1.2-3.6L7 8l3.8-1.4zM18 14l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7z'],
+        ['href' => home_url('/rental-checklist/'), 'label' => 'Rental checklist', 'sub' => 'What to do before and after', 'icon' => 'M8 3h8v3H8zM6 5h12v16H6zM9 12l2 2 4-4'],
+    ];
+    $html = '<nav class="book-shortcuts" aria-label="Booking help">';
+    foreach ($items as $item) {
+        $html .= '<a class="book-shortcut" href="' . esc_url($item['href']) . '">';
+        $html .= '<svg class="book-shortcut-icon" viewBox="0 0 24 24" width="36" height="36" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" d="' . $item['icon'] . '"/></svg>';
+        $html .= '<span class="book-shortcut-copy"><span class="book-shortcut-label">' . esc_html($item['label']) . '</span>';
+        $html .= '<span class="book-shortcut-sub">' . esc_html($item['sub']) . '</span></span></a>';
+    }
+    $html .= '</nav>';
+    return $html;
+}
 function br_contact_form() {
     if (function_exists('brb_tour_form')) return brb_tour_form();
     return '';

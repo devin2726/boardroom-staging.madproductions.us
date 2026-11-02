@@ -168,7 +168,7 @@ try {
     brb_t(strpos($contact_html, '[boardroom_tour]') === false && strpos($contact_html, '2220 37th Street') === false && strpos($contact_html, 'mailto:') === false, 'stored contact content does not repeat the venue or email');
     $template = file_get_contents(get_stylesheet_directory() . '/page-contact.php');
     $map = brb_map_embed();
-    brb_t(is_string($template) && strpos($template, 'brb_map_embed') !== false && strpos($template, 'brb_tour_form') !== false, 'the contact template renders the map and the one form');
+    brb_t(is_string($template) && strpos($template, 'brb_map_embed') === false && strpos($template, 'brb_tour_form') !== false && strpos($template, "brb_chat_markup('inline')") !== false, 'the contact template is the assistant and the form, without its own map');
     brb_t(strpos($map, 'loading="lazy"') !== false && strpos($map, 'https://www.google.com/maps/embed') !== false && strpos($map, '41.4913116') !== false && strpos($map, '-90.4820481') !== false, 'the map iframe is lazy and uses the venue coordinates');
     brb_t(strpos($map, BRB_MAPS_URL) === false, 'the directions short link stays outside the iframe');
     $header = file_get_contents(get_stylesheet_directory() . '/header.php');
@@ -179,7 +179,7 @@ try {
     foreach (['Air conditioning', 'Heating', 'Hot water', 'Private entrance', 'Free parking on premises', 'Free street parking', 'Wifi', 'TV', 'Sound system (Sonos, Aux, Bluetooth)', 'Pool table', 'Board games', 'Dining table', 'Dedicated workspace', 'Refrigerator (large)', 'Freezer', 'Mini fridge', 'Microwave', 'Dishwasher', 'Coffee maker (drip and pour-over)', 'Hot water kettle', 'Toaster', 'Blender', 'Wine glasses', 'Smoke alarm', 'Carbon monoxide alarm', 'Fire extinguisher', 'First aid kit'] as $item) {
         brb_t(strpos($amenities, $item) !== false, 'amenities include ' . $item);
     }
-    brb_t(strpos($amenities, 'Kitchen area is for serving and storage. Cooking and stovetop use are not permitted.') !== false, 'the kitchen note says serving and storage only');
+    brb_t(substr_count($amenities, 'Serving and storage only, no cooking or stovetop use.') === 1 && strpos($amenities, 'Kitchen area is for serving and storage. Cooking and stovetop use are not permitted.') === false, 'the kitchen card has one serving-and-storage line');
     brb_t(strpos($amenities, 'The room comes not set up.') !== false && strpos($amenities, 'No overnight stays.') !== false, 'amenities say the room is not set up and there are no overnight stays');
     brb_t(strpos($home, 'br_amenities_html') !== false && strpos($home, 'id="amenities"') !== false, 'the homepage amenities section prints the checklist');
     foreach (['Laundromat', 'Airbnb', 'airbnb', 'Cooking basics', 'Baking sheet', 'Barbecue utensils', 'Books and reading material', '$'] as $banned_item) {
@@ -189,14 +189,16 @@ try {
     $gallery_tpl = file_get_contents(get_stylesheet_directory() . '/page-gallery.php');
     $book_tpl = file_get_contents(get_stylesheet_directory() . '/page.php');
     brb_t(is_string($gallery_tpl) && strpos($gallery_tpl, '/#amenities') !== false, 'the gallery page links to the amenities');
-    brb_t(is_string($book_tpl) && strpos($book_tpl, 'book-amenities') !== false && strpos($book_tpl, '/#amenities') !== false, 'the book page links to the amenities');
+    brb_t(is_string($book_tpl) && strpos($book_tpl, 'br_book_shortcuts_html') !== false && strpos($book_tpl, 'br_review_rotator_html') === false, 'the book page uses the shortcut cards and not the review rotator');
     $reviews = br_reviews_html();
     brb_t(strpos($home, 'br_reviews_html') !== false && strpos($home, 'br_reviews_html') < strpos($home, 'block dark cta'), 'guest reviews sit before the reservation call to action');
     brb_t(strpos($reviews, 'What our guests say') !== false && strpos($reviews, '5.0 ★ from 29 guest reviews') !== false && strpos($reviews, 'Read more reviews') === false && substr_count($reviews, 'class="t-set"') === 2 && strpos($reviews, 'aria-hidden="true"') !== false && substr_count($reviews, 'class="t-card"') === 24, 'the reviews section is a marquee of every review with a hidden copy');
     brb_t(strpos($reviews, 'Dixon N.') !== false && strpos($reviews, 'Nothing else like it in the QC.') !== false && strpos($reviews, 'Cresencia') !== false && strpos($reviews, 'grandma') !== false, 'featured and later reviews are all in the marquee');
     brb_t(stripos($reviews, 'airbnb') === false && strpos($reviews, 'Google') === false && strpos($reviews, 'tel:') === false && strpos($reviews, 'name="phone"') === false, 'guest reviews do not name a source or a phone number');
     $rotator = br_review_rotator_html();
-    brb_t(is_string($book_tpl) && strpos($book_tpl, 'br_review_rotator_html') !== false && strpos($rotator, 'class="review-card on"') !== false && substr_count($rotator, '<blockquote') === 4, 'the book page rotates the featured quotes and shows the first without script');
+    $shortcuts = br_book_shortcuts_html();
+    brb_t(strpos($shortcuts, 'See the amenities') !== false && strpos($shortcuts, "What's in the room") !== false && strpos($shortcuts, 'Rental checklist') !== false && strpos($shortcuts, 'What to do before and after') !== false && strpos($shortcuts, '/#amenities') !== false && strpos($shortcuts, '/rental-checklist/') !== false, 'the book shortcuts name the amenities and the checklist');
+    brb_t(strpos($rotator, 'class="review-card on"') !== false && substr_count($rotator, '<blockquote') === 4 && strpos($home, 'br_reviews_html') !== false, 'featured quotes still exist for the home page, which keeps the review marquee');
     $summary = br_review_aggregate_schema();
     brb_t(is_array($summary) && $summary['ratingValue'] === '5.0' && $summary['reviewCount'] === 29, 'the review schema uses the 5.0 rating and the count of 29');
     ob_start();
@@ -243,7 +245,7 @@ try {
     $footer = file_get_contents(get_stylesheet_directory() . '/footer.php');
     $footer_map = function_exists('br_footer_map') ? br_footer_map() : '';
     brb_t(is_string($footer) && strpos($footer, 'br_footer_map') !== false && strpos($footer_map, 'https://www.google.com/maps?q=2220+37th+Street,+Moline,+IL+61265') !== false && strpos($footer_map, 'output=embed') !== false && strpos($footer_map, 'loading="lazy"') !== false && strpos($footer_map, 'referrerpolicy="no-referrer-when-downgrade"') !== false && strpos($footer, 'Get directions') !== false && strpos($footer, '2220 37th Street, Moline, IL 61265') !== false, 'the footer map uses the venue embed');
-    brb_t(is_string($contact_tpl) && strpos($contact_tpl, "brb_chat_markup('inline')") !== false && strpos($contact_tpl, 'brb_tour_form') !== false && strpos($contact_tpl, 'brb_map_embed') !== false && strpos($contact_tpl, "brb_chat_markup('inline')") < strpos($contact_tpl, 'brb_tour_form') && strpos($contact_tpl, 'brb_tour_form') < strpos($contact_tpl, 'brb_map_embed'), 'the contact page is the inline assistant, then the form, then the map');
+    brb_t(is_string($contact_tpl) && strpos($contact_tpl, "brb_chat_markup('inline')") !== false && strpos($contact_tpl, 'brb_tour_form') !== false && strpos($contact_tpl, 'brb_map_embed') === false && strpos($contact_tpl, "brb_chat_markup('inline')") < strpos($contact_tpl, 'brb_tour_form'), 'the contact page is the inline assistant, then the form');
     brb_t(is_string($home) && strpos($home, 'brb_chat_markup') !== false && strpos($home, 'Contact the Boardroom') !== false, 'the home contact section includes the inline assistant');
     $css = file_get_contents(get_stylesheet_directory() . '/style.css');
     $site_js = file_get_contents(get_stylesheet_directory() . '/assets/site.js');
