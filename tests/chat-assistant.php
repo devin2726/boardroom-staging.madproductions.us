@@ -50,15 +50,22 @@ try {
     brb_t(brb_estimate_amount('2027-01-10') === 850.0, 'a Sunday outside the holiday ranges uses the Sunday to Thursday rate');
 
     $rules = brb_chat_reply('What are the house rules?');
-    foreach (['No overnight stays', 'No cooking', 'stovetop', 'no taps', 'BYOB', 'City of Moline', 'https://moline.il.us/244/Liquor-Licensing', '309-524-2004', 'not set up', 'garbage', '75', 'Christmas decorations are up in December', 'insurance'] as $needle) {
+    foreach (['No overnight stays', 'no cooking', '11:30 PM', 'no tickets', '75', 'Want more details?'] as $needle) {
         brb_t(stripos($rules, $needle) !== false, 'rules answer includes ' . $needle);
     }
-    brb_t(strpos($rules, '$50') === false && strpos($rules, 'fee $50') === false, 'rules do not state a liquor license fee');
-    brb_t(stripos($rules, 'owner') === false && stripos($rules, $other) === false && strpos($rules, '11:30 PM') !== false && stripos($rules, 'midnight') === false && strpos($rules, 'no tickets') !== false, 'rules answer stays on the venue and states the departure and admission rules');
+    brb_t(strpos($rules, '$50') === false && strpos($rules, 'fee $50') === false && strpos($rules, '309-524-2004') === false, 'the short rules answer skips the liquor fee and the clerk phone');
+    brb_t(stripos($rules, 'owner') === false && stripos($rules, $other) === false && stripos($rules, 'midnight') === false, 'rules answer stays on the venue and states the departure and admission rules');
+    $rules_more = brb_chat_reply('yes', [['role' => 'user', 'text' => 'What are the house rules?']]);
+    foreach (['stovetop', 'no taps', 'BYOB', 'City of Moline', 'https://moline.il.us/244/Liquor-Licensing', '309-524-2004', 'not set up', 'garbage', 'Christmas decorations are up in December', 'insurance'] as $needle) {
+        brb_t(stripos($rules_more, $needle) !== false, 'rules follow-up includes ' . $needle);
+    }
+    brb_t(strpos($rules_more, '$50') === false && stripos($rules_more, 'midnight') === false && stripos($rules_more, 'owner') === false, 'rules follow-up keeps the liquor fee, midnight, and private topics out');
     $food = brb_chat_reply('Can I bring my own food?');
-    brb_t(stripos($food, 'own food') !== false && stripos($food, 'warmers') !== false && stripos($food, 'stovetop') !== false && stripos($food, 'any caterer') !== false && stripos($food, 'does not provide catering') !== false, 'own food is allowed with warmers and without catering from us');
+    brb_t(stripos($food, 'own food') !== false && stripos($food, 'warmers') !== false && stripos($food, 'stovetop') !== false && stripos($food, 'any caterer') !== false && stripos($food, 'does not provide catering') !== false && strpos($food, 'Want more details?') !== false, 'own food is allowed with warmers and without catering from us');
     $byob = brb_chat_reply('Is BYOB allowed?');
-    brb_t(strpos($byob, 'BYOB') !== false && strpos($byob, 'https://moline.il.us/244/Liquor-Licensing') !== false && strpos($byob, '309-524-2004') !== false && strpos($byob, '$50') === false && strpos($byob, 'leave it like you got it') !== false && strpos($byob, 'garbage') !== false, 'BYOB points guests to the City of Moline and includes cleanup');
+    brb_t(strpos($byob, 'BYOB') !== false && strpos($byob, 'City of Moline') !== false && strpos($byob, 'Want more details?') !== false && strpos($byob, '309-524-2004') === false && strpos($byob, '$50') === false, 'BYOB stays short and points guests to the City of Moline');
+    $byob_more = brb_chat_reply('tell me more', [['role' => 'user', 'text' => 'Is BYOB allowed?']]);
+    brb_t(strpos($byob_more, 'https://moline.il.us/244/Liquor-Licensing') !== false && strpos($byob_more, '309-524-2004') !== false && strpos($byob_more, 'leave it like you got it') !== false && strpos($byob_more, 'garbage') !== false && strpos($byob_more, '$50') === false, 'BYOB follow-up includes the City Clerk and cleanup');
     $out = brb_chat_reply('How late can we stay?');
     brb_t(strpos($out, '11:30 PM') !== false && stripos($out, 'midnight') === false && stripos($out, 'permit') === false, 'end time questions say 11:30 PM');
     $hours = brb_chat_reply('What are your hours?');
@@ -127,8 +134,10 @@ try {
     brb_t(strpos($fund, 'no tickets') !== false && strpos($fund, 'no door fees') !== false, 'a fundraiser cannot sell tickets');
 
     $amenities = brb_chat_reply('What amenities are included?');
-    brb_t(strpos($amenities, 'Wifi') !== false && strpos($amenities, 'Kitchen area is for serving and storage. Cooking and stovetop use are not permitted.') !== false && strpos($amenities, "Here's what the room includes:") === 0 && strpos($amenities, 'Great question') === false, 'amenities answer uses the checklist and leads with the list');
-    brb_t(strpos($amenities, 'Laundromat') === false && stripos($amenities, $other) === false && stripos($amenities, 'owner') === false, 'amenities answer does not add excluded items');
+    brb_t(strpos($amenities, 'Wifi') !== false && strpos($amenities, "Here's what the room includes:") === 0 && strpos($amenities, 'Want more details?') !== false && strpos($amenities, 'Kitchen area is for serving and storage. Cooking and stovetop use are not permitted.') === false && strpos($amenities, 'Great question') === false, 'amenities answer leads with a short list');
+    $amenities_more = brb_chat_reply('yes', [['role' => 'user', 'text' => 'What amenities are included?']]);
+    brb_t(strpos($amenities_more, 'Kitchen area is for serving and storage. Cooking and stovetop use are not permitted.') !== false && strpos($amenities_more, "Here's what the room includes:") === 0, 'amenities follow-up includes the kitchen rule');
+    brb_t(strpos($amenities, 'Laundromat') === false && strpos($amenities_more, 'Laundromat') === false && stripos($amenities, $other) === false && stripos($amenities, 'owner') === false, 'amenities answer does not add excluded items');
 
     $off = brb_chat_reply('Who is the ' . 'owner' . ' and what is their personal life?');
     brb_t(strpos($off, 'Contact form') !== false && stripos($off, 'owner') === false && stripos($off, $other) === false, 'questions about people are refused');
@@ -205,7 +214,9 @@ try {
     update_option('brb_settings', $saved);
 
     $pay = brb_chat_reply('How do I pay the deposit?');
-    brb_t(strpos($pay, '50% of the agreed total') !== false && strpos($pay, '60 or more days before the event') !== false && strpos($pay, 'less than 60 days before the event') !== false && strpos($pay, 'Want the full cancellation terms?') !== false && strpos($pay, '2212') === false && strpos($pay, 'not a binding commitment') === false && stripos($pay, 'Stripe') === false, 'the deposit answer is short and skips the check address');
+    brb_t(strpos($pay, 'The deposit is 50% of the agreed total, due within 1 day of signing. Want more details?') === 0 && strpos($pay, '60 or more days') === false && strpos($pay, '2212') === false && strpos($pay, 'not a binding commitment') === false && stripos($pay, 'Stripe') === false, 'the deposit answer is short and skips the check address');
+    $pay_more = brb_chat_reply('yes', [['role' => 'user', 'text' => 'How do I pay the deposit?']]);
+    brb_t(strpos($pay_more, '60 or more days before the event') !== false && strpos($pay_more, 'less than 60 days before the event') !== false && strpos($pay_more, '2212') === false && strpos($pay_more, 'not a binding commitment') === false, 'the deposit follow-up includes the cancellation window');
     $checks = brb_chat_reply('Where do I mail a check?');
     brb_t(strpos($checks, '2212 37th Street, Moline, IL 61265') !== false && strpos($checks, 'Mad Productions') !== false && strpos($checks, 'check address') !== false, 'a check question names the check address');
 

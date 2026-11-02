@@ -136,7 +136,8 @@
       addSuggestions(data.suggestions);
       turns.push({ role: 'assistant', text: data.reply });
       history.push({ role: 'user', text: text });
-      if (history.length > 8) history = history.slice(-8);
+      history.push({ role: 'assistant', text: data.reply });
+      if (history.length > 16) history = history.slice(-16);
       if (data.lead) showLead();
     }).catch(function () {
       addMsg('bot', 'Please try that once more in a moment. You can also use the Contact form.');
