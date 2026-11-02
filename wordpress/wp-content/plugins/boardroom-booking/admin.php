@@ -7,6 +7,7 @@ add_action('admin_menu', function () {
     add_submenu_page('brb', 'Add booking', 'Add booking', 'manage_options', 'brb-new', 'brb_admin_new');
     add_submenu_page('brb', 'Calendar', 'Calendar', 'manage_options', 'brb-cal', 'brb_admin_cal');
     add_submenu_page('brb', 'Inquiries', 'Inquiries', 'manage_options', 'brb-tours', 'brb_admin_tours');
+    add_submenu_page('brb', 'Reports', 'Reports', 'manage_options', 'brb-reports', 'brb_admin_reports');
     add_submenu_page('brb', 'Booking Settings', 'Settings', 'manage_options', 'brb-settings', 'brb_admin_settings');
 });
 add_action('admin_enqueue_scripts', function ($h) {
@@ -726,7 +727,7 @@ function brb_admin_settings() {
                 $email = sanitize_email($raw);
                 $new[$k] = is_email($email) ? $email : $defaults['tour_email'];
             } else {
-                $new[$k] = in_array($k, ['policy', 'blackouts', 'pay_instructions', 'checklist', 'admin_email'], true)
+                $new[$k] = in_array($k, ['policy', 'blackouts', 'pay_instructions', 'checklist', 'admin_email', 'weekly_summary_emails'], true)
                     ? sanitize_textarea_field($raw)
                     : sanitize_text_field($raw);
             }
@@ -792,6 +793,12 @@ function brb_admin_settings() {
             ['admin_email', 'Admin notification email', 'textarea', null, 'Request, payment, and contact inquiry emails are sent here. Separate more than one address with a comma, semicolon, or a new line. An address that is not valid is skipped and shown in a warning.'],
             ['tour_email', 'Inquiry email', 'text', null, 'Contact inquiries are also emailed here. Default is boardroomqc@gmail.com.'],
         ],
+        'Reports' => [
+            ['ga_measurement_id', 'GA4 measurement ID', 'text', null, 'Example: G-XXXX. The tag is added on the public site only when this is set and search indexing is allowed. Staging stays noindex and does not load the tag.'],
+            ['ga_property_id', 'GA4 property ID', 'text', null, 'Numeric property id from Google Analytics Admin. Used only to read reports. It is not the measurement ID.'],
+            ['weekly_summary', 'Weekly summary email', 'select', ['0' => 'Off', '1' => 'On'], 'Off by default. A weekly email goes to the list below only when this is On and the list has at least one address.'],
+            ['weekly_summary_emails', 'Weekly summary recipients', 'textarea', null, 'Optional team list. Separate addresses with a comma, semicolon, or a new line. Leave empty and nothing is sent.'],
+        ],
         'Calendar and policy' => [
             ['blackouts', 'Blackout dates (YYYY-MM-DD, one per line)', 'textarea', null, 'Saved dates stay in the database when the plugin is updated. Emptying this box does not delete them unless you tick the box under it.'],
             ['policy', 'Cancellation policy', 'textarea', null, 'Shown before a guest saves a date, and included in emails.'],
@@ -850,5 +857,33 @@ function brb_admin_settings() {
     echo '<p>Stripe connected: ' . (brb_stripe_enabled() ? 'yes' : 'no') . '</p>';
     echo '<p>Mode: ' . esc_html($stripe_mode !== '' ? $stripe_mode : '—') . '</p>';
     echo '<p class="description">Online card payment is off until the secret key is set on the server. Refunds are issued manually in the Stripe dashboard and follow the rental agreement.</p>';
+    echo '<h2>Google Analytics service account</h2>';
+    $saved_ga = brb_ga_credentials();
+    echo '<p>' . ($saved_ga ? 'A service account JSON is saved. It is not shown again.' : 'No service account JSON is saved.') . '</p>';
+    echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
+    echo '<input type="hidden" name="action" value="brb_ga_credentials">';
+    wp_nonce_field('brb_ga_credentials');
+    echo '<p><label>Replace JSON<br><textarea name="ga_json" rows="6" class="large-text" placeholder="Paste the JSON only when replacing it"></textarea></label></p>';
+    echo '<p><label><input type="checkbox" name="ga_clear" value="1"> Remove the saved service account</label></p>';
+    echo '<p><button class="button">Save service account</button></p>';
+    echo '<p class="description">In Google Analytics Admin, grant the service account Viewer access on the property. The JSON stays on this server and is never printed back.</p>';
+    echo '</form>';
     echo '</div>';
 }
+add_action('admin_post_brb_ga_credentials', function () {
+    if (!current_user_can('manage_options')) wp_die('Sorry, you are not allowed to do that.');
+    check_admin_referer('brb_ga_credentials');
+    $note = 'Saved.';
+    if (!empty($_POST['ga_clear'])) {
+        delete_option('brb_ga_credentials');
+        $note = 'Removed the service account.';
+    } else {
+        $json = (string) wp_unslash($_POST['ga_json'] ?? '');
+        if (trim($json) !== '') {
+            $saved = brb_ga_store_credentials($json);
+            if (is_wp_error($saved)) $note = $saved->get_error_message();
+        }
+    }
+    wp_safe_redirect(admin_url('admin.php?page=brb-settings&brb_note=' . rawurlencode($note)));
+    exit;
+});

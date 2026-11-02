@@ -148,6 +148,14 @@ function brb_tour_submit($input) {
     ));
     if (!$ok) return new WP_Error('store', 'We could not save that message. Please try again.');
     $row = brb_tour((int) $wpdb->insert_id);
+    if ($row) {
+        brb_report_stamp_inquiry((int) $row->id, [
+            'source' => $topic === 'tour' ? 'tour request' : 'contact form',
+            'event_type' => $input['event_type'] ?? '',
+            'party_size' => $input['party_size'] ?? '',
+        ]);
+        if ($topic === 'tour') brb_event_hit('tour_request');
+    }
     brb_tour_rate_bump();
     if ($row) brb_send_tour_notice($row);
     return $row;
@@ -227,7 +235,15 @@ function brb_tour_form() {
         echo '<option value="' . esc_attr($value) . '">' . esc_html($label) . '</option>';
     }
     echo '</select></label>';
+    echo '<label>Event type<select name="event_type"><option value="">Choose one</option>';
+    if (function_exists('brb_event_types')) {
+        foreach (brb_event_types() as $value => $label) {
+            echo '<option value="' . esc_attr($value) . '">' . esc_html($label) . '</option>';
+        }
+    }
+    echo '</select></label>';
     echo '<label>Preferred date or time<input name="preferred" maxlength="190"></label>';
+    echo '<label>Guests<input type="number" name="party_size" min="1" max="75"></label>';
     echo '<label>Message*<textarea name="message" rows="5" maxlength="4000" required></textarea></label>';
     echo '<button class="btn" type="submit">Send</button>';
     echo '</form></section>';
@@ -384,6 +400,13 @@ function brb_admin_tour_detail($id) {
         echo '<option value="' . esc_attr($value) . '"' . selected($row->status, $value, false) . '>' . esc_html($label) . '</option>';
     }
     echo '</select></label></p>';
+    echo '<p><label>Lead status<br><select name="lead_status">';
+    $lead_status = (string) ($row->lead_status ?? 'new');
+    foreach (brb_lead_statuses() as $value => $label) {
+        echo '<option value="' . esc_attr($value) . '"' . selected($lead_status, $value, false) . '>' . esc_html($label) . '</option>';
+    }
+    echo '</select></label></p>';
+    echo '<p><label>Lost reason<br><input name="lost_reason" class="regular-text" value="' . esc_attr((string) ($row->lost_reason ?? '')) . '"></label></p>';
     echo '<p><label>Notes<br><textarea name="staff_notes" rows="5" class="large-text">' . esc_textarea((string) $row->staff_notes) . '</textarea></label></p>';
     echo '<p><button class="button button-primary">Save</button></p></form>';
     if ($row->status !== 'done') {
@@ -399,11 +422,18 @@ function brb_admin_tour_detail($id) {
 }
 
 add_action('admin_post_brb_tour_save', function () {
+    global $wpdb;
     if (!current_user_can('manage_options')) wp_die('Sorry, you are not allowed to do that.');
     $id = (int) ($_POST['id'] ?? 0);
     check_admin_referer('brb_tour_save_' . $id);
     $res = brb_tour_update($id, sanitize_key(wp_unslash($_POST['status'] ?? '')), wp_unslash($_POST['staff_notes'] ?? ''));
     if (is_wp_error($res)) brb_tour_admin_back($id, $res->get_error_message());
+    $lead_status = sanitize_key(wp_unslash($_POST['lead_status'] ?? 'new'));
+    if (!isset(brb_lead_statuses()[$lead_status])) $lead_status = 'new';
+    $wpdb->update(brb_tour_table(), [
+        'lead_status' => $lead_status,
+        'lost_reason' => substr(sanitize_text_field(wp_unslash($_POST['lost_reason'] ?? '')), 0, 190),
+    ], ['id' => $id]);
     brb_tour_admin_back($id, 'Saved.');
 });
 add_action('admin_post_brb_tour_done', function () {

@@ -1270,7 +1270,14 @@ function brb_chat_save_lead($input) {
     ));
     if (!$ok) return new WP_Error('store', 'We could not save that message. Please try again.');
     $row = brb_tour((int) $wpdb->insert_id);
-    if ($row) brb_chat_send_notice($row);
+    if ($row) {
+        brb_report_stamp_inquiry((int) $row->id, [
+            'event_type' => $event_type,
+            'party_size' => $input['guests'] ?? '',
+        ]);
+        brb_event_hit('chat_lead');
+        brb_chat_send_notice($row);
+    }
     return ['ok' => true, 'stored' => true, 'id' => $row ? (int) $row->id : 0, 'message' => brb_chat_thanks()];
 }
 
@@ -1296,7 +1303,9 @@ function brb_chat_send_notice($row) {
 function brb_chat_rest($req) {
     try {
         $history = $req->get_param('history');
-        return brb_chat_answer((string) $req->get_param('message'), is_array($history) ? $history : []);
+        $answer = brb_chat_answer((string) $req->get_param('message'), is_array($history) ? $history : []);
+        if (is_array($answer)) brb_chat_log_question((string) $req->get_param('message'), $answer['intent'] ?? '');
+        return $answer;
     } catch (Throwable $e) {
         return new WP_Error('brb_chat_unavailable', 'Please try that once more in a moment.', ['status' => 503]);
     }
@@ -1350,6 +1359,7 @@ function brb_chat_markup($mode = 'float') {
         echo '<option value="' . esc_attr($value) . '">' . esc_html($label) . '</option>';
     }
     echo '</select></label>';
+    echo '<label>Guests<input type="number" name="guests" min="1" max="75"></label>';
     echo '<label>Short note<textarea name="note" rows="3" maxlength="1000"></textarea></label>';
     echo '<label class="brb-chat-consent"><input type="checkbox" name="consent" value="1" required> A team member will reply using this info</label>';
     echo '<button type="submit" class="brb-chat-send">Send to the team</button>';
@@ -1366,6 +1376,7 @@ add_action('wp_enqueue_scripts', function () {
     wp_localize_script('brb-chat', 'BRB_CHAT', [
         'endpoint' => esc_url_raw(rest_url('brb/v1/chat')),
         'leadEndpoint' => esc_url_raw(rest_url('brb/v1/chat-lead')),
+        'eventEndpoint' => esc_url_raw(rest_url('brb/v1/event')),
         'nonce' => wp_create_nonce('brb_chat'),
     ]);
 });

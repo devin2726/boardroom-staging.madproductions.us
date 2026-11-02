@@ -194,4 +194,24 @@
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bindEnd);
   else bindEnd();
+  function trackBooking(name) {
+    var cfg = window.BRB || {};
+    if (!cfg.eventEndpoint) return;
+    fetch(cfg.eventEndpoint, {
+      method: 'POST',
+      credentials: 'omit',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event: name })
+    }).catch(function () {});
+    if (window.gtag) window.gtag('event', name);
+  }
+  function trackSteps() {
+    if (document.getElementById('brb-cal')) trackBooking('booking_step_date');
+    var submit = document.querySelector('form input[name="action"][value="brb_book"]');
+    if (!submit || !submit.form) return;
+    trackBooking('booking_step_review');
+    submit.form.addEventListener('submit', function () { trackBooking('booking_step_submit'); });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', trackSteps);
+  else trackSteps();
 })();

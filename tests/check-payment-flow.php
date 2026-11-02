@@ -44,7 +44,7 @@ add_filter('pre_wp_mail', function ($short, $atts) {
 $GLOBALS['brb_mails'] = [];
 
 try {
-    brb_t(get_option('brb_version') === '2.5.19', 'plugin storage version is 2.5.19');
+    brb_t(get_option('brb_version') === '2.5.21', 'plugin storage version is 2.5.21');
     brb_t(get_option('blog_public') === '0' || get_option('blog_public') === 0, 'staging discourages search engines');
     brb_t(!brb_search_indexing_allowed(), 'indexing stays off unless production mode or search discouragement is turned off');
     putenv('BRB_ENV=production');

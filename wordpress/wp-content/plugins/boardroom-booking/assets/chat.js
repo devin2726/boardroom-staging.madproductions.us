@@ -23,8 +23,19 @@
     }
     return list;
   }
+  function trackEvent(name) {
+    if (!window.BRB_CHAT || !BRB_CHAT.eventEndpoint) return;
+    fetch(BRB_CHAT.eventEndpoint, {
+      method: 'POST',
+      credentials: 'omit',
+      headers: { 'Content-Type': 'application/json', 'X-BRB-Chat': BRB_CHAT.nonce },
+      body: JSON.stringify({ event: name })
+    }).catch(function () {});
+    if (window.gtag) window.gtag('event', name);
+  }
   function openPanel() {
     panel.hidden = false;
+    trackEvent('chat_open');
     if (launch) launch.setAttribute('aria-expanded', 'true');
     if (closeBtn) closeBtn.focus();
     else if (input) input.focus();

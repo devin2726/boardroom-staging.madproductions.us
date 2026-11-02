@@ -189,7 +189,7 @@ function br_book_shortcuts_html() {
         $html .= '<a class="book-shortcut" href="' . esc_url($item['href']) . '">';
         $html .= '<svg class="book-shortcut-icon" viewBox="0 0 24 24" width="36" height="36" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" d="' . $item['icon'] . '"/></svg>';
         $html .= '<span class="book-shortcut-copy"><span class="book-shortcut-label">' . esc_html($item['label']) . '</span>';
-        $html .= '<span class="book-shortcut-sub">' . esc_html($item['sub']) . '</span></span></a>';
+        $html .= '<span class="book-shortcut-sub">' . htmlspecialchars($item['sub'], ENT_NOQUOTES, 'UTF-8') . '</span></span></a>';
     }
     $html .= '</nav>';
     return $html;
