@@ -44,7 +44,7 @@ add_filter('pre_wp_mail', function ($short, $atts) {
 $GLOBALS['brb_mails'] = [];
 
 try {
-    brb_t(get_option('brb_version') === '2.5.18', 'plugin storage version is 2.5.18');
+    brb_t(get_option('brb_version') === '2.5.19', 'plugin storage version is 2.5.19');
     brb_t(get_option('blog_public') === '0' || get_option('blog_public') === 0, 'staging discourages search engines');
     brb_t(!brb_search_indexing_allowed(), 'indexing stays off unless production mode or search discouragement is turned off');
     putenv('BRB_ENV=production');
@@ -78,7 +78,12 @@ try {
     brb_t(brb_opt('deposit_type') === 'percent' && (string) brb_opt('deposit_pct') === '50', 'the deposit default is 50 percent of the agreed total');
     brb_t((string) brb_opt('min_notice_hours') === '48', 'minimum notice defaults to 48');
     brb_t((string) brb_opt('hold_hours') === '48', 'hold length defaults to 48');
-    brb_t(strpos((string) brb_opt('payee'), '[VERIFY]') !== false, 'payee placeholder is marked [VERIFY]');
+    brb_t(strpos((string) brb_opt('payee'), '[VERIFY]') === false, 'the stored payee is not a placeholder');
+    $payee_check = brb_opt();
+    $payee_check['payee'] = '[VERIFY] Name on the check';
+    update_option('brb_settings', $payee_check);
+    brb_migrate_settings();
+    brb_t((string) brb_opt('payee') === 'Mad Productions', 'an existing placeholder payee becomes Mad Productions');
     brb_t((string) brb_opt('venue_address') === '2220 37th Street, Moline, IL 61265', 'venue address defaults to 2220 37th Street');
     brb_t((string) brb_opt('pay_location') === '2212 37th Street, Moline, IL 61265', 'check address defaults to 2212 37th Street');
     brb_t(brb_check_sentence() === 'Mail or drop off checks payable to Mad Productions at 2212 37th Street, Moline, IL 61265.', 'the default check sentence names Mad Productions and 2212 37th Street');
@@ -157,6 +162,51 @@ try {
 
     $blocked = new DateTimeImmutable('2030-01-03 00:00:00', brb_tz());
     brb_t(!brb_is_free($blocked, $blocked->modify('+1 day')), 'a blackout date is not free');
+    $hold = brb_save_hold([
+        'name' => 'Private rehearsal',
+        'hold_type' => 'hold',
+        'start_date' => '2030-06-20',
+        'start_time' => '14:00',
+        'end_date' => '2030-06-20',
+        'end_time' => '17:00',
+        'notes' => 'Unpaid hold',
+    ]);
+    brb_t(!is_wp_error($hold) && $hold && $hold->name === 'Private rehearsal', 'staff can save a named hold');
+    $hold_start = new DateTimeImmutable('2030-06-20 14:00:00', brb_tz());
+    $hold_end = new DateTimeImmutable('2030-06-20 17:00:00', brb_tz());
+    brb_t(!is_wp_error($hold) && !brb_is_free($hold_start, $hold_end), 'a named hold blocks that time');
+    $cal_range = brb_build_range(['date' => '2030-06-15', 'type' => 'day', 'days' => 1, 'guests' => 10]);
+    $cal_guest = is_wp_error($cal_range) ? $cal_range : brb_insert_booking($cal_range, brb_quote($cal_range), [
+        'name' => 'Calendar Guest',
+        'email' => 'cal-guest@example.com',
+        'phone' => '',
+        'notes' => '',
+    ], 'phone', false);
+    if ($cal_guest && !is_wp_error($cal_guest)) {
+        $created_ids[] = (int) $cal_guest->id;
+        $wpdb->update(brb_table(), ['status' => 'paid'], ['id' => (int) $cal_guest->id]);
+    }
+    $feed_req = new WP_REST_Request('GET', '/brb/v1/availability');
+    $feed_req->set_param('month', '2030-06');
+    $feed = rest_do_request($feed_req);
+    $feed_blob = wp_json_encode($feed->get_data());
+    $feed_days = $feed->get_data()['days'] ?? [];
+    brb_t(is_string($feed_blob) && strpos($feed_blob, 'Private rehearsal') === false && strpos($feed_blob, 'Calendar Guest') === false, 'the public calendar does not publish names');
+    brb_t(isset($feed_days['2030-06-20']['status']) && $feed_days['2030-06-20']['status'] !== 'free', 'a named hold is unavailable to guests');
+    $saved_get = $_GET;
+    $_GET = ['page' => 'brb-cal', 'm' => '2030-06'];
+    ob_start();
+    brb_admin_cal();
+    $cal_html = ob_get_clean();
+    $_GET = ['page' => 'brb-cal', 'm' => '2030-01'];
+    ob_start();
+    brb_admin_cal();
+    $jan_html = ob_get_clean();
+    $_GET = $saved_get;
+    brb_t(strpos($cal_html, 'Calendar Guest') !== false && strpos($cal_html, 'Paid in full') !== false && strpos($cal_html, 'page=brb') !== false && strpos($cal_html, 'booking=') !== false, 'the admin calendar shows the guest and links to the booking');
+    brb_t(strpos($cal_html, 'Private rehearsal') !== false && strpos($cal_html, 'brb-chip-hold') !== false && strpos($cal_html, '>Today<') !== false, 'the admin calendar shows the named hold and a Today button');
+    brb_t(strpos($jan_html, '<strong>Blocked</strong>') !== false, 'a bare blackout is shown as Blocked');
+    if ($hold && !is_wp_error($hold)) brb_delete_hold($hold->id);
 
     $user = get_user_by('login', 'admin');
     brb_t((bool) $user, 'admin user exists');
@@ -738,7 +788,8 @@ try {
     brb_t(is_string($footer) && strpos($footer, '2220 37th Street, Moline, IL 61265') !== false && strpos($footer, '2212 37th Street') === false, 'footer shows the venue address');
     brb_t(is_string($footer) && strpos($footer, '/rental-checklist/') !== false, 'footer links to the rental checklist');
     $book_page = file_get_contents(get_stylesheet_directory() . '/page.php');
-    brb_t(is_string($book_page) && strpos($book_page, '/rental-checklist/') !== false, 'the book page links to the rental checklist');
+    $book_fn = file_get_contents(get_stylesheet_directory() . '/functions.php');
+    brb_t(is_string($book_page) && strpos($book_page, 'br_book_shortcuts_html') !== false && is_string($book_fn) && strpos($book_fn, '/rental-checklist/') !== false, 'the book page links to the rental checklist');
     $checklist_page = get_page_by_path('rental-checklist');
     $checklist_html = $checklist_page ? do_shortcode((string) $checklist_page->post_content) : '';
     brb_t($checklist_page && $checklist_page->post_title === 'Rental Checklist' && strpos($checklist_html, '8:00 AM') !== false && strpos($checklist_html, '309-524-2004') !== false && strpos($checklist_html, 'fee $50') === false && strpos($checklist_html, brb_whole_money(brb_addon_price())) !== false, 'the rental checklist page lists the house rules without a liquor fee');
