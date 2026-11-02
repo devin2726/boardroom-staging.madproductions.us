@@ -46,6 +46,19 @@ body.admin-bar .site-header{top:32px}
 .hero .dots{position:absolute;bottom:20px;left:0;right:0;z-index:3;display:flex;justify-content:center;gap:10px}
 .hero .dots button{width:12px;height:12px;border-radius:50%;border:2px solid #fff;background:transparent;padding:0;cursor:pointer}.hero .dots .on{background:#fff}
 .hero .arrow{position:absolute;top:50%;z-index:3;background:rgba(0,0,0,.3);border:0;color:#fff;font-size:36px;width:52px;height:52px;cursor:pointer;transform:translateY(-50%)}.hero .prev{left:12px}.hero .next{right:12px}
+.hero .slide picture,.hero .slide img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.page-hero picture,.page-hero img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0}
+.brb-half-choice.is-hidden{display:none}
+.brb-how{margin:0 0 20px}
+.brb-how ol{margin:8px 0 0;padding-left:1.2em}
+.brb-deposit-bullets{margin:8px 0;padding-left:1.2em}
+.legal-page,.legal-page .content,.legal-page p,.legal-page .wrap{overflow-wrap:anywhere;max-width:100%}
+body.legal-page{overflow-x:hidden}
+@media(max-width:700px){
+.hero .arrow{top:auto;bottom:78px;transform:none}
+.hero h1{max-width:12em;padding:0 12px}
+.brb{padding-bottom:104px}
+}
 section.block{padding:80px 0}section.alt{background:var(--bg2)}section.dark{background:var(--ink);color:#ddd}section.dark h2{color:#fff}
 .amen{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:28px}
 .amen .card{background:#fff;text-align:center;box-shadow:0 4px 18px rgba(0,0,0,.08);font-variant-numeric:lining-nums}.amen .card img{aspect-ratio:4/3;object-fit:cover;width:100%}

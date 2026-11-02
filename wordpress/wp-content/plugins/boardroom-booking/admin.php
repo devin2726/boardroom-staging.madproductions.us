@@ -726,7 +726,7 @@ function brb_admin_settings() {
                 $email = sanitize_email($raw);
                 $new[$k] = is_email($email) ? $email : $defaults['tour_email'];
             } else {
-                $new[$k] = in_array($k, ['policy', 'blackouts', 'pay_instructions', 'checklist', 'admin_email'], true)
+                $new[$k] = in_array($k, ['policy', 'blackouts', 'pay_instructions', 'checklist', 'admin_email', 'inquiry_cc'], true)
                     ? sanitize_textarea_field($raw)
                     : sanitize_text_field($raw);
             }
@@ -791,6 +791,12 @@ function brb_admin_settings() {
             ['card_fee_percent', 'Card processing fee (%)', 'number', null, 'Added on top of an online card payment. Default 3. It is not applied to the booking balance. Card payment stays off until the Stripe secret key is set on the server.'],
             ['admin_email', 'Admin notification email', 'textarea', null, 'Request, payment, and contact inquiry emails are sent here. Separate more than one address with a comma, semicolon, or a new line. An address that is not valid is skipped and shown in a warning.'],
             ['tour_email', 'Inquiry email', 'text', null, 'Contact inquiries are also emailed here. Default is boardroomqc@gmail.com.'],
+        ],
+        'Email' => [
+            ['mail_from', 'From address', 'text', null, 'Guest emails use this From address. Default is boardroomqc@gmail.com. Gmail only delivers that From when the SMTP account is this address, or this address is a Send mail as alias on that account. The SMTP password stays on the server.'],
+            ['mail_from_name', 'From name', 'text', null, 'Default is The Boardroom.'],
+            ['mail_reply_to', 'Reply-To', 'text', null, 'Guest emails use this Reply-To. Default is boardroomqc@gmail.com.'],
+            ['inquiry_cc', 'New inquiry CC', 'textarea', null, 'Optional copies of new contact, tour, and chat inquiries. Leave empty to send none. Separate addresses with a comma, semicolon, or a new line. This list starts empty.'],
         ],
         'Calendar and policy' => [
             ['blackouts', 'Blackout dates (YYYY-MM-DD, one per line)', 'textarea', null, 'Saved dates stay in the database when the plugin is updated. Emptying this box does not delete them unless you tick the box under it.'],

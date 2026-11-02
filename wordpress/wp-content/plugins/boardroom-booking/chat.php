@@ -797,7 +797,7 @@ function brb_chat_specific_text($text) {
         $bits[] = 'No one is on site during events. Our connected offices are available on demand, and cell numbers are given when the contract is signed.';
     }
     if (preg_match('/entrance|surprise guest/', $t)) {
-        $bits[] = 'There is one main entrance. A back entrance can be used for a surprise guest when it is arranged ahead of time with our team.';
+        $bits[] = 'There is a private main entrance. A back entrance can be used for a surprise guest when it is arranged ahead of time with our team.';
     }
     if (preg_match('/talk to a person|speak to a person|speak with a person|real person|\bhuman\b/', $t)) {
         $bits[] = 'Use the Contact form or email boardroomqc@gmail.com. Cell numbers are given when the contract is signed, and they are not listed on this site.';
@@ -809,15 +809,15 @@ function brb_chat_specific_text($text) {
         $bits[] = 'No. Wall tape is not allowed. Balloons are fine. Glitter is not allowed.';
     }
     if (preg_match('/damaged|gets damaged|something gets|damage deposit|who pays for damage/', $t)) {
-        $bits[] = 'The damage deposit covers cleaning and damage, and anything beyond that deposit may be charged. See the Terms, and our team will go over it at the walk-through.';
+        $bits[] = 'The damage deposit covers cleaning and damage, and anything beyond that deposit may be charged. See the Terms.';
     }
     if (preg_match('/vendor market|sell items|\bsell\b|merchandise/', $t) && !preg_match('/alcohol|liquor|drink|booze|beer/', $t)) {
         $bits[] = 'No. All events are free to attend. There are no merchandise sales and no ticket sales.';
     }
     if (preg_match('/meet you|meet us|walk[- ]?through|in person/', $t)) {
         $bits[] = brb_chat_detail()
-            ? 'Yes. We meet every renter before approving a booking. It\'s a short, friendly visit to talk through your plans and the house rules. ' . brb_appointment_line()
-            : 'Yes. We meet every renter in person before we approve a booking, by appointment. Want more details?';
+            ? 'We review your request and email a price. After approval, we email a payment link. Nothing is charged until then.'
+            : 'We review your request and email a price, then send a payment link after approval. Want more details?';
     }
     if (preg_match('/nonprofit|military/', $t) && !preg_match('/\bdiscount\b/', $t)) {
         $bits[] = 'Please contact us directly to discuss nonprofit or military discounts.';
@@ -828,7 +828,7 @@ function brb_chat_specific_text($text) {
     if (preg_match('/\bcameras?\b|no staff/', $t)) $bits[] = 'There are security cameras on site. No staff are in the area, and a representative can be reached if something arises.';
     if (preg_match('/cooler/', $t)) $bits[] = 'Yes. There is a cooler and an ice machine.';
     if (preg_match('/force majeure|hurricane|snowstorm|power outage|flat tire|bad weather/', $t)) {
-        $bits[] = 'Bad weather or an emergency out of our control, such as a hurricane, a snowstorm, or a power outage, is refundable. A personal issue, such as a flat tire, is not refundable.';
+        $bits[] = 'If we cancel because of severe weather or an emergency outside our control, such as a severe storm, a snowstorm, or a power outage, the payment is refundable. A personal issue, such as a flat tire, is not refundable.';
     }
     if (preg_match('/\binsurance\b|liability|assumption of risk/', $t)) {
         $bits[] = brb_chat_detail()
@@ -1288,7 +1288,7 @@ function brb_chat_send_notice($row) {
     $from = brb_smtp_from_address();
     $sent = false;
     foreach (brb_tour_recipients() as $to) {
-        if (brb_mail($to, 'New contact inquiry', $body, $reply, $from)) $sent = true;
+        if (brb_mail($to, 'New contact inquiry', $body, $reply, $from, brb_inquiry_cc_list())) $sent = true;
     }
     return $sent;
 }
