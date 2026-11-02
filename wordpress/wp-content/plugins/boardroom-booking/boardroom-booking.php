@@ -2,11 +2,11 @@
 /**
  * Plugin Name: Boardroom Booking
  * Description: Self-hosted direct booking for The Boardroom — full-day and hourly blocks, availability calendar, agreed prices, approval before payment, blackout dates, and emails.
- * Version: 2.5.18
+ * Version: 2.5.19
  * Author: Mad Productions
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.5.18');
+define('BRB_VER', '2.5.19');
 define('BRB_VENUE_ADDRESS', '2220 37th Street, Moline, IL 61265');
 define('BRB_CHECK_ADDRESS', '2212 37th Street, Moline, IL 61265');
 define('BRB_MAPS_URL', 'https://maps.app.goo.gl/nVqUsGTcy48nPzc18');
@@ -94,7 +94,7 @@ function brb_defaults() {
         'currency' => 'usd',
         'admin_email' => $admin,
         'tour_email' => 'boardroomqc@gmail.com',
-        'payee' => '[VERIFY] Name on the check',
+        'payee' => 'Mad Productions',
         'venue_address' => BRB_VENUE_ADDRESS,
         'pay_location' => BRB_CHECK_ADDRESS,
         'pay_hours' => '',
@@ -184,6 +184,106 @@ function brb_blackouts() {
         if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $d)) $out[] = $d;
     }
     return $out;
+}
+function brb_hold_table() {
+    global $wpdb;
+    return $wpdb->prefix . 'br_holds';
+}
+function brb_hold_types() {
+    return [
+        'reserved' => 'Reserved, paid elsewhere/cash',
+        'hold' => 'Hold, unpaid',
+        'blocked' => 'Blocked',
+    ];
+}
+function brb_install_hold_table() {
+    global $wpdb;
+    require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+    $c = $wpdb->get_charset_collate();
+    $t = brb_hold_table();
+    dbDelta("CREATE TABLE $t (
+      id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+      name varchar(190) NOT NULL DEFAULT '',
+      hold_type varchar(20) NOT NULL DEFAULT 'blocked',
+      start_dt datetime NOT NULL,
+      end_dt datetime NOT NULL,
+      notes text,
+      created datetime NOT NULL,
+      PRIMARY KEY  (id),
+      KEY range_idx (start_dt, end_dt)
+    ) $c;");
+    return $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $t)) === $t;
+}
+function brb_hold($id) {
+    global $wpdb;
+    return $wpdb->get_row($wpdb->prepare('SELECT * FROM ' . brb_hold_table() . ' WHERE id=%d', (int) $id));
+}
+function brb_holds_overlapping($start, $end) {
+    global $wpdb;
+    return $wpdb->get_results($wpdb->prepare(
+        'SELECT id, name, hold_type, start_dt, end_dt, notes FROM ' . brb_hold_table() . ' WHERE start_dt < %s AND end_dt > %s ORDER BY start_dt ASC, id ASC',
+        $end,
+        $start
+    ));
+}
+function brb_save_hold($input) {
+    global $wpdb;
+    $types = brb_hold_types();
+    $name = sanitize_text_field((string) ($input['name'] ?? ''));
+    $type = sanitize_key((string) ($input['hold_type'] ?? 'blocked'));
+    if (!isset($types[$type])) $type = 'blocked';
+    if ($name === '') $name = $types[$type];
+    $start = brb_hold_moment($input['start_date'] ?? '', $input['start_time'] ?? '00:00');
+    $end = brb_hold_moment($input['end_date'] ?? '', $input['end_time'] ?? '23:59');
+    if (!$start || !$end) return new WP_Error('when', 'Enter a start and end.');
+    if ($end <= $start) return new WP_Error('when', 'The end must be after the start.');
+    $row = [
+        'name' => mb_substr($name, 0, 190),
+        'hold_type' => $type,
+        'start_dt' => $start->format('Y-m-d H:i:s'),
+        'end_dt' => $end->format('Y-m-d H:i:s'),
+        'notes' => sanitize_textarea_field((string) ($input['notes'] ?? '')),
+    ];
+    $id = (int) ($input['id'] ?? 0);
+    if ($id && brb_hold($id)) {
+        $wpdb->update(brb_hold_table(), $row, ['id' => $id]);
+    } else {
+        $row['created'] = current_time('mysql', true);
+        $wpdb->insert(brb_hold_table(), $row);
+        $id = (int) $wpdb->insert_id;
+    }
+    $saved = brb_hold($id);
+    return $saved ?: new WP_Error('db', 'Could not save that hold.');
+}
+function brb_hold_moment($date, $time) {
+    $date = trim((string) $date);
+    $time = trim((string) $time);
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) return null;
+    if (!preg_match('/^\d{2}:\d{2}$/', $time)) $time = '00:00';
+    try {
+        return new DateTimeImmutable($date . ' ' . $time . ':00', brb_tz());
+    } catch (Exception $e) {
+        return null;
+    }
+}
+function brb_delete_hold($id) {
+    global $wpdb;
+    $hold = brb_hold($id);
+    if (!$hold) return new WP_Error('missing', 'That hold was not found.');
+    $wpdb->delete(brb_hold_table(), ['id' => (int) $id], ['%d']);
+    return true;
+}
+function brb_drop_blackout_date($ymd) {
+    $left = array_values(array_filter(brb_blackouts(), function ($d) use ($ymd) {
+        return $d !== $ymd;
+    }));
+    $o = brb_opt();
+    $o['blackouts'] = implode("\n", $left);
+    update_option('brb_settings', $o);
+}
+function brb_range_hits_hold($s, $e) {
+    $rows = brb_holds_overlapping($s->format('Y-m-d H:i:s'), $e->format('Y-m-d H:i:s'));
+    return !empty($rows);
 }
 function brb_notice_hours() { return max(0, (int) brb_opt('min_notice_hours')); }
 function brb_hold_hours() { return max(1, (int) brb_opt('hold_hours')); }
@@ -563,6 +663,7 @@ function brb_install_tables() {
     brb_ensure_column($t, 'damage_paid', 'decimal(10,2) NOT NULL DEFAULT 0.00');
     brb_ensure_column($t, 'damage_refunded', 'tinyint(1) NOT NULL DEFAULT 0');
     brb_install_line_table();
+    brb_install_hold_table();
     $p = brb_pay_table();
     dbDelta("CREATE TABLE $p (
       id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
@@ -641,6 +742,8 @@ function brb_migrate_settings() {
         $merged['pay_instructions'] = '';
     }
     if (stripos((string) ($merged['pay_hours'] ?? ''), '[VERIFY]') !== false) $merged['pay_hours'] = '';
+    $payee = trim((string) ($merged['payee'] ?? ''));
+    if ($payee === '' || $payee === '[VERIFY] Name on the check') $merged['payee'] = 'Mad Productions';
     if (!isset($stored['card_fee_percent']) || trim((string) $stored['card_fee_percent']) === '') $merged['card_fee_percent'] = '3';
     $old_summaries = [
         'A date saved on the website is held for 48 hours. Mail or drop off checks payable to Mad Productions at 2212 37th Street, Moline, IL 61265. If the check is not received by then, the hold is released. Under the Rental Agreement, 50% of the invoice is due within 1 day after signing unless the Owner agrees otherwise in writing. The invoice notes require full payment 30 days before the event. If you cancel in writing 90 days or more before the rental period, amounts paid may be refunded, less any non-refundable processing charges or costs already incurred. If you cancel less than 90 days before the rental period, security deposits and cleaning fees already paid are non-refundable. Rental fees are non-refundable if cancellation is received less than 30 days before the rental period, unless the Owner agrees otherwise in writing. The signed Rental Agreement controls if it differs from this summary.',
@@ -1042,7 +1145,7 @@ function brb_date_taken($b) {
 }
 function brb_is_free($s, $e, $exclude_id = 0) {
     global $wpdb;
-    if (brb_range_hits_blackout($s, $e)) return false;
+    if (brb_range_hits_blackout($s, $e) || brb_range_hits_hold($s, $e)) return false;
     list($block, $args) = brb_blocking_sql();
     $sql = "SELECT COUNT(*) FROM " . brb_table() . " WHERE id<>%d AND start_dt < %s AND end_dt > %s AND $block";
     $params = array_merge([(int) $exclude_id, $e->format('Y-m-d H:i:s'), $s->format('Y-m-d H:i:s')], $args);
@@ -1840,6 +1943,12 @@ function brb_rest_availability($req) {
     $sql = 'SELECT start_dt,end_dt FROM ' . brb_table() . " WHERE start_dt < %s AND end_dt > %s AND $block";
     $params = array_merge([$next->format('Y-m-d H:i:s'), $first->format('Y-m-d H:i:s')], $args);
     $rows = $wpdb->get_results($wpdb->prepare($sql, $params));
+    $hold_rows = $wpdb->get_results($wpdb->prepare(
+        'SELECT start_dt, end_dt FROM ' . brb_hold_table() . ' WHERE start_dt < %s AND end_dt > %s',
+        $next->format('Y-m-d H:i:s'),
+        $first->format('Y-m-d H:i:s')
+    ));
+    if ($hold_rows) $rows = array_merge($rows, $hold_rows);
     $o = brb_opt();
     $bo = brb_blackouts();
     $today = brb_now()->setTime(0, 0);

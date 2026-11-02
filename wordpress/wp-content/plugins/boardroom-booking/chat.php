@@ -569,13 +569,23 @@ function brb_chat_blocked_kind(DateTimeImmutable $day, DateTimeImmutable $next) 
     $sql = 'SELECT start_dt, end_dt FROM ' . brb_table() . " WHERE start_dt < %s AND end_dt > %s AND $block";
     $params = array_merge([$next->format('Y-m-d H:i:s'), $day->format('Y-m-d H:i:s')], $args);
     $rows = $wpdb->get_results($wpdb->prepare($sql, $params));
-    if (!$rows) return 'open';
+    $full = false;
+    $any = false;
     foreach ($rows as $row) {
+        $any = true;
         $s = new DateTimeImmutable($row->start_dt, brb_tz());
         $e = new DateTimeImmutable($row->end_dt, brb_tz());
-        if ($s <= $day && $e >= $next) return 'reserved';
+        if ($s <= $day && $e >= $next) $full = true;
     }
-    return 'partial';
+    foreach (brb_holds_overlapping($day->format('Y-m-d H:i:s'), $next->format('Y-m-d H:i:s')) as $row) {
+        $any = true;
+        $s = new DateTimeImmutable($row->start_dt, brb_tz());
+        $e = new DateTimeImmutable($row->end_dt, brb_tz());
+        if ($s <= $day && $e >= $next) $full = true;
+    }
+    if ($full) return 'reserved';
+    if ($any) return 'partial';
+    return 'open';
 }
 
 function brb_chat_date_status($ymd) {

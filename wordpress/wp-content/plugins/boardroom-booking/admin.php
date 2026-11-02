@@ -477,42 +477,236 @@ function brb_admin_new() {
     echo '</table><p><button class="button button-primary">Save booking</button></p></form></div>';
 }
 
+function brb_cal_url($args = []) {
+    $base = ['page' => 'brb-cal'];
+    return admin_url('admin.php?' . http_build_query(array_merge($base, $args)));
+}
+function brb_cal_span_label($start, $end, $mode = '') {
+    $all_day = $start->format('H:i') === '00:00' && ($end->format('H:i') === '00:00' || $end->format('H:i') === '23:59');
+    if ($mode !== 'hourly' && ($mode === 'day' || $mode === 'multi' || $all_day)) {
+        if ($end->format('Y-m-d') === $start->format('Y-m-d') || $end <= $start->modify('+1 day')->setTime(0, 1)) return 'Full day';
+    }
+    if ($all_day && $end <= $start->modify('+1 day')->setTime(0, 1)) return 'Full day';
+    return $start->format('g:i A') . '–' . $end->format('g:i A');
+}
+function brb_cal_closed_statuses() {
+    return ['cancelled', 'declined', 'expired'];
+}
 function brb_admin_cal() {
     global $wpdb;
     $m = (isset($_GET['m']) && preg_match('/^\d{4}-\d{2}$/', $_GET['m'])) ? $_GET['m'] : brb_now()->format('Y-m');
+    $view = (isset($_GET['view']) && $_GET['view'] === 'list') ? 'list' : 'month';
+    $show_closed = !empty($_GET['closed']);
     $tz = brb_tz();
     $first = new DateTimeImmutable($m . '-01 00:00:00', $tz);
     $next = $first->modify('+1 month');
-    list($block, $args) = brb_blocking_sql();
-    $sql = 'SELECT * FROM ' . brb_table() . " WHERE start_dt < %s AND end_dt > %s AND $block";
-    $params = array_merge([$next->format('Y-m-d H:i:s'), $first->format('Y-m-d H:i:s')], $args);
-    $rows = $wpdb->get_results($wpdb->prepare($sql, $params));
+    $today = brb_now()->format('Y-m-d');
+    $closed = brb_cal_closed_statuses();
+    $where = $show_closed ? '' : " AND status NOT IN ('" . implode("','", $closed) . "')";
+    $rows = $wpdb->get_results($wpdb->prepare(
+        'SELECT * FROM ' . brb_table() . " WHERE start_dt < %s AND end_dt > %s $where ORDER BY start_dt ASC",
+        $next->format('Y-m-d H:i:s'),
+        $first->format('Y-m-d H:i:s')
+    ));
+    $holds = brb_holds_overlapping($first->format('Y-m-d H:i:s'), $next->format('Y-m-d H:i:s'));
     $bo = brb_blackouts();
-    echo '<div class="wrap"><h1>Calendar – ' . esc_html($first->format('F Y')) . '</h1><p>';
-    printf(
-        '<a class="button" href="%s">← Prev</a> <a class="button" href="%s">Next →</a> <a class="button" href="%s">Edit blackout dates</a></p>',
-        esc_url(admin_url('admin.php?page=brb-cal&m=' . $first->modify('-1 month')->format('Y-m'))),
-        esc_url(admin_url('admin.php?page=brb-cal&m=' . $next->format('Y-m'))),
-        esc_url(admin_url('admin.php?page=brb-settings'))
-    );
-    echo '<div class="brb-admincal">';
-    foreach (['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as $d) echo "<div class='h'>$d</div>";
-    for ($i = 0; $i < (int) $first->format('w'); $i++) echo '<div class="e"></div>';
-    for ($d = $first; $d < $next; $d = $d->modify('+1 day')) {
-        $k = $d->format('Y-m-d');
-        $items = '';
-        foreach ($rows as $b) {
-            $s = new DateTimeImmutable($b->start_dt, $tz);
-            $e = new DateTimeImmutable($b->end_dt, $tz);
-            if ($s < $d->modify('+1 day') && $e > $d) {
-                $items .= '<a class="brb-badge ' . esc_attr($b->status) . '" href="' . esc_url(admin_url('admin.php?page=brb&booking=' . (int) $b->id)) . '">' . esc_html(brb_ref($b) . ' ' . ($b->mode === 'hourly' ? $s->format('ga') . '-' . $e->format('ga') : 'day') . ' ' . $b->name) . '</a>';
-            }
-        }
-        if (in_array($k, $bo, true)) $items .= '<span class="brb-badge blackout">Blackout</span>';
-        echo '<div><b>' . $d->format('j') . '</b>' . $items . '</div>';
+    $nav = ['m' => $m];
+    if ($show_closed) $nav['closed'] = '1';
+    if ($view === 'list') $nav['view'] = 'list';
+    echo '<div class="wrap brb-cal-wrap"><h1>Calendar</h1>';
+    brb_admin_note();
+    echo '<p class="brb-cal-nav">';
+    echo '<a class="button" href="' . esc_url(brb_cal_url(array_merge($nav, ['m' => $first->modify('-1 month')->format('Y-m')]))) . '">← Prev</a> ';
+    echo '<strong>' . esc_html($first->format('F Y')) . '</strong> ';
+    echo '<a class="button" href="' . esc_url(brb_cal_url(array_merge($nav, ['m' => $next->format('Y-m')]))) . '">Next →</a> ';
+    echo '<a class="button" href="' . esc_url(brb_cal_url(array_merge($nav, ['m' => brb_now()->format('Y-m')]))) . '">Today</a> ';
+    $switch = $nav;
+    if ($view === 'list') unset($switch['view']);
+    else $switch['view'] = 'list';
+    echo '<a class="button" href="' . esc_url(brb_cal_url($switch)) . '">' . ($view === 'list' ? 'Month view' : 'Upcoming list') . '</a> ';
+    $closed_nav = $nav;
+    if ($show_closed) unset($closed_nav['closed']);
+    else $closed_nav['closed'] = '1';
+    echo '<a class="button" href="' . esc_url(brb_cal_url($closed_nav)) . '">' . ($show_closed ? 'Hide cancelled' : 'Show cancelled, declined, and expired') . '</a>';
+    echo '</p>';
+    echo '<ul class="brb-cal-legend">';
+    foreach ([
+        'paid' => 'Paid in full',
+        'deposit' => 'Deposit paid',
+        'approved' => 'Approved, deposit due',
+        'review' => 'Pending review',
+        'reserved' => 'Reserved, paid elsewhere/cash',
+        'hold' => 'Hold, unpaid',
+        'blocked' => 'Blocked',
+    ] as $key => $label) {
+        echo '<li><span class="brb-chip brb-chip-' . esc_attr($key) . '"></span> ' . esc_html($label) . '</li>';
     }
-    echo '</div></div>';
+    echo '</ul>';
+    brb_admin_cal_editor($m, $view, $show_closed);
+    if ($view === 'list') {
+        brb_admin_cal_list($show_closed);
+    } else {
+        echo '<div class="brb-admincal">';
+        foreach (['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as $d) echo "<div class='h'>$d</div>";
+        for ($i = 0; $i < (int) $first->format('w'); $i++) echo '<div class="e"></div>';
+        for ($d = $first; $d < $next; $d = $d->modify('+1 day')) {
+            $k = $d->format('Y-m-d');
+            $today_class = $k === $today ? ' today' : '';
+            echo '<div class="day' . $today_class . '"><b>' . $d->format('j') . '</b>';
+            foreach ($rows as $b) {
+                $s = new DateTimeImmutable($b->start_dt, $tz);
+                $e = new DateTimeImmutable($b->end_dt, $tz);
+                if (!($s < $d->modify('+1 day') && $e > $d)) continue;
+                $class = brb_cal_chip_class($b->status);
+                $when = brb_cal_span_label($s, $e, (string) $b->mode);
+                $status = brb_status_label($b->status);
+                $tip = $b->name . "\n" . $when . "\n" . $status . "\n" . brb_ref($b);
+                echo '<a class="brb-chip brb-chip-' . esc_attr($class) . '" title="' . esc_attr($tip) . '" href="' . esc_url(admin_url('admin.php?page=brb&booking=' . (int) $b->id)) . '">';
+                echo '<strong>' . esc_html($b->name) . '</strong> <span>' . esc_html($when) . '</span> <em>' . esc_html($status) . '</em></a>';
+            }
+            foreach ($holds as $h) {
+                $s = new DateTimeImmutable($h->start_dt, $tz);
+                $e = new DateTimeImmutable($h->end_dt, $tz);
+                if (!($s < $d->modify('+1 day') && $e > $d)) continue;
+                $type = isset(brb_hold_types()[$h->hold_type]) ? $h->hold_type : 'blocked';
+                $when = brb_cal_span_label($s, $e, 'hourly');
+                $tip = $h->name . "\n" . brb_hold_types()[$type] . "\n" . $when . ($h->notes ? "\n" . $h->notes : '');
+                $edit = brb_cal_url(array_merge($nav, ['hold' => (int) $h->id]));
+                echo '<a class="brb-chip brb-chip-' . esc_attr($type) . '" title="' . esc_attr($tip) . '" href="' . esc_url($edit) . '">';
+                echo '<strong>' . esc_html($h->name) . '</strong> <span>' . esc_html($when) . '</span> <em>' . esc_html(brb_hold_types()[$type]) . '</em></a>';
+            }
+            if (in_array($k, $bo, true)) {
+                $edit = brb_cal_url(array_merge($nav, ['blackout' => $k]));
+                echo '<a class="brb-chip brb-chip-blocked" title="Blocked blackout. Click to give it a name." href="' . esc_url($edit) . '"><strong>Blocked</strong> <span>Full day</span></a>';
+            }
+            echo '</div>';
+        }
+        echo '</div>';
+    }
+    echo '</div>';
 }
+function brb_cal_chip_class($status) {
+    if (in_array($status, ['paid', 'confirmed'], true)) return 'paid';
+    if ($status === 'deposit_paid') return 'deposit';
+    if (in_array($status, ['approved', 'held'], true)) return 'approved';
+    if (in_array($status, ['review', 'pending'], true)) return 'review';
+    return 'closed';
+}
+function brb_admin_cal_editor($m, $view, $show_closed) {
+    $tz = brb_tz();
+    $hold = !empty($_GET['hold']) ? brb_hold((int) $_GET['hold']) : null;
+    $blackout = (isset($_GET['blackout']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['blackout'])) ? $_GET['blackout'] : '';
+    $name = $hold ? $hold->name : '';
+    $type = $hold ? $hold->hold_type : ($blackout ? 'blocked' : 'hold');
+    $notes = $hold ? (string) $hold->notes : '';
+    if ($hold) {
+        $s = new DateTimeImmutable($hold->start_dt, $tz);
+        $e = new DateTimeImmutable($hold->end_dt, $tz);
+        $start_date = $s->format('Y-m-d');
+        $start_time = $s->format('H:i');
+        $end_date = $e->format('Y-m-d');
+        $end_time = $e->format('H:i');
+    } elseif ($blackout) {
+        $start_date = $end_date = $blackout;
+        $start_time = '00:00';
+        $end_time = '23:59';
+        $name = '';
+    } else {
+        $start_date = brb_now()->format('Y-m-d');
+        $end_date = $start_date;
+        $start_time = '10:00';
+        $end_time = '16:00';
+    }
+    $title = $hold ? 'Edit hold' : ($blackout ? 'Name this blocked date' : 'Add a hold');
+    echo '<div class="brb-cal-editor"><h2>' . esc_html($title) . '</h2>';
+    if ($blackout) echo '<p>This date is a blackout. Saving gives it a name and keeps the date blocked.</p>';
+    echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
+    echo '<input type="hidden" name="action" value="brb_hold"><input type="hidden" name="m" value="' . esc_attr($m) . '">';
+    echo '<input type="hidden" name="view" value="' . esc_attr($view) . '"><input type="hidden" name="closed" value="' . ($show_closed ? '1' : '') . '">';
+    if ($hold) echo '<input type="hidden" name="id" value="' . (int) $hold->id . '">';
+    if ($blackout) echo '<input type="hidden" name="blackout" value="' . esc_attr($blackout) . '">';
+    wp_nonce_field('brb_hold');
+    echo '<p><label>Name<br><input name="name" class="regular-text" value="' . esc_attr($name) . '" required placeholder="Guest or reason"></label></p>';
+    echo '<p><label>Type<br><select name="hold_type">';
+    foreach (brb_hold_types() as $key => $label) {
+        echo '<option value="' . esc_attr($key) . '"' . selected($type, $key, false) . '>' . esc_html($label) . '</option>';
+    }
+    echo '</select></label></p>';
+    echo '<p><label>Starts<br><input type="date" name="start_date" value="' . esc_attr($start_date) . '" required> <input type="time" name="start_time" value="' . esc_attr($start_time) . '"></label></p>';
+    echo '<p><label>Ends<br><input type="date" name="end_date" value="' . esc_attr($end_date) . '" required> <input type="time" name="end_time" value="' . esc_attr($end_time) . '"></label></p>';
+    echo '<p><label>Notes<br><textarea name="notes" rows="2" class="large-text">' . esc_textarea($notes) . '</textarea></label></p>';
+    echo '<p><button class="button button-primary">Save hold</button></p></form>';
+    if ($hold) {
+        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
+        echo '<input type="hidden" name="action" value="brb_hold_delete"><input type="hidden" name="id" value="' . (int) $hold->id . '"><input type="hidden" name="m" value="' . esc_attr($m) . '">';
+        wp_nonce_field('brb_hold_delete');
+        echo '<p><button class="button">Delete hold</button></p></form>';
+    }
+    echo '</div>';
+}
+function brb_admin_cal_list($show_closed) {
+    global $wpdb;
+    $tz = brb_tz();
+    $from = brb_now()->setTime(0, 0)->format('Y-m-d H:i:s');
+    $closed = brb_cal_closed_statuses();
+    $where = $show_closed ? '' : " AND status NOT IN ('" . implode("','", $closed) . "')";
+    $rows = $wpdb->get_results($wpdb->prepare(
+        'SELECT * FROM ' . brb_table() . " WHERE end_dt > %s $where ORDER BY start_dt ASC LIMIT 40",
+        $from
+    ));
+    $holds = brb_holds_overlapping($from, brb_now()->modify('+18 months')->format('Y-m-d H:i:s'));
+    echo '<h2>Upcoming</h2><table class="widefat brb-cal-list"><thead><tr><th>When</th><th>Name</th><th>Time</th><th>Status</th></tr></thead><tbody>';
+    $items = [];
+    foreach ($rows as $b) {
+        $s = new DateTimeImmutable($b->start_dt, $tz);
+        $e = new DateTimeImmutable($b->end_dt, $tz);
+        $items[] = [$s, '<tr><td>' . esc_html($s->format('D, M j, Y')) . '</td><td><a href="' . esc_url(admin_url('admin.php?page=brb&booking=' . (int) $b->id)) . '">' . esc_html($b->name) . '</a></td><td>' . esc_html(brb_cal_span_label($s, $e, (string) $b->mode)) . '</td><td>' . esc_html(brb_status_label($b->status)) . '</td></tr>'];
+    }
+    foreach ($holds as $h) {
+        $s = new DateTimeImmutable($h->start_dt, $tz);
+        $e = new DateTimeImmutable($h->end_dt, $tz);
+        $type = brb_hold_types()[$h->hold_type] ?? 'Blocked';
+        $href = brb_cal_url(['m' => $s->format('Y-m'), 'hold' => (int) $h->id]);
+        $items[] = [$s, '<tr><td>' . esc_html($s->format('D, M j, Y')) . '</td><td><a href="' . esc_url($href) . '">' . esc_html($h->name) . '</a></td><td>' . esc_html(brb_cal_span_label($s, $e, 'hourly')) . '</td><td>' . esc_html($type) . '</td></tr>'];
+    }
+    usort($items, function ($a, $b) { return $a[0] <=> $b[0]; });
+    if (!$items) echo '<tr><td colspan="4">Nothing upcoming.</td></tr>';
+    foreach (array_slice($items, 0, 40) as $item) echo $item[1];
+    echo '</tbody></table>';
+}
+function brb_cal_redirect($m, $note = '') {
+    $args = ['page' => 'brb-cal', 'm' => $m];
+    if (!empty($_POST['view']) && $_POST['view'] === 'list') $args['view'] = 'list';
+    if (!empty($_POST['closed'])) $args['closed'] = '1';
+    if ($note) $args['brb_note'] = $note;
+    wp_safe_redirect(admin_url('admin.php?' . http_build_query($args)));
+    exit;
+}
+add_action('admin_post_brb_hold', function () {
+    brb_admin_gate('brb_hold');
+    $m = (isset($_POST['m']) && preg_match('/^\d{4}-\d{2}$/', $_POST['m'])) ? $_POST['m'] : brb_now()->format('Y-m');
+    $saved = brb_save_hold([
+        'id' => (int) ($_POST['id'] ?? 0),
+        'name' => wp_unslash($_POST['name'] ?? ''),
+        'hold_type' => wp_unslash($_POST['hold_type'] ?? ''),
+        'start_date' => wp_unslash($_POST['start_date'] ?? ''),
+        'start_time' => wp_unslash($_POST['start_time'] ?? ''),
+        'end_date' => wp_unslash($_POST['end_date'] ?? ''),
+        'end_time' => wp_unslash($_POST['end_time'] ?? ''),
+        'notes' => wp_unslash($_POST['notes'] ?? ''),
+    ]);
+    if (is_wp_error($saved)) brb_cal_redirect($m, $saved->get_error_message());
+    $blackout = isset($_POST['blackout']) ? sanitize_text_field(wp_unslash($_POST['blackout'])) : '';
+    if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $blackout)) brb_drop_blackout_date($blackout);
+    brb_cal_redirect($m, 'Hold saved.');
+});
+add_action('admin_post_brb_hold_delete', function () {
+    brb_admin_gate('brb_hold_delete');
+    $m = (isset($_POST['m']) && preg_match('/^\d{4}-\d{2}$/', $_POST['m'])) ? $_POST['m'] : brb_now()->format('Y-m');
+    $res = brb_delete_hold((int) ($_POST['id'] ?? 0));
+    if (is_wp_error($res)) brb_cal_redirect($m, $res->get_error_message());
+    brb_cal_redirect($m, 'Hold deleted.');
+});
 
 function brb_admin_settings() {
     if (!current_user_can('manage_options')) return;
@@ -591,7 +785,7 @@ function brb_admin_settings() {
             ['addon_price', 'Setup or takedown day ($)', 'number', null, 'Added when that day is open. Default 500. The same price applies on Sunday.'],
             ['damage_deposit_amount', 'Damage deposit amount ($)', 'number', null, 'Flat refundable damage deposit added to new bookings. Default 250. Changing this does not change bookings that already have a damage deposit line. Use 0 if a new booking should not include one.'],
             ['venue_address', 'Venue address', 'text', null, 'The event space. Shown in the footer, on Contact, and in Terms and Privacy. Default is 2220 37th Street, Moline, IL 61265. This is not where checks go.'],
-            ['payee', 'Check payable to [VERIFY]', 'text', null, 'The name guests write on the payee line. Until this placeholder is replaced, guest check instructions say Mad Productions.'],
+            ['payee', 'Check payable to', 'text', null, 'The name guests write on the payee line. Default is Mad Productions.'],
             ['pay_location', 'Where to mail or drop off checks', 'text', null, 'Check mail and drop-off only. Default is 2212 37th Street, Moline, IL 61265. A saved placeholder, or the old 2212 47 Ave line, is replaced on upgrade. Guests are told we meet on demand and set a time together, by appointment. There are no set drop-off hours.'],
             ['pay_instructions', 'Payment instructions', 'textarea', null, 'Optional extra text in the approval email and on an approved booking. Leave blank and this line stays hidden. It is not shown before the request is approved.'],
             ['card_fee_percent', 'Card processing fee (%)', 'number', null, 'Added on top of an online card payment. Default 3. It is not applied to the booking balance. Card payment stays off until the Stripe secret key is set on the server.'],
