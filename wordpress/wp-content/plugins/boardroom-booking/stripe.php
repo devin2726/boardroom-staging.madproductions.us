@@ -72,6 +72,29 @@ function brb_pay_link($b) {
         'br_sig' => brb_pay_signature($b->token),
     ], home_url('/book/'));
 }
+function brb_pay_link_checklist() {
+    return [
+        'stripe' => 'Stripe connected',
+        'walkthrough' => 'Walk-through completed',
+        'price' => 'Agreed price set',
+        'approved' => 'Request approved',
+        'balance' => 'Balance due greater than $0',
+    ];
+}
+function brb_pay_link_blockers($b) {
+    $all = brb_pay_link_checklist();
+    if (!$b) return $all;
+    $missing = [];
+    if (!brb_stripe_enabled()) $missing['stripe'] = $all['stripe'];
+    if (empty($b->walkthrough_done)) $missing['walkthrough'] = $all['walkthrough'];
+    $priced = brb_price_is_set($b);
+    if (!$priced) $missing['price'] = $all['price'];
+    $status = (string) ($b->status ?? '');
+    if (in_array($status, ['review', 'pending'], true)) $missing['approved'] = $all['approved'];
+    $balance_due = $priced && in_array($status, ['approved', 'held', 'deposit_paid'], true) && brb_amount_due_now($b) <= 0;
+    if ($status === 'paid' || $balance_due) $missing['balance'] = $all['balance'];
+    return $missing;
+}
 function brb_pay_online_line($b) {
     $url = brb_pay_link($b);
     if ($url === '') return '';
