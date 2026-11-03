@@ -1351,10 +1351,10 @@ function brb_chat_markup($mode = 'float') {
     ob_start();
     echo '<div class="brb-chat' . ($inline ? ' brb-chat-inline' : '') . '" data-walter="' . esc_url(brb_walter_url(64, 'webp')) . '">';
     if (!$inline) {
-        echo '<button type="button" class="brb-chat-launch" aria-expanded="false" aria-controls="brb-chat-panel">' . brb_walter_html(96, 'brb-walter brb-walter-launch') . '<span>Ask the Chairman</span></button>';
+        echo '<button type="button" class="brb-chat-launch" aria-expanded="false" aria-controls="brb-chat-panel">' . brb_walter_html(96, 'brb-walter brb-walter-launch') . '<span>Ask Walter</span></button>';
     }
     echo '<section id="brb-chat-panel" class="brb-chat-panel" role="' . ($inline ? 'region' : 'dialog') . '"' . ($inline ? '' : ' aria-modal="true"') . ' aria-labelledby="brb-chat-title"' . ($inline ? '' : ' hidden') . '>';
-    echo '<header class="brb-chat-head">' . brb_walter_html(64, 'brb-walter brb-walter-head') . '<h2 id="brb-chat-title">Ask the Chairman</h2>';
+    echo '<header class="brb-chat-head">' . brb_walter_html(64, 'brb-walter brb-walter-head') . '<h2 id="brb-chat-title">Ask Walter</h2>';
     if (!$inline) echo '<button type="button" class="brb-chat-close" aria-label="Close chat">Close</button>';
     echo '</header>';
     echo '<div class="brb-chat-scroll">';
