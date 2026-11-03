@@ -4,8 +4,8 @@ add_action('after_setup_theme', function () {
     register_nav_menus(['primary' => 'Primary', 'footer' => 'Footer']);
 });
 add_action('wp_enqueue_scripts', function () {
-    wp_enqueue_style('boardroom', get_stylesheet_uri(), [], '1.2.33');
-    wp_enqueue_script('boardroom', get_template_directory_uri() . '/assets/site.js', [], '1.2.33', true);
+    wp_enqueue_style('boardroom', get_stylesheet_uri(), [], '1.2.34');
+    wp_enqueue_script('boardroom', get_template_directory_uri() . '/assets/site.js', [], '1.2.34', true);
 });
 function br_img($f) { return get_template_directory_uri() . '/assets/img/' . $f; }
 function br_logo($place) {
@@ -160,7 +160,7 @@ function br_review_rotator_html() {
     $html .= '</div>';
     return $html;
 }
-function br_tour_video_html() {
+function br_tour_video_html($below = '') {
     $base = get_template_directory_uri() . '/assets/video/';
     $src = $base . 'boardroom-tour-720.mp4?v=128';
     $poster = $base . 'boardroom-tour-poster.jpg?v=128';
@@ -173,7 +173,7 @@ function br_tour_video_html() {
     $html .= '<button type="button" class="tour-play" aria-controls="boardroom-tour">Play</button>';
     $html .= '</div>';
     $html .= '<p class="tour-headline">A unique event destination in the Quad Cities</p></div>';
-    $html .= '<p class="tour-links"><a class="btn" href="' . esc_url(home_url('/book/')) . '">Book Now</a> <a class="btn ghost-dark" href="' . esc_url(home_url('/contact/')) . '">Request a tour</a></p>';
+    if ($below !== '') $html .= $below;
     $html .= '</div></section>';
     return $html;
 }
