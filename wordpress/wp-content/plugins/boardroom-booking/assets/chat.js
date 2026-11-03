@@ -12,6 +12,9 @@
   var history = [];
   var turns = [];
 
+  function focusEl(el) {
+    if (el && el.focus) el.focus({ preventScroll: true });
+  }
   function focusable() {
     var items = panel.querySelectorAll('button, [href], input, select, textarea');
     var list = [];
@@ -117,40 +120,51 @@
     trackEvent('chat_open');
     greetHead();
     if (launch) launch.setAttribute('aria-expanded', 'true');
-    if (closeBtn) closeBtn.focus();
-    else if (input) input.focus();
+    if (closeBtn) focusEl(closeBtn);
+    else if (input) focusEl(input);
   }
   function closePanel() {
     panel.hidden = true;
     if (launch) {
       launch.setAttribute('aria-expanded', 'false');
-      launch.focus();
+      focusEl(launch);
     }
+  }
+  function scrollLogTo(node) {
+    if (!log || !node) return;
+    var top = node.getBoundingClientRect().top - log.getBoundingClientRect().top + log.scrollTop;
+    log.scrollTop = Math.max(0, top - 8);
+  }
+  function linkify(el, text) {
+    var re = /https?:\/\/[^\s]+/g;
+    var last = 0;
+    var match;
+    while ((match = re.exec(text))) {
+      if (match.index > last) el.appendChild(document.createTextNode(text.slice(last, match.index)));
+      var a = document.createElement('a');
+      a.href = match[0];
+      a.textContent = match[0];
+      el.appendChild(a);
+      last = match.index + match[0].length;
+    }
+    el.appendChild(document.createTextNode(text.slice(last)));
   }
   function addMsg(role, text) {
     var p = document.createElement('p');
     var bot = role !== 'user';
     p.className = 'brb-chat-msg ' + (bot ? 'bot' : 'user');
-    if (bot && root.getAttribute('data-walter')) {
-      var img = document.createElement('img');
-      img.className = 'brb-walter brb-walter-bubble';
-      img.src = root.getAttribute('data-walter');
-      img.alt = 'Walter, the Boardroom butler';
-      img.width = 64;
-      img.height = 64;
-      p.appendChild(img);
-    }
     var copy = document.createElement('span');
     copy.className = 'brb-chat-copy';
     var who = document.createElement('span');
     who.className = 'brb-chat-who';
     who.textContent = bot ? 'Walter' : 'You';
     copy.appendChild(who);
-    copy.appendChild(document.createTextNode(text));
+    if (bot) linkify(copy, text);
+    else copy.appendChild(document.createTextNode(text));
     p.appendChild(copy);
     log.appendChild(p);
-    var scroller = log.closest('.brb-chat-scroll') || log;
-    scroller.scrollTop = scroller.scrollHeight;
+    if (role === 'user') scrollLogTo(p);
+    return p;
   }
   function showLead() {
     lead.hidden = false;
@@ -166,8 +180,7 @@
     if (!opener) return;
     e.preventDefault();
     if (root.classList.contains('brb-chat-inline')) {
-      root.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      if (input) input.focus();
+      focusEl(input);
       return;
     }
     if (panel.hidden) openPanel();
@@ -176,7 +189,7 @@
   leadToggle.addEventListener('click', function () {
     showLead();
     var name = lead.querySelector('[name="name"]');
-    if (name) name.focus();
+    if (name) focusEl(name);
   });
   panel.addEventListener('keydown', function (e) {
     if (!launch) return;
@@ -192,10 +205,10 @@
     var last = list[list.length - 1];
     if (e.shiftKey && document.activeElement === first) {
       e.preventDefault();
-      last.focus();
+      last.focus({ preventScroll: true });
     } else if (!e.shiftKey && document.activeElement === last) {
       e.preventDefault();
-      first.focus();
+      first.focus({ preventScroll: true });
     }
   });
   function clearSuggestions() {
@@ -210,18 +223,32 @@
     wrap.setAttribute('role', 'group');
     wrap.setAttribute('aria-label', 'Suggested questions');
     items.slice(0, 3).forEach(function (item) {
-      if (!item || !item.question) return;
+      if (!item || (!item.question && !item.href)) return;
       var b = document.createElement('button');
       b.type = 'button';
       b.className = 'brb-chat-chip';
       b.textContent = item.label || item.question;
-      b.setAttribute('aria-label', 'Ask: ' + (item.label || item.question));
-      b.addEventListener('click', function () { sendMessage(item.question); });
+      if (item.href) {
+        b.setAttribute('aria-label', item.label || 'Open');
+        b.addEventListener('click', function () {
+          var url = new URL(item.href, window.location.href);
+          var same = url.origin === window.location.origin && url.pathname.replace(/\/$/, '') === window.location.pathname.replace(/\/$/, '');
+          if (same && url.hash) {
+            var target = document.querySelector(url.hash);
+            if (target) {
+              window.location.hash = url.hash;
+              return;
+            }
+          }
+          window.location.assign(url.href);
+        });
+      } else {
+        b.setAttribute('aria-label', 'Ask: ' + (item.label || item.question));
+        b.addEventListener('click', function () { sendMessage(item.question); });
+      }
       wrap.appendChild(b);
     });
     log.appendChild(wrap);
-    var scroller = log.closest('.brb-chat-scroll') || log;
-    scroller.scrollTop = scroller.scrollHeight;
   }
   function sendMessage(text) {
     text = (text || '').trim();
@@ -249,7 +276,8 @@
     setTyping(true);
     return askChat(0).then(function (data) {
       setTyping(false);
-      addMsg('bot', data.reply);
+      var reply = addMsg('bot', data.reply);
+      scrollLogTo(reply);
       addSuggestions(data.suggestions);
       turns.push({ role: 'assistant', text: data.reply });
       history.push({ role: 'user', text: text });
@@ -258,7 +286,7 @@
       if (data.lead) showLead();
     }).catch(function () {
       setTyping(false);
-      addMsg('bot', 'Please try that once more in a moment. You can also use the Contact form.');
+      scrollLogTo(addMsg('bot', 'Please try that once more in a moment. You can also use the Contact form.'));
     });
   }
   ask.addEventListener('submit', function (e) {
@@ -286,15 +314,15 @@
       body: JSON.stringify(payload)
     }).then(function (r) { return r.json().then(function (body) { return { ok: r.ok, body: body }; }); }).then(function (res) {
       if (res.ok && res.body && res.body.message) {
-        addMsg('bot', res.body.message);
+        scrollLogTo(addMsg('bot', res.body.message));
         lead.reset();
         lead.hidden = true;
       } else {
         var msg = res.body && res.body.message ? res.body.message : 'Please check the form and try again.';
-        addMsg('bot', msg);
+        scrollLogTo(addMsg('bot', msg));
       }
     }).catch(function () {
-      addMsg('bot', 'Please try again in a moment, or use the Contact form.');
+      scrollLogTo(addMsg('bot', 'Please try again in a moment, or use the Contact form.'));
     });
   });
 })();
