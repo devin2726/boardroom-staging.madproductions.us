@@ -775,7 +775,7 @@ function brb_admin_settings() {
             ['open_hour', 'Hourly open (0–23)', 'number', null, ''],
             ['close_hour', 'Hourly close (1–24)', 'number', null, ''],
             ['max_days', 'Max consecutive days', 'number', null, ''],
-            ['max_guests', 'Max guests', 'number', null, 'Public help says about 80 people, and graduation parties or open houses can go over. The booking form accepts up to 200.'],
+            ['max_guests', 'Max guests', 'number', null, 'Public help says 75 to 80 guests, and graduation parties or open houses can go over. The booking form accepts up to 200.'],
             ['currency', 'Currency code', 'text', null, 'Checks are US dollars. This is kept for records. Older day rate, hourly rate, cleaning fee, and tax figures stay stored and are not shown on the website.'],
         ],
         'Notice' => [

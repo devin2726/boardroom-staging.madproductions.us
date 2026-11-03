@@ -69,7 +69,7 @@ function br_amenity_groups() {
     ];
 }
 function br_amenities_html() {
-    $html = '<p class="amenity-intro">The room comes not set up. No overnight stays. The Boardroom is an event space only.</p>';
+    $html = '<p class="amenity-intro">The room comes not set up. No overnight stays. The Boardroom is an event space only. 75 to 80 guests. Graduation parties or open houses can go over, since guests come and go.</p>';
     $html .= '<div class="amenity-groups">';
     $safety = '';
     foreach (br_amenity_groups() as $group) {

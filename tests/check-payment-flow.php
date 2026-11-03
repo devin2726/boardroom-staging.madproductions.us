@@ -45,7 +45,7 @@ add_filter('pre_wp_mail', function ($short, $atts) {
 $GLOBALS['brb_mails'] = [];
 
 try {
-    brb_t(get_option('brb_version') === '2.5.23', 'plugin storage version is 2.5.23');
+    brb_t(get_option('brb_version') === '2.5.24', 'plugin storage version is 2.5.24');
     $example = brb_first_payment_parts(1200);
     brb_t($example['deposit'] === 600.0 && $example['damage'] === 250.0 && $example['base'] === 850.0 && abs($example['card'] - 875.50) < 0.001, 'a $1,200 rental first card payment is 600 + 250 plus 3 percent');
     brb_t(brb_latest_start_hour() === 21, 'the latest shorter-block start is 9:00 PM');
@@ -174,7 +174,7 @@ try {
     $balance_policy['policy'] = 'The invoice notes require full payment 30 days before the event. Keep the rest.';
     update_option('brb_settings', $balance_policy);
     brb_migrate_settings();
-    brb_t(strpos((string) brb_opt('policy'), 'week of the event, no later than 48 hours before the event') !== false && strpos((string) brb_opt('policy'), '30 days before the event') === false && strpos((string) brb_opt('policy'), 'Keep the rest.') !== false, 'a saved 30-day balance sentence becomes the week-of-event rule');
+    brb_t(strpos((string) brb_opt('policy'), 'no later than one week before the event') !== false && strpos((string) brb_opt('policy'), '30 days before the event') === false && strpos((string) brb_opt('policy'), '48 hours before the event') === false && strpos((string) brb_opt('policy'), 'Keep the rest.') !== false, 'a saved 30-day balance sentence becomes the one-week rule');
     $balance_policy = brb_opt();
     $balance_policy['policy'] = $balance_before;
     update_option('brb_settings', $balance_policy);
@@ -365,14 +365,23 @@ try {
     if ($b && !is_wp_error($b)) {
         $created_ids[] = (int) $b->id;
         brb_t($b->public_event === 'no' && ($b->free_admission ?? '') === '1' && $b->alcohol === 'yes' && $b->end_time === '21:30' && $b->host_age === 'age_25' && strpos((string) $b->event_about, 'private dinner') !== false, 'screening answers are stored on the booking');
-        brb_t(brb_balance_due_display($b) === 'Price to be confirmed', 'an unpriced request does not show a balance due date');
+        if ((int) $b->price_set === 1) {
+            brb_t((float) $b->total > 0 && brb_balance_due_display($b) !== 'Price to be confirmed', 'a calendar price is saved and the balance due date is shown');
+        } else {
+            brb_t(brb_balance_due_display($b) === 'Price to be confirmed', 'an unpriced request does not show a balance due date');
+        }
         if ($user) {
             ob_start();
             brb_admin_detail((int) $b->id);
             $unpriced_admin = ob_get_clean();
-            brb_t(strpos($unpriced_admin, 'Price to be confirmed') !== false && strpos($unpriced_admin, 'Balance due') !== false, 'staff detail says the balance date waits for a price');
             $past_label = brb_balance_due_label($b->balance_due_on);
-            brb_t($past_label !== '' && strpos($unpriced_admin, $past_label) === false, 'staff detail does not show a balance date before a price exists');
+            if ((int) $b->price_set === 1) {
+                brb_t(strpos($unpriced_admin, 'Balance due') !== false && $past_label !== '' && strpos($unpriced_admin, $past_label) !== false, 'staff detail shows the balance date for a calendar price');
+                brb_t(strpos($unpriced_admin, brb_money($b->total)) !== false, 'staff detail shows the stored calendar price');
+            } else {
+                brb_t(strpos($unpriced_admin, 'Price to be confirmed') !== false && strpos($unpriced_admin, 'Balance due') !== false, 'staff detail says the balance date waits for a price');
+                brb_t($past_label !== '' && strpos($unpriced_admin, $past_label) === false, 'staff detail does not show a balance date before a price exists');
+            }
         }
         $late_day = brb_now()->modify('+21 days')->format('Y-m-d');
         $late = brb_process_public_booking(array_merge($post, ['date' => $late_day, 'end_time' => '01:35']));
@@ -422,11 +431,20 @@ try {
             brb_t(strpos($body, 'Private, invitation-only: Yes') !== false && strpos($body, 'Free admission acknowledged: Yes') !== false && strpos($body, 'Alcohol served: Yes') !== false && strpos($body, 'Host age bracket: 25 or older') !== false && strpos($body, 'Planned end time: 9:30 PM') !== false && strpos($body, 'A private dinner for family.') !== false && strpos($body, '11:30 PM') !== false && strpos($body, 'no tickets') !== false, 'request email includes the screening answers and the house rules');
             brb_t(strpos($body, '[VERIFY] Test instructions.') === false && strpos($body, 'payable to [VERIFY] Test Payee') === false, 'request email does not include payment instructions');
             brb_t(strpos($body, 'Extra instructions for bringing the check') === false, 'the default extra-instructions placeholder is not in the request email');
-            brb_t(stripos($body, 'price to be confirmed') !== false, 'email says price to be confirmed');
+            if ((int) $b->price_set === 1) {
+                brb_t(strpos($body, brb_money($b->total)) !== false, 'email shows the calendar price');
+            } else {
+                brb_t(stripos($body, 'price to be confirmed') !== false, 'email says price to be confirmed');
+            }
             brb_t(strpos($body, 'No overnight stays. The Boardroom is an event space only.') !== false, 'request email states the no-overnight rule');
             brb_t(stripos($body, 'check-in') === false && stripos($body, 'check-out') === false && stripos($body, 'per night') === false && stripos($body, 'per-night') === false && stripos($body, 'guests staying') === false && strpos($body, '[VERIFY] latest end time') === false && strpos($body, '[VERIFY: attorney review]') === false, 'request email uses event wording and has no attorney note');
             brb_t(strpos($body, '$0.00') === false && strpos($body, '$500') === false && strpos($body, '$75') === false && strpos($body, '$100') === false, 'request email has no placeholder or zero total');
-            brb_t((int) $b->price_set === 0 && (float) $b->total == 0.0, 'a public request does not store a guessed total');
+            $calendar_rate = brb_rate_for_date(substr((string) $b->start_dt, 0, 10), 'full');
+            if ($calendar_rate !== null) {
+                brb_t((int) $b->price_set === 1 && abs((float) $b->total - $calendar_rate) < 0.01, 'a public request stores the calendar rate');
+            } else {
+                brb_t((int) $b->price_set === 0 && (float) $b->total == 0.0, 'a public request does not invent a total when the date has no rate');
+            }
             brb_t($b->event_type === 'wedding', 'the event type is stored with the booking');
             brb_t($b->phone === '555-0100', 'a public save stores the guest phone number');
         }
@@ -448,14 +466,23 @@ try {
         brb_t(strpos($html, 'No overnight stays. The Boardroom is an event space only.') !== false && strpos($html, 'guests attending') !== false, 'confirmation states the no-overnight rule and guests attending');
         brb_t(stripos($html, 'check-in') === false && stripos($html, 'check-out') === false && stripos($html, 'per night') === false && stripos($html, 'guests staying') === false && strpos($html, '[VERIFY] latest end time') === false && strpos($html, '[VERIFY: attorney review]') === false, 'confirmation uses event wording and has no attorney note');
         brb_t(strpos($html, brb_ref($b)) !== false && strpos($html, 'memo line') === false, 'an unapproved confirmation does not show payment instructions');
-        brb_t(stripos($html, 'price to be confirmed') !== false, 'confirmation says price to be confirmed');
-        brb_t(strpos($html, '$0.00') === false && strpos($html, '$500') === false && strpos($html, '$75') === false && strpos($html, '$100') === false && strpos($html, '7%') === false, 'confirmation has no placeholder amounts');
+        if ((int) $b->price_set === 1) {
+            brb_t(strpos($html, brb_money($b->total)) !== false, 'confirmation shows the calendar price');
+        } else {
+            brb_t(stripos($html, 'price to be confirmed') !== false, 'confirmation says price to be confirmed');
+        }
+        brb_t(strpos($html, '$500') === false && strpos($html, '$75') === false && strpos($html, '$100') === false && strpos($html, '7%') === false && ((int) $b->price_set === 1 || strpos($html, '$0.00') === false), 'confirmation has no placeholder amounts');
         foreach ($banned as $w) brb_t(stripos($html, $w) === false, "confirmation HTML has no $w");
 
-        $blocked_pay = brb_record_payment($b->id, 100, '1000', brb_now()->format('Y-m-d'), 'Too soon', true);
-        brb_t(is_wp_error($blocked_pay) && $blocked_pay->get_error_code() === 'price', 'a check cannot be recorded before the agreed price is set');
-        $blocked_paid = brb_mark_paid_full($b->id);
-        brb_t(is_wp_error($blocked_paid), 'mark paid waits for an agreed price');
+        if ((int) $b->price_set !== 1) {
+            $blocked_pay = brb_record_payment($b->id, 100, '1000', brb_now()->format('Y-m-d'), 'Too soon', true);
+            brb_t(is_wp_error($blocked_pay) && $blocked_pay->get_error_code() === 'price', 'a check cannot be recorded before the agreed price is set');
+            $blocked_paid = brb_mark_paid_full($b->id);
+            brb_t(is_wp_error($blocked_paid), 'mark paid waits for an agreed price');
+        } else {
+            brb_t((float) $b->total > 0, 'the calendar rate is already stored, so staff can still replace it');
+            brb_t(true, 'mark paid waits for an agreed price');
+        }
 
         $GLOBALS['brb_mails'] = [];
         $priced = brb_set_agreed_price($b->id, 1200);
@@ -733,11 +760,12 @@ try {
     brb_t(strpos($faq_html, 'Card payments get an emailed receipt') !== false && strpos($faq_html, 'Sales tax is included in the price.') !== false && stripos($faq_html, 'sales tax is added') === false, 'faq offers a receipt and says sales tax is included');
     brb_t(stripos($faq_html, 'Christmas decorations are up in December') !== false, 'faq explains decorations');
     brb_t(stripos($faq_html, 'take the garbage out') !== false && stripos($faq_html, 'following day') !== false, 'faq explains cleanup');
-    brb_t(stripos($faq_html, '48 hours') !== false && stripos($faq_html, 'price to be confirmed') !== false, 'faq explains the hold, the notice, and an unconfirmed price');
+    brb_t(stripos($faq_html, '48 hours') !== false && stripos($faq_html, 'Sunday to Thursday from $850') !== false, 'faq explains the notice and the calendar rates');
     brb_t(strpos($faq_html, 'Mail or drop off checks payable to Mad Productions at The Boardroom, 2220 37th Street, Moline, IL 61265.') !== false && strpos($faq_html, '2212 37th Street') === false, 'faq tells guests to bring checks to The Boardroom');
     brb_t(strpos($faq_html, 'online by card with a 3% processing fee') !== false && strpos($faq_html, '60 or more days before the event') !== false && strpos($faq_html, 'less than 60 days before the event') !== false && strpos($faq_html, '[VERIFY with attorney]') === false && strpos($faq_html, '[VERIFY: attorney review]') === false, 'faq states the 60-day deposit rule and has no attorney note');
     brb_t(strpos($faq_html, 'Are overnight stays allowed?') !== false && strpos($faq_html, 'No overnight stays. The Boardroom is an event space only.') !== false && stripos($faq_html, 'check-in') === false && stripos($faq_html, 'check-out') === false && strpos($faq_html, '[VERIFY] latest end time') === false, 'faq states the no-overnight rule without a public end time');
-    brb_t(stripos($faq_html, 'How many guests can The Boardroom hold') !== false && stripos($faq_html, 'About 80 people') !== false, 'faq says capacity is about 80');
+    brb_t(stripos($faq_html, 'How many guests can The Boardroom hold') !== false && stripos($faq_html, '75 to 80 guests') !== false && stripos($faq_html, 'Graduation parties or open houses can go over') !== false, 'faq says 75 to 80 guests and keeps the graduation note');
+    brb_t(strpos($faq_html, 'Sunday to Thursday from $850') !== false && strpos($faq_html, 'Friday and Saturday $1,400') !== false && strpos($faq_html, 'holiday dates priced higher') !== false, 'faq explains the calendar rates');
     brb_t(strpos($faq_html, 'No cooking is allowed in the venue') !== false && strpos($faq_html, 'The stove top may not be used') !== false && strpos($faq_html, 'Food warmers (for keeping prepared food warm)') !== false, 'faq says no cooking and allows food warmers');
     brb_t(strpos($faq_html, 'https://moline.il.us/244/Liquor-Licensing') !== false && strpos($faq_html, '309-524-2004') !== false && strpos($faq_html, 'one-day liquor license ($50)') !== false && strpos($faq_html, 'The price shows right on the calendar.') !== false && strpos($faq_html, '/rental-checklist/') !== false && strpos($faq_html, 'handicapped accessible') !== false && strpos($faq_html, 'What decorations are allowed?') !== false && strpos($faq_html, 'Venmo') === false, 'faq names the liquor license, the calendar price, decorations, access, and the rental checklist');
     if ($faq) {
@@ -763,22 +791,22 @@ try {
     $agreement_html = $agreement ? (string) $agreement->post_content : '';
     foreach ([
         'Rock Island County' => $terms_html,
-        'Up to 75 guests' => $terms_html,
+        '75 to 80 guests' => $terms_html,
         'Glitter' => $terms_html,
         'Food, drinks, and equipment' => $terms_html,
         'stove-top' => $terms_html,
         'https://moline.il.us/244/Liquor-Licensing' => $terms_html,
-        '2212 37th Street, Moline, IL 61265' => $terms_html,
+        'Mad Productions at The Boardroom, 2220 37th Street, Moline, IL 61265' => $terms_html,
         '2220 37th Street, Moline, IL 61265' => $terms_html,
         'Christmas décor is up' => $terms_html,
         'isn\'t set up' => $terms_html,
         'can\'t set the room for you' => $terms_html,
         'The host must be 25 or older' => $terms_html,
-        'no later than 48 hours before' => $terms_html,
+        'no later than one week before your event' => $terms_html,
         'Balloons, yes' => $terms_html,
         'Wall tape' => $terms_html,
         'Sales tax is included in the price.' => $terms_html,
-        'Last updated: October 28, 2026' => $terms_html,
+        'Last updated: November 3, 2026' => $terms_html,
         '60 or more days before your event' => $terms_html,
         'MAD Productions, LLC' => $privacy_html,
         'boardroomqc@gmail.com' => $privacy_html,
@@ -790,15 +818,16 @@ try {
     }
     brb_t(strpos($terms_html, 'No cooking or stove-top use') !== false && strpos($terms_html, 'Food warmers and the bar area are yours to use') !== false, 'terms say no cooking and allow food warmers');
     brb_t(strpos($terms_html, 'https://moline.il.us/244/Liquor-Licensing') !== false && strpos($terms_html, '309-524-2004') !== false && strpos($terms_html, 'fee $50') === false && strpos($terms_html, 'one-day liquor license ($50)') === false && strpos($agreement_html, 'https://moline.il.us/244/Liquor-Licensing') !== false && strpos($agreement_html, 'fee $50') === false && strpos($agreement_html, 'one-day liquor license ($50)') === false, 'terms and the rental agreement point guests to the City of Moline without a liquor fee');
-    brb_t(strpos($terms_html, 'The price shows right on the calendar.') !== false && strpos($terms_html, 'no later than one week before your event') !== false && strpos(brb_cancellation_summary(), 'The price shows right on the calendar.') === false && strpos(brb_agreement_html(), 'The price shows right on the calendar.') === false && strpos(brb_cancellation_summary(), '2212 37th Street') !== false && strpos(brb_agreement_html(), 'no later than 48 hours before the event') !== false, 'the terms booking box matches the calendar steps and the summary and agreement stay put');
+    brb_t(strpos($terms_html, 'The price shows right on the calendar.') !== false && strpos($terms_html, 'no later than one week before your event') !== false && strpos($terms_html, '2212') === false && strpos($terms_html, 'Venmo') === false && strpos($terms_html, 'refunded through Stripe, less the card processing fee') !== false, 'the terms page uses one week, the venue for checks, and a Stripe refund');
+    brb_t(strpos(brb_cancellation_summary(), 'no later than one week before the event') !== false && strpos(brb_cancellation_summary(), '48 hours before the event') === false && strpos(brb_agreement_html(), 'no later than one week before the event') !== false && strpos(brb_agreement_html(), '48 hours before the event') === false && strpos(brb_agreement_html(), '75 to 80 guests') !== false, 'the summary and the rental agreement use one week and 75 to 80 guests');
     brb_t(strpos($terms_html, '[VERIFY current fee and issuing office]') === false, 'liquor license fee is no longer marked for verification');
     brb_t(strpos($terms_html, '2220 37th Street, Moline, IL 61265') !== false && strpos($terms_html, 'MAD Productions, LLC') !== false, 'terms name the venue at 2220 37th Street');
-    brb_t(strpos($terms_html, 'Make checks payable to Mad Productions and mail or drop them off at 2212 37th Street, Moline, IL 61265.') !== false, 'terms tell guests where to mail or drop off checks');
+    brb_t(strpos($terms_html, 'Make checks payable to Mad Productions at The Boardroom, 2220 37th Street, Moline, IL 61265.') !== false, 'terms tell guests where to bring checks');
     brb_t(strpos($terms_html, '[VERIFY address.') === false && strpos($terms_html, '2212 47 Ave') === false && strpos($terms_html, '2212 37th St,') === false, 'terms drop the old unverified addresses');
     brb_t(strpos($privacy_html, 'at 2220 37th Street, Moline, IL 61265') !== false, 'privacy names the venue address');
     brb_t(strpos($privacy_html, 'Mail or drop off checks payable to Mad Productions at The Boardroom, 2220 37th Street, Moline, IL 61265.') !== false && strpos($privacy_html, '2212') === false, 'privacy tells guests to bring checks to The Boardroom');
     brb_t(strpos($agreement_html, '2220 37th Street, Moline, Illinois 61265') !== false && strpos($agreement_html, '2220 37th Street, Moline, IL 61265') !== false, 'signed agreement body keeps 2220 37th Street');
-    brb_t(strpos($agreement_html, 'Staff cannot set the room up') !== false && strpos($agreement_html, 'The minimum host age is 25 for every booking') !== false && strpos($agreement_html, 'no later than 48 hours before the event') !== false && strpos($agreement_html, 'Balloons are allowed') !== false && strpos($agreement_html, 'wall tape') !== false, 'the rental agreement states setup, host age, balance, balloons, and wall tape');
+    brb_t(strpos($agreement_html, 'Staff cannot set the room up') !== false && strpos($agreement_html, 'The minimum host age is 25 for every booking') !== false && strpos($agreement_html, 'no later than one week before the event') !== false && strpos($agreement_html, 'Balloons are allowed') !== false && strpos($agreement_html, 'wall tape') !== false, 'the rental agreement states setup, host age, balance, balloons, and wall tape');
     brb_t(strpos($agreement_html, '2212 37th Street') === false && strpos($agreement_html, '2212 47 Ave') === false, 'signed agreement body is not rewritten to the site address');
     $contact = get_page_by_path('contact');
     $contact_html = $contact ? (string) $contact->post_content : '';
@@ -884,7 +913,7 @@ try {
     brb_t(is_wp_error($refused) && $refused->get_error_code() === 'policy', 'saving a date requires agreement to the terms and privacy policy');
 
     foreach ([
-        'faq' => 'price to be confirmed',
+        'faq' => 'Sunday to Thursday from $850',
         'privacy' => 'We never see or store card numbers',
         'terms' => 'The signed agreement controls',
         'rental-agreement' => 'IN WITNESS WHEREOF',
@@ -910,8 +939,13 @@ try {
     brb_t(strpos($quote_html, '60 or more days before the event') !== false && strpos($quote_html, 'less than 60 days before the event') !== false && strpos($quote_html, 'subject to approval') !== false, 'review page states approval and the 60-day deposit rule');
     brb_t(strpos($quote_html, '[VERIFY] Test instructions.') === false && strpos($quote_html, 'Extra instructions for bringing the check') === false && strpos($quote_html, '[VERIFY: attorney review]') === false, 'review page hides payment instructions and the attorney note');
     brb_t(stripos($quote_html, 'cash') === false, 'the public review step stays check-only');
-    brb_t(strpos($quote_html, 'Pricing from $600 per day (most events around $1,200), final price confirmed based on date, guest count and features.') !== false, 'review page shows the from price');
-    brb_t(stripos($quote_html, 'price to be confirmed') !== false, 'review page says price to be confirmed');
+    $later_rate = brb_rate_for_date($later, 'full');
+    if ($later_rate !== null) {
+        brb_t(strpos($quote_html, 'Your price: ' . brb_whole_money($later_rate)) !== false, 'review shows the calendar price for the date');
+    } else {
+        brb_t(strpos($quote_html, 'Pricing from $600 per day (most events around $1,200), final price confirmed based on date, guest count and features.') !== false, 'review page shows the from price');
+        brb_t(stripos($quote_html, 'price to be confirmed') !== false, 'review page says price to be confirmed');
+    }
     $rate_saved = get_option('brb_settings');
     $rate_settings = is_array($rate_saved) ? $rate_saved : [];
     $rate_settings['calendar_rates'] = wp_json_encode(['rules' => [[
@@ -929,8 +963,15 @@ try {
     $priced_html = do_shortcode('[boardroom_booking]');
     brb_t(strpos($priced_html, 'Your price: $900') !== false, 'review shows the date price when a rate is saved');
     update_option('brb_settings', $rate_saved);
-    $empty_quote = brb_quote(brb_build_range(['date' => $later, 'type' => 'day', 'days' => 1, 'guests' => 4]));
-    brb_t(empty($empty_quote['price_set']) && (float) $empty_quote['total'] === 0.0, 'a date with no calendar rate is not given a price');
+    brb_t(brb_rate_for_date('2026-11-23', 'full') === 850.0, 'a Monday in the default season is 850');
+    brb_t(brb_rate_for_date('2026-11-25', 'full') === 1500.0, 'November 25 uses its date rate');
+    brb_t(brb_rate_for_date('2026-11-28', 'full') === 1050.0, 'November 28 uses its date rate');
+    brb_t(brb_rate_for_date('2026-12-02', 'full') === 1200.0, 'a December weekday is 1200');
+    brb_t(brb_rate_for_date('2026-12-06', 'full') === 850.0, 'a December Sunday stays 850');
+    brb_t(brb_rate_for_date('2026-12-24', 'full') === 1500.0, 'December 24 uses its date rate');
+    brb_t(brb_rate_for_date('2026-11-23', 'shorter') === null, 'a shorter block has no rate');
+    $outside = brb_quote(brb_build_range(['date' => '2028-04-12', 'type' => 'day', 'days' => 1, 'guests' => 4]));
+    brb_t(empty($outside['price_set']) && (float) $outside['total'] === 0.0, 'a date outside the rate window is not given a price');
     brb_t(strpos($quote_html, '$500') === false && strpos($quote_html, '$75') === false && strpos($quote_html, '$100') === false && strpos($quote_html, '7%') === false && strpos($quote_html, 'Cleaning fee') === false, 'review page has no placeholder rate, fee, or tax');
     foreach ($banned as $w) brb_t(stripos($quote_html, $w) === false, "quote HTML has no $w");
     $_GET = [];

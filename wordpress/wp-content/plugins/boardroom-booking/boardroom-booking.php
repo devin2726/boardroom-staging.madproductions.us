@@ -2,11 +2,11 @@
 /**
  * Plugin Name: Boardroom Booking
  * Description: Self-hosted direct booking for The Boardroom — full-day and hourly blocks, availability calendar, agreed prices, approval before payment, blackout dates, and emails.
- * Version: 2.5.23
+ * Version: 2.5.24
  * Author: Mad Productions
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.5.23');
+define('BRB_VER', '2.5.24');
 define('BRB_VENUE_ADDRESS', '2220 37th Street, Moline, IL 61265');
 define('BRB_CHECK_ADDRESS', '2212 37th Street, Moline, IL 61265');
 define('BRB_MAPS_URL', 'https://maps.app.goo.gl/nVqUsGTcy48nPzc18');
@@ -89,7 +89,7 @@ function brb_defaults() {
         'addon_price' => '500',
         'damage_deposit_amount' => '250',
         'max_guests' => '200',
-        'calendar_rates' => '{"rules":[],"overrides":[]}',
+        'calendar_rates' => '',
         'max_days' => '7',
         'min_notice_hours' => '48',
         'hold_hours' => '48',
@@ -895,16 +895,18 @@ function brb_migrate_settings() {
         $merged['policy'] = str_replace($old_policy, brb_cancellation_summary(), $merged['policy']);
     }
     $old_balance = 'The invoice notes require full payment 30 days before the event.';
-    $new_balance = 'The remaining balance is due the week of the event, no later than 48 hours before the event.';
-    if (strpos((string) ($merged['policy'] ?? ''), $old_balance) !== false) {
-        $merged['policy'] = str_replace($old_balance, $new_balance, (string) $merged['policy']);
-    }
+    $week_balance = 'The remaining balance is due the week of the event, no later than 48 hours before the event.';
+    $one_week = 'The remaining balance is due no later than one week before the event.';
+    $policy = (string) ($merged['policy'] ?? '');
+    if (strpos($policy, $old_balance) !== false) $policy = str_replace($old_balance, $one_week, $policy);
+    if (strpos($policy, $week_balance) !== false) $policy = str_replace($week_balance, $one_week, $policy);
+    $merged['policy'] = $policy;
     if (!isset($stored['policy']) || brb_policy_needs_refresh($stored['policy'])) {
         $merged['policy'] = brb_cancellation_summary();
     }
     if (!isset($stored['quote_prices'])) $merged['quote_prices'] = '1';
-    if (!isset($stored['calendar_rates']) || !is_array(json_decode((string) $stored['calendar_rates'], true))) {
-        $merged['calendar_rates'] = '{"rules":[],"overrides":[]}';
+    if (!isset($stored['calendar_rates']) || brb_calendar_rates_are_empty($stored['calendar_rates'])) {
+        $merged['calendar_rates'] = wp_json_encode(brb_default_calendar_rates());
     }
     if (!isset($stored['rate_sun_thu']) || !is_numeric($stored['rate_sun_thu']) || (float) $stored['rate_sun_thu'] <= 0) $merged['rate_sun_thu'] = '850';
     if (!isset($stored['rate_fri_sat']) || !is_numeric($stored['rate_fri_sat']) || (float) $stored['rate_fri_sat'] <= 0) $merged['rate_fri_sat'] = '1400';
@@ -938,7 +940,7 @@ function brb_faq_markup() {
 <details><summary>What dates are open?</summary><p>Use the calendar on the <a href="/book/">Book</a> page, or ask us about a date. We'll tell you if it looks open.</p></details>
 
 <h2>Pricing and payment</h2>
-<details><summary>How much does it cost?</summary><p>Most events run $600 to about $2,000, and most come to about $1,200. The price for your date shows on the <a href="/book/">booking calendar</a>. If a date has no rate yet, the page says price to be confirmed.<!--SEASONAL--></p></details>
+<details><summary>How much does it cost?</summary><p>FAQ_PRICE</p></details>
 <details><summary>How do I pay?</summary><p>After we approve the request, pay by check or in person, or online by card with a 3% processing fee. Mail or drop off checks payable to Mad Productions at The Boardroom, 2220 37th Street, Moline, IL 61265. We don't keep set hours. We meet on demand and set a time together, by appointment. The deposit (50% of the agreed total) holds the date. The balance is due no later than one week before the event. Sales tax is included in the price. The card processing fee is non-refundable.</p></details>
 <details><summary>Can I get an invoice or a receipt?</summary><p>Yes. Card payments get an emailed receipt, and we can provide an invoice or receipt for any payment on request.</p></details>
 <details><summary>Is sales tax included?</summary><p>Sales tax is included in the price.</p></details>
@@ -955,7 +957,7 @@ function brb_faq_markup() {
 <details><summary>Is there a refrigerator or ice?</summary><p>Yes. There is a refrigerator and an ice machine.</p></details>
 
 <h2>Rules</h2>
-<details><summary>How many guests can The Boardroom hold?</summary><p>About 80 people. Graduation parties or open houses can go over, since guests come and go.</p></details>
+<details><summary>How many guests can The Boardroom hold?</summary><p>75 to 80 guests. Graduation parties or open houses can go over, since guests come and go.</p></details>
 <details><summary>Is there an age limit for hosts?</summary><p>The minimum host age is 25 for every booking.</p></details>
 <details><summary>Can we sell tickets or charge admission?</summary><p>No. All events must be free to attend: no tickets, no cover charge, no paid admission, no door fees, and no ticket or merchandise sales. We do not host concerts or ticketed shows.</p></details>
 <details><summary>Can we have a band?</summary><p>Yes. Guests may have a band or live music, as long as they are not charging for the event.</p></details>
@@ -980,8 +982,8 @@ function brb_faq_markup() {
 <details><summary>If I pay the damage deposit by card, how is it returned?</summary><p>If you paid the damage deposit by card, it is refunded through Stripe, less the card processing fee, after the event once the space is checked.</p></details>
 HTML;
     return str_replace(
-        ['HOW_STEPS', '<!--SEASONAL-->'],
-        [implode(' ', brb_how_booking_works_steps()), brb_seasonal_price_html()],
+        ['HOW_STEPS', 'FAQ_PRICE'],
+        [implode(' ', brb_how_booking_works_steps()), brb_faq_price_html()],
         $html
     );
 }
@@ -1280,7 +1282,7 @@ function brb_build_range($in, $args = []) {
     }
     $guests = max(1, (int) ($in['guests'] ?? 1));
     $guest_cap = max(200, (int) $o['max_guests']);
-    if ($guests > $guest_cap) return new WP_Error('guests', 'About 80 people is the usual capacity. For a much larger guest count, please contact us.');
+    if ($guests > $guest_cap) return new WP_Error('guests', '75 to 80 guests is the usual capacity. Graduation parties or open houses can go over. For a much larger guest count, please contact us.');
     if (empty($args['override_notice']) && $s < brb_notice_cutoff()) {
         return new WP_Error('notice', sprintf(
             'Bookings must start at least %d hours from now. The earliest start is %s.',
@@ -1346,10 +1348,71 @@ function brb_rate_rule_matches($rule, $ymd) {
     }
     return true;
 }
+function brb_default_calendar_rates() {
+    $blank_short = ['sun_shorter' => '', 'mon_thu_shorter' => '', 'fri_sat_shorter' => ''];
+    return [
+        'rules' => [
+            array_merge([
+                'start' => '2026-12-01',
+                'end' => '2026-12-31',
+                'months' => '',
+                'sun_full' => '',
+                'mon_thu_full' => '1200',
+                'fri_sat_full' => '1400',
+            ], $blank_short),
+            array_merge([
+                'start' => '2026-11-03',
+                'end' => '2027-12-31',
+                'months' => '',
+                'sun_full' => '850',
+                'mon_thu_full' => '850',
+                'fri_sat_full' => '1400',
+            ], $blank_short),
+        ],
+        'overrides' => [
+            ['date' => '2026-11-24', 'full' => '1500', 'shorter' => ''],
+            ['date' => '2026-11-25', 'full' => '1500', 'shorter' => ''],
+            ['date' => '2026-11-26', 'full' => '1500', 'shorter' => ''],
+            ['date' => '2026-11-28', 'full' => '1050', 'shorter' => ''],
+            ['date' => '2026-12-24', 'full' => '1500', 'shorter' => ''],
+        ],
+    ];
+}
+function brb_calendar_rates_are_empty($json) {
+    $data = json_decode((string) $json, true);
+    if (!is_array($data)) return true;
+    foreach ((array) ($data['rules'] ?? []) as $row) {
+        if (is_array($row)) return false;
+    }
+    foreach ((array) ($data['overrides'] ?? []) as $row) {
+        if (is_array($row)) return false;
+    }
+    return true;
+}
+function brb_rate_day_keys($ymd, $block) {
+    $suffix = $block === 'shorter' ? 'shorter' : 'full';
+    try {
+        $n = (int) (new DateTimeImmutable($ymd, brb_tz()))->format('N');
+    } catch (Exception $e) {
+        $n = 1;
+    }
+    if ($n === 7) return ['sun_' . $suffix, 'weekday_' . $suffix];
+    if ($n >= 1 && $n <= 4) return ['mon_thu_' . $suffix, 'weekday_' . $suffix];
+    return ['fri_sat_' . $suffix, 'weekend_' . $suffix];
+}
+function brb_rule_span_days($rule) {
+    $start = trim((string) ($rule['start'] ?? ''));
+    $end = trim((string) ($rule['end'] ?? ''));
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $start) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $end)) return 100000;
+    try {
+        return (new DateTimeImmutable($start))->diff(new DateTimeImmutable($end))->days;
+    } catch (Exception $e) {
+        return 100000;
+    }
+}
 function brb_rate_for_date($ymd, $block) {
     if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $ymd)) return null;
     $block = ($block === 'shorter') ? 'shorter' : 'full';
-    $weekend = brb_date_is_weekend($ymd);
     $rates = brb_calendar_rates();
     foreach ($rates['overrides'] as $row) {
         if (trim((string) ($row['date'] ?? '')) !== $ymd) continue;
@@ -1357,11 +1420,18 @@ function brb_rate_for_date($ymd, $block) {
         $amount = brb_rate_number($row[$key] ?? '');
         if ($amount !== null) return $amount;
     }
+    $matched = [];
     foreach ($rates['rules'] as $rule) {
-        if (!brb_rate_rule_matches($rule, $ymd)) continue;
-        $key = ($weekend ? 'weekend' : 'weekday') . '_' . $block;
-        $amount = brb_rate_number($rule[$key] ?? '');
-        if ($amount !== null) return $amount;
+        if (brb_rate_rule_matches($rule, $ymd)) $matched[] = $rule;
+    }
+    usort($matched, function ($a, $b) {
+        return brb_rule_span_days($a) <=> brb_rule_span_days($b);
+    });
+    foreach ($matched as $rule) {
+        foreach (brb_rate_day_keys($ymd, $block) as $key) {
+            $amount = brb_rate_number($rule[$key] ?? '');
+            if ($amount !== null) return $amount;
+        }
     }
     return null;
 }
@@ -1443,22 +1513,66 @@ function brb_seasonal_price_html() {
     if ($items === '') return '';
     return '<ul class="brb-season-prices">' . $items . '</ul>';
 }
+function brb_calendar_widest_rule() {
+    $best = null;
+    $span = -1;
+    foreach (brb_calendar_rates()['rules'] as $rule) {
+        $days = brb_rule_span_days($rule);
+        if ($days > $span) {
+            $span = $days;
+            $best = $rule;
+        }
+    }
+    return $best;
+}
+function brb_calendar_has_higher_rate($floor) {
+    $keys = ['sun_full', 'mon_thu_full', 'fri_sat_full', 'weekday_full', 'weekend_full'];
+    foreach (brb_calendar_rates()['rules'] as $rule) {
+        foreach ($keys as $key) {
+            $amount = brb_rate_number($rule[$key] ?? '');
+            if ($amount !== null && $amount > $floor + 0.001) return true;
+        }
+    }
+    foreach (brb_calendar_rates()['overrides'] as $row) {
+        $amount = brb_rate_number($row['full'] ?? '');
+        if ($amount !== null && $amount > $floor + 0.001) return true;
+    }
+    return false;
+}
+function brb_faq_price_html() {
+    $base = brb_calendar_widest_rule();
+    $sun = $base ? (brb_rate_number($base['sun_full'] ?? '') ?? brb_rate_number($base['weekday_full'] ?? '')) : null;
+    $mon = $base ? (brb_rate_number($base['mon_thu_full'] ?? '') ?? brb_rate_number($base['weekday_full'] ?? '')) : null;
+    $fri = $base ? (brb_rate_number($base['fri_sat_full'] ?? '') ?? brb_rate_number($base['weekend_full'] ?? '')) : null;
+    $link = '<a href="' . esc_url(home_url('/book/')) . '">booking calendar</a>';
+    if ($sun === null || $mon === null || $fri === null) {
+        return 'Most events run $600 to about $2,000, and most come to about $1,200. The price for your date shows on the ' . $link . '. If a date has no rate yet, the page says price to be confirmed.';
+    }
+    $from = min($sun, $mon);
+    $text = 'Sunday to Thursday from ' . brb_whole_money($from) . ', Friday and Saturday ' . brb_whole_money($fri);
+    if (brb_calendar_has_higher_rate(max($from, $fri))) $text .= ', with a few holiday dates priced higher';
+    $text .= '. Most events run about $1,200, and the full range is $600 to about $2,000. The price for your date is on the ' . $link . '.';
+    return $text;
+}
 function brb_calendar_rates_from_post($post) {
     $rules = [];
     $raw_rules = $post['brb_rate_rules'] ?? [];
     if (is_array($raw_rules)) {
         foreach ($raw_rules as $row) {
             if (!is_array($row)) continue;
+            $amount_keys = ['sun_full', 'mon_thu_full', 'fri_sat_full', 'sun_shorter', 'mon_thu_shorter', 'fri_sat_shorter', 'weekday_full', 'weekend_full', 'weekday_shorter', 'weekend_shorter'];
             $clean = [
                 'start' => preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) ($row['start'] ?? '')) ? $row['start'] : '',
                 'end' => preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) ($row['end'] ?? '')) ? $row['end'] : '',
                 'months' => sanitize_text_field($row['months'] ?? ''),
-                'weekday_full' => brb_rate_number($row['weekday_full'] ?? '') === null ? '' : (string) brb_rate_number($row['weekday_full']),
-                'weekend_full' => brb_rate_number($row['weekend_full'] ?? '') === null ? '' : (string) brb_rate_number($row['weekend_full']),
-                'weekday_shorter' => brb_rate_number($row['weekday_shorter'] ?? '') === null ? '' : (string) brb_rate_number($row['weekday_shorter']),
-                'weekend_shorter' => brb_rate_number($row['weekend_shorter'] ?? '') === null ? '' : (string) brb_rate_number($row['weekend_shorter']),
             ];
-            $has = $clean['start'] !== '' || $clean['end'] !== '' || $clean['months'] !== '' || $clean['weekday_full'] !== '' || $clean['weekend_full'] !== '' || $clean['weekday_shorter'] !== '' || $clean['weekend_shorter'] !== '';
+            $has_amount = false;
+            foreach ($amount_keys as $key) {
+                $amount = brb_rate_number($row[$key] ?? '');
+                $clean[$key] = $amount === null ? '' : (string) $amount;
+                if ($clean[$key] !== '') $has_amount = true;
+            }
+            $has = $has_amount || $clean['start'] !== '' || $clean['end'] !== '' || $clean['months'] !== '';
             if ($has) $rules[] = $clean;
         }
     }
@@ -1485,14 +1599,15 @@ function brb_admin_calendar_rate_fields() {
     $saved = brb_calendar_rates();
     $rules = $saved['rules'];
     $overrides = $saved['overrides'];
-    while (count($rules) < 4) $rules[] = ['start' => '', 'end' => '', 'months' => '', 'weekday_full' => '', 'weekend_full' => '', 'weekday_shorter' => '', 'weekend_shorter' => ''];
-    while (count($overrides) < 6) $overrides[] = ['date' => '', 'full' => '', 'shorter' => ''];
+    $blank_rule = ['start' => '', 'end' => '', 'months' => '', 'sun_full' => '', 'mon_thu_full' => '', 'fri_sat_full' => '', 'sun_shorter' => '', 'mon_thu_shorter' => '', 'fri_sat_shorter' => ''];
+    while (count($rules) < 4) $rules[] = $blank_rule;
+    while (count($overrides) < 8) $overrides[] = ['date' => '', 'full' => '', 'shorter' => ''];
     echo '<h2>Calendar date prices</h2>';
-    echo '<p class="description">Leave every amount blank until the real rates are ready. A blank amount is not a price. When a date has no rate, the calendar and Review keep the usual range and say price to be confirmed. Weekend is Friday and Saturday. Weekday is Sunday through Thursday. A shorter block is a half day or an hourly block. A date override wins over a season. Nothing here is copied from the chat estimates.</p>';
-    echo '<table class="widefat"><thead><tr><th>Start</th><th>End</th><th>Months</th><th>Weekday full day</th><th>Weekend full day</th><th>Weekday shorter</th><th>Weekend shorter</th></tr></thead><tbody>';
+    echo '<p class="description">Full-day prices shown on the booking calendar. Sunday, Monday through Thursday, and Friday and Saturday can differ. Leave a shorter-block amount blank when that date should say price to be confirmed. A narrower date range wins. A single date override wins over a range. Booked and blocked dates stay unavailable.</p>';
+    echo '<table class="widefat"><thead><tr><th>Start</th><th>End</th><th>Months</th><th>Sunday</th><th>Mon–Thu</th><th>Fri–Sat</th><th>Sunday shorter</th><th>Mon–Thu shorter</th><th>Fri–Sat shorter</th></tr></thead><tbody>';
     foreach ($rules as $i => $row) {
         echo '<tr>';
-        foreach (['start' => 'date', 'end' => 'date', 'months' => 'text', 'weekday_full' => 'text', 'weekend_full' => 'text', 'weekday_shorter' => 'text', 'weekend_shorter' => 'text'] as $key => $type) {
+        foreach (['start' => 'date', 'end' => 'date', 'months' => 'text', 'sun_full' => 'text', 'mon_thu_full' => 'text', 'fri_sat_full' => 'text', 'sun_shorter' => 'text', 'mon_thu_shorter' => 'text', 'fri_sat_shorter' => 'text'] as $key => $type) {
             $value = (string) ($row[$key] ?? '');
             echo '<td><input type="' . esc_attr($type) . '" name="brb_rate_rules[' . (int) $i . '][' . esc_attr($key) . ']" value="' . esc_attr($value) . '" class="regular-text"></td>';
         }
@@ -2554,7 +2669,7 @@ function brb_view_select() {
         </div>
         <p class="brb-small" id="brb-notice"></p>
         <label>Guests attending<input type="number" name="guests" value="10" min="1" max="200"></label>
-        <p class="brb-small">About 80 people. Graduation parties or open houses can go over, since guests come and go.</p>
+        <p class="brb-small">75 to 80 guests. Graduation parties or open houses can go over, since guests come and go.</p>
         <button class="brb-btn" type="submit">Continue</button>
       </form>
     </div>

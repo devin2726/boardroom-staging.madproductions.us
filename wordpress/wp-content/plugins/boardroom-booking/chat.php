@@ -100,6 +100,10 @@ function brb_quote_prices_enabled() {
 function brb_estimate_amount($ymd) {
     $ymd = brb_rate_date($ymd);
     if ($ymd === '') return 0.0;
+    if (function_exists('brb_rate_for_date')) {
+        $calendar = brb_rate_for_date($ymd, 'full');
+        if ($calendar !== null) return (float) $calendar;
+    }
     $dt = new DateTimeImmutable($ymd . ' 12:00:00', brb_tz());
     $dow = (int) $dt->format('w');
     $key = $dow === 0 ? 'sun' : (($dow === 5 || $dow === 6) ? 'fri_sat' : 'mon_thu');
@@ -726,9 +730,9 @@ function brb_chat_rules_text() {
         . brb_hours_line() . ' Everyone is out by 11:30 PM. Smoking is outside only. Service animals only. No pets. '
         . 'All events must be free to attend: no tickets, no cover charge, no paid admission, no door fees, and no ticket or merchandise sales. '
         . 'No cooking is allowed. The stovetop may not be used. There are no taps. ' . brb_byob_line() . ' '
-        . 'Please take the garbage out. The room comes not set up. Capacity is about 80 people. Graduation parties or open houses can go over, since guests come and go. Christmas decorations are up in December. Event liability insurance is required.';
+        . 'Please take the garbage out. The room comes not set up. Capacity is 75 to 80 guests. Graduation parties or open houses can go over, since guests come and go. Christmas decorations are up in December. Event liability insurance is required.';
     if (brb_chat_detail()) return $long;
-    return 'No overnight stays and no cooking. Everyone is out by 11:30 PM, and events are free to attend, with no tickets, for about 80 people. Want more details?';
+    return 'No overnight stays and no cooking. Everyone is out by 11:30 PM, and events are free to attend, with no tickets, for 75 to 80 guests. Want more details?';
 }
 function brb_chat_specific_text($text) {
     $t = strtolower((string) $text);
@@ -914,7 +918,7 @@ function brb_chat_specific_text($text) {
         $bits[] = 'Service animals only. No pets.';
     }
     if (preg_match('/capacity|how many (people|guests)|80 people|75 people|how many can|\b80\b|\b75\b|how many fit/', $t)) {
-        $bits[] = 'About 80 people. Graduation parties or open houses can go over, since guests come and go.';
+        $bits[] = '75 to 80 guests. Graduation parties or open houses can go over, since guests come and go.';
     }
     $paid = preg_match('/ticket|cover charge|charge a cover|concert|paid admission|door fee|fundrais|merchandise|charge admission|paid event/', $t);
     $band = preg_match('/\bband\b|live music|\bdj\b/', $t);
@@ -1359,7 +1363,7 @@ function brb_chat_markup($mode = 'float') {
         echo '<option value="' . esc_attr($value) . '">' . esc_html($label) . '</option>';
     }
     echo '</select></label>';
-    echo '<label>Guests (about 80)<input type="number" name="guests" min="1" max="200"></label>';
+    echo '<label>Guests (75 to 80)<input type="number" name="guests" min="1" max="200"></label>';
     echo '<label>Short note<textarea name="note" rows="3" maxlength="1000"></textarea></label>';
     echo '<label class="brb-chat-consent"><input type="checkbox" name="consent" value="1" required> A team member will reply using this info</label>';
     echo '<button type="submit" class="brb-chat-send">Send to the team</button>';
