@@ -16,7 +16,7 @@ function brb_policy_needs_refresh($text) {
 
 function brb_terms_html() {
     // [CONFIRM with Chris] Guests out by 11:30 PM. Smoking is outside only. Service animals only.
-    return <<<'TERMS_HTML'
+    $html = <<<'TERMS_HTML'
 <p>Thanks for choosing The Boardroom! This page sums up our Facility Event Space Rental Agreement in plain language, section by section. It doesn't replace the agreement. If the two ever differ, the signed agreement wins. You can read and print the full <a href="/rental-agreement/">Rental Agreement</a> anytime.</p>
 <p>The Boardroom QC is operated by MAD Productions, LLC ("we" or "the Owner") at 2220 37th Street, Moline, IL 61265.</p>
 
@@ -126,13 +126,7 @@ function brb_terms_html() {
 <p>The signed agreement, together with your invoice, booking confirmation, and any written addendum or rules from us, is the entire deal. Whoever signs for the renter confirms they're authorized to, and is personally responsible if they're not.</p>
 
 <h2>How booking works</h2>
-<ol>
-<li>Pick your date and send a request. Nothing is charged yet.</li>
-<li>We'll email you a price.</li>
-<li>After we approve it, we'll email you a payment link.</li>
-<li>Pay 50% of the rental plus the $250 refundable damage deposit by card (a 3% fee is added) or by check, and agree to the Terms and the Rental Agreement.</li>
-<li>Your date is locked in. Pay the balance by check or card. Your status link stays with the booking, and we'll email a checklist reminder about one week before.</li>
-</ol>
+TERMS_STEPS
 <p>One heads-up: the room isn't set up or decorated when you arrive, except in December, when our Christmas décor is up.</p>
 
 <h2>The signed agreement controls</h2>
@@ -141,6 +135,9 @@ function brb_terms_html() {
 <p class="updated">Last updated: October 28, 2026</p>
 <p>The Boardroom QC · 2220 37th Street, Moline, IL 61265 · <a href="https://maps.app.goo.gl/nVqUsGTcy48nPzc18" rel="noopener noreferrer">Get directions</a></p>
 TERMS_HTML;
+    $steps = '';
+    foreach (brb_how_booking_works_steps() as $step) $steps .= '<li>' . $step . '</li>';
+    return str_replace('TERMS_STEPS', '<ol>' . $steps . '</ol>', $html);
 }
 
 function brb_privacy_html() {
@@ -154,7 +151,7 @@ function brb_privacy_html() {
 <p>We use this information only to manage reservations and contact inquiries, and to communicate with you about them. Email about a booking or a contact inquiry is sent through this site’s mail system.</p>
 
 <h2>Payment</h2>
-<p>You can pay by check or in person, or online by card with a 3% processing fee, after a request is approved. Mail or drop off checks payable to Mad Productions at 2212 37th Street, Moline, IL 61265. Stripe processes card payments. We never see or store card numbers. A request does not hold the date. Your date is reserved once your deposit is received. The deposit (50% of the agreed total) holds the date. It is refundable if the Owner receives written cancellation 60 or more days before the event, less any non-refundable processing charges (including the 3% card processing fee) and costs already incurred. It is not refundable if cancellation is received less than 60 days before the event. The card processing fee is non-refundable.</p>
+<p>You can pay by check or in person, or online by card with a 3% processing fee, after a request is approved. Mail or drop off checks payable to Mad Productions at The Boardroom, 2220 37th Street, Moline, IL 61265. Stripe processes card payments. We never see or store card numbers. A request does not hold the date. Your date is reserved once your deposit is received. The deposit (50% of the agreed total) holds the date. It is refundable if the Owner receives written cancellation 60 or more days before the event, less any non-refundable processing charges (including the 3% card processing fee) and costs already incurred. It is not refundable if cancellation is received less than 60 days before the event. The card processing fee is non-refundable.</p>
 
 <h2>Cookies</h2>
 <p>This site sets no advertising, analytics, or tracking cookies of its own, but the embedded Google Maps in the footer and on the Contact page may set cookies from Google, and Google's privacy policy applies to those cookies. Stripe may set cookies on its own checkout page, and Stripe's privacy policy applies to those cookies. Guests are not asked to accept cookies. The contact form does not set a cookie. The chat assistant does not set a cookie. WordPress sets cookies for staff when they log in to the admin area.</p>

@@ -756,6 +756,9 @@ function brb_admin_settings() {
         }
         foreach (brb_legacy_keys() as $lk) unset($new[$lk]);
         $new = brb_chat_apply_rate_settings($new, $_POST);
+        if (isset($_POST['brb_rate_rules']) || isset($_POST['brb_rate_overrides'])) {
+            $new['calendar_rates'] = brb_calendar_rates_from_post($_POST);
+        }
         update_option('brb_settings', $new);
         echo '<div class="updated"><p>Saved.' . ($kept ? ' Blackout dates were kept because the list was empty and “clear all blackout dates” was not ticked.' : '') . '</p></div>';
     }
@@ -772,7 +775,7 @@ function brb_admin_settings() {
             ['open_hour', 'Hourly open (0–23)', 'number', null, ''],
             ['close_hour', 'Hourly close (1–24)', 'number', null, ''],
             ['max_days', 'Max consecutive days', 'number', null, ''],
-            ['max_guests', 'Max guests', 'number', null, ''],
+            ['max_guests', 'Max guests', 'number', null, 'Public help says about 80 people, and graduation parties or open houses can go over. The booking form accepts up to 200.'],
             ['currency', 'Currency code', 'text', null, 'Checks are US dollars. This is kept for records. Older day rate, hourly rate, cleaning fee, and tax figures stay stored and are not shown on the website.'],
         ],
         'Notice' => [
@@ -782,12 +785,12 @@ function brb_admin_settings() {
             ['deposit_type', 'Deposit that reserves the date', 'select', ['full' => 'Full amount', 'percent' => 'Percent of the agreed price', 'fixed' => 'Fixed dollar amount'], 'The deposit holds the date. It is refundable if written cancellation is received 60 or more days before the event, less non-refundable processing charges and costs already incurred, and it is not refundable inside 90 days. Staff process refunds manually. Default is 50% of the agreed price. Until staff set a price, the guest is told the price is to be confirmed.'],
             ['deposit_pct', 'Deposit percent', 'number', null, 'Used when the choice above is percent. Default 50.'],
             ['deposit_fixed', 'Fixed deposit amount ($)', 'text', null, 'Used when the choice above is a fixed dollar amount. Cannot exceed the total.'],
-            ['balance_due_days', 'Balance due note', 'number', null, 'The remaining balance is due the week of the event, no later than 48 hours before. A past date is shown as due now. Until a price is set, the guest sees price to be confirmed.'],
+            ['balance_due_days', 'Balance due note', 'number', null, 'Guests are told the balance is due no later than one week before the event. A past date is shown as due now. Until a price is set, the guest sees price to be confirmed.'],
             ['addon_price', 'Setup or takedown day ($)', 'number', null, 'Added when that day is open. Default 500. The same price applies on Sunday.'],
             ['damage_deposit_amount', 'Damage deposit amount ($)', 'number', null, 'Flat refundable damage deposit added to new bookings. Default 250. Changing this does not change bookings that already have a damage deposit line. Use 0 if a new booking should not include one.'],
             ['venue_address', 'Venue address', 'text', null, 'The event space. Shown in the footer, on Contact, and in Terms and Privacy. Default is 2220 37th Street, Moline, IL 61265. This is not where checks go.'],
             ['payee', 'Check payable to', 'text', null, 'The name guests write on the payee line. Default is Mad Productions.'],
-            ['pay_location', 'Where to mail or drop off checks', 'text', null, 'Check mail and drop-off only. Default is 2212 37th Street, Moline, IL 61265. A saved placeholder, or the old 2212 47 Ave line, is replaced on upgrade. Guests are told we meet on demand and set a time together, by appointment. There are no set drop-off hours.'],
+            ['pay_location', 'Where to mail or drop off checks', 'text', null, 'Public check instructions use The Boardroom at 2220 37th Street, Moline, IL 61265. The old 2212 check address is replaced on upgrade. Guests are told we meet on demand and set a time together, by appointment. There are no set drop-off hours.'],
             ['pay_instructions', 'Payment instructions', 'textarea', null, 'Optional extra text in the approval email and on an approved booking. Leave blank and this line stays hidden. It is not shown before the request is approved.'],
             ['card_fee_percent', 'Card processing fee (%)', 'number', null, 'Added on top of an online card payment. Default 3. It is not applied to the booking balance. Card payment stays off until the Stripe secret key is set on the server.'],
             ['admin_email', 'Admin notification email', 'textarea', null, 'Request, payment, and contact inquiry emails are sent here. Separate more than one address with a comma, semicolon, or a new line. An address that is not valid is skipped and shown in a warning.'],
@@ -843,6 +846,7 @@ function brb_admin_settings() {
         }
         echo '</table>';
     }
+    brb_admin_calendar_rate_fields();
     brb_admin_quote_rates_fields();
     echo '<p><button class="button button-primary" name="brb_save" value="1">Save settings</button></p></form>';
     echo '<h2>Send test email</h2>';

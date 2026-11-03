@@ -43,7 +43,7 @@ function br_amenity_groups() {
         [
             'title' => 'Access and parking',
             'icon' => 'M4 16l2-6h12l2 6M6 16h12M7 16v2M17 16v2M7 10V7h10v3',
-            'items' => ['Private main entrance', 'Free parking on premises', 'Free street parking'],
+            'items' => ['Private main entrance', 'Free parking on premises', 'Space for 40 to 50 cars', 'Free street parking'],
         ],
         [
             'title' => 'Tech and entertainment',
@@ -350,7 +350,7 @@ function br_seo_pages() {
     $place = 'Party & Event Venue in Moline, IL (Quad Cities)';
     return [
         'home' => ['title' => 'The Boardroom | ' . $place, 'description' => 'The Boardroom is a party and event venue in Moline, IL, in the Quad Cities. Most events run $600 to about $2,000. Request a date and we email your price.'],
-        'book' => ['title' => 'Book The Boardroom | ' . $place, 'description' => 'Request a date at The Boardroom in Moline. Nothing is charged until we email a price and approve the booking. Pay 50% plus the $250 damage deposit.'],
+        'book' => ['title' => 'Book The Boardroom | ' . $place, 'description' => 'Request a date at The Boardroom in Moline. The price shows on the calendar. Nothing is charged until we approve the booking and email a payment link. Pay 50% plus the $250 damage deposit.'],
         'faq' => ['title' => 'FAQ | The Boardroom, ' . $place, 'description' => 'Answers about booking, hours, food, BYOB, capacity, and cancellation at The Boardroom in Moline, IL.'],
         'terms' => ['title' => 'Rental Terms | The Boardroom, ' . $place, 'description' => 'Plain-language rental terms for The Boardroom in Moline, IL. The signed rental agreement controls if they differ.'],
         'privacy' => ['title' => 'Privacy Policy | The Boardroom, ' . $place, 'description' => 'How The Boardroom in Moline, IL uses booking and contact details. We do not sell your information.'],

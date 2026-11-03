@@ -115,9 +115,12 @@
     for (var i = 0; i < cur.getDay(); i++) h += '<span></span>';
     var d = new Date(cur);
     while (d.getMonth() === cur.getMonth()) {
-      var k = key(d), s = (data[k] || {}).status || 'free';
+      var k = key(d);
+      var info = data[k] || {};
+      var s = info.status || 'free';
       var off = (s === 'past' || s === 'booked' || s === 'blackout' || s === 'soon');
-      h += '<button type="button" class="d ' + s + (date.value === k ? ' sel' : '') + '" data-k="' + k + '"' + (off ? ' disabled' : '') + '>' + d.getDate() + '</button>';
+      var price = info.price ? '<span class="brb-dayprice">' + info.price + '</span>' : '';
+      h += '<button type="button" class="d ' + s + (date.value === k ? ' sel' : '') + '" data-k="' + k + '"' + (off ? ' disabled' : '') + '><span class="brb-daynum">' + d.getDate() + '</span>' + price + '</button>';
       d.setDate(d.getDate() + 1);
     }
     cal.innerHTML = h + '</div>';

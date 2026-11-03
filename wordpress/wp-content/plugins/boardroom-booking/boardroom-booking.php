@@ -2,11 +2,11 @@
 /**
  * Plugin Name: Boardroom Booking
  * Description: Self-hosted direct booking for The Boardroom — full-day and hourly blocks, availability calendar, agreed prices, approval before payment, blackout dates, and emails.
- * Version: 2.5.22
+ * Version: 2.5.23
  * Author: Mad Productions
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.5.22');
+define('BRB_VER', '2.5.23');
 define('BRB_VENUE_ADDRESS', '2220 37th Street, Moline, IL 61265');
 define('BRB_CHECK_ADDRESS', '2212 37th Street, Moline, IL 61265');
 define('BRB_MAPS_URL', 'https://maps.app.goo.gl/nVqUsGTcy48nPzc18');
@@ -88,7 +88,8 @@ function brb_defaults() {
         'balance_due_days' => '2',
         'addon_price' => '500',
         'damage_deposit_amount' => '250',
-        'max_guests' => '75',
+        'max_guests' => '200',
+        'calendar_rates' => '{"rules":[],"overrides":[]}',
         'max_days' => '7',
         'min_notice_hours' => '48',
         'hold_hours' => '48',
@@ -97,7 +98,7 @@ function brb_defaults() {
         'tour_email' => 'boardroomqc@gmail.com',
         'payee' => 'Mad Productions',
         'venue_address' => BRB_VENUE_ADDRESS,
-        'pay_location' => BRB_CHECK_ADDRESS,
+        'pay_location' => BRB_VENUE_ADDRESS,
         'pay_hours' => '',
         'pay_instructions' => '',
         'card_fee_percent' => '3',
@@ -143,7 +144,9 @@ function brb_guest_payee() {
     return $payee;
 }
 function brb_check_sentence($item = 'checks') {
-    return 'Mail or drop off ' . $item . ' payable to ' . brb_guest_payee() . ' at ' . brb_check_address() . '.';
+    $place = brb_check_address();
+    if ($place === brb_venue_address()) $place = 'The Boardroom, ' . $place;
+    return 'Mail or drop off ' . $item . ' payable to ' . brb_guest_payee() . ' at ' . $place . '.';
 }
 function brb_appointment_line() {
     return 'We don\'t keep set hours. We meet on demand and set a time together, by appointment.';
@@ -397,7 +400,7 @@ function brb_guest_hello_line() {
     return 'Thank you for contacting The Boardroom!';
 }
 function brb_guest_review_line() {
-    return 'We review your request and email a price. After approval, we email a payment link. Your date is reserved once your deposit is received and approved by the Boardroom.';
+    return 'We review your request. Once it\'s approved, we\'ll email you a payment link. Your date is reserved once your deposit is received and approved by the Boardroom.';
 }
 function brb_terms_review_line() {
     return 'All bookings are subject to review and approval by the Boardroom. Approval is based on the event details provided, availability, and our house rules.';
@@ -406,7 +409,10 @@ function brb_price_range_sentence() {
     return 'Most events run $600 to about $2,000, typically about $1,200. Your exact price is confirmed by email.';
 }
 function brb_damage_card_refund_line() {
-    return 'If you paid the damage deposit by card, it is refunded to the same card after the event once the space is checked.';
+    return 'If you paid the damage deposit by card, it is refunded through Stripe, less the card processing fee, after the event once the space is checked.';
+}
+function brb_damage_public_line() {
+    return 'The refundable damage deposit is a flat $250. It is charged with the booking deposit and mainly covers cleaning. A dumpster is on site. It is refunded through Stripe, less the card processing fee, after the event once the space is checked.';
 }
 function brb_first_payment_parts($rental = 1200.0) {
     $rental = round((float) $rental, 2);
@@ -445,11 +451,11 @@ function brb_deposit_bullets_html() {
 }
 function brb_how_booking_works_steps() {
     return [
-        'Pick your date and send a request. Nothing is charged yet.',
-        'We\'ll email you a price.',
-        'After we approve it, we\'ll email you a payment link.',
-        'Pay 50% of the rental plus the $250 refundable damage deposit by card (a 3% fee is added) or by check, and agree to the Terms and the Rental Agreement.',
-        'Your date is locked in. Pay the balance by check or card. Your status link stays with the booking, and we\'ll email a checklist reminder about one week before.',
+        'Pick your date. The price shows right on the calendar.',
+        'Send your request. Nothing is charged yet.',
+        'We review it. Once it\'s approved, we\'ll email you a payment link.',
+        'Lock in your date. Pay 50% of the rental plus the $250 refundable damage deposit by card (3% fee) or check, and agree to the Terms and Rental Agreement.',
+        'You\'re booked! Pay the balance by check or card no later than one week before your event. Your status link stays with your booking, and we\'ll send a checklist reminder about a week before your event.',
     ];
 }
 function brb_how_booking_works_html() {
@@ -519,7 +525,7 @@ function brb_checklist_default() {
     return implode("\n", [
         'Sign the rental agreement.',
         'The deposit is received and approved.',
-        'The balance is due the week of the event, no later than 48 hours before.',
+        'The balance is due no later than one week before the event.',
         'The refundable damage deposit is a flat $250. It is charged with the booking deposit and returned if the room is left as you found it.',
         'If you paid the damage deposit by card, it is refunded to the same card after the event once the space is checked.',
         'Optional setup or takedown day add-ons, when that day is open, can be added within 72 hours of the event for ' . brb_whole_money(brb_addon_price()) . '.',
@@ -877,8 +883,8 @@ function brb_migrate_settings() {
     if (!is_email($tour_email)) $merged['tour_email'] = $defaults['tour_email'];
     else $merged['tour_email'] = $tour_email;
     $location = trim((string) ($merged['pay_location'] ?? ''));
-    if ($location === '' || stripos($location, '[VERIFY]') !== false || stripos($location, '2212 47') !== false) {
-        $merged['pay_location'] = $defaults['pay_location'];
+    if ($location === '' || stripos($location, '[VERIFY]') !== false || stripos($location, '2212 47') !== false || $location === BRB_CHECK_ADDRESS) {
+        $merged['pay_location'] = BRB_VENUE_ADDRESS;
     }
     $venue = trim((string) ($stored['venue_address'] ?? ''));
     if ($venue === '' || stripos($venue, '[VERIFY]') !== false || stripos($venue, '2212 47') !== false || $venue === BRB_CHECK_ADDRESS) {
@@ -897,6 +903,9 @@ function brb_migrate_settings() {
         $merged['policy'] = brb_cancellation_summary();
     }
     if (!isset($stored['quote_prices'])) $merged['quote_prices'] = '1';
+    if (!isset($stored['calendar_rates']) || !is_array(json_decode((string) $stored['calendar_rates'], true))) {
+        $merged['calendar_rates'] = '{"rules":[],"overrides":[]}';
+    }
     if (!isset($stored['rate_sun_thu']) || !is_numeric($stored['rate_sun_thu']) || (float) $stored['rate_sun_thu'] <= 0) $merged['rate_sun_thu'] = '850';
     if (!isset($stored['rate_fri_sat']) || !is_numeric($stored['rate_fri_sat']) || (float) $stored['rate_fri_sat'] <= 0) $merged['rate_fri_sat'] = '1400';
     $ranges = json_decode((string) ($stored['rate_ranges'] ?? ''), true);
@@ -920,17 +929,17 @@ function brb_migrate_prices() {
 }
 // [CONFIRM with Chris] Guests out by 11:30 PM. No smoking or vaping. Service animals only.
 function brb_faq_markup() {
-    return <<<'HTML'
+    $html = <<<'HTML'
 <h2>Booking and dates</h2>
-<details><summary>How do I book?</summary><p>We'd love to host you. Request a date on the <a href="/book/">Book</a> page. Nothing is charged yet. We review the request and email a price. After approval, we email a payment link. Your date is reserved once your deposit is received and approved by the Boardroom. A request does not hold the date. Bookings need at least 48 hours' notice. Until we confirm your price, your confirmation says price to be confirmed.</p></details>
-<details><summary>How booking works</summary><p>Pick your date and send a request. Nothing is charged yet. We'll email you a price. After we approve it, we'll email you a payment link. Pay 50% of the rental plus the $250 refundable damage deposit by card (a 3% fee is added) or by check, and agree to the Terms and the Rental Agreement. Your date is locked in. Pay the balance by check or card. Your status link stays with the booking, and we'll email a checklist reminder about one week before.</p></details>
+<details><summary>How do I book?</summary><p>We'd love to host you. Pick your date on the <a href="/book/">Book</a> page. The price shows right on the calendar. Send a request. Nothing is charged yet. Once it's approved, we'll email you a payment link. Your date is reserved once your deposit is received and approved by the Boardroom. A request does not hold the date. Bookings need at least 48 hours' notice.</p></details>
+<details><summary>How booking works</summary><p>HOW_STEPS</p></details>
 <details><summary>Where is the rental checklist?</summary><p>It's on the <a href="/rental-checklist/">Rental Checklist</a> page. We email it when a request is approved, and again about 7 days before the event.</p></details>
 <details><summary>Are overnight stays allowed?</summary><p>No overnight stays. The Boardroom is an event space only.</p></details>
 <details><summary>What dates are open?</summary><p>Use the calendar on the <a href="/book/">Book</a> page, or ask us about a date. We'll tell you if it looks open.</p></details>
 
 <h2>Pricing and payment</h2>
-<details><summary>How much does it cost?</summary><p>Pricing starts at $600 per day and can reach about $2,000, depending on the date, how many people are coming, and the features you'd like. Most events come to about $1,200. We confirm the final price with you before any check is due.</p></details>
-<details><summary>How do I pay?</summary><p>After we approve the request, pay by check or in person, or online by card with a 3% processing fee. Mail or drop off checks payable to Mad Productions at 2212 37th Street, Moline, IL 61265. We don't keep set hours. We meet on demand and set a time together, by appointment. The deposit (50% of the agreed total) holds the date. The remaining balance is due the week of the event, no later than 48 hours before. Sales tax is included in the price. The card processing fee is non-refundable.</p></details>
+<details><summary>How much does it cost?</summary><p>Most events run $600 to about $2,000, and most come to about $1,200. The price for your date shows on the <a href="/book/">booking calendar</a>. If a date has no rate yet, the page says price to be confirmed.<!--SEASONAL--></p></details>
+<details><summary>How do I pay?</summary><p>After we approve the request, pay by check or in person, or online by card with a 3% processing fee. Mail or drop off checks payable to Mad Productions at The Boardroom, 2220 37th Street, Moline, IL 61265. We don't keep set hours. We meet on demand and set a time together, by appointment. The deposit (50% of the agreed total) holds the date. The balance is due no later than one week before the event. Sales tax is included in the price. The card processing fee is non-refundable.</p></details>
 <details><summary>Can I get an invoice or a receipt?</summary><p>Yes. Card payments get an emailed receipt, and we can provide an invoice or receipt for any payment on request.</p></details>
 <details><summary>Is sales tax included?</summary><p>Sales tax is included in the price.</p></details>
 
@@ -946,12 +955,12 @@ function brb_faq_markup() {
 <details><summary>Is there a refrigerator or ice?</summary><p>Yes. There is a refrigerator and an ice machine.</p></details>
 
 <h2>Rules</h2>
-<details><summary>How many guests can The Boardroom hold?</summary><p>Up to 75 people.</p></details>
+<details><summary>How many guests can The Boardroom hold?</summary><p>About 80 people. Graduation parties or open houses can go over, since guests come and go.</p></details>
 <details><summary>Is there an age limit for hosts?</summary><p>The minimum host age is 25 for every booking.</p></details>
 <details><summary>Can we sell tickets or charge admission?</summary><p>No. All events must be free to attend: no tickets, no cover charge, no paid admission, no door fees, and no ticket or merchandise sales. We do not host concerts or ticketed shows.</p></details>
 <details><summary>Can we have a band?</summary><p>Yes. Guests may have a band or live music, as long as they are not charging for the event.</p></details>
 <details><summary>Can I hold a vendor market or sell items?</summary><p>No. All events are free to attend. There are no merchandise sales and no ticket sales.</p></details>
-<details><summary>Are balloons allowed?</summary><p>Yes. Balloons are fine. Wall tape is not allowed. Glitter is not allowed.</p></details>
+<details><summary>What decorations are allowed?</summary><p>Balloons are fine. No wall tape and no glitter. The space comes undecorated, except that Christmas decorations are up in December.</p></details>
 <details><summary>Is smoking allowed?</summary><p>All smoking, including cigars and cigarettes, is outside only. Vaping leaves a residue and can affect the damage deposit.</p></details>
 <details><summary>Can I bring a pet?</summary><p>Service animals only. No pets.</p></details>
 
@@ -959,17 +968,22 @@ function brb_faq_markup() {
 <details><summary>What is the cancellation policy?</summary><p>If we receive written cancellation 60 or more days before the event, the deposit is refundable, less any non-refundable processing charges (including the 3% card processing fee) and costs already incurred. It is not refundable if cancellation is received less than 60 days before the event. See the <a href="/terms/">Rental Terms</a>. If a summary and the signed agreement differ, the signed agreement controls.</p></details>
 <details><summary>What if there is bad weather?</summary><p>If we have to cancel because of severe weather or another emergency outside our control, such as a severe storm, a snowstorm, or a power outage, the payment is refundable. A personal issue, such as a flat tire, is not refundable.</p></details>
 <details><summary>What happens if something gets damaged?</summary><p>The damage deposit covers cleaning and damage. Anything beyond that deposit may be charged. See the <a href="/terms/">Terms</a>.</p></details>
-<details><summary>Is there a damage deposit?</summary><p>The refundable damage deposit is a flat $250. It is charged with the booking deposit and mainly covers cleaning. A dumpster is on site. It is returned within 72 hours when Venmo or PayPal is on file. A check takes 1 to 2 weeks.</p></details>
+<details><summary>Is there a damage deposit?</summary><p>The refundable damage deposit is a flat $250. It is charged with the booking deposit and mainly covers cleaning. A dumpster is on site. It is refunded through Stripe, less the card processing fee, after the event once the space is checked.</p></details>
 <details><summary>What are our responsibilities before we leave?</summary><p>Please leave it like you got it. Clean and tidy the space, and take the garbage out. Another event is often booked the following day, and a ready room lets the next hosts begin on time.</p></details>
 
 <h2>Facilities</h2>
-<details><summary>Is parking available?</summary><p>Yes. Free parking on premises.</p></details>
+<details><summary>Is parking available?</summary><p>Yes. Free parking on premises, with space for 40 to 50 cars.</p></details>
 <details><summary>What is there to do?</summary><p>There's an 80-inch TV, pinball, pool, and shuffleboard.</p></details>
 <details><summary>Who is on site during an event?</summary><p>No one is on site during events. Our connected offices are available on demand if something is needed. Cell numbers are given when the contract is signed, and they are not listed on this site.</p></details>
 <details><summary>Is there a private entrance?</summary><p>There is a private main entrance. A back entrance can be used for a surprise guest when it is arranged ahead of time with our team.</p></details>
-<details><summary>Is the space accessible?</summary><p>Accessibility: [VERIFY]</p></details>
-<details><summary>If I pay the damage deposit by card, how is it returned?</summary><p>If you paid the damage deposit by card, it is refunded to the same card after the event once the space is checked.</p></details>
+<details><summary>Is the space accessible?</summary><p>Yes. The space is handicapped accessible.</p></details>
+<details><summary>If I pay the damage deposit by card, how is it returned?</summary><p>If you paid the damage deposit by card, it is refunded through Stripe, less the card processing fee, after the event once the space is checked.</p></details>
 HTML;
+    return str_replace(
+        ['HOW_STEPS', '<!--SEASONAL-->'],
+        [implode(' ', brb_how_booking_works_steps()), brb_seasonal_price_html()],
+        $html
+    );
 }
 
 function brb_patch_faq_drinks() {
@@ -1018,6 +1032,8 @@ function brb_refresh_checklist_copy() {
         brb_byob_line(),
         $next
     );
+    $next = str_replace('The balance is due the week of the event, no later than 48 hours before.', 'The balance is due no later than one week before the event.', $next);
+    $next = str_replace('It is returned within 72 hours when Venmo or PayPal is on file. A check takes 1 to 2 weeks.', 'It is refunded through Stripe, less the card processing fee, after the event once the space is checked.', $next);
     if (strpos($next, 'confetti cannons') === false) {
         $next = rtrim($next) . "\n" . implode("\n", [
             'Not allowed: Glitter, confetti, confetti cannons, rice, birdseed, or loose sequins.',
@@ -1263,7 +1279,8 @@ function brb_build_range($in, $args = []) {
         $units = $len;
     }
     $guests = max(1, (int) ($in['guests'] ?? 1));
-    if ($guests > (int) $o['max_guests']) return new WP_Error('guests', 'Maximum ' . (int) $o['max_guests'] . ' guests.');
+    $guest_cap = max(200, (int) $o['max_guests']);
+    if ($guests > $guest_cap) return new WP_Error('guests', 'About 80 people is the usual capacity. For a much larger guest count, please contact us.');
     if (empty($args['override_notice']) && $s < brb_notice_cutoff()) {
         return new WP_Error('notice', sprintf(
             'Bookings must start at least %d hours from now. The earliest start is %s.',
@@ -1273,18 +1290,225 @@ function brb_build_range($in, $args = []) {
     }
     return ['type' => $type, 's' => $s, 'e' => $e, 'units' => $units, 'guests' => $guests];
 }
+function brb_calendar_rates() {
+    $data = json_decode((string) brb_opt('calendar_rates'), true);
+    if (!is_array($data)) $data = [];
+    $rules = [];
+    foreach ((array) ($data['rules'] ?? []) as $row) {
+        if (!is_array($row)) continue;
+        $rules[] = $row;
+    }
+    $overrides = [];
+    foreach ((array) ($data['overrides'] ?? []) as $row) {
+        if (!is_array($row)) continue;
+        $overrides[] = $row;
+    }
+    return ['rules' => $rules, 'overrides' => $overrides];
+}
+function brb_rate_number($raw) {
+    $raw = trim((string) $raw);
+    if ($raw === '' || !is_numeric($raw)) return null;
+    $n = round((float) $raw, 2);
+    return $n > 0 ? $n : null;
+}
+function brb_rate_months($raw) {
+    $months = [];
+    $names = ['january' => 1, 'february' => 2, 'march' => 3, 'april' => 4, 'may' => 5, 'june' => 6, 'july' => 7, 'august' => 8, 'september' => 9, 'october' => 10, 'november' => 11, 'december' => 12];
+    foreach (preg_split('/[^a-z0-9]+/i', strtolower((string) $raw)) as $part) {
+        if ($part === '') continue;
+        if (isset($names[$part])) $months[] = $names[$part];
+        elseif (ctype_digit($part)) {
+            $n = (int) $part;
+            if ($n >= 1 && $n <= 12) $months[] = $n;
+        }
+    }
+    return array_values(array_unique($months));
+}
+function brb_date_is_weekend($ymd) {
+    try {
+        $n = (int) (new DateTimeImmutable($ymd, brb_tz()))->format('N');
+    } catch (Exception $e) {
+        return false;
+    }
+    return $n === 5 || $n === 6;
+}
+function brb_rate_rule_matches($rule, $ymd) {
+    $start = trim((string) ($rule['start'] ?? ''));
+    $end = trim((string) ($rule['end'] ?? ''));
+    if ($start !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $start)) return false;
+    if ($end !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $end)) return false;
+    if ($start !== '' && $ymd < $start) return false;
+    if ($end !== '' && $ymd > $end) return false;
+    $months = brb_rate_months($rule['months'] ?? '');
+    if ($months) {
+        $month = (int) substr($ymd, 5, 2);
+        if (!in_array($month, $months, true)) return false;
+    }
+    return true;
+}
+function brb_rate_for_date($ymd, $block) {
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $ymd)) return null;
+    $block = ($block === 'shorter') ? 'shorter' : 'full';
+    $weekend = brb_date_is_weekend($ymd);
+    $rates = brb_calendar_rates();
+    foreach ($rates['overrides'] as $row) {
+        if (trim((string) ($row['date'] ?? '')) !== $ymd) continue;
+        $key = $block === 'shorter' ? 'shorter' : 'full';
+        $amount = brb_rate_number($row[$key] ?? '');
+        if ($amount !== null) return $amount;
+    }
+    foreach ($rates['rules'] as $rule) {
+        if (!brb_rate_rule_matches($rule, $ymd)) continue;
+        $key = ($weekend ? 'weekend' : 'weekday') . '_' . $block;
+        $amount = brb_rate_number($rule[$key] ?? '');
+        if ($amount !== null) return $amount;
+    }
+    return null;
+}
+function brb_quote_amount($r) {
+    $block = (($r['type'] ?? '') === 'day') ? 'full' : 'shorter';
+    if ($block === 'shorter') return brb_rate_for_date($r['s']->format('Y-m-d'), 'shorter');
+    $cursor = $r['s']->setTime(0, 0);
+    $last = $r['e']->setTime(0, 0);
+    $total = 0.0;
+    $days = 0;
+    for (; $cursor <= $last && $days < 31; $cursor = $cursor->modify('+1 day')) {
+        $amount = brb_rate_for_date($cursor->format('Y-m-d'), 'full');
+        if ($amount === null) return null;
+        $total += $amount;
+        $days++;
+    }
+    return $days > 0 ? round($total, 2) : null;
+}
 function brb_quote($r) {
-    // The public save does not invent a total. Staff set one agreed price later.
+    $amount = brb_quote_amount($r);
+    if ($amount === null) {
+        return [
+            'rate' => 0,
+            'units' => (int) $r['units'],
+            'subtotal' => 0,
+            'cleaning' => 0,
+            'tax' => 0,
+            'total' => 0,
+            'due' => 0,
+            'price_set' => 0,
+        ];
+    }
+    $due = brb_deposit_due_amount($amount);
     return [
-        'rate' => 0,
+        'rate' => $amount,
         'units' => (int) $r['units'],
-        'subtotal' => 0,
+        'subtotal' => $amount,
         'cleaning' => 0,
         'tax' => 0,
-        'total' => 0,
-        'due' => 0,
-        'price_set' => 0,
+        'total' => $amount,
+        'due' => $due,
+        'price_set' => 1,
     ];
+}
+function brb_seasonal_price_html() {
+    $rates = brb_calendar_rates();
+    $items = '';
+    $labels = [
+        'weekday_full' => 'Sunday to Thursday, full day',
+        'weekend_full' => 'Friday and Saturday, full day',
+        'weekday_shorter' => 'Sunday to Thursday, shorter block',
+        'weekend_shorter' => 'Friday and Saturday, shorter block',
+    ];
+    foreach ($rates['rules'] as $rule) {
+        $when = [];
+        $months = trim((string) ($rule['months'] ?? ''));
+        $start = trim((string) ($rule['start'] ?? ''));
+        $end = trim((string) ($rule['end'] ?? ''));
+        if ($months !== '') $when[] = $months;
+        if ($start !== '' && $end !== '') $when[] = $start . ' to ' . $end;
+        elseif ($start !== '') $when[] = 'from ' . $start;
+        elseif ($end !== '') $when[] = 'through ' . $end;
+        $span = $when ? implode(', ', $when) : 'Any date';
+        foreach ($labels as $key => $label) {
+            $amount = brb_rate_number($rule[$key] ?? '');
+            if ($amount === null) continue;
+            $items .= '<li>' . esc_html($span . ': ' . $label . ' ' . brb_whole_money($amount)) . '</li>';
+        }
+    }
+    foreach ($rates['overrides'] as $row) {
+        $date = trim((string) ($row['date'] ?? ''));
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) continue;
+        foreach (['full' => 'full day', 'shorter' => 'shorter block'] as $key => $label) {
+            $amount = brb_rate_number($row[$key] ?? '');
+            if ($amount === null) continue;
+            $items .= '<li>' . esc_html($date . ': ' . $label . ' ' . brb_whole_money($amount)) . '</li>';
+        }
+    }
+    if ($items === '') return '';
+    return '<ul class="brb-season-prices">' . $items . '</ul>';
+}
+function brb_calendar_rates_from_post($post) {
+    $rules = [];
+    $raw_rules = $post['brb_rate_rules'] ?? [];
+    if (is_array($raw_rules)) {
+        foreach ($raw_rules as $row) {
+            if (!is_array($row)) continue;
+            $clean = [
+                'start' => preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) ($row['start'] ?? '')) ? $row['start'] : '',
+                'end' => preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) ($row['end'] ?? '')) ? $row['end'] : '',
+                'months' => sanitize_text_field($row['months'] ?? ''),
+                'weekday_full' => brb_rate_number($row['weekday_full'] ?? '') === null ? '' : (string) brb_rate_number($row['weekday_full']),
+                'weekend_full' => brb_rate_number($row['weekend_full'] ?? '') === null ? '' : (string) brb_rate_number($row['weekend_full']),
+                'weekday_shorter' => brb_rate_number($row['weekday_shorter'] ?? '') === null ? '' : (string) brb_rate_number($row['weekday_shorter']),
+                'weekend_shorter' => brb_rate_number($row['weekend_shorter'] ?? '') === null ? '' : (string) brb_rate_number($row['weekend_shorter']),
+            ];
+            $has = $clean['start'] !== '' || $clean['end'] !== '' || $clean['months'] !== '' || $clean['weekday_full'] !== '' || $clean['weekend_full'] !== '' || $clean['weekday_shorter'] !== '' || $clean['weekend_shorter'] !== '';
+            if ($has) $rules[] = $clean;
+        }
+    }
+    $overrides = [];
+    $raw_over = $post['brb_rate_overrides'] ?? [];
+    if (is_array($raw_over)) {
+        foreach ($raw_over as $row) {
+            if (!is_array($row)) continue;
+            $date = (string) ($row['date'] ?? '');
+            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) continue;
+            $full = brb_rate_number($row['full'] ?? '');
+            $shorter = brb_rate_number($row['shorter'] ?? '');
+            if ($full === null && $shorter === null) continue;
+            $overrides[] = [
+                'date' => $date,
+                'full' => $full === null ? '' : (string) $full,
+                'shorter' => $shorter === null ? '' : (string) $shorter,
+            ];
+        }
+    }
+    return wp_json_encode(['rules' => $rules, 'overrides' => $overrides]);
+}
+function brb_admin_calendar_rate_fields() {
+    $saved = brb_calendar_rates();
+    $rules = $saved['rules'];
+    $overrides = $saved['overrides'];
+    while (count($rules) < 4) $rules[] = ['start' => '', 'end' => '', 'months' => '', 'weekday_full' => '', 'weekend_full' => '', 'weekday_shorter' => '', 'weekend_shorter' => ''];
+    while (count($overrides) < 6) $overrides[] = ['date' => '', 'full' => '', 'shorter' => ''];
+    echo '<h2>Calendar date prices</h2>';
+    echo '<p class="description">Leave every amount blank until the real rates are ready. A blank amount is not a price. When a date has no rate, the calendar and Review keep the usual range and say price to be confirmed. Weekend is Friday and Saturday. Weekday is Sunday through Thursday. A shorter block is a half day or an hourly block. A date override wins over a season. Nothing here is copied from the chat estimates.</p>';
+    echo '<table class="widefat"><thead><tr><th>Start</th><th>End</th><th>Months</th><th>Weekday full day</th><th>Weekend full day</th><th>Weekday shorter</th><th>Weekend shorter</th></tr></thead><tbody>';
+    foreach ($rules as $i => $row) {
+        echo '<tr>';
+        foreach (['start' => 'date', 'end' => 'date', 'months' => 'text', 'weekday_full' => 'text', 'weekend_full' => 'text', 'weekday_shorter' => 'text', 'weekend_shorter' => 'text'] as $key => $type) {
+            $value = (string) ($row[$key] ?? '');
+            echo '<td><input type="' . esc_attr($type) . '" name="brb_rate_rules[' . (int) $i . '][' . esc_attr($key) . ']" value="' . esc_attr($value) . '" class="regular-text"></td>';
+        }
+        echo '</tr>';
+    }
+    echo '</tbody></table>';
+    echo '<p class="description">Months can be numbers or names, such as 6, 7 or June, July. Start and end are optional.</p>';
+    echo '<table class="widefat"><thead><tr><th>Date override</th><th>Full day</th><th>Shorter block</th></tr></thead><tbody>';
+    foreach ($overrides as $i => $row) {
+        echo '<tr>';
+        echo '<td><input type="date" name="brb_rate_overrides[' . (int) $i . '][date]" value="' . esc_attr((string) ($row['date'] ?? '')) . '"></td>';
+        echo '<td><input type="text" name="brb_rate_overrides[' . (int) $i . '][full]" value="' . esc_attr((string) ($row['full'] ?? '')) . '" class="regular-text"></td>';
+        echo '<td><input type="text" name="brb_rate_overrides[' . (int) $i . '][shorter]" value="' . esc_attr((string) ($row['shorter'] ?? '')) . '" class="regular-text"></td>';
+        echo '</tr>';
+    }
+    echo '</tbody></table>';
 }
 function brb_agreed_quote($total) {
     $total = round((float) $total, 2);
@@ -1386,7 +1610,7 @@ function brb_send_addon_prompts() {
 }
 add_action('init', 'brb_send_addon_prompts', 20);
 function brb_balance_due_on(DateTimeImmutable $start) {
-    return $start->setTimezone(brb_tz())->modify('-48 hours')->format('Y-m-d');
+    return $start->setTimezone(brb_tz())->modify('-7 days')->format('Y-m-d');
 }
 function brb_balance_due_label($on) {
     if (!$on) return '';
@@ -1464,7 +1688,7 @@ function brb_payment_lines($b) {
             if ($rental_after > 0.009) {
                 $when = brb_balance_due_display($b);
                 if ($when === 'Due now') $lines[] = 'After that payment, the remaining balance of ' . brb_money($rental_after) . ' is due now.';
-                elseif ($when !== '' && $when !== 'Price to be confirmed' && $when !== 'Paid') $lines[] = 'After that payment, the remaining balance of ' . brb_money($rental_after) . ' is due the week of the event, no later than ' . $when . ' (48 hours before the event).';
+                elseif ($when !== '' && $when !== 'Price to be confirmed' && $when !== 'Paid') $lines[] = 'After that payment, the remaining balance of ' . brb_money($rental_after) . ' is due no later than ' . $when . ' (one week before the event).';
             }
         } elseif ($damage_left > 0.009) {
             $lines[] = 'The amount due now includes the unpaid refundable damage deposit of ' . brb_money($damage_left) . ' and the remaining rental balance of ' . brb_money(brb_rental_left($b)) . '.';
@@ -2184,11 +2408,13 @@ function brb_rest_availability($req) {
         elseif (!$slot['any']) $st = 'soon';
         elseif ($busy) $st = 'partial';
         else $st = 'free';
+        $full_price = brb_rate_for_date($k, 'full');
         $days[$k] = [
             'status' => $st,
             'busy' => $busy,
             'day_ok' => (bool) $slot['day_ok'],
             'first_hour' => $slot['first_hour'],
+            'price' => $full_price === null ? '' : brb_whole_money($full_price),
         ];
     }
     $response = new WP_REST_Response([
@@ -2327,7 +2553,8 @@ function brb_view_select() {
           <p class="brb-small" id="brb-busy"></p>
         </div>
         <p class="brb-small" id="brb-notice"></p>
-        <label>Guests attending (max <?php echo (int) $o['max_guests']; ?>)<input type="number" name="guests" value="10" min="1" max="<?php echo (int) $o['max_guests']; ?>"></label>
+        <label>Guests attending<input type="number" name="guests" value="10" min="1" max="200"></label>
+        <p class="brb-small">About 80 people. Graduation parties or open houses can go over, since guests come and go.</p>
         <button class="brb-btn" type="submit">Continue</button>
       </form>
     </div>
@@ -2362,12 +2589,20 @@ function brb_view_quote() {
       <div class="brb-card">
         <h3>Your date</h3>
         <p><strong><?php echo esc_html($when); ?></strong><br><?php echo (int) $r['guests']; ?> guests attending</p>
+        <?php if (!empty($q['price_set'])): ?>
+        <p><strong>Your price: <?php echo esc_html(brb_whole_money($q['total'])); ?></strong></p>
+        <p><?php
+            $parts = brb_first_payment_parts($q['total']);
+            echo esc_html('Your first payment is 50% of the rental plus the ' . brb_whole_money($parts['damage']) . ' refundable damage deposit. On this rental that is ' . brb_whole_money($parts['deposit']) . ' + ' . brb_whole_money($parts['damage']) . ' = ' . brb_whole_money($parts['base']) . ', and a card adds a 3% fee of ' . brb_money($parts['fee']) . ', for ' . brb_money($parts['card']) . '.');
+        ?></p>
+        <?php else: ?>
         <p><?php echo esc_html(brb_price_sentence()); ?></p>
         <p><?php echo esc_html(brb_price_range_sentence()); ?></p>
-        <p><?php echo esc_html(brb_no_overnight_line()); ?></p>
         <p><?php echo esc_html(brb_first_payment_sentence()); ?></p>
-        <p><?php echo esc_html(brb_damage_card_refund_line()); ?></p>
         <p><strong>price to be confirmed</strong></p>
+        <?php endif; ?>
+        <p><?php echo esc_html(brb_no_overnight_line()); ?></p>
+        <p><?php echo esc_html(brb_damage_card_refund_line()); ?></p>
         <?php echo brb_deposit_bullets_html(); ?>
         <a href="<?php echo esc_url(strtok($_SERVER['REQUEST_URI'] ?? home_url('/book/'), '?')); ?>">← Change date</a>
       </div>
@@ -2489,7 +2724,7 @@ function brb_view_confirmation($token) {
       if (in_array($b->status, ['review', 'pending'], true)) {
           echo '<div class="brb-paybox">';
           echo '<p>' . esc_html(brb_guest_hello_line()) . '</p>';
-          echo '<p>Nothing is charged yet. We review your request and email a price, usually within a few business days.</p>';
+          echo '<p>Nothing is charged yet. We review your request. Once it\'s approved, we\'ll email you a payment link.</p>';
           echo '<p>' . esc_html(brb_guest_review_line()) . '</p>';
           echo '<p>Pending review</p>';
           echo '</div>';
