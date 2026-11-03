@@ -33,7 +33,7 @@ $created = [];
 $snapshot = get_option('brb_settings');
 
 try {
-    brb_t(get_option('brb_version') === '2.5.33', 'plugin storage version is 2.5.33');
+    brb_t(get_option('brb_version') === '2.5.34', 'plugin storage version is 2.5.34');
     brb_t($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', brb_tour_table())) === brb_tour_table(), 'inquiry table still exists');
     $cols = $wpdb->get_col('SHOW COLUMNS FROM ' . brb_tour_table(), 0);
     brb_t(in_array('phone', $cols, true) && in_array('topic', $cols, true) && in_array('preferred', $cols, true), 'topic and preferred were added and phone was kept');
@@ -287,7 +287,7 @@ try {
     brb_t(is_string($chat_src) && strpos($chat_src, "if (is_front_page()) return;") !== false && strpos($chat_src, "is_page('contact')") === false, 'the floating Walter chat stays on the contact page');
     brb_t(is_string($home) && strpos($home, 'br_tour_video_html') !== false && strpos($home, "brb_chat_markup('home')") !== false && strpos($home, 'br_tour_video_html') < strpos($home, "brb_chat_markup('home')") && strpos($home, 'Contact the Boardroom') === false && strpos($home, 'id="contact"') === false, 'the home page puts Walter under the tour and does not repeat a contact section');
     $home_chat = function_exists('brb_chat_markup') ? brb_chat_markup('home') : '';
-    brb_t(strpos($home_chat, 'brb-chat-hello') !== false && strpos($home_chat, "Hi there! I'm Walter, the Boardroom's butler. How can I help with your event?") !== false && strpos($home_chat, 'How can I help you?') !== false && strpos($home_chat, 'Leave your details') !== false && strpos($home_chat, 'brb-chat-send') !== false, 'the homepage chat greeting sits in the header and the first bubble asks how to help');
+    brb_t(strpos($home_chat, 'brb-chat-hello') !== false && strpos($home_chat, 'Ask Walter') !== false && strpos($home_chat, "The Boardroom's butler") !== false && strpos($home_chat, 'Hi there! Pick a question on the left, or type your own below.') !== false && strpos($home_chat, 'Is my date available?') !== false && strpos($home_chat, 'How many guests fit?') !== false && strpos($home_chat, 'What does a full day include?') !== false && strpos($home_chat, 'How do deposits work?') !== false && strpos($home_chat, 'Leave your details') !== false && strpos($home_chat, 'Start over') !== false && strpos($home_chat, 'brb-chat-send') !== false && strpos($home_chat, '2212') === false, 'the homepage chat is the two-panel Walter card');
     $css = file_get_contents(get_stylesheet_directory() . '/style.css');
     $site_js = file_get_contents(get_stylesheet_directory() . '/assets/site.js');
     brb_t(is_string($css) && strpos($css, 'z-index:400') !== false && strpos($css, 'body.admin-bar .site-header{top:32px}') !== false && strpos($css, '.nav.open{display:block}') !== false && strpos($css, 't-scroll') !== false && strpos($css, 'translateX(-50%)') !== false, 'the header stays above the page and the review track scrolls in CSS');

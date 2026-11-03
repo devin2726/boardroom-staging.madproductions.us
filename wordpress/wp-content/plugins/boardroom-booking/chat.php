@@ -1486,27 +1486,62 @@ function brb_walter_stage($place) {
     $html .= '</span>';
     return $html;
 }
+function brb_chat_arrow() {
+    return '<svg class="brb-chat-arrow" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false"><path d="M5 12h12M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+}
+function brb_chat_chevron() {
+    return '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+}
+function brb_chat_avatar() {
+    return '<img class="brb-chat-avatar" src="' . esc_url(brb_walter_url(64, 'webp')) . '" alt="" width="28" height="28" decoding="async">';
+}
+function brb_chat_bubble($text) {
+    return '<div class="brb-chat-msg bot">' . brb_chat_avatar() . '<span class="brb-chat-copy"><span class="brb-chat-who">Walter</span>' . esc_html($text) . '</span></div>';
+}
 function brb_chat_markup($mode = 'float') {
     $inline = ($mode === 'inline' || $mode === 'home');
     $home = ($mode === 'home');
-    $greeting = 'Hi there! I\'m Walter, the Boardroom\'s butler. How can I help with your event?';
+    $opening = $inline ? 'Hi there! Pick a question on the left, or type your own below.' : 'Hi there! How can I help with your event?';
+    $placeholder = $inline ? 'Type your question...' : 'Ask Walter...';
     ob_start();
-    echo '<div class="brb-chat' . ($inline ? ' brb-chat-inline' : '') . ($home ? ' brb-chat-home' : '') . '" data-walter="' . esc_url(brb_walter_url(64, 'webp')) . '">';
+    echo '<div class="brb-chat' . ($inline ? ' brb-chat-inline' : '') . ($home ? ' brb-chat-home' : '') . '" data-walter="' . esc_url(brb_walter_url(64, 'webp')) . '" data-opening="' . esc_attr($opening) . '">';
     if (!$inline) {
         echo '<button type="button" class="brb-chat-launch" aria-expanded="false" aria-controls="brb-chat-panel">' . brb_walter_stage('launch') . '<span>Ask Walter</span></button>';
     }
     echo '<section id="brb-chat-panel" class="brb-chat-panel" role="' . ($inline ? 'region' : 'dialog') . '"' . ($inline ? '' : ' aria-modal="true"') . ' aria-labelledby="brb-chat-title"' . ($inline ? '' : ' hidden') . '>';
-    echo '<header class="brb-chat-head">' . brb_walter_stage('head');
-    if ($home) echo '<h2 id="brb-chat-title" class="brb-chat-hello">' . $greeting . '</h2>';
-    else echo '<h2 id="brb-chat-title">Ask Walter</h2>';
-    echo '<span class="brb-typing" hidden aria-hidden="true"><i></i><i></i><i></i></span>';
-    if (!$inline) echo '<button type="button" class="brb-chat-close" aria-label="Close chat">Close</button>';
-    echo '</header>';
-    $opening = $home ? 'How can I help you?' : $greeting;
-    echo '<div class="brb-chat-log brb-chat-scroll" aria-live="polite"><p class="brb-chat-msg bot"><span class="brb-chat-copy"><span class="brb-chat-who">Walter</span>' . $opening . '</span></p></div>';
+    if ($inline) {
+        echo '<div class="brb-chat-side">';
+        echo '<header class="brb-chat-lockup">' . brb_walter_stage('head');
+        echo '<div><h2 id="brb-chat-title" class="brb-chat-hello">Ask Walter</h2><p>The Boardroom\'s butler</p></div></header>';
+        echo '<p class="brb-chat-intro">Quick answers about dates, guests, what\'s included and booking. Day or night.</p>';
+        echo '<p class="brb-chat-popular-label">Popular questions</p><div class="brb-chat-popular">';
+        foreach (['Is my date available?', 'How many guests fit?', 'What does a full day include?', 'How do deposits work?'] as $question) {
+            echo '<button type="button" class="brb-chat-q" data-question="' . esc_attr($question) . '"><span>' . esc_html($question) . '</span>' . brb_chat_chevron() . '</button>';
+        }
+        echo '</div><div class="brb-chat-side-foot"><p>Prefer a person?</p>';
+        echo '<button type="button" class="brb-chat-lead-toggle" aria-expanded="false" aria-controls="brb-chat-lead">Leave your details</button></div></div>';
+        echo '<div class="brb-chat-main">';
+        echo '<div class="brb-chat-status"><span class="brb-chat-online">Walter is online</span>';
+        echo '<span class="brb-typing" hidden aria-hidden="true"><i></i><i></i><i></i></span>';
+        echo '<button type="button" class="brb-chat-reset">Start over</button></div>';
+    } else {
+        echo '<div class="brb-chat-grab" aria-hidden="true"><span></span></div>';
+        echo '<header class="brb-chat-head">' . brb_walter_stage('head');
+        echo '<div class="brb-chat-id"><h2 id="brb-chat-title">Walter</h2><p>The Boardroom\'s butler</p></div>';
+        echo '<span class="brb-typing" hidden aria-hidden="true"><i></i><i></i><i></i></span>';
+        echo '<button type="button" class="brb-chat-close" aria-label="Close chat"><span aria-hidden="true">&times;</span></button></header>';
+    }
+    echo '<div class="brb-chat-log brb-chat-scroll" aria-live="polite">' . brb_chat_bubble($opening) . '</div>';
     echo '<div class="brb-chat-compose">';
-    echo '<form class="brb-chat-ask"><label class="brb-chat-sr" for="brb-chat-input">Your question</label><input id="brb-chat-input" class="brb-chat-input" type="text" maxlength="500" autocomplete="off"><button type="submit" class="brb-chat-send">Send</button></form>';
-    echo '<button type="button" class="brb-chat-lead-toggle" aria-expanded="false" aria-controls="brb-chat-lead">Leave your details</button>';
+    if (!$inline) {
+        echo '<div class="brb-chat-chip-row"><div class="brb-chat-suggestions brb-chat-starters" role="group" aria-label="Suggested questions">';
+        foreach (['Is my date open?' => 'Is my date open?', 'Guests' => 'How many guests fit?', 'Book a tour' => 'Can I book a tour?'] as $label => $question) {
+            echo '<button type="button" class="brb-chat-chip" data-question="' . esc_attr($question) . '">' . esc_html($label) . '</button>';
+        }
+        echo '</div></div>';
+    }
+    echo '<form class="brb-chat-ask"><label class="brb-chat-sr" for="brb-chat-input">Your question</label><input id="brb-chat-input" class="brb-chat-input" type="text" maxlength="500" autocomplete="off" placeholder="' . esc_attr($placeholder) . '"><button type="submit" class="brb-chat-send" aria-label="Send">' . brb_chat_arrow() . '</button></form>';
+    if (!$inline) echo '<button type="button" class="brb-chat-lead-toggle" aria-expanded="false" aria-controls="brb-chat-lead">Leave your details</button>';
     echo '<form class="brb-chat-lead" id="brb-chat-lead" hidden>';
     echo '<p class="brb-chat-hp" aria-hidden="true"><label>Company<input name="company" tabindex="-1" autocomplete="off"></label></p>';
     echo '<label>Name*<input name="name" maxlength="190" autocomplete="name" required></label>';
@@ -1523,6 +1558,7 @@ function brb_chat_markup($mode = 'float') {
     echo '<label class="brb-chat-consent"><input type="checkbox" name="consent" value="1" required> A team member will reply using this info</label>';
     echo '<p class="brb-chat-lead-actions"><button type="button" class="brb-chat-lead-cancel">Cancel</button><button type="submit" class="brb-chat-send">Send to the team</button></p>';
     echo '</form></div>';
+    if ($inline) echo '</div>';
     echo '<noscript><p><a href="' . esc_url(home_url('/contact/')) . '">Contact form</a></p></noscript>';
     echo '</section></div>';
     return ob_get_clean();

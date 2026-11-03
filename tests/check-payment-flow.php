@@ -45,7 +45,7 @@ add_filter('pre_wp_mail', function ($short, $atts) {
 $GLOBALS['brb_mails'] = [];
 
 try {
-    brb_t(get_option('brb_version') === '2.5.33', 'plugin storage version is 2.5.33');
+    brb_t(get_option('brb_version') === '2.5.34', 'plugin storage version is 2.5.34');
     $example = brb_first_payment_parts(1200);
     brb_t($example['deposit'] === 600.0 && $example['damage'] === 250.0 && $example['base'] === 850.0 && abs($example['card'] - 875.50) < 0.001, 'a $1,200 rental first card payment is 600 + 250 plus 3 percent');
     brb_t(brb_latest_start_hour() === 21, 'the latest shorter-block start is 9:00 PM');
