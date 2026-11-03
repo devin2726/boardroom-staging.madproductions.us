@@ -158,6 +158,7 @@ function brb_privacy_html() {
 
 <h2>Cookies</h2>
 <p>This site sets no advertising, analytics, or tracking cookies of its own, but the embedded Google Maps in the footer and on the Contact page may set cookies from Google, and Google's privacy policy applies to those cookies. Stripe may set cookies on its own checkout page, and Stripe's privacy policy applies to those cookies. Guests are not asked to accept cookies. The contact form does not set a cookie. The chat assistant does not set a cookie. WordPress sets cookies for staff when they log in to the admin area.</p>
+<p>Staff reports also remember the first page and the referring site in a first-visit cookie. That cookie does not store a name or an email. Page views are counted on the server. If a Google Analytics measurement id is saved, and this site is allowed to be indexed, Google's tag may set cookies. Google's privacy policy applies to those cookies.</p>
 
 <h2>How long we keep it</h2>
 <p>We keep booking, payment, and contact inquiry records for as long as we need them for our records and for tax. A contact inquiry is removed only when a staff member deletes it. If you ask us to delete your information, we will, unless the law requires us to keep it.</p>

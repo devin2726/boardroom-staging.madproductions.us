@@ -33,7 +33,7 @@ $created = [];
 $snapshot = get_option('brb_settings');
 
 try {
-    brb_t(get_option('brb_version') === '2.5.20', 'plugin storage version is 2.5.20');
+    brb_t(get_option('brb_version') === '2.5.21', 'plugin storage version is 2.5.21');
     brb_t($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', brb_tour_table())) === brb_tour_table(), 'inquiry table still exists');
     $cols = $wpdb->get_col('SHOW COLUMNS FROM ' . brb_tour_table(), 0);
     brb_t(in_array('phone', $cols, true) && in_array('topic', $cols, true) && in_array('preferred', $cols, true), 'topic and preferred were added and phone was kept');
@@ -201,6 +201,23 @@ try {
     brb_t(strpos($rotator, 'class="review-card on"') !== false && substr_count($rotator, '<blockquote') === 4 && strpos($home, 'br_reviews_html') !== false, 'featured quotes still exist for the home page, which keeps the review marquee');
     $summary = br_review_aggregate_schema();
     brb_t(is_array($summary) && $summary['ratingValue'] === '5.0' && $summary['reviewCount'] === 29, 'the review schema uses the 5.0 rating and the count of 29');
+    global $wp_query, $wp_the_query;
+    $saved_query = $wp_query;
+    $saved_the = $wp_the_query;
+    foreach (br_seo_pages() as $slug => $seo) {
+        if ($slug === 'home') {
+            $front = (int) get_option('page_on_front');
+            $q = $front ? new WP_Query(['page_id' => $front]) : new WP_Query(['post_type' => 'page', 'pagename' => 'home']);
+        } else {
+            $q = new WP_Query(['pagename' => $slug]);
+        }
+        $wp_query = $q;
+        $wp_the_query = $q;
+        $title = html_entity_decode(wp_get_document_title(), ENT_QUOTES, 'UTF-8');
+        brb_t($q->have_posts() && $title === $seo['title'] && substr_count($title, ' – ') === 0, 'the ' . $slug . ' title does not add the site name again');
+    }
+    $wp_query = $saved_query;
+    $wp_the_query = $saved_the;
     ob_start();
     brb_place_schema();
     $plain_schema = ob_get_clean();

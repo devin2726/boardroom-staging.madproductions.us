@@ -2,11 +2,11 @@
 /**
  * Plugin Name: Boardroom Booking
  * Description: Self-hosted direct booking for The Boardroom — full-day and hourly blocks, availability calendar, agreed prices, approval before payment, blackout dates, and emails.
- * Version: 2.5.20
+ * Version: 2.5.21
  * Author: Mad Productions
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.5.20');
+define('BRB_VER', '2.5.21');
 define('BRB_VENUE_ADDRESS', '2220 37th Street, Moline, IL 61265');
 define('BRB_CHECK_ADDRESS', '2212 37th Street, Moline, IL 61265');
 define('BRB_MAPS_URL', 'https://maps.app.goo.gl/nVqUsGTcy48nPzc18');
@@ -17,6 +17,7 @@ require_once __DIR__ . '/tour.php';
 require_once __DIR__ . '/stripe.php';
 require_once __DIR__ . '/chat.php';
 require_once __DIR__ . '/lines.php';
+require_once __DIR__ . '/reports.php';
 define('BRB_URL', plugin_dir_url(__FILE__));
 
 function brb_table() { global $wpdb; return $wpdb->prefix . 'br_bookings'; }
@@ -111,6 +112,10 @@ function brb_defaults() {
         'mail_from_name' => 'The Boardroom',
         'mail_reply_to' => 'boardroomqc@gmail.com',
         'inquiry_cc' => '',
+        'ga_measurement_id' => '',
+        'ga_property_id' => '',
+        'weekly_summary' => '0',
+        'weekly_summary_emails' => '',
     ];
 }
 function brb_legacy_keys() {
@@ -1160,6 +1165,7 @@ function brb_maybe_upgrade() {
     brb_install_legal_pages();
     brb_backfill_line_items();
     brb_install_checklist_page();
+    brb_install_report_tables();
     brb_ensure_tour_on_contact();
     brb_import_named_blackouts();
     brb_refresh_checklist_copy();
@@ -1880,7 +1886,13 @@ function brb_insert_booking($r, $q, $guest, $source = 'online', $notify = true) 
         brb_ensure_damage_line($result->id);
         if (!empty($q['price_set']) && (float) $q['total'] > 0.009) brb_ensure_rental_line($result->id, $q['total']);
     }
-    if ($notify && $result && !is_wp_error($result)) brb_send_request_emails($result);
+    if ($result && !is_wp_error($result)) {
+        brb_report_stamp_booking($result->id);
+        if ($notify) {
+            brb_event_hit('booking_request_submitted');
+            brb_send_request_emails($result);
+        }
+    }
     return $result;
 }
 function brb_process_public_booking($post) {
@@ -1932,6 +1944,7 @@ function brb_record_payment($booking_id, $amount, $check_number, $received_on, $
     global $wpdb;
     $b = brb_booking($booking_id);
     if (!$b) return new WP_Error('missing', 'Booking not found.');
+    $paid_before = in_array($b->status, ['deposit_paid', 'paid', 'confirmed'], true);
     if (in_array($b->status, ['cancelled', 'expired', 'declined'], true)) {
         return new WP_Error('status', 'That booking is not open for a payment.');
     }
@@ -2004,6 +2017,7 @@ function brb_record_payment($booking_id, $amount, $check_number, $received_on, $
     } else {
         brb_send_payment_email($b, $amount, $check_number, $method);
     }
+    if (!$paid_before && in_array($b->status, ['deposit_paid', 'paid', 'confirmed'], true)) brb_event_hit('deposit_paid');
     return $b;
 }
 function brb_mark_paid_full($booking_id) {
@@ -2189,6 +2203,7 @@ add_shortcode('boardroom_booking', function () {
     $o = brb_opt();
     wp_localize_script('brb', 'BRB', [
         'api' => esc_url_raw(rest_url('brb/v1/availability')),
+        'eventEndpoint' => esc_url_raw(rest_url('brb/v1/event')),
         'nonce' => wp_create_nonce('wp_rest'),
         'open' => (int) $o['open_hour'],
         'close' => (int) $o['close_hour'],

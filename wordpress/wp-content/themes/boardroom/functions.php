@@ -365,7 +365,10 @@ function br_share_image() {
 add_filter('document_title_parts', function ($parts) {
     $key = br_seo_key();
     $pages = br_seo_pages();
-    if ($key !== '' && isset($pages[$key])) $parts['title'] = $pages[$key]['title'];
+    if ($key !== '' && isset($pages[$key])) {
+        $parts['title'] = $pages[$key]['title'];
+        unset($parts['site'], $parts['tagline']);
+    }
     return $parts;
 });
 add_action('wp_head', function () {
