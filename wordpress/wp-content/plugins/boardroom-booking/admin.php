@@ -388,7 +388,7 @@ function brb_admin_detail($id) {
     echo '<table class="form-table"><tr><th><label for="brb-extra-label">Label</label></th><td><input id="brb-extra-label" name="label" class="regular-text" placeholder="e.g. Extra cleaning or Returning guest discount" required></td></tr>';
     echo '<tr><th><label for="brb-extra-amount">Amount</label></th><td><input id="brb-extra-amount" name="amount" type="number" step="0.01" style="width:16em" placeholder="e.g. 150 or -100" required></td></tr></table>';
     echo '<p><button class="button">Add to total</button></p>';
-    echo '<p class="description">Optional. Adds a line to the total. Use a minus sign for a discount. The 50% deposit and payment link use the new total. The guest isn\'t emailed until you click \'Email guest the price\' below. Paid lines can\'t be edited, so add a credit instead.</p></form>';
+    echo '<p class="description">Optional. Adds a line to the total. Use a minus sign for a discount. The 50% deposit and payment link use the new total. The guest isn\'t emailed until you click \'Save rental price and email guest the total\' below. Paid lines can\'t be edited, so add a credit instead.</p></form>';
 
     if ($b->status !== 'cancelled') {
         echo '<h2>Agreed price</h2><form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="max-width:640px">';
