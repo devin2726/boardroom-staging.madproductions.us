@@ -2,11 +2,11 @@
 /**
  * Plugin Name: Boardroom Booking
  * Description: Self-hosted direct booking for The Boardroom — full-day and hourly blocks, availability calendar, agreed prices, approval before payment, blackout dates, and emails.
- * Version: 2.5.21
+ * Version: 2.5.22
  * Author: Mad Productions
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.5.21');
+define('BRB_VER', '2.5.22');
 define('BRB_VENUE_ADDRESS', '2220 37th Street, Moline, IL 61265');
 define('BRB_CHECK_ADDRESS', '2212 37th Street, Moline, IL 61265');
 define('BRB_MAPS_URL', 'https://maps.app.goo.gl/nVqUsGTcy48nPzc18');
@@ -445,11 +445,11 @@ function brb_deposit_bullets_html() {
 }
 function brb_how_booking_works_steps() {
     return [
-        'Send a request. Nothing is charged yet.',
-        'We email you a price.',
-        'After approval, we email a payment link.',
+        'Pick your date and send a request. Nothing is charged yet.',
+        'We\'ll email you a price.',
+        'After we approve it, we\'ll email you a payment link.',
         'Pay 50% of the rental plus the $250 refundable damage deposit by card (a 3% fee is added) or by check, and agree to the Terms and the Rental Agreement.',
-        'Your date is locked. Pay the balance by check or card. Your status link stays with the booking, and we email a checklist reminder about one week before.',
+        'Your date is locked in. Pay the balance by check or card. Your status link stays with the booking, and we\'ll email a checklist reminder about one week before.',
     ];
 }
 function brb_how_booking_works_html() {
@@ -513,7 +513,7 @@ function brb_guest_free_line() {
     return 'Events are free to attend: no tickets, no cover charge, no paid admission, no door fees, and no ticket or merchandise sales. A band or live music is welcome when guests are not charged for the event.';
 }
 function brb_byob_line() {
-    return 'BYOB is allowed. Guests are responsible for obtaining any permit or license the City of Moline requires for alcohol at their event. Please check with the City of Moline: https://moline.il.us/244/Liquor-Licensing (City Clerk, 309-524-2004).';
+    return 'BYOB is allowed. If you serve alcohol, the City of Moline requires a one-day liquor license ($50). Please check with the City of Moline: https://moline.il.us/244/Liquor-Licensing (City Clerk, 309-524-2004).';
 }
 function brb_checklist_default() {
     return implode("\n", [
@@ -923,7 +923,7 @@ function brb_faq_markup() {
     return <<<'HTML'
 <h2>Booking and dates</h2>
 <details><summary>How do I book?</summary><p>We'd love to host you. Request a date on the <a href="/book/">Book</a> page. Nothing is charged yet. We review the request and email a price. After approval, we email a payment link. Your date is reserved once your deposit is received and approved by the Boardroom. A request does not hold the date. Bookings need at least 48 hours' notice. Until we confirm your price, your confirmation says price to be confirmed.</p></details>
-<details><summary>How booking works</summary><p>Send a request. Nothing is charged yet. We email you a price. After approval, we email a payment link. Pay 50% of the rental plus the $250 refundable damage deposit by card (a 3% fee is added) or by check, and agree to the Terms and the Rental Agreement. Your date is locked. Pay the balance by check or card. Your status link stays with the booking, and we email a checklist reminder about one week before.</p></details>
+<details><summary>How booking works</summary><p>Pick your date and send a request. Nothing is charged yet. We'll email you a price. After we approve it, we'll email you a payment link. Pay 50% of the rental plus the $250 refundable damage deposit by card (a 3% fee is added) or by check, and agree to the Terms and the Rental Agreement. Your date is locked in. Pay the balance by check or card. Your status link stays with the booking, and we'll email a checklist reminder about one week before.</p></details>
 <details><summary>Where is the rental checklist?</summary><p>It's on the <a href="/rental-checklist/">Rental Checklist</a> page. We email it when a request is approved, and again about 7 days before the event.</p></details>
 <details><summary>Are overnight stays allowed?</summary><p>No overnight stays. The Boardroom is an event space only.</p></details>
 <details><summary>What dates are open?</summary><p>Use the calendar on the <a href="/book/">Book</a> page, or ask us about a date. We'll tell you if it looks open.</p></details>
@@ -942,7 +942,7 @@ function brb_faq_markup() {
 
 <h2>Food and drink</h2>
 <details><summary>Can I bring my own food?</summary><p>Yes. We provide the space; you bring the food. No cooking is allowed in the venue. The stove top may not be used. Food warmers (for keeping prepared food warm) and the bar area are yours to use. You can also have it catered by any caterer. The Boardroom does not provide catering.</p></details>
-<details><summary>Can we bring our own drinks?</summary><p>Yes. There's a bar area and an ice machine, and there are no taps. BYOB is allowed. Guests are responsible for obtaining any permit or license the City of Moline requires for alcohol at their event. Please check with the City of Moline: <a href="https://moline.il.us/244/Liquor-Licensing">https://moline.il.us/244/Liquor-Licensing</a> (City Clerk, 309-524-2004).</p></details>
+<details><summary>Can we bring our own drinks?</summary><p>Yes. There's a bar area and an ice machine, and there are no taps. BYOB is allowed. If you serve alcohol, the City of Moline requires a one-day liquor license ($50). Please check with the City of Moline: <a href="https://moline.il.us/244/Liquor-Licensing">https://moline.il.us/244/Liquor-Licensing</a> (City Clerk, 309-524-2004).</p></details>
 <details><summary>Is there a refrigerator or ice?</summary><p>Yes. There is a refrigerator and an ice machine.</p></details>
 
 <h2>Rules</h2>
@@ -986,6 +986,11 @@ function brb_patch_faq_drinks() {
     $next = $c;
     foreach ($replacements as $old => $new) $next = str_replace($old, $new, $next);
     $next = brb_replace_liquor_fee($next);
+    $next = str_replace(
+        'Guests are responsible for obtaining any permit or license the City of Moline requires for alcohol at their event.',
+        'If you serve alcohol, the City of Moline requires a one-day liquor license ($50).',
+        $next
+    );
     if ($next === $c) return;
     global $wpdb;
     $wpdb->update($wpdb->posts, ['post_content' => $next], ['ID' => (int) $page->ID]);
@@ -1008,6 +1013,11 @@ function brb_refresh_checklist_copy() {
     if ($text === '') return;
     $next = str_replace('Complete the in-person walk-through.', '', $text);
     $next = str_replace("\n\n\n", "\n\n", $next);
+    $next = str_replace(
+        'BYOB is allowed. Guests are responsible for obtaining any permit or license the City of Moline requires for alcohol at their event. Please check with the City of Moline: https://moline.il.us/244/Liquor-Licensing (City Clerk, 309-524-2004).',
+        brb_byob_line(),
+        $next
+    );
     if (strpos($next, 'confetti cannons') === false) {
         $next = rtrim($next) . "\n" . implode("\n", [
             'Not allowed: Glitter, confetti, confetti cannons, rice, birdseed, or loose sequins.',

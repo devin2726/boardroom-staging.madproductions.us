@@ -78,7 +78,7 @@ function brb_chat_topic_spec($topic) {
         'food' => ['facts_i' => ['own food', 'warmers', 'stovetop', 'any caterer', 'does not provide catering'], 'money' => 'none'],
         'kitchen' => ['facts' => ['stovetop'], 'any' => [["can't be used", 'not permitted', 'may not be used', 'No cooking']], 'money' => 'none'],
         'fridge' => ['facts' => ['refrigerator', 'ice machine'], 'money' => 'none'],
-        'alcohol' => ['facts' => ['BYOB', 'City of Moline', 'Want more details?'], 'money' => 'none', 'phone' => 'never', 'forbid' => ['$50']],
+        'alcohol' => ['facts' => ['BYOB', 'City of Moline', 'one-day liquor license ($50)', 'Want more details?'], 'money' => 'none', 'phone' => 'never'],
         'serve_alcohol' => ['facts' => ["don't supply", 'BYOB', 'Want more details?'], 'money' => 'none', 'phone' => 'never', 'forbid' => ['$50', 'Yes. BYOB']],
         'bar' => ['facts' => ['bar area', 'ice machine', 'BYOB', 'Want more details?'], 'money' => 'none', 'phone' => 'never', 'forbid' => ['$50']],
         'plates' => ['facts' => ['bring your own plates'], 'money' => 'none'],
@@ -228,6 +228,7 @@ function brb_chat_score_audit($spec, $question, $reply, &$bad) {
     $allowed = brb_chat_allowed_money($spec, $question);
     if (preg_match_all('/\$\d{1,3}(?:,\d{3})*(?:\.\d{2})?/', $reply, $found)) {
         foreach (array_unique($found[0]) as $money) {
+            if ($money === '$50' && strpos($reply, 'one-day liquor license ($50)') !== false) continue;
             if (!isset($allowed[$money])) $bad[] = 'unapproved ' . $money;
         }
     }
@@ -235,7 +236,7 @@ function brb_chat_score_audit($spec, $question, $reply, &$bad) {
     foreach (['midnight', '90 or more days', '90 days', 'per night', 'check-in', 'check-out', 'sales tax is added', $other] as $needle) {
         if ($needle !== '' && stripos($reply, $needle) !== false) $bad[] = 'forbidden ' . $needle;
     }
-    if (preg_match('/\$50(?!\d)/', $reply)) $bad[] = 'forbidden $50';
+    if (preg_match('/\$50(?!\d)/', $reply) && strpos($reply, 'one-day liquor license ($50)') === false) $bad[] = 'forbidden $50';
     if (preg_match('/\bowner\b/i', $reply)) $bad[] = 'forbidden owner';
     if (strpos($reply, '✨') !== false) $bad[] = 'emoji';
     $allow_clerk = ($spec['phone'] === 'clerk');

@@ -886,7 +886,7 @@ function brb_chat_specific_text($text) {
     } elseif (preg_match('/\bbyob\b|liquor|alcohol|\bdrinks?\b/', $t)) {
         $bits[] = brb_chat_detail()
             ? 'Yes. ' . brb_byob_line() . ' Please leave it like you got it, and take the garbage out.'
-            : 'Yes, BYOB is allowed. Please check with the City of Moline about a permit. Want more details?';
+            : 'Yes, BYOB is allowed. If you serve alcohol, the City of Moline requires a one-day liquor license ($50). Want more details?';
     }
     if (preg_match('/decorat/', $t)) {
         $bits[] = 'Decorations are not provided, except that Christmas decorations are up in December.';

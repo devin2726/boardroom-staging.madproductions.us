@@ -4,8 +4,8 @@ add_action('after_setup_theme', function () {
     register_nav_menus(['primary' => 'Primary', 'footer' => 'Footer']);
 });
 add_action('wp_enqueue_scripts', function () {
-    wp_enqueue_style('boardroom', get_stylesheet_uri(), [], '1.2.22');
-    wp_enqueue_script('boardroom', get_template_directory_uri() . '/assets/site.js', [], '1.2.22', true);
+    wp_enqueue_style('boardroom', get_stylesheet_uri(), [], '1.2.23');
+    wp_enqueue_script('boardroom', get_template_directory_uri() . '/assets/site.js', [], '1.2.23', true);
 });
 function br_img($f) { return get_template_directory_uri() . '/assets/img/' . $f; }
 function br_logo($place) {
@@ -88,6 +88,16 @@ function br_amenities_html() {
     }
     $html .= '</div>';
     if ($safety !== '') $html .= '<p class="amenity-safety">Safety: ' . esc_html($safety) . '.</p>';
+    return $html;
+}
+function br_good_to_know_html() {
+    $url = 'https://moline.il.us/244/Liquor-Licensing';
+    $html = '<div class="good-to-know">';
+    $html .= '<h3>Good to know</h3><ul>';
+    $html .= '<li>No cooking on the stovetop. You\'re welcome to bring prepared food or have it catered, and we have warmers for buffet-style serving.</li>';
+    $html .= '<li>We don\'t provide catering.</li>';
+    $html .= '<li>BYOB is allowed. If you serve alcohol, the City of Moline requires a one-day liquor license ($50). <a href="' . esc_url($url) . '">' . esc_html($url) . '</a></li>';
+    $html .= '</ul></div>';
     return $html;
 }
 function br_review_summary() {

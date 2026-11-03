@@ -127,11 +127,11 @@ function brb_terms_html() {
 
 <h2>How booking works</h2>
 <ol>
-<li>Send a request. Nothing is charged yet.</li>
-<li>We email you a price.</li>
-<li>After approval, we email a payment link.</li>
+<li>Pick your date and send a request. Nothing is charged yet.</li>
+<li>We'll email you a price.</li>
+<li>After we approve it, we'll email you a payment link.</li>
 <li>Pay 50% of the rental plus the $250 refundable damage deposit by card (a 3% fee is added) or by check, and agree to the Terms and the Rental Agreement.</li>
-<li>Your date is locked. Pay the balance by check or card. Your status link stays with the booking, and we email a checklist reminder about one week before.</li>
+<li>Your date is locked in. Pay the balance by check or card. Your status link stays with the booking, and we'll email a checklist reminder about one week before.</li>
 </ol>
 <p>One heads-up: the room isn't set up or decorated when you arrive, except in December, when our Christmas décor is up.</p>
 

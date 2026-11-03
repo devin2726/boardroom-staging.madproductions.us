@@ -45,7 +45,7 @@ add_filter('pre_wp_mail', function ($short, $atts) {
 $GLOBALS['brb_mails'] = [];
 
 try {
-    brb_t(get_option('brb_version') === '2.5.21', 'plugin storage version is 2.5.21');
+    brb_t(get_option('brb_version') === '2.5.22', 'plugin storage version is 2.5.22');
     $example = brb_first_payment_parts(1200);
     brb_t($example['deposit'] === 600.0 && $example['damage'] === 250.0 && $example['base'] === 850.0 && abs($example['card'] - 875.50) < 0.001, 'a $1,200 rental first card payment is 600 + 250 plus 3 percent');
     brb_t(brb_latest_start_hour() === 21, 'the latest shorter-block start is 9:00 PM');
@@ -739,7 +739,7 @@ try {
     brb_t(strpos($faq_html, 'Are overnight stays allowed?') !== false && strpos($faq_html, 'No overnight stays. The Boardroom is an event space only.') !== false && stripos($faq_html, 'check-in') === false && stripos($faq_html, 'check-out') === false && strpos($faq_html, '[VERIFY] latest end time') === false, 'faq states the no-overnight rule without a public end time');
     brb_t(stripos($faq_html, 'How many guests can The Boardroom hold') !== false && stripos($faq_html, 'Up to 75') !== false, 'faq keeps the capacity answer');
     brb_t(strpos($faq_html, 'No cooking is allowed in the venue') !== false && strpos($faq_html, 'The stove top may not be used') !== false && strpos($faq_html, 'Food warmers (for keeping prepared food warm)') !== false, 'faq says no cooking and allows food warmers');
-    brb_t(strpos($faq_html, 'https://moline.il.us/244/Liquor-Licensing') !== false && strpos($faq_html, '309-524-2004') !== false && strpos($faq_html, 'fee $50') === false && strpos($faq_html, '/rental-checklist/') !== false, 'faq points guests to the City of Moline and the rental checklist');
+    brb_t(strpos($faq_html, 'https://moline.il.us/244/Liquor-Licensing') !== false && strpos($faq_html, '309-524-2004') !== false && strpos($faq_html, 'one-day liquor license ($50)') !== false && strpos($faq_html, "We'll email you a price") !== false && strpos($faq_html, '/rental-checklist/') !== false, 'faq names the liquor license, the price email, and the rental checklist');
     if ($faq) {
         wp_update_post(['ID' => (int) $faq->ID, 'post_content' => '<p>Custom FAQ without the seed question.</p>']);
         clean_post_cache((int) $faq->ID);
@@ -789,7 +789,8 @@ try {
         brb_t(strpos($hay, $needle) !== false, 'legal copy contains ' . $needle);
     }
     brb_t(strpos($terms_html, 'No cooking or stove-top use') !== false && strpos($terms_html, 'Food warmers and the bar area are yours to use') !== false, 'terms say no cooking and allow food warmers');
-    brb_t(strpos($terms_html, 'https://moline.il.us/244/Liquor-Licensing') !== false && strpos($terms_html, '309-524-2004') !== false && strpos($terms_html, 'fee $50') === false && strpos($agreement_html, 'https://moline.il.us/244/Liquor-Licensing') !== false && strpos($agreement_html, 'fee $50') === false, 'terms and the rental agreement point guests to the City of Moline without a liquor fee');
+    brb_t(strpos($terms_html, 'https://moline.il.us/244/Liquor-Licensing') !== false && strpos($terms_html, '309-524-2004') !== false && strpos($terms_html, 'fee $50') === false && strpos($terms_html, 'one-day liquor license ($50)') === false && strpos($agreement_html, 'https://moline.il.us/244/Liquor-Licensing') !== false && strpos($agreement_html, 'fee $50') === false && strpos($agreement_html, 'one-day liquor license ($50)') === false, 'terms and the rental agreement point guests to the City of Moline without a liquor fee');
+    brb_t(strpos($terms_html, 'Pick your date and send a request') !== false && strpos($terms_html, "We'll email you a price") !== false && strpos(brb_cancellation_summary(), 'Pick your date') === false && strpos(brb_agreement_html(), 'Pick your date') === false, 'the terms booking box keeps a price email and the summary and agreement do not');
     brb_t(strpos($terms_html, '[VERIFY current fee and issuing office]') === false, 'liquor license fee is no longer marked for verification');
     brb_t(strpos($terms_html, '2220 37th Street, Moline, IL 61265') !== false && strpos($terms_html, 'MAD Productions, LLC') !== false, 'terms name the venue at 2220 37th Street');
     brb_t(strpos($terms_html, 'Make checks payable to Mad Productions and mail or drop them off at 2212 37th Street, Moline, IL 61265.') !== false, 'terms tell guests where to mail or drop off checks');
@@ -815,7 +816,7 @@ try {
     brb_t(is_string($book_page) && strpos($book_page, 'br_book_shortcuts_html') !== false && is_string($book_fn) && strpos($book_fn, '/rental-checklist/') !== false, 'the book page links to the rental checklist');
     $checklist_page = get_page_by_path('rental-checklist');
     $checklist_html = $checklist_page ? do_shortcode((string) $checklist_page->post_content) : '';
-    brb_t($checklist_page && $checklist_page->post_title === 'Rental Checklist' && strpos($checklist_html, '8:00 AM') !== false && strpos($checklist_html, '309-524-2004') !== false && strpos($checklist_html, 'fee $50') === false && strpos($checklist_html, brb_whole_money(brb_addon_price())) !== false, 'the rental checklist page lists the house rules without a liquor fee');
+    brb_t($checklist_page && $checklist_page->post_title === 'Rental Checklist' && strpos($checklist_html, '8:00 AM') !== false && strpos($checklist_html, '309-524-2004') !== false && strpos($checklist_html, 'one-day liquor license ($50)') !== false && strpos($checklist_html, brb_whole_money(brb_addon_price())) !== false, 'the rental checklist names the one-day liquor license');
     $remind_day = brb_now()->modify('+7 days')->format('Y-m-d');
     $remind = brb_process_public_booking([
         'date' => $remind_day,
