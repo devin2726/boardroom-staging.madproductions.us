@@ -2,7 +2,7 @@
 if (!defined('ABSPATH')) exit;
 
 function brb_cancellation_summary() {
-    return 'Bookings are subject to approval. No payment is due until the request is approved. The owner may decline any request. A request does not hold the date. Your date is reserved once your deposit is received. The deposit (50% of the agreed total) holds the date. It is refundable if the Owner receives written cancellation 60 or more days before the event, less any non-refundable processing charges (including the 3% card processing fee) and costs already incurred. It is not refundable if cancellation is received less than 60 days before the event. Mail or drop off checks payable to Mad Productions at 2212 37th Street, Moline, IL 61265. You can pay by check or in person, or online by card with a 3% processing fee once the request is approved. The card processing fee is non-refundable. Under the Rental Agreement, 50% of the invoice is due within 1 day after signing unless the Owner agrees otherwise in writing. The remaining balance is due the week of the event, no later than 48 hours before the event. The signed Rental Agreement controls if it differs from this summary.';
+    return 'Bookings are subject to approval. No payment is due until the request is approved. The owner may decline any request. A request does not hold the date. Your date is reserved once your deposit is received. The deposit (50% of the agreed total) holds the date. It is refundable if the Owner receives written cancellation 60 or more days before the event, less any non-refundable processing charges (including the 3% card processing fee) and costs already incurred. It is not refundable if cancellation is received less than 60 days before the event. Mail or drop off checks payable to Mad Productions at The Boardroom, 2220 37th Street, Moline, IL 61265. You can pay by check or in person, or online by card with a 3% processing fee once the request is approved. The card processing fee is non-refundable. Under the Rental Agreement, 50% of the invoice is due within 1 day after signing unless the Owner agrees otherwise in writing. The remaining balance is due no later than one week before the event. The signed Rental Agreement controls if it differs from this summary.';
 }
 
 function brb_policy_needs_refresh($text) {
@@ -16,7 +16,7 @@ function brb_policy_needs_refresh($text) {
 
 function brb_terms_html() {
     // [CONFIRM with Chris] Guests out by 11:30 PM. Smoking is outside only. Service animals only.
-    return <<<'TERMS_HTML'
+    $html = <<<'TERMS_HTML'
 <p>Thanks for choosing The Boardroom! This page sums up our Facility Event Space Rental Agreement in plain language, section by section. It doesn't replace the agreement. If the two ever differ, the signed agreement wins. You can read and print the full <a href="/rental-agreement/">Rental Agreement</a> anytime.</p>
 <p>The Boardroom QC is operated by MAD Productions, LLC ("we" or "the Owner") at 2220 37th Street, Moline, IL 61265.</p>
 
@@ -25,7 +25,7 @@ function brb_terms_html() {
 <li>Hours: Full days run 10:00 AM to 11:30 PM. Half days (mostly in June) run 10:00 AM to 4:00 PM or 5:00 PM to 11:30 PM.</li>
 <li>Out by 11:30 PM. This one's firm, no exceptions.</li>
 <li>You set up and tear down. Our staff can't set the room for you. Setup starts at 8:00 AM on full days, or one hour before your start time on half days.</li>
-<li>Up to 75 guests. The host must be 25 or older.</li>
+<li>75 to 80 guests. The host must be 25 or older.</li>
 <li>Free events only. Live music and bands are welcome. Tickets, cover charges, and concerts aren't.</li>
 <li>BYOB is fine. No cooking or stove-top use. Food warmers and the bar area are yours to use. There are no draft taps.</li>
 <li>Balloons, yes. Glitter, confetti, and wall tape, no.</li>
@@ -42,16 +42,16 @@ function brb_terms_html() {
 <h2>3. Payment and deposit</h2>
 <ul>
 <li>Within 1 day of signing: 50% of your invoice. This deposit holds your date. A request alone doesn't.</li>
-<li>The week of your event: the remaining balance, no later than 48 hours before.</li>
+<li>The remaining balance is due no later than one week before your event.</li>
 <li>Before your event starts: all rental, cleaning, and damage deposit amounts must be paid.</li>
 <li>Sales tax is included in the price.</li>
 <li>Pay by check, in person, or online by card once approved. Card payments add a 3% processing fee on top of the amount paid, and that fee isn't refundable.</li>
-<li>Make checks payable to Mad Productions and mail or drop them off at 2212 37th Street, Moline, IL 61265.</li>
+<li>Make checks payable to Mad Productions at The Boardroom, 2220 37th Street, Moline, IL 61265.</li>
 <li>Late payment may cancel your reservation without further notice.</li>
 </ul>
 
 <h2>4. Guests and supervision</h2>
-<p>Up to 75 people, unless we approve a different number in writing. The host must be 25 or older, and you (or a responsible adult you name) must be on site the whole time. You're in charge of everyone who comes in: guests, kids, vendors, and anyone else. Service animals are welcome where the law requires; pets aren't.</p>
+<p>75 to 80 guests, unless we approve a different number in writing. The host must be 25 or older, and you (or a responsible adult you name) must be on site the whole time. You're in charge of everyone who comes in: guests, kids, vendors, and anyone else. Service animals are welcome where the law requires; pets aren't.</p>
 
 <h2>5. Event insurance</h2>
 <p>You'll need special event or party liability insurance covering injury, property damage, and your guests' activities. If alcohol is involved, please add liquor liability coverage where it's available and applies. We may ask for proof before giving you access, and may ask that MAD Productions, LLC, The Boardroom QC, the venue owner, and related parties be listed as additional insureds. Without acceptable proof, we may cancel or refuse access, and amounts already owed still apply. We also recommend carrying your own home or renters policy.</p>
@@ -85,7 +85,7 @@ function brb_terms_html() {
 <p>Before your time is up, please take out everything you brought: decorations, food, drinks, rentals, and trash. There's a dumpster on site. Anything left behind may be tossed or stored at your cost. Extra cleaning, stain or odor removal, or disposal may be charged to you or taken from your deposit.</p>
 
 <h2>11. Damage and your damage deposit</h2>
-<p>Your refundable damage deposit is a flat $250. It is charged with the booking deposit and mostly covers cleaning and garbage. It's separate from the 50% booking deposit that holds your date. If all's well, it comes back within 72 hours by Venmo or PayPal, or in 1 to 2 weeks by check. Vape residue can affect it.</p>
+<p>Your refundable damage deposit is a flat $250. It is charged with the booking deposit and mostly covers cleaning and garbage. It's separate from the 50% booking deposit that holds your date. If all's well, it is refunded through Stripe, less the card processing fee. Vape residue can affect it.</p>
 <p>You're responsible for any damage, loss, theft, extra cleaning, fines, lost use of the venue, or other costs tied to your event or anyone connected with it. We may apply your deposit to what's owed, and you're responsible for anything beyond it.</p>
 
 <h2>12. Your risk</h2>
@@ -126,21 +126,18 @@ function brb_terms_html() {
 <p>The signed agreement, together with your invoice, booking confirmation, and any written addendum or rules from us, is the entire deal. Whoever signs for the renter confirms they're authorized to, and is personally responsible if they're not.</p>
 
 <h2>How booking works</h2>
-<ol>
-<li>Send a request. Nothing is charged yet.</li>
-<li>We email you a price.</li>
-<li>After approval, we email a payment link.</li>
-<li>Pay 50% of the rental plus the $250 refundable damage deposit by card (a 3% fee is added) or by check, and agree to the Terms and the Rental Agreement.</li>
-<li>Your date is locked. Pay the balance by check or card. Your status link stays with the booking, and we email a checklist reminder about one week before.</li>
-</ol>
+TERMS_STEPS
 <p>One heads-up: the room isn't set up or decorated when you arrive, except in December, when our Christmas décor is up.</p>
 
 <h2>The signed agreement controls</h2>
 <p>This page is a friendly summary. If anything here differs from your signed <a href="/rental-agreement/">Rental Agreement</a>, the agreement controls.</p>
 <p>Questions? We're happy to help. <a href="/contact/">Get in touch</a>.</p>
-<p class="updated">Last updated: October 28, 2026</p>
+<p class="updated">Last updated: November 3, 2026</p>
 <p>The Boardroom QC · 2220 37th Street, Moline, IL 61265 · <a href="https://maps.app.goo.gl/nVqUsGTcy48nPzc18" rel="noopener noreferrer">Get directions</a></p>
 TERMS_HTML;
+    $steps = '';
+    foreach (brb_how_booking_works_steps() as $step) $steps .= '<li>' . $step . '</li>';
+    return str_replace('TERMS_STEPS', '<ol>' . $steps . '</ol>', $html);
 }
 
 function brb_privacy_html() {
@@ -154,7 +151,7 @@ function brb_privacy_html() {
 <p>We use this information only to manage reservations and contact inquiries, and to communicate with you about them. Email about a booking or a contact inquiry is sent through this site’s mail system.</p>
 
 <h2>Payment</h2>
-<p>You can pay by check or in person, or online by card with a 3% processing fee, after a request is approved. Mail or drop off checks payable to Mad Productions at 2212 37th Street, Moline, IL 61265. Stripe processes card payments. We never see or store card numbers. A request does not hold the date. Your date is reserved once your deposit is received. The deposit (50% of the agreed total) holds the date. It is refundable if the Owner receives written cancellation 60 or more days before the event, less any non-refundable processing charges (including the 3% card processing fee) and costs already incurred. It is not refundable if cancellation is received less than 60 days before the event. The card processing fee is non-refundable.</p>
+<p>You can pay by check or in person, or online by card with a 3% processing fee, after a request is approved. Mail or drop off checks payable to Mad Productions at The Boardroom, 2220 37th Street, Moline, IL 61265. Stripe processes card payments. We never see or store card numbers. A request does not hold the date. Your date is reserved once your deposit is received. The deposit (50% of the agreed total) holds the date. It is refundable if the Owner receives written cancellation 60 or more days before the event, less any non-refundable processing charges (including the 3% card processing fee) and costs already incurred. It is not refundable if cancellation is received less than 60 days before the event. The card processing fee is non-refundable.</p>
 
 <h2>Cookies</h2>
 <p>This site sets no advertising, analytics, or tracking cookies of its own, but the embedded Google Maps in the footer and on the Contact page may set cookies from Google, and Google's privacy policy applies to those cookies. Stripe may set cookies on its own checkout page, and Stripe's privacy policy applies to those cookies. Guests are not asked to accept cookies. The contact form does not set a cookie. The chat assistant does not set a cookie. WordPress sets cookies for staff when they log in to the admin area.</p>
@@ -198,9 +195,9 @@ NOW, THEREFORE, in consideration of the mutual promises and covenants stated her
 
 2. Access, Keys, and Codes. Owner may provide Renter with one (1) key, access code, or other entry method as deemed necessary by Owner. Renter shall safeguard all keys, codes, and access credentials, shall not duplicate or share them except with approved event representatives, and shall return all physical access items immediately at the end of the Rental Period. Renter is responsible for all costs related to lost keys, rekeying, lock changes, code changes, or unauthorized access caused by Renter or Renter's guests, invitees, vendors, contractors, agents, or representatives.
 
-3. Payment, Deposit, and Fees. Before the beginning of the Rental Period, Renter shall pay all rental fees, cleaning fees, security deposits, and any other charges stated by Owner. Unless Owner agrees otherwise in writing, Renter must pay fifty percent (50%) of the invoice within one (1) day after signing this Agreement. That deposit holds the date. It is refundable if the Owner receives written cancellation 60 or more days before the event, less any non-refundable processing charges (including the 3% card processing fee) and costs already incurred. It is not refundable if cancellation is received less than 60 days before the event. A request does not reserve the date until the deposit is received. The remaining balance is due the week of the event, no later than 48 hours before the event. Failure to timely pay may result in cancellation of the reservation without further notice.
+3. Payment, Deposit, and Fees. Before the beginning of the Rental Period, Renter shall pay all rental fees, cleaning fees, security deposits, and any other charges stated by Owner. Unless Owner agrees otherwise in writing, Renter must pay fifty percent (50%) of the invoice within one (1) day after signing this Agreement. That deposit holds the date. It is refundable if the Owner receives written cancellation 60 or more days before the event, less any non-refundable processing charges (including the 3% card processing fee) and costs already incurred. It is not refundable if cancellation is received less than 60 days before the event. A request does not reserve the date until the deposit is received. The remaining balance is due no later than one week before the event. Failure to timely pay may result in cancellation of the reservation without further notice.
 
-4. Occupancy, Conduct, and Supervision. The Venue shall not be occupied by more than seventy-five (75) persons unless Owner gives written approval for a different limit. The minimum host age is 25 for every booking. Renter shall be present or shall designate a responsible adult representative who is present during the entire event. Renter is solely responsible for supervising all guests, invitees, children, vendors, contractors, and any other persons entering the Venue during the Rental Period. No pets or animals of any kind are permitted, except documented service animals as required by applicable law.
+4. Occupancy, Conduct, and Supervision. The Venue shall not be occupied by more than 75 to 80 guests unless Owner gives written approval for a different limit. The minimum host age is 25 for every booking. Renter shall be present or shall designate a responsible adult representative who is present during the entire event. Renter is solely responsible for supervising all guests, invitees, children, vendors, contractors, and any other persons entering the Venue during the Rental Period. No pets or animals of any kind are permitted, except documented service animals as required by applicable law.
 
 5. Required Event Liability Insurance. As a condition of using the Venue, Renter shall obtain and maintain, at Renter's sole cost, special event liability insurance or party liability insurance covering the event, the Rental Period, bodily injury, property damage, and the activities of Renter and Renter's guests. Owner may require proof of such insurance before granting access to the Venue. If alcohol is served, sold, distributed, or consumed, Renter shall also obtain liquor liability coverage or a special event liquor liability endorsement if available and applicable. Owner may require that MAD Productions, LLC, The Boardroom QC, the Venue owner, and any related parties designated by Owner be named as additional insureds. Failure to provide acceptable proof of insurance may result in cancellation or denial of access, without waiver of any amounts owed.
 

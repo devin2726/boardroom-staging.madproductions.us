@@ -33,9 +33,89 @@
     }).catch(function () {});
     if (window.gtag) window.gtag('event', name);
   }
+  var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function armClip(video) {
+    if (!video || video.dataset.ready) return;
+    var webm = video.getAttribute('data-webm');
+    var mp4 = video.getAttribute('data-mp4');
+    if (webm) {
+      var source = document.createElement('source');
+      source.src = webm;
+      source.type = 'video/webm';
+      video.appendChild(source);
+    }
+    if (mp4) {
+      var fallback = document.createElement('source');
+      fallback.src = mp4;
+      fallback.type = 'video/mp4';
+      video.appendChild(fallback);
+    }
+    video.muted = true;
+    video.defaultMuted = true;
+    video.dataset.ready = '1';
+    video.load();
+  }
+  function showClip(stage, name) {
+    if (!stage) return;
+    var clips = stage.querySelectorAll('video');
+    for (var i = 0; i < clips.length; i++) {
+      clips[i].onended = null;
+      clips[i].pause();
+    }
+    stage.classList.remove('is-wave', 'is-idle', 'is-eyes');
+    if (name) stage.classList.add('is-' + name);
+  }
+  function playClip(stage, name, done) {
+    if (!stage || reduceMotion) {
+      showClip(stage, '');
+      if (done) done();
+      return;
+    }
+    var video = stage.querySelector('.brb-walter-' + name);
+    if (!video) {
+      if (done) done();
+      return;
+    }
+    armClip(video);
+    showClip(stage, name);
+    var begin = function () {
+      try { video.currentTime = 0; } catch (err) {}
+      video.onended = function () { if (done) done(); };
+      var started = video.play();
+      if (started && started.catch) started.catch(function () { showClip(stage, ''); if (done) done(); });
+    };
+    if (video.readyState >= 2) begin();
+    else video.addEventListener('loadeddata', begin, { once: true });
+  }
+  var launchStage = root.querySelector('.brb-walter-launch');
+  var headStage = root.querySelector('.brb-walter-head');
+  var typing = root.querySelector('.brb-typing');
+  function setTyping(on) {
+    if (typing) typing.hidden = !on;
+    if (on) playClip(headStage, 'eyes');
+    else if (headStage && headStage.classList.contains('is-eyes')) playClip(headStage, 'idle');
+  }
+  function greetHead() {
+    playClip(headStage, 'wave', function () {
+      if (typing && !typing.hidden) return;
+      playClip(headStage, 'idle');
+    });
+    root.classList.add('is-open');
+  }
+  if (launchStage && !reduceMotion) {
+    playClip(launchStage, 'wave', function () {
+      var still = launchStage.querySelector('.brb-walter-still');
+      var idle = launchStage.querySelector('.brb-walter-idle');
+      var poster = idle && idle.getAttribute('poster');
+      if (still && poster) still.src = poster;
+      showClip(launchStage, '');
+    });
+  }
+  if (root.classList.contains('brb-chat-inline')) greetHead();
   function openPanel() {
     panel.hidden = false;
     trackEvent('chat_open');
+    greetHead();
     if (launch) launch.setAttribute('aria-expanded', 'true');
     if (closeBtn) closeBtn.focus();
     else if (input) input.focus();
@@ -49,12 +129,25 @@
   }
   function addMsg(role, text) {
     var p = document.createElement('p');
-    p.className = 'brb-chat-msg ' + (role === 'user' ? 'user' : 'bot');
+    var bot = role !== 'user';
+    p.className = 'brb-chat-msg ' + (bot ? 'bot' : 'user');
+    if (bot && root.getAttribute('data-walter')) {
+      var img = document.createElement('img');
+      img.className = 'brb-walter brb-walter-bubble';
+      img.src = root.getAttribute('data-walter');
+      img.alt = 'Walter, the Boardroom butler';
+      img.width = 64;
+      img.height = 64;
+      p.appendChild(img);
+    }
+    var copy = document.createElement('span');
+    copy.className = 'brb-chat-copy';
     var who = document.createElement('span');
     who.className = 'brb-chat-who';
-    who.textContent = role === 'user' ? 'You' : 'Boardroom';
-    p.appendChild(who);
-    p.appendChild(document.createTextNode(text));
+    who.textContent = bot ? 'Walter' : 'You';
+    copy.appendChild(who);
+    copy.appendChild(document.createTextNode(text));
+    p.appendChild(copy);
     log.appendChild(p);
     var scroller = log.closest('.brb-chat-scroll') || log;
     scroller.scrollTop = scroller.scrollHeight;
@@ -68,6 +161,17 @@
       else closePanel();
     });
   }
+  document.addEventListener('click', function (e) {
+    var opener = e.target.closest('[data-brb-open-chat]');
+    if (!opener) return;
+    e.preventDefault();
+    if (root.classList.contains('brb-chat-inline')) {
+      root.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (input) input.focus();
+      return;
+    }
+    if (panel.hidden) openPanel();
+  });
   if (closeBtn) closeBtn.addEventListener('click', closePanel);
   leadToggle.addEventListener('click', function () {
     showLead();
@@ -142,7 +246,9 @@
         });
       });
     }
+    setTyping(true);
     return askChat(0).then(function (data) {
+      setTyping(false);
       addMsg('bot', data.reply);
       addSuggestions(data.suggestions);
       turns.push({ role: 'assistant', text: data.reply });
@@ -151,6 +257,7 @@
       if (history.length > 16) history = history.slice(-16);
       if (data.lead) showLead();
     }).catch(function () {
+      setTyping(false);
       addMsg('bot', 'Please try that once more in a moment. You can also use the Contact form.');
     });
   }

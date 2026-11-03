@@ -4,8 +4,8 @@ add_action('after_setup_theme', function () {
     register_nav_menus(['primary' => 'Primary', 'footer' => 'Footer']);
 });
 add_action('wp_enqueue_scripts', function () {
-    wp_enqueue_style('boardroom', get_stylesheet_uri(), [], '1.2.22');
-    wp_enqueue_script('boardroom', get_template_directory_uri() . '/assets/site.js', [], '1.2.22', true);
+    wp_enqueue_style('boardroom', get_stylesheet_uri(), [], '1.2.24');
+    wp_enqueue_script('boardroom', get_template_directory_uri() . '/assets/site.js', [], '1.2.23', true);
 });
 function br_img($f) { return get_template_directory_uri() . '/assets/img/' . $f; }
 function br_logo($place) {
@@ -43,7 +43,7 @@ function br_amenity_groups() {
         [
             'title' => 'Access and parking',
             'icon' => 'M4 16l2-6h12l2 6M6 16h12M7 16v2M17 16v2M7 10V7h10v3',
-            'items' => ['Private main entrance', 'Free parking on premises', 'Free street parking'],
+            'items' => ['Private main entrance', 'Free parking on premises', 'Space for 40 to 50 cars', 'Free street parking'],
         ],
         [
             'title' => 'Tech and entertainment',
@@ -69,7 +69,7 @@ function br_amenity_groups() {
     ];
 }
 function br_amenities_html() {
-    $html = '<p class="amenity-intro">The room comes not set up. No overnight stays. The Boardroom is an event space only.</p>';
+    $html = '<p class="amenity-intro">The room comes not set up. No overnight stays. The Boardroom is an event space only. 75 to 80 guests. Graduation parties or open houses can go over, since guests come and go.</p>';
     $html .= '<div class="amenity-groups">';
     $safety = '';
     foreach (br_amenity_groups() as $group) {
@@ -88,6 +88,16 @@ function br_amenities_html() {
     }
     $html .= '</div>';
     if ($safety !== '') $html .= '<p class="amenity-safety">Safety: ' . esc_html($safety) . '.</p>';
+    return $html;
+}
+function br_good_to_know_html() {
+    $url = 'https://moline.il.us/244/Liquor-Licensing';
+    $html = '<div class="good-to-know">';
+    $html .= '<h3>Good to know</h3><ul>';
+    $html .= '<li>No cooking on the stovetop. You\'re welcome to bring prepared food or have it catered, and we have warmers for buffet-style serving.</li>';
+    $html .= '<li>We don\'t provide catering.</li>';
+    $html .= '<li>BYOB is allowed. If you serve alcohol, the City of Moline requires a one-day liquor license ($50). <a href="' . esc_url($url) . '">' . esc_html($url) . '</a></li>';
+    $html .= '</ul></div>';
     return $html;
 }
 function br_review_summary() {
@@ -340,7 +350,7 @@ function br_seo_pages() {
     $place = 'Party & Event Venue in Moline, IL (Quad Cities)';
     return [
         'home' => ['title' => 'The Boardroom | ' . $place, 'description' => 'The Boardroom is a party and event venue in Moline, IL, in the Quad Cities. Most events run $600 to about $2,000. Request a date and we email your price.'],
-        'book' => ['title' => 'Book The Boardroom | ' . $place, 'description' => 'Request a date at The Boardroom in Moline. Nothing is charged until we email a price and approve the booking. Pay 50% plus the $250 damage deposit.'],
+        'book' => ['title' => 'Book The Boardroom | ' . $place, 'description' => 'Request a date at The Boardroom in Moline. The price shows on the calendar. Nothing is charged until we approve the booking and email a payment link. Pay 50% plus the $250 damage deposit.'],
         'faq' => ['title' => 'FAQ | The Boardroom, ' . $place, 'description' => 'Answers about booking, hours, food, BYOB, capacity, and cancellation at The Boardroom in Moline, IL.'],
         'terms' => ['title' => 'Rental Terms | The Boardroom, ' . $place, 'description' => 'Plain-language rental terms for The Boardroom in Moline, IL. The signed rental agreement controls if they differ.'],
         'privacy' => ['title' => 'Privacy Policy | The Boardroom, ' . $place, 'description' => 'How The Boardroom in Moline, IL uses booking and contact details. We do not sell your information.'],

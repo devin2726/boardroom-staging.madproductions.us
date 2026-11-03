@@ -36,7 +36,7 @@ function brb_chat_reply($text, $history = []) {
 }
 
 try {
-    brb_t(get_option('brb_version') === '2.5.21', 'plugin storage version is 2.5.21');
+    brb_t(get_option('brb_version') === '2.5.27', 'plugin storage version is 2.5.27');
     $cols = $wpdb->get_col('SHOW COLUMNS FROM ' . brb_tour_table(), 0);
     brb_t(in_array('source', $cols, true), 'inquiries can store a source');
     brb_t((string) brb_opt('quote_prices') === '1', 'price estimates are on by default');
@@ -50,7 +50,7 @@ try {
     brb_t(brb_estimate_amount('2027-01-10') === 850.0, 'a Sunday outside the holiday ranges uses the Sunday to Thursday rate');
 
     $rules = brb_chat_reply('What are the house rules?');
-    foreach (['No overnight stays', 'no cooking', '11:30 PM', 'no tickets', '75', 'Want more details?'] as $needle) {
+    foreach (['No overnight stays', 'no cooking', '11:30 PM', 'no tickets', '80', 'Want more details?'] as $needle) {
         brb_t(stripos($rules, $needle) !== false, 'rules answer includes ' . $needle);
     }
     brb_t(strpos($rules, '$50') === false && strpos($rules, 'fee $50') === false && strpos($rules, '309-524-2004') === false, 'the short rules answer skips the liquor fee and the clerk phone');
@@ -59,13 +59,13 @@ try {
     foreach (['stovetop', 'no taps', 'BYOB', 'City of Moline', 'https://moline.il.us/244/Liquor-Licensing', '309-524-2004', 'not set up', 'garbage', 'Christmas decorations are up in December', 'insurance'] as $needle) {
         brb_t(stripos($rules_more, $needle) !== false, 'rules follow-up includes ' . $needle);
     }
-    brb_t(strpos($rules_more, '$50') === false && stripos($rules_more, 'midnight') === false && stripos($rules_more, 'owner') === false, 'rules follow-up keeps the liquor fee, midnight, and private topics out');
+    brb_t(strpos($rules_more, 'one-day liquor license ($50)') !== false && stripos($rules_more, 'midnight') === false && stripos($rules_more, 'owner') === false, 'rules follow-up includes the liquor license and keeps midnight and private topics out');
     $food = brb_chat_reply('Can I bring my own food?');
     brb_t(stripos($food, 'own food') !== false && stripos($food, 'warmers') !== false && stripos($food, 'stovetop') !== false && stripos($food, 'any caterer') !== false && stripos($food, 'does not provide catering') !== false && strpos($food, 'Want more details?') !== false, 'own food is allowed with warmers and without catering from us');
     $byob = brb_chat_reply('Is BYOB allowed?');
-    brb_t(strpos($byob, 'BYOB') !== false && strpos($byob, 'City of Moline') !== false && strpos($byob, 'Want more details?') !== false && strpos($byob, '309-524-2004') === false && strpos($byob, '$50') === false, 'BYOB stays short and points guests to the City of Moline');
+    brb_t(strpos($byob, 'BYOB') !== false && strpos($byob, 'City of Moline') !== false && strpos($byob, 'one-day liquor license ($50)') !== false && strpos($byob, 'Want more details?') !== false && strpos($byob, '309-524-2004') === false, 'BYOB stays short and names the one-day license');
     $byob_more = brb_chat_reply('tell me more', [['role' => 'user', 'text' => 'Is BYOB allowed?']]);
-    brb_t(strpos($byob_more, 'https://moline.il.us/244/Liquor-Licensing') !== false && strpos($byob_more, '309-524-2004') !== false && strpos($byob_more, 'leave it like you got it') !== false && strpos($byob_more, 'garbage') !== false && strpos($byob_more, '$50') === false, 'BYOB follow-up includes the City Clerk and cleanup');
+    brb_t(strpos($byob_more, 'https://moline.il.us/244/Liquor-Licensing') !== false && strpos($byob_more, '309-524-2004') !== false && strpos($byob_more, 'one-day liquor license ($50)') !== false && strpos($byob_more, 'leave it like you got it') !== false && strpos($byob_more, 'garbage') !== false, 'BYOB follow-up includes the license, the City Clerk, and cleanup');
     $out = brb_chat_reply('How late can we stay?');
     brb_t(strpos($out, '11:30 PM') !== false && stripos($out, 'midnight') === false && stripos($out, 'permit') === false, 'end time questions say 11:30 PM');
     $hours = brb_chat_reply('What are your hours?');
@@ -74,7 +74,7 @@ try {
     brb_t(strpos($wedding, 'Weddings') !== false && strpos($wedding, 'free to attend') !== false && strpos($wedding, 'minimum host age is 25') !== false && strpos($wedding, 'Our team will confirm') === false, 'event types are welcome and the host age is 25 for every booking');
     $unknown = 'I\'m not sure about that one';
     $house_prompts = [
-        'When is the balance due?' => ['week of the event', '48 hours'],
+        'When is the balance due?' => ['one week before'],
         'Is there a refrigerator or ice?' => ['refrigerator', 'ice machine'],
         'Who will be there during my event?' => ['No one is on site', 'connected offices', 'contract is signed'],
         'Is there a private entrance?' => ['private main entrance', 'back entrance', 'surprise guest'],
@@ -218,7 +218,7 @@ try {
     $pay_more = brb_chat_reply('yes', [['role' => 'user', 'text' => 'How do I pay the deposit?']]);
     brb_t(strpos($pay_more, '60 or more days before the event') !== false && strpos($pay_more, 'less than 60 days before the event') !== false && strpos($pay_more, '2212') === false && strpos($pay_more, 'not a binding commitment') === false, 'the deposit follow-up includes the cancellation window');
     $checks = brb_chat_reply('Where do I mail a check?');
-    brb_t(strpos($checks, '2212 37th Street, Moline, IL 61265') !== false && strpos($checks, 'Mad Productions') !== false && strpos($checks, 'check address') !== false, 'a check question names the check address');
+    brb_t(strpos($checks, '2220 37th Street, Moline, IL 61265') !== false && strpos($checks, 'Mad Productions') !== false && strpos($checks, 'The Boardroom') !== false && strpos($checks, '2212') === false, 'a check question names The Boardroom');
 
     putenv('BRB_STRIPE_SECRET_KEY=sk_test_ZZZexamplekey');
     $_ENV['BRB_STRIPE_SECRET_KEY'] = 'sk_test_ZZZexamplekey';
@@ -371,11 +371,11 @@ try {
     }
 
     $widget = brb_chat_markup();
-    brb_t(strpos($widget, 'brb-chat-launch') !== false && strpos($widget, 'Ask our Chat Bot') !== false && strpos($widget, '>Chat<') === false && strpos($widget, 'role="dialog"') !== false && strpos($widget, 'aria-expanded') !== false && strpos($widget, 'A team member will reply using this info') !== false && strpos($widget, 'Hi there! I\'m the Boardroom\'s assistant. I\'d love to help you plan your event.') !== false, 'the chat button and panel are on the page');
-    brb_t(strpos($widget, '850') === false && strpos($widget, '1400') === false && strpos($widget, '1500') === false && stripos($widget, $other) === false && stripos($widget, 'owner') === false, 'the chat panel does not publish rates or private topics');
     $plugin_dir = dirname((new ReflectionFunction('brb_chat_markup'))->getFileName());
     $css = file_get_contents($plugin_dir . '/assets/chat.css');
     $js = file_get_contents($plugin_dir . '/assets/chat.js');
+    brb_t(strpos($widget, 'brb-chat-launch') !== false && strpos($widget, 'Ask Walter') !== false && strpos($widget, 'Ask the Chairman') === false && strpos($widget, 'Ask our Chat Bot') === false && strpos($widget, '>Chat<') === false && strpos($widget, 'role="dialog"') !== false && strpos($widget, 'aria-expanded') !== false && strpos($widget, 'A team member will reply using this info') !== false && strpos($widget, 'Hi there! I\'m Walter, the Boardroom\'s butler. How can I help with your event?') !== false && strpos($widget, 'Walter, the Boardroom butler') !== false && strpos($widget, 'walter-64.webp') !== false && strpos($widget, 'wave.mp4') !== false && strpos($widget, 'idle.mp4') !== false && strpos($widget, 'muted') !== false && strpos($widget, 'playsinline') !== false && strpos($widget, 'preload="none"') !== false && strpos($widget, 'autoplay') === false && strpos($css, 'prefers-reduced-motion') !== false && strpos($js, 'reduceMotion') !== false, 'the chat button and panel introduce Walter');
+    brb_t(strpos($widget, '850') === false && strpos($widget, '1400') === false && strpos($widget, '1500') === false && stripos($widget, $other) === false && stripos($widget, 'owner') === false, 'the chat panel does not publish rates or private topics');
     brb_t(is_string($css) && strpos($css, '.brb-chat-msg,.brb-chat-msg.user,.brb-chat-msg.bot{') !== false && strpos($css, 'color:#161616') !== false, 'guest and bot messages share one text color');
     brb_t(is_string($css) && strpos($css, 'EB Garamond') !== false && strpos($css, '#c4912e') !== false && strpos($css, 'position:fixed') !== false && strpos($css, 'brb-chat-scroll') !== false && strpos($css, 'min-height:0') !== false && strpos($css, '100dvh') !== false, 'the chat panel scrolls inside the viewport');
     brb_t(is_string($js) && strpos($js, 'credentials: \'omit\'') !== false && strpos($js, '503') !== false && strpos($js, 'Please try that once more in a moment. You can also use the Contact form.') !== false && stripos($js, 'openai') === false && stripos($js, 'googleapis') === false && stripos($js, $other) === false, 'the chat script stays on this site, retries a temporary failure, and does not call an outside model');

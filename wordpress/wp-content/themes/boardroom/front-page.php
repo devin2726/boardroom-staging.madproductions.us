@@ -8,7 +8,7 @@
 <section class="block alt" id="amenities"><div class="wrap"><h2>Amenities</h2><div class="amen">
   <div class="card"><?php echo br_picture($p[2], 'The Boardroom game room with pinball, pool, and shuffleboard'); ?><h3>80-inch TV, Pinball, Pool, Shuffleboard</h3></div>
   <div class="card"><?php echo br_picture($p[1], 'The Boardroom BYOB bar and ice machine'); ?><h3>BYOB Bar and Ice Machine</h3></div>
-  <div class="card"><?php echo br_picture($p[0], 'The Boardroom event space with room for up to 75 guests'); ?><h3>Up to 75 guests, On-site parking</h3></div>
+  <div class="card"><?php echo br_picture($p[0], 'The Boardroom event space with room for 75 to 80 guests'); ?><h3>75 to 80 guests, On-site parking</h3></div>
 </div>
 <?php echo br_amenities_html(); ?>
 </div></section>

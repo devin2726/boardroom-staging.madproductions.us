@@ -45,9 +45,9 @@ function brb_chat_topic_spec($topic) {
         'nonprofit' => ['facts' => ['nonprofit or military discounts'], 'lead' => true, 'money' => 'none'],
         'deposit' => ['facts' => ['50% of the agreed total'], 'money' => 'none', 'forbid' => ['not a binding commitment']],
         'deposit_when' => ['facts' => ['50% of the agreed total', '1 day', 'signing'], 'money' => 'none'],
-        'balance' => ['facts' => ['week of the event', '48 hours'], 'money' => 'none'],
+        'balance' => ['facts' => ['one week before'], 'money' => 'none'],
         'pay_methods' => ['facts' => ['check', 'in person', 'card'], 'money' => 'none'],
-        'cash_check' => ['facts' => ['2212 37th Street, Moline, IL 61265', 'Mad Productions', 'check address'], 'money' => 'none', 'checks' => true],
+        'cash_check' => ['facts' => ['2220 37th Street, Moline, IL 61265', 'Mad Productions', 'The Boardroom'], 'money' => 'none', 'checks' => true],
         'card_fee' => ['facts' => ['3%', 'card'], 'any' => [['non-refundable', "isn't refundable"]], 'money' => 'none'],
         'cleaning' => ['facts' => ['damage deposit', '$250', 'cleaning'], 'money' => 'damage'],
         'security' => ['facts' => ['damage deposit', '$250'], 'money' => 'damage'],
@@ -62,7 +62,7 @@ function brb_chat_topic_spec($topic) {
         'end_time' => ['facts' => ['11:30 PM'], 'money' => 'none', 'forbid' => ['midnight', 'permit']],
         'overnight' => ['facts' => ['No overnight stays'], 'money' => 'none', 'forbid' => ['check-in', 'check-out', 'per night']],
         'decorate_night' => ['facts' => ['8:00 AM', 'Christmas decorations are up in December'], 'money' => 'addon'],
-        'capacity' => ['facts' => ['75'], 'money' => 'none'],
+        'capacity' => ['facts' => ['75 to 80 guests', 'Graduation parties'], 'money' => 'none'],
         'events_bday' => ['facts' => ['kids birthdays', 'free to attend', 'minimum host age is 25'], 'money' => 'none'],
         'events_wedding' => ['facts' => ['Weddings', 'free to attend', 'minimum host age is 25'], 'money' => 'none'],
         'events_shower' => ['facts' => ['showers', 'free to attend', 'minimum host age is 25'], 'money' => 'none'],
@@ -78,7 +78,7 @@ function brb_chat_topic_spec($topic) {
         'food' => ['facts_i' => ['own food', 'warmers', 'stovetop', 'any caterer', 'does not provide catering'], 'money' => 'none'],
         'kitchen' => ['facts' => ['stovetop'], 'any' => [["can't be used", 'not permitted', 'may not be used', 'No cooking']], 'money' => 'none'],
         'fridge' => ['facts' => ['refrigerator', 'ice machine'], 'money' => 'none'],
-        'alcohol' => ['facts' => ['BYOB', 'City of Moline', 'Want more details?'], 'money' => 'none', 'phone' => 'never', 'forbid' => ['$50']],
+        'alcohol' => ['facts' => ['BYOB', 'City of Moline', 'one-day liquor license ($50)', 'Want more details?'], 'money' => 'none', 'phone' => 'never'],
         'serve_alcohol' => ['facts' => ["don't supply", 'BYOB', 'Want more details?'], 'money' => 'none', 'phone' => 'never', 'forbid' => ['$50', 'Yes. BYOB']],
         'bar' => ['facts' => ['bar area', 'ice machine', 'BYOB', 'Want more details?'], 'money' => 'none', 'phone' => 'never', 'forbid' => ['$50']],
         'plates' => ['facts' => ['bring your own plates'], 'money' => 'none'],
@@ -96,12 +96,12 @@ function brb_chat_topic_spec($topic) {
         'games' => ['facts' => ['pinball', 'pool table', 'shuffleboard'], 'money' => 'none'],
         'hvac' => ['facts_i' => ['heat', 'air conditioning'], 'money' => 'none'],
         'restroom' => ['facts' => ['two restrooms'], 'money' => 'none'],
-        'access' => ['facts' => ['The space is accessible'], 'money' => 'none'],
+        'access' => ['facts' => ['handicapped accessible'], 'money' => 'none'],
         'entrance' => ['facts' => ['private main entrance', 'back entrance', 'surprise guest'], 'money' => 'none'],
         'place' => ['facts' => ['2220 37th Street, Moline, IL 61265'], 'money' => 'none', 'forbid' => ['2212']],
         'parking' => ['facts' => ['Free parking on premises'], 'money' => 'none'],
         'truck' => ['facts' => ['place for a food truck'], 'money' => 'none'],
-        'rules' => ['facts' => ['No overnight stays', 'no cooking', '11:30 PM', 'no tickets', '75', 'Want more details?'], 'money' => 'none', 'phone' => 'never', 'forbid' => ['$50', 'midnight', '90 or more days']],
+        'rules' => ['facts' => ['No overnight stays', 'no cooking', '11:30 PM', 'no tickets', '80', 'Want more details?'], 'money' => 'none', 'phone' => 'never', 'forbid' => ['$50', 'midnight', '90 or more days']],
         'cleanup' => ['facts' => ['leave it like you got it', 'garbage'], 'money' => 'none'],
         'smoke' => ['facts' => ['outside only', 'Vaping'], 'money' => 'none'],
         'pets' => ['facts' => ['Service animals only', 'No pets'], 'money' => 'none'],
@@ -228,6 +228,7 @@ function brb_chat_score_audit($spec, $question, $reply, &$bad) {
     $allowed = brb_chat_allowed_money($spec, $question);
     if (preg_match_all('/\$\d{1,3}(?:,\d{3})*(?:\.\d{2})?/', $reply, $found)) {
         foreach (array_unique($found[0]) as $money) {
+            if ($money === '$50' && strpos($reply, 'one-day liquor license ($50)') !== false) continue;
             if (!isset($allowed[$money])) $bad[] = 'unapproved ' . $money;
         }
     }
@@ -235,7 +236,7 @@ function brb_chat_score_audit($spec, $question, $reply, &$bad) {
     foreach (['midnight', '90 or more days', '90 days', 'per night', 'check-in', 'check-out', 'sales tax is added', $other] as $needle) {
         if ($needle !== '' && stripos($reply, $needle) !== false) $bad[] = 'forbidden ' . $needle;
     }
-    if (preg_match('/\$50(?!\d)/', $reply)) $bad[] = 'forbidden $50';
+    if (preg_match('/\$50(?!\d)/', $reply) && strpos($reply, 'one-day liquor license ($50)') === false) $bad[] = 'forbidden $50';
     if (preg_match('/\bowner\b/i', $reply)) $bad[] = 'forbidden owner';
     if (strpos($reply, '✨') !== false) $bad[] = 'emoji';
     $allow_clerk = ($spec['phone'] === 'clerk');
