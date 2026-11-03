@@ -62,7 +62,7 @@ function brb_chat_topic_spec($topic) {
         'end_time' => ['facts' => ['11:30 PM'], 'money' => 'none', 'forbid' => ['midnight', 'permit']],
         'overnight' => ['facts' => ['No overnight stays'], 'money' => 'none', 'forbid' => ['check-in', 'check-out', 'per night']],
         'decorate_night' => ['facts' => ['8:00 AM', 'Christmas decorations are up in December'], 'money' => 'addon'],
-        'capacity' => ['facts' => ['75 to 80 guests', 'Graduation parties'], 'money' => 'none'],
+        'capacity' => ['facts' => ['80 guests', 'Graduation parties'], 'money' => 'none'],
         'events_bday' => ['facts' => ['kids birthdays', 'free to attend', 'minimum host age is 25'], 'money' => 'none'],
         'events_wedding' => ['facts' => ['Weddings', 'free to attend', 'minimum host age is 25'], 'money' => 'none'],
         'events_shower' => ['facts' => ['showers', 'free to attend', 'minimum host age is 25'], 'money' => 'none'],

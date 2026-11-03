@@ -2,11 +2,11 @@
 /**
  * Plugin Name: Boardroom Booking
  * Description: Self-hosted direct booking for The Boardroom — full-day and hourly blocks, availability calendar, agreed prices, approval before payment, blackout dates, and emails.
- * Version: 2.5.28
+ * Version: 2.5.29
  * Author: Mad Productions
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.5.28');
+define('BRB_VER', '2.5.29');
 define('BRB_VENUE_ADDRESS', '2220 37th Street, Moline, IL 61265');
 define('BRB_CHECK_ADDRESS', '2212 37th Street, Moline, IL 61265');
 define('BRB_MAPS_URL', 'https://maps.app.goo.gl/nVqUsGTcy48nPzc18');
@@ -184,6 +184,7 @@ function brb_place_schema() {
         'hasMap' => BRB_MAPS_URL,
         'url' => home_url('/'),
         'priceRange' => '$600-$2000',
+        'maximumAttendeeCapacity' => 80,
         'sameAs' => [BRB_MAPS_URL],
     ];
     if ((is_front_page() || is_home()) && function_exists('br_review_aggregate_schema')) {
@@ -462,6 +463,19 @@ function brb_how_booking_works_html() {
     $html = '<section class="brb-how"><h2>How booking works</h2><ol>';
     foreach (brb_how_booking_works_steps() as $step) $html .= '<li>' . esc_html($step) . '</li>';
     $html .= '</ol></section>';
+    return $html;
+}
+function brb_book_policy_html() {
+    $sections = [
+        ['Pricing', 'Full days start at $600, and most events come to about $1,200. We confirm your final price by email.'],
+        ['Payment', 'To hold your date, pay 50% of the rental plus a $250 refundable damage deposit. Card payments add a 3% fee. The damage deposit is refunded after the event, once the space is checked.'],
+        ['Cancellation', 'If you cancel in writing 60 or more days before the event, your 50% payment is refunded, less the 3% card fee and any costs already incurred. Cancellations made less than 60 days out are not refunded.'],
+    ];
+    $html = '<section class="brb-book-policy">';
+    foreach ($sections as $section) {
+        $html .= '<h3>' . esc_html($section[0]) . '</h3><p>' . esc_html($section[1]) . '</p>';
+    }
+    $html .= '</section>';
     return $html;
 }
 function brb_latest_start_hour() {
@@ -962,7 +976,7 @@ function brb_faq_markup() {
 <details><summary>Is there a refrigerator or ice?</summary><p>Yes. There is a refrigerator and an ice machine.</p></details>
 
 <h2>Rules</h2>
-<details><summary>How many guests can The Boardroom hold?</summary><p>75 to 80 guests. Graduation parties or open houses can go over, since guests come and go.</p></details>
+<details><summary>How many guests can The Boardroom hold?</summary><p>80 guests. Graduation parties or open houses can go over, since guests come and go.</p></details>
 <details><summary>Is there an age limit for hosts?</summary><p>The minimum host age is 25 for every booking.</p></details>
 <details><summary>Can we sell tickets or charge admission?</summary><p>No. All events must be free to attend: no tickets, no cover charge, no paid admission, no door fees, and no ticket or merchandise sales. We do not host concerts or ticketed shows.</p></details>
 <details><summary>Can we have a band?</summary><p>Yes. Guests may have a band or live music, as long as they are not charging for the event.</p></details>
@@ -1287,7 +1301,7 @@ function brb_build_range($in, $args = []) {
     }
     $guests = max(1, (int) ($in['guests'] ?? 1));
     $guest_cap = max(200, (int) $o['max_guests']);
-    if ($guests > $guest_cap) return new WP_Error('guests', '75 to 80 guests is the usual capacity. Graduation parties or open houses can go over. For a much larger guest count, please contact us.');
+    if ($guests > $guest_cap) return new WP_Error('guests', '80 guests is the usual capacity. Graduation parties or open houses can go over. For a much larger guest count, please contact us.');
     if (empty($args['override_notice']) && $s < brb_notice_cutoff()) {
         return new WP_Error('notice', sprintf(
             'Bookings must start at least %d hours from now. The earliest start is %s.',
@@ -2632,11 +2646,7 @@ function brb_view_select() {
       <div class="brb-card brb-cal-card">
         <div id="brb-cal" class="brb-cal" aria-live="polite" data-api="<?php echo esc_url(rest_url('brb/v1/availability')); ?>" data-nonce="<?php echo esc_attr(wp_create_nonce('wp_rest')); ?>" data-notice="<?php echo (int) $notice; ?>" data-mode="<?php echo esc_attr($o['mode']); ?>">Loading calendar…</div>
         <p class="brb-legend"><span class="free"></span>Available <span class="partial"></span>Partly booked <span class="booked"></span>Unavailable <span class="soon"></span>Inside <?php echo (int) $notice; ?>h notice</p>
-        <p class="brb-lead"><?php echo esc_html(brb_price_sentence()); ?></p>
-        <p class="brb-lead"><?php echo esc_html(brb_price_range_sentence()); ?></p>
-        <p class="brb-lead"><?php echo esc_html(brb_first_payment_sentence()); ?></p>
-        <p class="brb-lead"><?php echo esc_html(brb_damage_card_refund_line()); ?></p>
-        <?php echo brb_deposit_bullets_html(); ?>
+        <?php echo brb_book_policy_html(); ?>
       </div>
       <form class="brb-card" method="get" id="brb-form">
         <p class="brb-small">Please choose a start at least <?php echo (int) $notice; ?> hours from now (America/Chicago). Dates and start times inside that window are unavailable. A full day runs from 10:00 AM to 11:30 PM.</p>
@@ -2674,7 +2684,7 @@ function brb_view_select() {
         </div>
         <p class="brb-small" id="brb-notice"></p>
         <label>Guests attending<input type="number" name="guests" value="10" min="1" max="200"></label>
-        <p class="brb-small">75 to 80 guests. Graduation parties or open houses can go over, since guests come and go.</p>
+        <p class="brb-small">80 guests. Graduation parties or open houses can go over, since guests come and go.</p>
         <button class="brb-btn" type="submit">Continue</button>
       </form>
     </div>
@@ -2711,19 +2721,11 @@ function brb_view_quote() {
         <p><strong><?php echo esc_html($when); ?></strong><br><?php echo (int) $r['guests']; ?> guests attending</p>
         <?php if (!empty($q['price_set'])): ?>
         <p><strong>Your price: <?php echo esc_html(brb_whole_money($q['total'])); ?></strong></p>
-        <p><?php
-            $parts = brb_first_payment_parts($q['total']);
-            echo esc_html('Your first payment is 50% of the rental plus the ' . brb_whole_money($parts['damage']) . ' refundable damage deposit. On this rental that is ' . brb_whole_money($parts['deposit']) . ' + ' . brb_whole_money($parts['damage']) . ' = ' . brb_whole_money($parts['base']) . ', and a card adds a 3% fee of ' . brb_money($parts['fee']) . ', for ' . brb_money($parts['card']) . '.');
-        ?></p>
         <?php else: ?>
-        <p><?php echo esc_html(brb_price_sentence()); ?></p>
-        <p><?php echo esc_html(brb_price_range_sentence()); ?></p>
-        <p><?php echo esc_html(brb_first_payment_sentence()); ?></p>
         <p><strong>price to be confirmed</strong></p>
         <?php endif; ?>
         <p><?php echo esc_html(brb_no_overnight_line()); ?></p>
-        <p><?php echo esc_html(brb_damage_card_refund_line()); ?></p>
-        <?php echo brb_deposit_bullets_html(); ?>
+        <?php echo brb_book_policy_html(); ?>
         <a href="<?php echo esc_url(strtok($_SERVER['REQUEST_URI'] ?? home_url('/book/'), '?')); ?>">← Change date</a>
       </div>
       <form class="brb-card" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
