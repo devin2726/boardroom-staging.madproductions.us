@@ -2,11 +2,11 @@
 /**
  * Plugin Name: Boardroom Booking
  * Description: Self-hosted direct booking for The Boardroom — full-day and hourly blocks, availability calendar, agreed prices, approval before payment, blackout dates, and emails.
- * Version: 2.5.26
+ * Version: 2.5.27
  * Author: Mad Productions
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.5.26');
+define('BRB_VER', '2.5.27');
 define('BRB_VENUE_ADDRESS', '2220 37th Street, Moline, IL 61265');
 define('BRB_CHECK_ADDRESS', '2212 37th Street, Moline, IL 61265');
 define('BRB_MAPS_URL', 'https://maps.app.goo.gl/nVqUsGTcy48nPzc18');
@@ -136,7 +136,7 @@ function brb_venue_address() {
 }
 function brb_check_address() {
     $v = trim((string) brb_opt('pay_location'));
-    return $v !== '' ? $v : BRB_CHECK_ADDRESS;
+    return $v !== '' ? $v : BRB_VENUE_ADDRESS;
 }
 function brb_guest_payee() {
     $payee = trim((string) brb_opt('payee'));
@@ -900,6 +900,11 @@ function brb_migrate_settings() {
     $policy = (string) ($merged['policy'] ?? '');
     if (strpos($policy, $old_balance) !== false) $policy = str_replace($old_balance, $one_week, $policy);
     if (strpos($policy, $week_balance) !== false) $policy = str_replace($week_balance, $one_week, $policy);
+    $policy = str_replace(
+        'Mail or drop off checks payable to Mad Productions at 2212 37th Street, Moline, IL 61265.',
+        'Mail or drop off checks payable to Mad Productions at The Boardroom, 2220 37th Street, Moline, IL 61265.',
+        $policy
+    );
     $merged['policy'] = $policy;
     if (!isset($stored['policy']) || brb_policy_needs_refresh($stored['policy'])) {
         $merged['policy'] = brb_cancellation_summary();
@@ -1073,9 +1078,9 @@ function brb_refresh_faq() {
         return;
     }
     $old_pay = 'Bring a check in person within those 48 hours.';
-    $new_pay = 'Mail or drop off checks payable to Mad Productions at ' . BRB_CHECK_ADDRESS . '.';
+    $new_pay = 'Mail or drop off checks payable to Mad Productions at The Boardroom, ' . BRB_VENUE_ADDRESS . '.';
     $next = str_replace('online processing fee', 'card processing fee', str_replace($old_pay, $new_pay, $c));
-    $book = '<details><summary>How do I book and pay?</summary><p>Request a date on the <a href="/book/">Book</a> page. Bookings are subject to approval, and the owner may decline any request. No payment is due until the request is approved. A request does not hold the date. Your date is reserved once your deposit is received. The deposit (50% of the agreed total) holds the date. It is refundable if the Owner receives written cancellation 60 or more days before the event, less any non-refundable processing charges (including the 3% card processing fee) and costs already incurred. It is not refundable if cancellation is received less than 60 days before the event. Pay by check or in person, or online by card with a 3% processing fee. Mail or drop off checks payable to Mad Productions at ' . BRB_CHECK_ADDRESS . '. Bookings need at least 48 hours\' notice. Until we confirm your price, your confirmation says price to be confirmed. The card processing fee is non-refundable.</p></details>';
+    $book = '<details><summary>How do I book and pay?</summary><p>Request a date on the <a href="/book/">Book</a> page. Bookings are subject to approval, and the owner may decline any request. No payment is due until the request is approved. A request does not hold the date. Your date is reserved once your deposit is received. The deposit (50% of the agreed total) holds the date. It is refundable if the Owner receives written cancellation 60 or more days before the event, less any non-refundable processing charges (including the 3% card processing fee) and costs already incurred. It is not refundable if cancellation is received less than 60 days before the event. Pay by check or in person, or online by card with a 3% processing fee. Mail or drop off checks payable to Mad Productions at The Boardroom, ' . BRB_VENUE_ADDRESS . '. Bookings need at least 48 hours\' notice. Until we confirm your price, your confirmation says price to be confirmed. The card processing fee is non-refundable.</p></details>';
     if (strpos($next, 'holds the date for 48 hours') !== false || strpos($next, 'held for 48 hours') !== false || strpos($next, 'Saving a date on this website holds it') !== false || strpos($next, 'non-refundable [VERIFY with attorney]') !== false || strpos($next, 'is non-refundable and holds the date') !== false) {
         $replaced = preg_replace('/<details><summary>How do I book and pay\?<\/summary>.*?<\/details>/is', $book, $next, 1);
         if (is_string($replaced)) $next = $replaced;
@@ -1104,7 +1109,7 @@ function brb_refresh_faq() {
     $hours_meet = $hours_plain . ' We don\'t keep set hours for meetings or check drop-off. We meet on demand and set a time together, by appointment.';
     if (strpos($next, $hours_meet) === false) $next = str_replace($hours_plain, $hours_meet, $next);
     $next = str_replace('Our team will reach out to schedule it.', 'We don\'t keep set hours. We meet on demand and set a time together, by appointment.', $next);
-    $next = str_replace('Mail or drop off checks payable to Mad Productions at 2212 37th Street, Moline, IL 61265. The deposit (50% of the agreed total) holds the date.', 'Mail or drop off checks payable to Mad Productions at 2212 37th Street, Moline, IL 61265. We don\'t keep set hours. We meet on demand and set a time together, by appointment. The deposit (50% of the agreed total) holds the date.', $next);
+    $next = str_replace('Mail or drop off checks payable to Mad Productions at 2212 37th Street, Moline, IL 61265. The deposit (50% of the agreed total) holds the date.', 'Mail or drop off checks payable to Mad Productions at The Boardroom, ' . BRB_VENUE_ADDRESS . '. We don\'t keep set hours. We meet on demand and set a time together, by appointment. The deposit (50% of the agreed total) holds the date.', $next);
     $house = [
         'When does everyone have to be out?' => 'Everyone must be out of The Boardroom by 11:30 PM. This is firm, with no exceptions. Please finish in time to wrap up.',
         'What are the hours?' => 'A full day runs from 10:00 AM to 11:30 PM. Half days are generally available in June: 10:00 AM to 4:00 PM, or 5:00 PM to 11:30 PM. We don\'t keep set hours for meetings or check drop-off. We meet on demand and set a time together, by appointment.',
@@ -1138,7 +1143,7 @@ function brb_refresh_faq() {
     clean_post_cache((int) $page->ID);
 }
 function brb_scrub_copy_string($c) {
-    $card = 'Pay by check or in person, or online by card with a 3% processing fee. Mail or drop off checks payable to Mad Productions at ' . BRB_CHECK_ADDRESS . '. We never see or store card numbers. The deposit (50% of the agreed total) holds the date. It is refundable if the Owner receives written cancellation 60 or more days before the event, less any non-refundable processing charges (including the 3% card processing fee) and costs already incurred. It is not refundable if cancellation is received less than 60 days before the event. The card processing fee is non-refundable.';
+    $card = 'Pay by check or in person, or online by card with a 3% processing fee. Mail or drop off checks payable to Mad Productions at The Boardroom, ' . BRB_VENUE_ADDRESS . '. We never see or store card numbers. The deposit (50% of the agreed total) holds the date. It is refundable if the Owner receives written cancellation 60 or more days before the event, less any non-refundable processing charges (including the 3% card processing fee) and costs already incurred. It is not refundable if cancellation is received less than 60 days before the event. The card processing fee is non-refundable.';
     $c = preg_replace('/Payments are processed by \w+;?\s*we do not store card numbers\./i', $card, $c);
     $c = preg_replace('/This site does not process payments online and does not collect card data\./i', 'Stripe processes card payments. We never see or store card numbers.', $c);
     $c = preg_replace('/pay securely online/i', 'pay by check or in person, or online by card', $c);

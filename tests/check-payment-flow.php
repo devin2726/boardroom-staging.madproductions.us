@@ -45,7 +45,7 @@ add_filter('pre_wp_mail', function ($short, $atts) {
 $GLOBALS['brb_mails'] = [];
 
 try {
-    brb_t(get_option('brb_version') === '2.5.26', 'plugin storage version is 2.5.26');
+    brb_t(get_option('brb_version') === '2.5.27', 'plugin storage version is 2.5.27');
     $example = brb_first_payment_parts(1200);
     brb_t($example['deposit'] === 600.0 && $example['damage'] === 250.0 && $example['base'] === 850.0 && abs($example['card'] - 875.50) < 0.001, 'a $1,200 rental first card payment is 600 + 250 plus 3 percent');
     brb_t(brb_latest_start_hour() === 21, 'the latest shorter-block start is 9:00 PM');
@@ -134,6 +134,12 @@ try {
     brb_migrate_settings();
     brb_t((string) brb_opt('pay_location') === 'Side door', 'a custom drop-off location is kept');
     $kept['pay_location'] = '2220 37th Street, Moline, IL 61265';
+    $kept['policy'] = 'Mail or drop off checks payable to Mad Productions at 2212 37th Street, Moline, IL 61265. Keep the rest.';
+    update_option('brb_settings', $kept);
+    brb_migrate_settings();
+    brb_t(strpos((string) brb_opt('policy'), 'Mail or drop off checks payable to Mad Productions at The Boardroom, 2220 37th Street, Moline, IL 61265.') !== false && strpos((string) brb_opt('policy'), '2212') === false && strpos((string) brb_opt('policy'), 'Keep the rest.') !== false, 'a saved summary check address moves to The Boardroom');
+    $kept = brb_opt();
+    $kept['policy'] = 'Keep this policy text.';
     update_option('brb_settings', $kept);
 
     $dates = [];
@@ -819,7 +825,7 @@ try {
     brb_t(strpos($terms_html, 'No cooking or stove-top use') !== false && strpos($terms_html, 'Food warmers and the bar area are yours to use') !== false, 'terms say no cooking and allow food warmers');
     brb_t(strpos($terms_html, 'https://moline.il.us/244/Liquor-Licensing') !== false && strpos($terms_html, '309-524-2004') !== false && strpos($terms_html, 'fee $50') === false && strpos($terms_html, 'one-day liquor license ($50)') === false && strpos($agreement_html, 'https://moline.il.us/244/Liquor-Licensing') !== false && strpos($agreement_html, 'fee $50') === false && strpos($agreement_html, 'one-day liquor license ($50)') === false, 'terms and the rental agreement point guests to the City of Moline without a liquor fee');
     brb_t(strpos($terms_html, 'The price shows right on the calendar.') !== false && strpos($terms_html, 'no later than one week before your event') !== false && strpos($terms_html, '2212') === false && strpos($terms_html, 'Venmo') === false && strpos($terms_html, 'refunded through Stripe, less the card processing fee') !== false, 'the terms page uses one week, the venue for checks, and a Stripe refund');
-    brb_t(strpos(brb_cancellation_summary(), 'no later than one week before the event') !== false && strpos(brb_cancellation_summary(), '48 hours before the event') === false && strpos(brb_agreement_html(), 'no later than one week before the event') !== false && strpos(brb_agreement_html(), '48 hours before the event') === false && strpos(brb_agreement_html(), '75 to 80 guests') !== false, 'the summary and the rental agreement use one week and 75 to 80 guests');
+    brb_t(strpos(brb_cancellation_summary(), 'no later than one week before the event') !== false && strpos(brb_cancellation_summary(), '48 hours before the event') === false && strpos(brb_cancellation_summary(), 'Mad Productions at The Boardroom, 2220 37th Street, Moline, IL 61265') !== false && strpos(brb_cancellation_summary(), '2212') === false && strpos(brb_agreement_html(), 'no later than one week before the event') !== false && strpos(brb_agreement_html(), '48 hours before the event') === false && strpos(brb_agreement_html(), '75 to 80 guests') !== false, 'the summary and the rental agreement use one week, 75 to 80 guests, and checks at The Boardroom');
     brb_t(strpos($terms_html, '[VERIFY current fee and issuing office]') === false, 'liquor license fee is no longer marked for verification');
     brb_t(strpos($terms_html, '2220 37th Street, Moline, IL 61265') !== false && strpos($terms_html, 'MAD Productions, LLC') !== false, 'terms name the venue at 2220 37th Street');
     brb_t(strpos($terms_html, 'Make checks payable to Mad Productions at The Boardroom, 2220 37th Street, Moline, IL 61265.') !== false, 'terms tell guests where to bring checks');

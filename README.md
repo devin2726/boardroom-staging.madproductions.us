@@ -2,7 +2,7 @@
 
 WordPress site for The Boardroom event space, deployed with Docker Compose (WordPress + MariaDB). The custom theme is `boardroom` (black and gold, EB Garamond). The custom plugin is `boardroom-booking`.
 
-Guests **save a date on the website and mail or drop off a check**. The site does not take payment itself. The venue is 2220 37th Street, Moline, IL 61265. Checks go to 2212 37th Street, Moline, IL 61265.
+Guests **save a date on the website and mail or drop off a check**. The site does not take payment itself. The venue is 2220 37th Street, Moline, IL 61265. Checks go to Mad Productions at The Boardroom, 2220 37th Street, Moline, IL 61265.
 
 Contact is one form on `/contact/`: name, email, message, an optional “What’s this about?” choice, and an optional preferred date or time. It does not hold a date. Bookings → Inquiries lists those messages. The notification subject is “New contact inquiry”. The Contact page also shows the venue address, `boardroomqc@gmail.com`, a Google Map that loads on its own, and the directions link. The privacy page says this site sets no advertising, analytics, or tracking cookies of its own, and that the embedded map may set cookies from Google. There is no cookie banner.
 
@@ -41,7 +41,7 @@ Bookings → Settings. Anything still marked `[VERIFY]` is shown to guests until
 | Check payable to | `[VERIFY] Name on the check` | Name on the check |
 | Venue address | 2220 37th Street, Moline, IL 61265 | The event space. Footer, Contact, Terms, and Privacy. A blank value, a placeholder, or the check address saved here by mistake is replaced on upgrade. |
 | Map | https://maps.app.goo.gl/nVqUsGTcy48nPzc18 | Contact embeds a Google Map for the Boardroom (41.4913116, -90.4820481) with `loading="lazy"`. The same short link is the “Get directions / View on Google Maps” fallback on Contact and in the footer. Schema geo uses those coordinates. |
-| Where to mail or drop off checks | 2212 37th Street, Moline, IL 61265 | Checks only. A saved placeholder, or the old 2212 47 Ave line, is replaced on upgrade. |
+| Where to mail or drop off checks | The Boardroom, 2220 37th Street, Moline, IL 61265 | Checks only. A saved placeholder, or an old check-address line, is replaced on upgrade. |
 | Meetings and check drop-off | By appointment | There is no hours setting. Guests are told we meet on demand and set a time together. |
 | Payment instructions | blank | Optional extra text on the review step, confirmation page, and hold email. The old “[VERIFY] Extra instructions for bringing the check.” placeholder is cleared on upgrade and the line stays hidden while this is blank. |
 | Starting price | $600 per day | Shown to guests as “from” this amount. Whole dollars display without cents. |
