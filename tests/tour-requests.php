@@ -33,7 +33,7 @@ $created = [];
 $snapshot = get_option('brb_settings');
 
 try {
-    brb_t(get_option('brb_version') === '2.5.27', 'plugin storage version is 2.5.27');
+    brb_t(get_option('brb_version') === '2.5.28', 'plugin storage version is 2.5.28');
     brb_t($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', brb_tour_table())) === brb_tour_table(), 'inquiry table still exists');
     $cols = $wpdb->get_col('SHOW COLUMNS FROM ' . brb_tour_table(), 0);
     brb_t(in_array('phone', $cols, true) && in_array('topic', $cols, true) && in_array('preferred', $cols, true), 'topic and preferred were added and phone was kept');
@@ -174,7 +174,7 @@ try {
     $header = file_get_contents(get_stylesheet_directory() . '/header.php');
     brb_t(is_string($header) && strpos($header, 'Book Now') !== false && stripos($header, 'tour') === false && stripos($header, 'tel:') === false, 'the header keeps Book Now and has no tour or phone link');
     $home = file_get_contents(get_stylesheet_directory() . '/front-page.php');
-    brb_t(is_string($home) && strpos($home, 'br_contact_form') === false && strpos($home, 'name="phone"') === false && strpos($home, "home_url('/contact/')") !== false, 'the homepage links to contact instead of a second form');
+    brb_t(is_string($home) && strpos($home, 'br_contact_form') === false && strpos($home, 'name="phone"') === false && strpos($home, 'br_tour_video_html') !== false && strpos(br_tour_video_html(), home_url('/contact/')) !== false, 'the homepage links to contact from the tour instead of a second form');
     $amenities = br_amenities_html();
     foreach (['Air conditioning', 'Heating', 'Private main entrance', 'Free parking on premises', 'Space for 40 to 50 cars', 'Free street parking', 'Wifi', 'TV', 'Sound system (Sonos, Aux, Bluetooth)', 'Pool table', 'Board games', 'Dining table', 'Refrigerator (large)', 'Freezer', 'Mini fridge', 'Microwave', 'Dishwasher', 'Coffee maker (drip and pour-over)', 'Hot water kettle', 'Blender', 'Wine glasses', 'Smoke alarm', 'Carbon monoxide alarm', 'Fire extinguisher', 'First aid kit'] as $item) {
         brb_t(strpos($amenities, $item) !== false, 'amenities include ' . $item);
@@ -265,7 +265,7 @@ try {
     $footer_map = function_exists('br_footer_map') ? br_footer_map() : '';
     brb_t(is_string($footer) && strpos($footer, 'br_footer_map') !== false && strpos($footer_map, 'https://www.google.com/maps?q=2220+37th+Street,+Moline,+IL+61265') !== false && strpos($footer_map, 'output=embed') !== false && strpos($footer_map, 'loading="lazy"') !== false && strpos($footer_map, 'referrerpolicy="no-referrer-when-downgrade"') !== false && strpos($footer, 'Get directions') !== false && strpos($footer, '2220 37th Street, Moline, IL 61265') !== false, 'the footer map uses the venue embed');
     brb_t(is_string($contact_tpl) && strpos($contact_tpl, "brb_chat_markup('inline')") !== false && strpos($contact_tpl, 'brb_tour_form') !== false && strpos($contact_tpl, 'brb_map_embed') === false && strpos($contact_tpl, "brb_chat_markup('inline')") < strpos($contact_tpl, 'brb_tour_form'), 'the contact page is the inline assistant, then the form');
-    brb_t(is_string($home) && strpos($home, 'brb_chat_markup') !== false && strpos($home, 'Contact the Boardroom') !== false, 'the home contact section includes the inline assistant');
+    brb_t(is_string($home) && strpos($home, 'br_tour_video_html') !== false && strpos($home, "brb_chat_markup('inline')") !== false && strpos($home, 'br_tour_video_html') < strpos($home, "brb_chat_markup('inline')") && strpos($home, 'Contact the Boardroom') === false && strpos($home, 'id="contact"') === false, 'the home page puts Walter under the tour and does not repeat a contact section');
     $css = file_get_contents(get_stylesheet_directory() . '/style.css');
     $site_js = file_get_contents(get_stylesheet_directory() . '/assets/site.js');
     brb_t(is_string($css) && strpos($css, 'z-index:400') !== false && strpos($css, 'body.admin-bar .site-header{top:32px}') !== false && strpos($css, '.nav.open{display:block}') !== false && strpos($css, 't-scroll') !== false && strpos($css, 'translateX(-50%)') !== false, 'the header stays above the page and the review track scrolls in CSS');

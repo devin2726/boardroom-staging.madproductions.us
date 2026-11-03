@@ -4,8 +4,8 @@ add_action('after_setup_theme', function () {
     register_nav_menus(['primary' => 'Primary', 'footer' => 'Footer']);
 });
 add_action('wp_enqueue_scripts', function () {
-    wp_enqueue_style('boardroom', get_stylesheet_uri(), [], '1.2.24');
-    wp_enqueue_script('boardroom', get_template_directory_uri() . '/assets/site.js', [], '1.2.23', true);
+    wp_enqueue_style('boardroom', get_stylesheet_uri(), [], '1.2.28');
+    wp_enqueue_script('boardroom', get_template_directory_uri() . '/assets/site.js', [], '1.2.28', true);
 });
 function br_img($f) { return get_template_directory_uri() . '/assets/img/' . $f; }
 function br_logo($place) {
@@ -174,18 +174,31 @@ function br_review_rotator_html() {
 function br_tour_video_html() {
     $base = get_template_directory_uri() . '/assets/video/';
     $src = $base . 'boardroom-tour-720.mp4';
-    $poster = $base . 'boardroom-tour-poster.jpg';
+    $poster = $base . 'boardroom-tour-poster.jpg?v=127';
     $html = '<section class="block alt" id="take-a-tour"><div class="wrap">';
     $html .= '<h2>Take a tour</h2>';
     $html .= '<p class="tour-intro">Take a look around The Boardroom</p>';
-    $html .= '<div class="tour-frame">';
+    $html .= '<div class="tour-stage"><div class="tour-frame">';
     $html .= '<video id="boardroom-tour" controls preload="none" playsinline poster="' . esc_url($poster) . '">';
     $html .= '<source src="' . esc_url($src) . '" type="video/mp4">';
     $html .= '</video>';
     $html .= '<button type="button" class="tour-play" aria-controls="boardroom-tour">Play</button>';
     $html .= '</div>';
+    $html .= '<p class="tour-headline">A unique event destination in the Quad Cities</p></div>';
+    $html .= br_walter_tour_callout();
     $html .= '<p class="tour-links"><a class="btn" href="' . esc_url(home_url('/book/')) . '">Book Now</a> <a class="btn ghost-dark" href="' . esc_url(home_url('/contact/')) . '">Request a tour</a></p>';
     $html .= '</div></section>';
+    return $html;
+}
+function br_walter_tour_callout() {
+    if (!defined('BRB_URL')) return '';
+    $base = BRB_URL . 'assets/img/walter/poses/walter-presenting-360';
+    $html = '<aside class="walter-tour">';
+    $html .= '<div class="walter-tour-card"><picture><source srcset="' . esc_url($base . '.webp') . '" type="image/webp">';
+    $html .= '<img src="' . esc_url($base . '.png') . '" alt="Walter, the Boardroom butler" width="180" height="314" decoding="async"></picture></div>';
+    $html .= '<div class="walter-tour-copy"><p class="walter-tour-bubble">Take a look around!</p>';
+    $html .= '<button type="button" class="walter-tour-ask" data-brb-open-chat>Questions? Ask Walter</button></div>';
+    $html .= '</aside>';
     return $html;
 }
 add_action('wp_head', function () { echo '<link rel="icon" href="' . esc_url(br_img('boardroom-siteicon-512.png')) . '">'; });
@@ -212,6 +225,7 @@ add_shortcode('boardroom_contact', 'br_contact_form');
 add_filter('body_class', function ($classes) {
     if (is_page(['privacy', 'terms', 'rental-agreement', 'privacy-policy', 'terms-and-conditions'])) $classes[] = 'legal-page';
     if (is_page('contact')) $classes[] = 'contact-page';
+    if (is_page('book') && !empty($_GET['date'])) $classes[] = 'book-dated';
     return $classes;
 });
 function br_menu_title($item) {

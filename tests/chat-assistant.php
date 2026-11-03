@@ -36,7 +36,7 @@ function brb_chat_reply($text, $history = []) {
 }
 
 try {
-    brb_t(get_option('brb_version') === '2.5.27', 'plugin storage version is 2.5.27');
+    brb_t(get_option('brb_version') === '2.5.28', 'plugin storage version is 2.5.28');
     $cols = $wpdb->get_col('SHOW COLUMNS FROM ' . brb_tour_table(), 0);
     brb_t(in_array('source', $cols, true), 'inquiries can store a source');
     brb_t((string) brb_opt('quote_prices') === '1', 'price estimates are on by default');
@@ -69,7 +69,20 @@ try {
     $out = brb_chat_reply('How late can we stay?');
     brb_t(strpos($out, '11:30 PM') !== false && stripos($out, 'midnight') === false && stripos($out, 'permit') === false, 'end time questions say 11:30 PM');
     $hours = brb_chat_reply('What are your hours?');
-    brb_t(strpos($hours, '10:00 AM') !== false && strpos($hours, '11:30 PM') !== false && strpos($hours, 'Half days') !== false && strpos($hours, 'June') !== false, 'hours include the full day and June half days');
+    brb_t(strpos($hours, '10:00 AM') !== false && strpos($hours, '11:30 PM') !== false && strpos($hours, 'Half days') !== false && strpos($hours, 'June') !== false && strpos($hours, 'office hours') !== false && strpos($hours, 'appointment') !== false, 'hours include the full day and June half days, and do not sound like office hours');
+    $open = brb_chat_reply('Is a date open?');
+    brb_t(strpos($open, 'I\'m not sure') === false && strpos($open, 'Tell me a date') !== false && strpos($open, '/book/#brb-cal') !== false && strpos($open, 'each date\'s price') !== false, 'an open-date question points at the calendar');
+    $chips = brb_chat_answer('How much does it cost?');
+    $check = null;
+    foreach ((array) ($chips['suggestions'] ?? []) as $chip) {
+        if (($chip['label'] ?? '') === 'Check dates') $check = $chip;
+    }
+    brb_t(is_array($check) && strpos((string) ($check['href'] ?? ''), '/book/#brb-cal') !== false && empty($check['question']), 'Check dates opens the booking calendar');
+    $book_chip = null;
+    foreach (brb_chat_chips('unknown') as $chip) {
+        if (($chip['label'] ?? '') === 'Book') $book_chip = $chip;
+    }
+    brb_t(is_array($book_chip) && strpos((string) ($book_chip['href'] ?? ''), '/book/') !== false && strpos((string) ($book_chip['href'] ?? ''), '#brb-cal') === false, 'Book opens the booking page');
     $wedding = brb_chat_reply('Can we have a wedding?');
     brb_t(strpos($wedding, 'Weddings') !== false && strpos($wedding, 'free to attend') !== false && strpos($wedding, 'minimum host age is 25') !== false && strpos($wedding, 'Our team will confirm') === false, 'event types are welcome and the host age is 25 for every booking');
     $unknown = 'I\'m not sure about that one';

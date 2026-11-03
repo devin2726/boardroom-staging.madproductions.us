@@ -2,11 +2,11 @@
 /**
  * Plugin Name: Boardroom Booking
  * Description: Self-hosted direct booking for The Boardroom — full-day and hourly blocks, availability calendar, agreed prices, approval before payment, blackout dates, and emails.
- * Version: 2.5.27
+ * Version: 2.5.28
  * Author: Mad Productions
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.5.27');
+define('BRB_VER', '2.5.28');
 define('BRB_VENUE_ADDRESS', '2220 37th Street, Moline, IL 61265');
 define('BRB_CHECK_ADDRESS', '2212 37th Street, Moline, IL 61265');
 define('BRB_MAPS_URL', 'https://maps.app.goo.gl/nVqUsGTcy48nPzc18');
@@ -2705,7 +2705,7 @@ function brb_view_quote() {
         ? $r['s']->format('D M j, Y') . ($r['units'] > 1 ? ' – ' . $r['e']->modify('-1 day')->format('D M j, Y') : '') . ' (full day)'
         : $r['s']->format('D M j, Y g:i A') . ' – ' . $r['e']->format('g:i A');
     ?>
-    <div class="brb-grid">
+    <div class="brb-grid" id="brb-your-date">
       <div class="brb-card">
         <h3>Your date</h3>
         <p><strong><?php echo esc_html($when); ?></strong><br><?php echo (int) $r['guests']; ?> guests attending</p>

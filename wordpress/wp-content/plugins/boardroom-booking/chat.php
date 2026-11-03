@@ -448,7 +448,7 @@ function brb_chat_intents($text) {
         $t = preg_replace('/\bcheck(?:-|\s)?(?:in|out)\b(?!\s+to)/', ' ', $t);
     }
     $map = [
-        'availability' => ['available', 'availability', 'blackout', 'is the date', 'open on', 'free on', 'reserved'],
+        'availability' => ['available', 'availability', 'blackout', 'is the date', 'is a date', 'date open', 'dates open', 'check dates', 'check availability', 'open on', 'free on', 'reserved'],
         'amenities' => ['amenit*', 'wifi', 'wi-fi', 'parking', 'pool table', 'kitchen', 'fridge', 'sound system', 'air conditioning', 'what is included', 'what do you have', 'television', 'restroom', 'bathroom'],
         'rules' => ['rule*', 'overnight', 'cook*', 'stove', 'stovetop', 'tap', 'byob', 'liquor', 'alcohol', 'insurance', 'decorat*', 'garbage', 'trash', 'occupan*', '75', 'not set up', 'clean*', 'allowed'],
         'pricing' => ['price*', 'cost*', 'how much', 'rate', 'estimate*', 'quote*'],
@@ -471,17 +471,18 @@ function brb_chat_intents($text) {
     return $hits;
 }
 function brb_chat_chips($intent) {
+    $book = home_url('/book/');
     $catalog = [
-        ['Check dates', 'Is a date open?'],
-        ['How much', 'How much does it cost?'],
-        ['Deposit', 'How much is the deposit?'],
-        ['BYOB', 'Can we bring alcohol?'],
-        ['Hours', 'What are your hours?'],
-        ['Parking', 'Is there parking?'],
-        ['Wi-Fi', 'Is there Wi-Fi?'],
-        ['Capacity', 'How many people does it hold?'],
-        ['Cancellation', 'What is the cancellation policy?'],
-        ['Book', 'How do I book?'],
+        ['label' => 'Check dates', 'href' => $book . '#brb-cal'],
+        ['label' => 'How much', 'question' => 'How much does it cost?'],
+        ['label' => 'Deposit', 'question' => 'How much is the deposit?'],
+        ['label' => 'BYOB', 'question' => 'Can we bring alcohol?'],
+        ['label' => 'Hours', 'question' => 'What are your hours?'],
+        ['label' => 'Parking', 'question' => 'Is there parking?'],
+        ['label' => 'Wi-Fi', 'question' => 'Is there Wi-Fi?'],
+        ['label' => 'Capacity', 'question' => 'How many people does it hold?'],
+        ['label' => 'Cancellation', 'question' => 'What is the cancellation policy?'],
+        ['label' => 'Book', 'href' => $book],
     ];
     $pick = [
         'pricing' => [0, 2, 3],
@@ -504,7 +505,7 @@ function brb_chat_chips($intent) {
     $idx = $pick[$intent] ?? [0, 2, 4];
     $out = [];
     foreach ($idx as $i) {
-        $out[] = ['label' => $catalog[$i][0], 'question' => $catalog[$i][1]];
+        $out[] = $catalog[$i];
     }
     return $out;
 }
@@ -675,8 +676,9 @@ function brb_chat_day_sentence($ymd) {
 
 function brb_chat_availability_text($parsed) {
     if (!empty($parsed['too_long'])) return 'I can check up to 14 days at a time. Try a shorter range?';
-    if (empty($parsed['dates']) && !empty($parsed['invalid'])) return 'I couldn\'t find that date. Tell me a date, like next Saturday or Dec 12, and I\'ll check it.';
-    if (empty($parsed['dates'])) return 'Tell me a date, like next Saturday or Dec 12, and I\'ll check it.';
+    $ask = 'Tell me a date, like next Saturday or Dec 12, and I\'ll check it. Here\'s our calendar, with each date\'s price: ' . home_url('/book/#brb-cal');
+    if (empty($parsed['dates']) && !empty($parsed['invalid'])) return 'I couldn\'t find that date. ' . $ask;
+    if (empty($parsed['dates'])) return $ask;
     $lines = [];
     $blocked = [];
     foreach ($parsed['dates'] as $ymd) {
@@ -702,7 +704,7 @@ function brb_chat_price_for_dates($parsed) {
     }
     if (!empty($parsed['too_long'])) return 'I can estimate up to 14 days at a time. Please give me a shorter range. ' . ucfirst(brb_chat_estimate_phrase()) . '.';
     if (empty($parsed['dates'])) {
-        return 'Tell me a date and I\'ll share an estimate. Any figure is ' . brb_chat_estimate_phrase() . '.';
+        return 'Tell me a date and I\'ll share an estimate. Any figure is an estimate for that date.';
     }
     $lines = [];
     foreach ($parsed['dates'] as $ymd) {
@@ -743,7 +745,7 @@ function brb_chat_specific_text($text) {
     if (preg_match('/\bhours\b|what time are you open|half[- ]?day|10:00|10 am|open at|open and close|when do you open/', $t)) {
         $bits[] = brb_chat_detail()
             ? brb_hours_line() . ' ' . brb_guest_out_line() . ' ' . brb_appointment_line()
-            : brb_hours_line() . ' Want more details?';
+            : brb_hours_line() . ' We don\'t keep office hours. We meet by appointment.';
     }
     if (preg_match('/\b(monday|tuesday|wednesday|thursday|weekday)s?\b/', $t) && !preg_match('/\b(this|next)\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/', $t) && !preg_match('/discount|cheaper|secret/', $t)) {
         $bits[] = brb_hours_line();
@@ -1374,8 +1376,7 @@ function brb_chat_markup($mode = 'float') {
     echo '<header class="brb-chat-head">' . brb_walter_stage('head') . '<h2 id="brb-chat-title">Ask Walter</h2><span class="brb-typing" hidden aria-hidden="true"><i></i><i></i><i></i></span>';
     if (!$inline) echo '<button type="button" class="brb-chat-close" aria-label="Close chat">Close</button>';
     echo '</header>';
-    echo '<div class="brb-chat-scroll">';
-    echo '<div class="brb-chat-log" aria-live="polite"><p class="brb-chat-msg bot">' . brb_walter_html(64, 'brb-walter brb-walter-bubble') . '<span class="brb-chat-copy"><span class="brb-chat-who">Walter</span>Hi there! I\'m Walter, the Boardroom\'s butler. How can I help with your event?</span></p></div>';
+    echo '<div class="brb-chat-log brb-chat-scroll" aria-live="polite"><p class="brb-chat-msg bot"><span class="brb-chat-copy"><span class="brb-chat-who">Walter</span>Hi there! I\'m Walter, the Boardroom\'s butler. How can I help with your event?</span></p></div>';
     echo '<form class="brb-chat-ask"><label class="brb-chat-sr" for="brb-chat-input">Your question</label><input id="brb-chat-input" class="brb-chat-input" type="text" maxlength="500" autocomplete="off"><button type="submit" class="brb-chat-send">Send</button></form>';
     echo '<button type="button" class="brb-chat-lead-toggle">Leave your details</button>';
     echo '<form class="brb-chat-lead" hidden>';
@@ -1395,7 +1396,7 @@ function brb_chat_markup($mode = 'float') {
     echo '<button type="submit" class="brb-chat-send">Send to the team</button>';
     echo '</form>';
     echo '<noscript><p><a href="' . esc_url(home_url('/contact/')) . '">Contact form</a></p></noscript>';
-    echo '</div></section></div>';
+    echo '</section></div>';
     return ob_get_clean();
 }
 

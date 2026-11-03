@@ -5,6 +5,7 @@
   <button class="arrow prev" aria-label="Previous">‹</button><button class="arrow next" aria-label="Next">›</button><div class="dots"></div>
 </section>
 <?php echo br_tour_video_html(); ?>
+<?php if (function_exists('brb_chat_markup')): ?><section class="block" id="ask-walter"><div class="wrap"><?php echo brb_chat_markup('inline'); ?></div></section><?php endif; ?>
 <section class="block alt" id="amenities"><div class="wrap"><h2>Amenities</h2><div class="amen">
   <div class="card"><?php echo br_picture($p[2], 'The Boardroom game room with pinball, pool, and shuffleboard'); ?><h3>80-inch TV, Pinball, Pool, Shuffleboard</h3></div>
   <div class="card"><?php echo br_picture($p[1], 'The Boardroom BYOB bar and ice machine'); ?><h3>BYOB Bar and Ice Machine</h3></div>
@@ -17,9 +18,4 @@
 <section class="block" id="gallery"><div class="wrap"><h2>Photo Gallery</h2><div class="gallery gallery-strip">
   <?php foreach (array_slice(br_gallery(), 0, 6) as $f) printf('<a href="%s"><img src="%s" alt="%s" loading="lazy"></a>', esc_url(br_gallery_src($f)), esc_url(br_gallery_src($f, true)), esc_attr(br_gallery_alt($f))); ?>
 </div><p class="gallery-more"><a class="btn" href="<?php echo esc_url(home_url('/gallery/')); ?>">View all photos</a></p></div></section>
-<section class="block alt" id="contact"><div class="wrap"><h2>Contact the Boardroom</h2>
-  <?php if (function_exists('brb_chat_markup')) echo brb_chat_markup('inline'); ?>
-  <p>Questions about the venue or a date? Email <a href="mailto:boardroomqc@gmail.com">boardroomqc@gmail.com</a> or <a href="<?php echo esc_url(home_url('/contact/')); ?>">use the contact form</a>.</p>
-  <p>Ready to reserve? <a href="<?php echo esc_url($book); ?>">Book your date</a>.</p>
-</div></section>
 <?php get_footer();
