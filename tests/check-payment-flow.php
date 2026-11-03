@@ -45,7 +45,7 @@ add_filter('pre_wp_mail', function ($short, $atts) {
 $GLOBALS['brb_mails'] = [];
 
 try {
-    brb_t(get_option('brb_version') === '2.5.32', 'plugin storage version is 2.5.32');
+    brb_t(get_option('brb_version') === '2.5.33', 'plugin storage version is 2.5.33');
     $example = brb_first_payment_parts(1200);
     brb_t($example['deposit'] === 600.0 && $example['damage'] === 250.0 && $example['base'] === 850.0 && abs($example['card'] - 875.50) < 0.001, 'a $1,200 rental first card payment is 600 + 250 plus 3 percent');
     brb_t(brb_latest_start_hour() === 21, 'the latest shorter-block start is 9:00 PM');
@@ -842,7 +842,8 @@ try {
     $map = brb_map_embed();
     $contact_template = file_get_contents(get_stylesheet_directory() . '/page-contact.php');
     brb_t(strpos($map, '<iframe') !== false && strpos($map, 'loading="lazy"') !== false && strpos($map, 'google.com/maps/embed') !== false && strpos($map, '41.4913116') !== false && strpos($map, '-90.4820481') !== false && stripos($map, 'Load map') === false, 'the venue map embed still loads from Google with the venue coordinates');
-    brb_t(is_string($contact_template) && strpos($contact_template, 'brb_chat_markup') === false && strpos($contact_template, 'brb_tour_form') !== false && strpos($contact_template, 'brb_map_embed') === false && strpos($contact_template, 'data-brb-open-chat') !== false && strpos($contact_template, 'data-brb-open-chat') < strpos($contact_template, 'brb_tour_form') && strpos($contact_template, 'mailto:') === false && strpos($contact_template, 'tel:') === false && strpos($contact_template, '2212') === false && strpos($contact_template, 'brb_directions_markup') === false && strpos($contact_template, 'br_tour_video_html') === false, 'the contact template is the form with Ask Walter above it, without a repeated email');
+    $contact_ask = function_exists('br_contact_ask_button') ? br_contact_ask_button() : '';
+    brb_t(is_string($contact_template) && strpos($contact_template, 'brb_chat_markup') === false && strpos($contact_template, 'brb_tour_form') !== false && strpos($contact_template, 'brb_map_embed') === false && strpos($contact_template, 'br_contact_ask_button') !== false && strpos($contact_template, 'br_contact_ask_button') < strpos($contact_template, 'brb_tour_form') && strpos($contact_ask, 'data-brb-open-chat') !== false && strpos($contact_template, 'Thank You!') !== false && strpos($contact_template, 'We will call or email you shortly!') !== false && strpos($contact_template, '/rental-checklist/') !== false && strpos($contact_template, 'brb_tour_form') < strpos($contact_template, 'Thank You!') && strpos($contact_template, 'mailto:') === false && strpos($contact_template, 'tel:') === false && strpos($contact_template, '2212') === false && strpos($contact_template, 'brb_directions_markup') === false && strpos($contact_template, 'br_tour_video_html') === false, 'the contact template is the form, or a thank-you after a successful inquiry, without a repeated email');
     $footer = file_get_contents(get_stylesheet_directory() . '/footer.php');
     brb_t(is_string($footer) && strpos($footer, '2220 37th Street, Moline, IL 61265') !== false && strpos($footer, '2212 37th Street') === false, 'footer shows the venue address');
     brb_t(is_string($footer) && strpos($footer, '/rental-checklist/') !== false, 'footer links to the rental checklist');

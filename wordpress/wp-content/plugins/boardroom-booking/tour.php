@@ -23,10 +23,29 @@ function brb_tour_windows() {
 function brb_inquiry_topics() {
     return [
         '' => 'Choose one',
+        'general' => 'General inquiry',
         'question' => 'Question',
         'tour' => 'Tour the venue',
         'event' => 'Planning an event',
     ];
+}
+function brb_inquiry_date($raw) {
+    $raw = trim(sanitize_text_field((string) $raw));
+    if ($raw === '') return '';
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $raw)) return false;
+    $dt = DateTime::createFromFormat('!Y-m-d', $raw);
+    $errors = DateTime::getLastErrors();
+    if (!$dt || ($errors && (($errors['warning_count'] ?? 0) > 0 || ($errors['error_count'] ?? 0) > 0))) return false;
+    if ($dt->format('Y-m-d') !== $raw) return false;
+    return $raw;
+}
+function brb_inquiry_date_label($value) {
+    $value = trim((string) $value);
+    if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
+        $dt = DateTime::createFromFormat('!Y-m-d', $value);
+        if ($dt && $dt->format('Y-m-d') === $value) return $dt->format('F j, Y');
+    }
+    return $value;
 }
 function brb_tour_status_label($status) {
     $all = brb_tour_statuses();
@@ -123,15 +142,14 @@ function brb_tour_submit($input) {
     $name = sanitize_text_field((string) ($input['name'] ?? ''));
     $raw_email = trim((string) ($input['email'] ?? ''));
     $email = sanitize_email($raw_email);
-    $topic = sanitize_key((string) ($input['topic'] ?? ''));
-    $preferred = sanitize_text_field((string) ($input['preferred'] ?? ''));
+    $topic = 'general';
+    $preferred = brb_inquiry_date($input['preferred'] ?? '');
     $notes = sanitize_textarea_field((string) ($input['message'] ?? $input['notes'] ?? ''));
 
     if ($name === '' || strlen($name) > 190) return new WP_Error('missing', 'Please enter your name and email.');
     if ($raw_email === '') return new WP_Error('missing', 'Please enter your name and email.');
     if (!is_email($email)) return new WP_Error('email', 'Please enter a valid email.');
-    if (!array_key_exists($topic, brb_inquiry_topics())) return new WP_Error('topic', 'Please choose a topic from the list, or leave it blank.');
-    if (strlen($preferred) > 190) return new WP_Error('preferred', 'Please shorten the preferred date or time.');
+    if ($preferred === false) return new WP_Error('preferred', 'Please choose a preferred date.');
     if (trim($notes) === '') return new WP_Error('message', 'Please enter a message.');
     if (strlen($notes) > 4000) $notes = substr($notes, 0, 4000);
 
@@ -163,14 +181,14 @@ function brb_tour_submit($input) {
 
 function brb_send_tour_notice($row) {
     $about = brb_inquiry_topic_label((string) ($row->topic ?? ''));
-    if ($about === '' || $about === 'Choose one') $about = 'not given';
-    $when = trim((string) ($row->preferred ?? ''));
+    if ($about === '' || $about === 'Choose one') $about = 'General inquiry';
+    $when = brb_inquiry_date_label((string) ($row->preferred ?? ''));
     if ($when === '') $when = 'not given';
     $body = "A contact inquiry was received. No date is held.\n\n"
         . "Name: {$row->name}\n"
         . "Email: {$row->email}\n"
         . "What's this about: {$about}\n"
-        . "Preferred date or time: {$when}\n"
+        . "Preferred dates: {$when}\n"
         . "Message: {$row->notes}\n\n"
         . admin_url('admin.php?page=brb-tours&id=' . (int) $row->id) . "\n";
     $subject = 'New contact inquiry';
@@ -209,7 +227,7 @@ function brb_tour_message($code) {
         'email' => 'Please enter a valid email.',
         'message' => 'Please enter a message.',
         'topic' => 'Please choose a topic from the list, or leave it blank.',
-        'preferred' => 'Please shorten the preferred date or time.',
+        'preferred' => 'Please choose a preferred date.',
         'soon' => 'Please wait a moment and try the form again.',
         'hour' => 'Please wait a little while and try again.',
     ];
@@ -230,11 +248,6 @@ function brb_tour_form() {
     echo '<label class="hp">Company<input name="company" tabindex="-1" autocomplete="off"></label>';
     echo '<label>Name*<input name="name" required maxlength="190" autocomplete="name"></label>';
     echo '<label>Email*<input type="email" name="email" required maxlength="190" autocomplete="email"></label>';
-    echo '<label>What\'s this about?<select name="topic">';
-    foreach (brb_inquiry_topics() as $value => $label) {
-        echo '<option value="' . esc_attr($value) . '">' . esc_html($label) . '</option>';
-    }
-    echo '</select></label>';
     echo '<label>Event type<select name="event_type"><option value="">Choose one</option>';
     if (function_exists('brb_event_types')) {
         foreach (brb_event_types() as $value => $label) {
@@ -242,7 +255,7 @@ function brb_tour_form() {
         }
     }
     echo '</select></label>';
-    echo '<label>Preferred date or time<input name="preferred" maxlength="190"></label>';
+    echo '<label>Preferred Dates<input type="date" name="preferred"></label>';
     echo '<label>Guests<input type="number" name="party_size" min="1" max="200"></label>';
     echo '<label>Message*<textarea name="message" rows="5" maxlength="4000" required></textarea></label>';
     echo '<button class="btn" type="submit">Send</button>';
@@ -285,7 +298,7 @@ function brb_ensure_tour_on_contact() {
 
 function brb_inquiry_preferred_label($row) {
     $preferred = trim((string) ($row->preferred ?? ''));
-    if ($preferred !== '') return $preferred;
+    if ($preferred !== '') return brb_inquiry_date_label($preferred);
     $parts = [];
     if (!empty($row->preferred_date)) $parts[] = $row->preferred_date;
     if ((string) ($row->time_window ?? '') !== '') $parts[] = brb_tour_window_label((string) $row->time_window);
@@ -371,7 +384,7 @@ function brb_admin_tour_detail($id) {
     if ($about !== '' && $about !== 'Choose one') $lines["What's this about"] = $about;
     $source = trim((string) ($row->source ?? ''));
     if ($source !== '') $lines['Source'] = $source;
-    if (trim((string) ($row->preferred ?? '')) !== '') $lines['Preferred date or time'] = $row->preferred;
+    if (trim((string) ($row->preferred ?? '')) !== '') $lines['Preferred dates'] = brb_inquiry_date_label($row->preferred);
     if ($row->phone !== '') $lines['Phone'] = $row->phone;
     if (!empty($row->preferred_date)) $lines['Preferred date'] = $row->preferred_date;
     if ((string) $row->time_window !== '') $lines['Time of day'] = brb_tour_window_label((string) $row->time_window);
