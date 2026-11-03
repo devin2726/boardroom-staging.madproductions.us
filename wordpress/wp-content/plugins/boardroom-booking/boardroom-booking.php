@@ -548,7 +548,7 @@ function brb_checklist_default() {
         'All events are free to attend: no tickets, no cover charge, and no sales.',
         brb_byob_line(),
         'Bring your own plates, cups, and utensils. Buffet pans and serving spoons are available. The stovetop cannot be used.',
-        'Not allowed: Glitter, confetti, confetti cannons, rice, birdseed, or loose sequins.',
+        'Not allowed: Confetti, confetti cannons, rice, birdseed, or loose sequins.',
         'Not allowed: Wall tape.',
         'Not allowed: Fireworks, sparklers, smoke bombs, pyrotechnics, or explosive or combustible props.',
         'Not allowed: Open flame, unless we approve it in writing.',
@@ -557,7 +557,7 @@ function brb_checklist_default() {
         'Not allowed: Anything that creates a big mess, a fire or safety risk, a nuisance, or a disturbance.',
         'Tickets, cover charges, paid admission, door fees, and ticket or merchandise sales aren\'t allowed either.',
         'Vaping leaves a residue. All smoking is outside.',
-        'Balloons are fine.',
+        'Balloons are fine, no glitter.',
         'The space is quiet after 11:30 PM, and nothing is outdoors.',
         'Please clean up and take the garbage to the dumpster.',
         'Consider your own renters or event insurance.',
@@ -570,9 +570,32 @@ function brb_checklist_text() {
 }
 function brb_checklist_lines() {
     $lines = [];
+    $saw_balloons = false;
     foreach (preg_split("/\r\n|\n|\r/", brb_checklist_text()) as $line) {
         $line = trim($line);
-        if ($line !== '') $lines[] = $line;
+        if ($line === '') continue;
+        if ($line === 'Balloons are fine.' || $line === 'Balloons are fine, no glitter.') {
+            if ($saw_balloons) continue;
+            $line = 'Balloons are fine, no glitter.';
+            $saw_balloons = true;
+        }
+        if ($line === 'Not allowed: Glitter, confetti, confetti cannons, rice, birdseed, or loose sequins.') {
+            $line = 'Not allowed: Confetti, confetti cannons, rice, birdseed, or loose sequins.';
+        }
+        $lines[] = $line;
+    }
+    if (!$saw_balloons) {
+        $next = [];
+        $inserted = false;
+        foreach ($lines as $line) {
+            $next[] = $line;
+            if (!$inserted && strpos($line, 'confetti cannons') !== false) {
+                $next[] = 'Balloons are fine, no glitter.';
+                $inserted = true;
+            }
+        }
+        if (!$inserted) $next[] = 'Balloons are fine, no glitter.';
+        $lines = $next;
     }
     return $lines;
 }
@@ -1057,7 +1080,7 @@ function brb_refresh_checklist_copy() {
     $next = str_replace('It is returned within 72 hours when Venmo or PayPal is on file. A check takes 1 to 2 weeks.', 'It is refunded through Stripe, less the card processing fee, after the event once the space is checked.', $next);
     if (strpos($next, 'confetti cannons') === false) {
         $next = rtrim($next) . "\n" . implode("\n", [
-            'Not allowed: Glitter, confetti, confetti cannons, rice, birdseed, or loose sequins.',
+            'Not allowed: Confetti, confetti cannons, rice, birdseed, or loose sequins.',
             'Not allowed: Wall tape.',
             'Not allowed: Fireworks, sparklers, smoke bombs, pyrotechnics, or explosive or combustible props.',
             'Not allowed: Open flame, unless we approve it in writing.',
@@ -1068,6 +1091,9 @@ function brb_refresh_checklist_copy() {
             'If you paid the damage deposit by card, it is refunded to the same card after the event once the space is checked.',
         ]);
     }
+    $next = str_replace('Balloons are fine.', 'Balloons are fine, no glitter.', $next);
+    $next = str_replace('Balloons are fine, no glitter, no glitter.', 'Balloons are fine, no glitter.', $next);
+    $next = str_replace('Not allowed: Glitter, confetti, confetti cannons, rice, birdseed, or loose sequins.', 'Not allowed: Confetti, confetti cannons, rice, birdseed, or loose sequins.', $next);
     if ($next !== $text) {
         $o['checklist'] = $next;
         update_option('brb_settings', $o);

@@ -380,11 +380,15 @@ function brb_admin_detail($id) {
         echo '</td><td>' . esc_html(brb_money($line->amount)) . '</td><td>' . esc_html($line->kind) . (!empty($line->refundable) ? ', refundable' : '') . '</td><td></td></tr>';
     }
     echo '</tbody></table>';
-    echo '<p>Rental total (damage deposit not included): <strong>' . esc_html(brb_money($running)) . '</strong>. Refundable damage deposit: <strong>' . esc_html(brb_money($b->damage_deposit ?? 0)) . '</strong>.</p>';
+    echo '<p>Guest total: <strong>' . esc_html(brb_money($running)) . '</strong>. Refundable damage deposit: <strong>' . esc_html(brb_money($b->damage_deposit ?? 0)) . '</strong>.</p>';
+    echo '<h2>Extras and discounts (optional)</h2>';
     echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="max-width:640px">';
     echo '<input type="hidden" name="action" value="brb_line"><input type="hidden" name="booking" value="' . (int) $b->id . '">';
     wp_nonce_field('brb_line');
-    echo '<p><input name="label" placeholder="Label" required> <input name="amount" type="number" step="0.01" placeholder="Amount" required> <span class="description">Use a negative amount for a discount or credit. Paid lines stay locked.</span> <button class="button">Add charge</button></p></form>';
+    echo '<table class="form-table"><tr><th><label for="brb-extra-label">Label</label></th><td><input id="brb-extra-label" name="label" class="regular-text" placeholder="e.g. Extra cleaning or Returning guest discount" required></td></tr>';
+    echo '<tr><th><label for="brb-extra-amount">Amount</label></th><td><input id="brb-extra-amount" name="amount" type="number" step="0.01" style="width:16em" placeholder="e.g. 150 or -100" required></td></tr></table>';
+    echo '<p><button class="button">Add to total</button></p>';
+    echo '<p class="description">Optional. Adds a line to the total. Use a minus sign for a discount. The 50% deposit and payment link use the new total. The guest isn\'t emailed until you click \'Save rental price and email guest the total\' below. Paid lines can\'t be edited, so add a credit instead.</p></form>';
 
     if ($b->status !== 'cancelled') {
         echo '<h2>Agreed price</h2><form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="max-width:640px">';
@@ -392,8 +396,8 @@ function brb_admin_detail($id) {
         wp_nonce_field('brb_price');
         $rental_line = brb_find_line_kind($b->id, 'rental');
         $suggest = $rental_line ? brb_dec($rental_line->amount) : ($set ? brb_dec($b->total) : '');
-        echo '<table class="form-table"><tr><th><label for="agreed_price">Final price</label></th><td><input name="agreed_price" id="agreed_price" type="number" step="0.01" min="0.01" value="' . esc_attr($suggest) . '" required> <span class="description">The guest is emailed this price. Payment instructions go out when the request is approved. Until you save a price, the guest sees “price to be confirmed”.</span></td></tr></table>';
-        echo '<p><button class="button button-primary">Set agreed price and email guest</button></p></form>';
+        echo '<table class="form-table"><tr><th><label for="agreed_price">Rental price</label></th><td><input name="agreed_price" id="agreed_price" type="number" step="0.01" min="0.01" value="' . esc_attr($suggest) . '" required> <span class="description">This sets the Rental line only. Extras and discounts above are added on top. Guest total: ' . esc_html(brb_money($running)) . '</span></td></tr></table>';
+        echo '<p><button class="button button-primary">Save rental price and email guest the total</button></p></form>';
     }
 
     if (!in_array($b->status, ['cancelled', 'declined', 'expired', 'paid'], true)) brb_admin_card_payment($b);

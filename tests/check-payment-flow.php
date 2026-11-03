@@ -852,7 +852,7 @@ try {
     brb_t(is_string($book_page) && strpos($book_page, 'br_book_shortcuts_html') !== false && is_string($book_fn) && strpos($book_fn, '/rental-checklist/') !== false, 'the book page links to the rental checklist');
     $checklist_page = get_page_by_path('rental-checklist');
     $checklist_html = $checklist_page ? do_shortcode((string) $checklist_page->post_content) : '';
-    brb_t($checklist_page && $checklist_page->post_title === 'Rental Checklist' && strpos($checklist_html, '8:00 AM') !== false && strpos($checklist_html, '309-524-2004') !== false && strpos($checklist_html, 'one-day liquor license ($50)') !== false && strpos($checklist_html, brb_whole_money(brb_addon_price())) !== false, 'the rental checklist names the one-day liquor license');
+    brb_t($checklist_page && $checklist_page->post_title === 'Rental Checklist' && strpos($checklist_html, '8:00 AM') !== false && strpos($checklist_html, '309-524-2004') !== false && strpos($checklist_html, 'one-day liquor license ($50)') !== false && strpos($checklist_html, brb_whole_money(brb_addon_price())) !== false && substr_count($checklist_html, 'Balloons are fine, no glitter.') === 1 && strpos($checklist_html, 'Not allowed: Glitter,') === false, 'the rental checklist names the one-day liquor license and says balloons are fine, no glitter');
     $remind_day = brb_now()->modify('+7 days')->format('Y-m-d');
     $remind = brb_process_public_booking([
         'date' => $remind_day,
