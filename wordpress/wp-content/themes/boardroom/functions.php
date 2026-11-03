@@ -4,8 +4,8 @@ add_action('after_setup_theme', function () {
     register_nav_menus(['primary' => 'Primary', 'footer' => 'Footer']);
 });
 add_action('wp_enqueue_scripts', function () {
-    wp_enqueue_style('boardroom', get_stylesheet_uri(), [], '1.2.32');
-    wp_enqueue_script('boardroom', get_template_directory_uri() . '/assets/site.js', [], '1.2.32', true);
+    wp_enqueue_style('boardroom', get_stylesheet_uri(), [], '1.2.33');
+    wp_enqueue_script('boardroom', get_template_directory_uri() . '/assets/site.js', [], '1.2.33', true);
 });
 function br_img($f) { return get_template_directory_uri() . '/assets/img/' . $f; }
 function br_logo($place) {
@@ -195,6 +195,10 @@ function br_book_shortcuts_html() {
 function br_contact_form() {
     if (function_exists('brb_tour_form')) return brb_tour_form();
     return '';
+}
+function br_ask_walter_card($details_target) {
+    if (!function_exists('brb_chat_markup')) return '';
+    return '<section id="ask-walter">' . brb_chat_markup('home', $details_target) . '</section>';
 }
 function br_contact_is_thanks() {
     $code = isset($_GET['inquiry']) ? sanitize_key(wp_unslash($_GET['inquiry'])) : '';

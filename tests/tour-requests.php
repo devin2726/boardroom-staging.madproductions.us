@@ -33,7 +33,7 @@ $created = [];
 $snapshot = get_option('brb_settings');
 
 try {
-    brb_t(get_option('brb_version') === '2.5.35', 'plugin storage version is 2.5.35');
+    brb_t(get_option('brb_version') === '2.5.37', 'plugin storage version is 2.5.37');
     brb_t($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', brb_tour_table())) === brb_tour_table(), 'inquiry table still exists');
     $cols = $wpdb->get_col('SHOW COLUMNS FROM ' . brb_tour_table(), 0);
     brb_t(in_array('phone', $cols, true) && in_array('topic', $cols, true) && in_array('preferred', $cols, true), 'topic and preferred were added and phone was kept');
@@ -112,19 +112,125 @@ try {
         brb_t($row->phone === '' && $row->preferred_date === null && $row->time_window === '' && $row->party_size === null, 'a new inquiry leaves the old tour columns empty');
         brb_t($row->topic === 'general' && $row->preferred === '2026-12-12' && $row->notes === 'Can we see the room?' && $row->staff_notes === '', 'a contact inquiry is a general inquiry and stores the preferred date');
         brb_t(brb_tour($legacy_id) && brb_tour($legacy_id)->notes === 'Old tour note', 'saving an inquiry does not delete an older row');
+        $staff_mails = [];
+        $guest_mails = [];
+        foreach ($GLOBALS['brb_mails'] as $mail) {
+            if (($mail['subject'] ?? '') === 'New contact inquiry') $staff_mails[] = $mail;
+            if (($mail['subject'] ?? '') === 'We got your message, The Boardroom') $guest_mails[] = $mail;
+        }
         $tos = [];
-        foreach ($GLOBALS['brb_mails'] as $mail) $tos[] = $mail['to'];
+        foreach ($staff_mails as $mail) $tos[] = $mail['to'];
         sort($tos);
         brb_t($tos === ['boardroomqc@gmail.com'], 'the notice is emailed to the inquiry address');
-        brb_t(($GLOBALS['brb_mails'][0]['subject'] ?? '') === 'New contact inquiry', 'the subject is New contact inquiry');
-        $headers = $GLOBALS['brb_mails'][0]['headers'] ?? [];
+        brb_t(count($staff_mails) === 1 && ($staff_mails[0]['subject'] ?? '') === 'New contact inquiry', 'the subject is New contact inquiry');
+        $headers = $staff_mails[0]['headers'] ?? [];
         $header_text = is_array($headers) ? implode("\n", $headers) : (string) $headers;
         brb_t(strpos($header_text, 'From: The Boardroom <boardroomqc@gmail.com>') !== false, 'inquiry mail is from boardroomqc@gmail.com');
         brb_t(strpos($header_text, 'Reply-To: inquiry-guest@example.com') !== false, 'inquiry mail replies to the guest');
-        $body = (string) ($GLOBALS['brb_mails'][0]['message'] ?? '');
+        $body = (string) ($staff_mails[0]['message'] ?? '');
         brb_t(strpos($body, 'A contact inquiry was received.') !== false && strpos($body, 'No date is held.') !== false && strpos($body, 'Inquiry Guest') !== false && strpos($body, 'Can we see the room?') !== false && strpos($body, 'General inquiry') !== false && strpos($body, 'Preferred dates: December 12, 2026') !== false && stripos($body, 'Saturday afternoon') === false && stripos($body, 'or time') === false, 'the notice describes the inquiry, the preferred date, and does not hold a date');
         brb_t(strpos($body, 'Phone:') === false && stripos($body, 'tour was requested') === false && strpos($body, '309-555-0100') === false, 'the inquiry email omits a phone number');
         foreach ($banned as $w) brb_t(stripos($body, $w) === false, 'inquiry email has no ' . $w);
+        brb_t(count($guest_mails) === 1 && ($guest_mails[0]['to'] ?? '') === 'inquiry-guest@example.com', 'the guest confirmation goes only to the submitted email');
+        $guest_headers = $guest_mails[0]['headers'] ?? [];
+        $guest_header_text = is_array($guest_headers) ? implode("\n", $guest_headers) : (string) $guest_headers;
+        brb_t(strpos($guest_header_text, 'From: The Boardroom <boardroomqc@gmail.com>') !== false && strpos($guest_header_text, 'Reply-To: boardroomqc@gmail.com') !== false && stripos($guest_header_text, 'Cc:') === false && stripos($guest_header_text, 'Bcc:') === false, 'the guest confirmation uses the guest From and Reply-To and has no copy list');
+        $guest_body = (string) ($guest_mails[0]['message'] ?? '');
+        brb_t(strpos($guest_body, "Hi Inquiry,\n") === 0 && strpos($guest_body, 'Thanks for reaching out to The Boardroom!') !== false && strpos($guest_body, "Preferred dates: December 12, 2026") !== false && strpos($guest_body, "Message: Can we see the room?") !== false && strpos($guest_body, 'Event type:') === false && strpos($guest_body, 'Guests:') === false && strpos($guest_body, 'Rental Checklist') === false && strpos($guest_body, '/rental-checklist/') === false && strpos($guest_body, 'Want to check open dates or book?') !== false && strpos($guest_body, home_url('/book/')) !== false && strpos($guest_body, '2220 37th Street, Moline, IL 61265') !== false, 'the guest confirmation repeats only the details that were sent');
+        brb_t(strpos($guest_body, '2212') === false && strpos($guest_body, '309-555-0100') === false && stripos($guest_body, 'airbnb') === false && strpos((string) ($guest_mails[0]['subject'] ?? ''), "\n") === false && strpos((string) ($guest_mails[0]['subject'] ?? ''), "\r") === false, 'the guest confirmation has no private address, phone, or injected subject');
+        $acked = brb_tour((int) $row->id);
+        brb_t($acked && trim((string) $acked->guest_ack) !== '', 'the guest confirmation is stamped on the inquiry');
+        $before_retry = count($GLOBALS['brb_mails']);
+        brb_t(brb_send_inquiry_guest_ack($row) === false && count($GLOBALS['brb_mails']) === $before_retry, 'the same inquiry does not send the guest confirmation again');
+    }
+
+    $injected = (object) [
+        'name' => "Sam\r\nBcc: injected@example.com",
+        'event_type' => 'birthday',
+        'preferred' => "2026-11-20\r\nBcc: evil@example.com",
+        'party_size' => 12,
+        'notes' => "Hello\r\nthere",
+    ];
+    $injected_body = brb_inquiry_guest_ack_body($injected);
+    brb_t(strpos($injected_body, "Hi Sam,\n") === 0 && strpos($injected_body, "\r") === false && strpos($injected_body, "\nBcc:") === false && strpos($injected_body, 'Event type: Birthday') !== false && strpos($injected_body, 'Guests: 12') !== false && strpos($injected_body, "Message: Hello\nthere") !== false && strpos($injected_body, 'Preferred dates: 2026-11-20 Bcc: evil@example.com') !== false, 'guest-supplied lines are flattened so they cannot add a header');
+    $empty_named = (object) ['name' => '', 'event_type' => '', 'preferred' => '', 'party_size' => null, 'notes' => ''];
+    $empty_body = brb_inquiry_guest_ack_body($empty_named);
+    brb_t(strpos($empty_body, "Hi there,\n") === 0 && strpos($empty_body, "Here's what you sent us:") === false, 'a missing name says there and empty details are left out');
+
+    $settings = get_option('brb_settings', []);
+    if (!is_array($settings)) $settings = [];
+    $settings['inquiry_cc'] = 'copy-inquiry@example.com';
+    update_option('brb_settings', $settings);
+    $GLOBALS['brb_mails'] = [];
+    delete_transient(brb_tour_rate_key());
+    $copied = brb_tour_submit([
+        'name' => 'Copied Guest',
+        'email' => 'copied-inquiry@example.com',
+        'message' => 'Please copy staff only.',
+        'event_type' => 'corporate',
+        'party_size' => '18',
+        'preferred' => '2026-11-03',
+    ]);
+    brb_t(!is_wp_error($copied) && $copied, 'an inquiry still saves when a staff copy list is set');
+    if (!is_wp_error($copied) && $copied) {
+        $created[] = (int) $copied->id;
+        $staff_cc = '';
+        $guest_only = null;
+        foreach ($GLOBALS['brb_mails'] as $mail) {
+            $text = is_array($mail['headers'] ?? null) ? implode("\n", $mail['headers']) : (string) ($mail['headers'] ?? '');
+            if (($mail['subject'] ?? '') === 'New contact inquiry') $staff_cc = $text;
+            if (($mail['subject'] ?? '') === 'We got your message, The Boardroom') $guest_only = $mail;
+        }
+        $guest_text = is_array($guest_only['headers'] ?? null) ? implode("\n", $guest_only['headers']) : (string) ($guest_only['headers'] ?? '');
+        $guest_message = (string) ($guest_only['message'] ?? '');
+        brb_t(strpos($staff_cc, 'Cc: copy-inquiry@example.com') !== false, 'staff still receive the inquiry copy list');
+        brb_t($guest_only && ($guest_only['to'] ?? '') === 'copied-inquiry@example.com' && stripos($guest_text, 'Cc:') === false && stripos($guest_text, 'Bcc:') === false && stripos($guest_text, 'copy-inquiry@example.com') === false && strpos($guest_message, 'Event type: Corporate') !== false && strpos($guest_message, 'Guests: 18') !== false && strpos($guest_message, 'Preferred dates: November 3, 2026') !== false, 'the guest confirmation is not copied to staff and includes the sent details');
+    }
+    if ($snapshot !== false && $snapshot !== null) update_option('brb_settings', $snapshot);
+
+    global $wpdb;
+    $wpdb->insert(brb_tour_table(), [
+        'name' => 'Bad Email',
+        'email' => 'not-an-email',
+        'phone' => '',
+        'notes' => 'No confirmation',
+        'staff_notes' => '',
+        'status' => 'new',
+        'created' => current_time('mysql', true),
+        'topic' => 'general',
+        'preferred' => '',
+    ]);
+    $bad_id = (int) $wpdb->insert_id;
+    $created[] = $bad_id;
+    $GLOBALS['brb_mails'] = [];
+        brb_t(brb_send_inquiry_guest_ack($bad_id) === false && count($GLOBALS['brb_mails']) === 0 && trim((string) (brb_tour($bad_id)->guest_ack ?? '')) === '', 'a bad email does not get a confirmation');
+
+    $fail_filter = function ($short, $atts) {
+        if (($atts['subject'] ?? '') === 'We got your message, The Boardroom') {
+            throw new RuntimeException('guest mail failed');
+        }
+        return $short;
+    };
+    add_filter('pre_wp_mail', $fail_filter, 5, 2);
+    $GLOBALS['brb_mails'] = [];
+    delete_transient(brb_tour_rate_key());
+    $failed_send = brb_tour_submit([
+        'name' => 'Retry Guest',
+        'email' => 'retry-inquiry@example.com',
+        'message' => 'Staff mail should still go out.',
+    ]);
+    remove_filter('pre_wp_mail', $fail_filter, 5);
+    brb_t(!is_wp_error($failed_send) && $failed_send && $failed_send->email === 'retry-inquiry@example.com', 'a failed guest confirmation still saves the inquiry');
+    if (!is_wp_error($failed_send) && $failed_send) {
+        $created[] = (int) $failed_send->id;
+        $staff_sent = false;
+        foreach ($GLOBALS['brb_mails'] as $mail) {
+            if (($mail['subject'] ?? '') === 'New contact inquiry' && ($mail['to'] ?? '') === 'boardroomqc@gmail.com') $staff_sent = true;
+        }
+        brb_t($staff_sent && trim((string) (brb_tour((int) $failed_send->id)->guest_ack ?? '')) === '', 'a failed guest confirmation leaves the staff email and does not stamp the row');
+        $GLOBALS['brb_mails'] = [];
+        brb_t(brb_send_inquiry_guest_ack((int) $failed_send->id) === true, 'a later try sends the guest confirmation once');
+        brb_t(count($GLOBALS['brb_mails']) === 1 && ($GLOBALS['brb_mails'][0]['to'] ?? '') === 'retry-inquiry@example.com' && ($GLOBALS['brb_mails'][0]['subject'] ?? '') === 'We got your message, The Boardroom', 'the retry goes to the guest and not to staff');
     }
 
     delete_transient(brb_tour_rate_key());
@@ -171,7 +277,7 @@ try {
     brb_t(strpos($contact_html, '[boardroom_tour]') === false && strpos($contact_html, '2220 37th Street') === false && strpos($contact_html, 'mailto:') === false, 'stored contact content does not repeat the venue or email');
     $template = file_get_contents(get_stylesheet_directory() . '/page-contact.php');
     $map = brb_map_embed();
-    brb_t(is_string($template) && strpos($template, 'brb_map_embed') === false && strpos($template, 'brb_tour_form') !== false && strpos($template, 'brb_chat_markup') === false && strpos($template, 'br_contact_ask_button(true)') !== false && strpos($template, 'br_contact_ask_button(true)') < strpos($template, 'brb_tour_form') && strpos($template, 'tel:') === false && strpos($template, '2212') === false, 'the contact template is the form with a large Ask Walter button above it, without its own map');
+    brb_t(is_string($template) && strpos($template, 'brb_map_embed') === false && strpos($template, 'brb_tour_form') !== false && strpos($template, "br_ask_walter_card('#contact-inquiry')") !== false && strpos($template, "br_ask_walter_card('#contact-inquiry')") < strpos($template, 'brb_tour_form') && strpos($template, 'br_contact_ask_button(true)') === false && strpos($template, 'tel:') === false && strpos($template, '2212') === false, 'the contact page puts the Walter card above the form, without its own map');
     $ask = br_contact_ask_button();
     brb_t(strpos($ask, 'data-brb-open-chat') !== false && strpos($ask, '>Ask Walter<') !== false && strpos($ask, 'tel:') === false, 'Ask Walter on the contact page opens the floating chat');
     $_GET['inquiry'] = 'ok';
@@ -210,6 +316,7 @@ try {
     $notes = br_good_to_know_html();
     brb_t(strpos($notes, 'Good to know') !== false && strpos($notes, 'No cooking on the stovetop') !== false && strpos($notes, "We don't provide catering.") !== false && strpos($notes, 'one-day liquor license ($50)') !== false && strpos($notes, 'https://moline.il.us/244/Liquor-Licensing') !== false && strpos($notes, '309-524-2004') === false && stripos($notes, 'airbnb') === false, 'the gallery good-to-know block states the kitchen, catering, and liquor license');
     brb_t(is_string($book_tpl) && strpos($book_tpl, 'br_book_shortcuts_html') !== false && strpos($book_tpl, 'br_good_to_know_html') !== false && strpos($book_tpl, 'the_content') < strpos($book_tpl, 'br_book_shortcuts_html') && strpos($book_tpl, 'br_book_shortcuts_html') < strpos($book_tpl, 'br_good_to_know_html') && strpos($book_tpl, "is_page('faq')") !== false && strpos($book_tpl, 'br_review_rotator_html') === false, 'the book page ends with the rental checklist then Good to know, and the FAQ page reuses that block');
+    brb_t(is_string($book_tpl) && strpos($book_tpl, "br_ask_walter_card(home_url('/contact/'))") !== false && strpos($book_tpl, 'br_ask_walter_card') < strpos($book_tpl, 'the_content'), 'FAQ opens with the shared Walter card');
     $reviews = br_reviews_html();
     brb_t(strpos($home, 'br_reviews_html') !== false && strpos($home, 'br_reviews_html') < strpos($home, 'block dark cta'), 'guest reviews sit before the reservation call to action');
     brb_t(strpos($reviews, 'What our guests say') !== false && strpos($reviews, '5.0 ★ from 29 guest reviews') !== false && strpos($reviews, 'Read more reviews') === false && substr_count($reviews, 'class="t-set"') === 2 && strpos($reviews, 'aria-hidden="true"') !== false && substr_count($reviews, 'class="t-card"') === 24, 'the reviews section is a marquee of every review with a hidden copy');
@@ -282,12 +389,13 @@ try {
     $footer = file_get_contents(get_stylesheet_directory() . '/footer.php');
     $footer_map = function_exists('br_footer_map') ? br_footer_map() : '';
     brb_t(is_string($footer) && strpos($footer, 'br_footer_map') !== false && strpos($footer_map, 'https://www.google.com/maps?q=2220+37th+Street,+Moline,+IL+61265') !== false && strpos($footer_map, 'output=embed') !== false && strpos($footer_map, 'loading="lazy"') !== false && strpos($footer_map, 'referrerpolicy="no-referrer-when-downgrade"') !== false && strpos($footer, 'Get directions') !== false && strpos($footer, '2220 37th Street, Moline, IL 61265') !== false, 'the footer map uses the venue embed');
-    brb_t(is_string($contact_tpl) && strpos($contact_tpl, 'brb_chat_markup') === false && strpos($contact_tpl, 'brb_tour_form') !== false && strpos($contact_tpl, 'brb_map_embed') === false && strpos($contact_tpl, 'br_contact_ask_button') !== false && strpos($contact_tpl, 'br_contact_ask_button') < strpos($contact_tpl, 'brb_tour_form') && strpos($contact_tpl, 'Thank You!') !== false && strpos($contact_tpl, 'brb_tour_form') < strpos($contact_tpl, 'Thank You!'), 'the contact page is a centered form, and a successful inquiry replaces it');
+    brb_t(is_string($contact_tpl) && strpos($contact_tpl, "br_ask_walter_card('#contact-inquiry')") !== false && strpos($contact_tpl, 'brb_tour_form') !== false && strpos($contact_tpl, 'brb_map_embed') === false && strpos($contact_tpl, "br_ask_walter_card('#contact-inquiry')") < strpos($contact_tpl, 'brb_tour_form') && strpos($contact_tpl, 'Thank You!') !== false && strpos($contact_tpl, 'brb_tour_form') < strpos($contact_tpl, 'Thank You!') && strpos($contact_tpl, 'br_contact_ask_button()') !== false, 'the contact page is Walter then the form, and a successful inquiry shows Ask Walter');
     $chat_src = file_get_contents(dirname((new ReflectionFunction('brb_chat_markup'))->getFileName()) . '/chat.php');
-    brb_t(is_string($chat_src) && strpos($chat_src, "if (is_front_page()) return;") !== false && strpos($chat_src, "is_page('contact')") === false, 'the floating Walter chat stays on the contact page');
-    brb_t(is_string($home) && strpos($home, 'br_tour_video_html') !== false && strpos($home, "brb_chat_markup('home')") !== false && strpos($home, 'br_tour_video_html') < strpos($home, "brb_chat_markup('home')") && strpos($home, 'Contact the Boardroom') === false && strpos($home, 'id="contact"') === false, 'the home page puts Walter under the tour and does not repeat a contact section');
-    $home_chat = function_exists('brb_chat_markup') ? brb_chat_markup('home') : '';
-    brb_t(strpos($home_chat, 'brb-chat-hello') !== false && strpos($home_chat, 'Ask Walter') !== false && strpos($home_chat, "The Boardroom's butler") !== false && strpos($home_chat, 'Hi, How Can I Help You?') !== false && strpos($home_chat, 'Hi there! Pick a question on the left') === false && strpos($home_chat, 'Quick answers about dates') === false && strpos($home_chat, 'Is my date available?') !== false && strpos($home_chat, 'How many guests fit?') !== false && strpos($home_chat, 'What does a full day include?') === false && strpos($home_chat, 'How do deposits work?') === false && strpos($home_chat, 'Leave your details') !== false && strpos($home_chat, 'Start over') !== false && strpos($home_chat, 'brb-chat-send') !== false && strpos($home_chat, '2212') === false, 'the homepage chat is the two-panel Walter card');
+    brb_t(is_string($chat_src) && strpos($chat_src, 'function brb_chat_page_is_inline()') !== false && strpos($chat_src, "is_page('faq')") !== false && strpos($chat_src, "is_page('contact')") !== false && strpos($chat_src, 'if (brb_chat_page_is_inline()) return;') !== false && strpos($chat_src, "if (is_front_page()) return;") === false, 'the floating chat stays off pages that already show the inline card');
+    brb_t(is_string($home) && strpos($home, 'br_tour_video_html') !== false && strpos($home, "brb_chat_markup('home')") === false && strpos($home, 'br_ask_walter_card') === false && strpos($home, 'id="ask-walter"') === false && strpos($home, 'Contact the Boardroom') === false && strpos($home, 'id="contact"') === false, 'the home page no longer includes the inline Walter card');
+    $home_chat = function_exists('brb_chat_markup') ? brb_chat_markup('home', '#contact-inquiry') : '';
+    $faq_chat = function_exists('brb_chat_markup') ? brb_chat_markup('home', home_url('/contact/')) : '';
+    brb_t(strpos($home_chat, 'brb-chat-hello') !== false && strpos($home_chat, 'Ask Walter') !== false && strpos($home_chat, "The Boardroom's butler") !== false && strpos($home_chat, 'Hi, How Can I Help You?') !== false && strpos($home_chat, 'data-brb-scroll-form="#contact-inquiry"') !== false && strpos($home_chat, 'Is my date available?') !== false && strpos($home_chat, 'How many guests fit?') !== false && strpos($home_chat, 'What does a full day include?') === false && strpos($faq_chat, 'href="' . esc_url(home_url('/contact/')) . '"') !== false && strpos($faq_chat, 'Leave your details') !== false && strpos($home_chat, '2212') === false, 'the shared Walter card greets, scrolls on contact, and links to contact from FAQ');
     $css = file_get_contents(get_stylesheet_directory() . '/style.css');
     $site_js = file_get_contents(get_stylesheet_directory() . '/assets/site.js');
     brb_t(is_string($css) && strpos($css, 'z-index:400') !== false && strpos($css, 'body.admin-bar .site-header{top:32px}') !== false && strpos($css, '.nav.open{display:block}') !== false && strpos($css, 't-scroll') !== false && strpos($css, 'translateX(-50%)') !== false, 'the header stays above the page and the review track scrolls in CSS');
@@ -328,7 +436,7 @@ try {
         $in = implode(',', array_map('intval', $created));
         $wpdb->query("DELETE FROM " . brb_tour_table() . " WHERE id IN ($in)");
     }
-    $wpdb->query("DELETE FROM " . brb_tour_table() . " WHERE email IN ('inquiry-guest@example.com','optional-inquiry@example.com','again-inquiry@example.com','later-inquiry@example.com','ada@example.com','legacy-tour@example.com','topic-inquiry@example.com') OR name IN ('Legacy Guest')");
+    $wpdb->query("DELETE FROM " . brb_tour_table() . " WHERE email IN ('inquiry-guest@example.com','optional-inquiry@example.com','again-inquiry@example.com','later-inquiry@example.com','ada@example.com','legacy-tour@example.com','topic-inquiry@example.com','copied-inquiry@example.com','retry-inquiry@example.com','not-an-email') OR name IN ('Legacy Guest','Bad Email')");
     if ($snapshot !== false && $snapshot !== null) update_option('brb_settings', $snapshot);
     else delete_option('brb_settings');
 }

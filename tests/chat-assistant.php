@@ -36,7 +36,7 @@ function brb_chat_reply($text, $history = []) {
 }
 
 try {
-    brb_t(get_option('brb_version') === '2.5.35', 'plugin storage version is 2.5.35');
+    brb_t(get_option('brb_version') === '2.5.37', 'plugin storage version is 2.5.37');
     $cols = $wpdb->get_col('SHOW COLUMNS FROM ' . brb_tour_table(), 0);
     brb_t(in_array('source', $cols, true), 'inquiries can store a source');
     brb_t((string) brb_opt('quote_prices') === '1', 'price estimates are on by default');
@@ -329,7 +329,18 @@ try {
     if ($row) $created_inquiries[] = (int) $row->id;
     brb_t($row && $row->source === 'chat assistant' && $row->email === 'chat-guest@example.com' && $row->phone === '309-555-0144' && strpos($row->notes, 'Guest asked about December 24.') !== false && strpos($row->notes, 'Birthday') !== false, 'the inquiry stores the source, the note, and the transcript summary');
     $mail = $GLOBALS['brb_mails'][0] ?? null;
-    brb_t(is_array($mail) && $mail['subject'] === 'New contact inquiry' && strpos($mail['message'], 'Source: chat assistant') !== false && strpos($mail['message'], 'No date is held.') !== false, 'staff are emailed about the chat inquiry');
+    brb_t(is_array($mail) && $mail['subject'] === 'New contact inquiry' && strpos($mail['message'], 'Source: chat assistant') !== false && strpos($mail['message'], 'No date is held.') !== false && strpos($mail['message'], '309-555-0144') !== false, 'staff are emailed about the chat inquiry');
+    $guest_mail = null;
+    foreach ($GLOBALS['brb_mails'] as $sent_mail) {
+        if (($sent_mail['subject'] ?? '') === 'We got your message, The Boardroom') $guest_mail = $sent_mail;
+    }
+    $guest_headers = (is_array($guest_mail) && is_array($guest_mail['headers'] ?? null)) ? implode("\n", $guest_mail['headers']) : (is_array($guest_mail) ? (string) ($guest_mail['headers'] ?? '') : '');
+    $guest_body = is_array($guest_mail) ? (string) ($guest_mail['message'] ?? '') : '';
+    brb_t(is_array($guest_mail) && ($guest_mail['to'] ?? '') === 'chat-guest@example.com' && count(array_filter($GLOBALS['brb_mails'], function ($sent_mail) {
+        return ($sent_mail['subject'] ?? '') === 'We got your message, The Boardroom';
+    })) === 1 && strpos($guest_headers, 'Reply-To: boardroomqc@gmail.com') !== false && stripos($guest_headers, 'Cc:') === false && stripos($guest_headers, 'Bcc:') === false && strpos($guest_body, "Hi Chat,\n") === 0 && strpos($guest_body, 'Event type: Birthday') !== false && strpos($guest_body, 'Preferred dates: December 24, 2026') !== false && strpos($guest_body, 'Looking at a birthday.') !== false && strpos($guest_body, '309-555-0144') === false && strpos($guest_body, '2212') === false && stripos($guest_body, 'airbnb') === false && strpos($guest_body, 'Rental Checklist') === false && strpos($guest_body, '/rental-checklist/') === false && strpos($guest_body, 'Want to check open dates or book?') !== false, 'the chat guest gets one confirmation without the phone or the staff copy list');
+    $before_retry = count($GLOBALS['brb_mails']);
+    brb_t($row && brb_send_inquiry_guest_ack($row) === false && count($GLOBALS['brb_mails']) === $before_retry, 'the chat confirmation is not sent twice');
 
     $before = (int) $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM ' . brb_tour_table() . ' WHERE email=%s', 'chat-spam@example.com'));
     $spam = brb_chat_save_lead([

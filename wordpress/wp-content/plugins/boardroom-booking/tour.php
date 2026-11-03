@@ -80,6 +80,7 @@ function brb_install_tour_table() {
       topic varchar(40) NOT NULL DEFAULT '',
       preferred varchar(190) NOT NULL DEFAULT '',
       source varchar(40) NOT NULL DEFAULT '',
+      guest_ack datetime DEFAULT NULL,
       PRIMARY KEY  (id),
       KEY status (status),
       KEY created (created)
@@ -93,6 +94,9 @@ function brb_install_tour_table() {
     }
     if (is_array($cols) && !in_array('source', $cols, true)) {
         $wpdb->query("ALTER TABLE $t ADD COLUMN source varchar(40) NOT NULL DEFAULT ''");
+    }
+    if (is_array($cols) && !in_array('guest_ack', $cols, true)) {
+        $wpdb->query("ALTER TABLE $t ADD COLUMN guest_ack datetime DEFAULT NULL");
     }
     return $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $t)) === $t;
 }
@@ -198,7 +202,92 @@ function brb_send_tour_notice($row) {
     foreach (brb_tour_recipients() as $to) {
         if (brb_mail($to, $subject, $body, $reply, $from, brb_inquiry_cc_list())) $sent = true;
     }
+    brb_send_inquiry_guest_ack($row);
     return $sent;
+}
+
+function brb_inquiry_mail_text($value, $multiline = false) {
+    $value = wp_strip_all_tags((string) $value);
+    $value = str_replace("\0", '', $value);
+    if ($multiline) {
+        $value = str_replace(["\r\n", "\r"], "\n", $value);
+        $value = preg_replace("/[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F\\x7F]/", '', $value);
+        return trim((string) $value);
+    }
+    $value = str_replace(["\r", "\n", "\t"], ' ', $value);
+    $value = preg_replace('/\s+/', ' ', (string) $value);
+    return trim((string) $value);
+}
+function brb_inquiry_first_name($name) {
+    $name = brb_inquiry_mail_text($name);
+    if ($name === '') return 'there';
+    $parts = preg_split('/\s+/', $name);
+    $first = trim((string) ($parts[0] ?? ''), " \t.,;:<>\"'\\/");
+    return $first !== '' ? $first : 'there';
+}
+function brb_inquiry_guest_ack_body($row) {
+    $first = brb_inquiry_first_name($row->name ?? '');
+    $lines = [];
+    $type = brb_inquiry_mail_text(brb_event_type_label($row->event_type ?? ''));
+    if ($type !== '') $lines[] = 'Event type: ' . $type;
+    $when = brb_inquiry_mail_text(brb_inquiry_date_label((string) ($row->preferred ?? '')));
+    if ($when !== '') $lines[] = 'Preferred dates: ' . $when;
+    $guests = $row->party_size ?? null;
+    if ($guests !== null && $guests !== '' && (int) $guests > 0) $lines[] = 'Guests: ' . (int) $guests;
+    $message = brb_inquiry_mail_text($row->notes ?? '', true);
+    if ($message !== '') $lines[] = 'Message: ' . $message;
+    $body = "Hi {$first},\n\n"
+        . "Thanks for reaching out to The Boardroom! We got your message and will call or email you shortly.\n";
+    if ($lines) $body .= "\nHere's what you sent us:\n" . implode("\n", $lines) . "\n";
+    $body .= "\nWant to check open dates or book? Visit " . home_url('/book/') . "\n\n"
+        . "See you soon,\n"
+        . "The Boardroom\n"
+        . BRB_VENUE_ADDRESS . "\n";
+    return $body;
+}
+function brb_inquiry_guest_ack_clear($id, $stamp) {
+    global $wpdb;
+    $wpdb->query($wpdb->prepare(
+        'UPDATE ' . brb_tour_table() . ' SET guest_ack=NULL WHERE id=%d AND guest_ack=%s',
+        (int) $id,
+        $stamp
+    ));
+}
+function brb_send_inquiry_guest_ack($row) {
+    $id = 0;
+    $stamp = '';
+    try {
+        $id = is_object($row) ? (int) ($row->id ?? 0) : (int) $row;
+        if ($id <= 0) return false;
+        if (function_exists('brb_ensure_column')) {
+            brb_ensure_column(brb_tour_table(), 'guest_ack', 'datetime NULL DEFAULT NULL');
+        }
+        $row = brb_tour($id);
+        if (!$row) return false;
+        $already = trim((string) ($row->guest_ack ?? ''));
+        if ($already !== '' && $already !== '0000-00-00 00:00:00') return false;
+        $email = sanitize_email((string) ($row->email ?? ''));
+        if ($email === '' || !is_email($email)) return false;
+        global $wpdb;
+        $stamp = current_time('mysql', true);
+        $claimed = $wpdb->query($wpdb->prepare(
+            'UPDATE ' . brb_tour_table() . " SET guest_ack=%s WHERE id=%d AND (guest_ack IS NULL OR guest_ack='' OR guest_ack='0000-00-00 00:00:00')",
+            $stamp,
+            $id
+        ));
+        if (!$claimed) return false;
+        $subject = str_replace(["\r", "\n"], '', 'We got your message, The Boardroom');
+        $ok = brb_mail($email, $subject, brb_inquiry_guest_ack_body($row), brb_guest_reply_to());
+        if (!$ok) {
+            brb_inquiry_guest_ack_clear($id, $stamp);
+            return false;
+        }
+        return true;
+    } catch (Throwable $e) {
+        if ($id > 0 && $stamp !== '') brb_inquiry_guest_ack_clear($id, $stamp);
+        error_log('Boardroom inquiry confirmation could not be sent for inquiry ' . (int) $id);
+        return false;
+    }
 }
 
 function brb_tour_update($id, $status, $staff_notes) {

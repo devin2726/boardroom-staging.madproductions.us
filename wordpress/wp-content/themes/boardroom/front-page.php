@@ -5,7 +5,6 @@
   <button class="arrow prev" aria-label="Previous">‹</button><button class="arrow next" aria-label="Next">›</button><div class="dots"></div>
 </section>
 <?php echo br_tour_video_html(); ?>
-<?php if (function_exists('brb_chat_markup')): ?><section class="block" id="ask-walter"><div class="wrap"><?php echo brb_chat_markup('home'); ?></div></section><?php endif; ?>
 <section class="block alt" id="amenities"><div class="wrap"><h2>Amenities</h2><div class="amen">
   <div class="card"><?php echo br_picture($p[2], 'The Boardroom game room with pinball, pool, and shuffleboard'); ?><h3>80-inch TV, Pinball, Pool, Shuffleboard</h3></div>
   <div class="card"><?php echo br_picture($p[1], 'The Boardroom BYOB bar and ice machine'); ?><h3>BYOB Bar and Ice Machine</h3></div>
