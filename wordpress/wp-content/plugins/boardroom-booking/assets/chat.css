@@ -3,9 +3,27 @@
 .brb-chat-launch:hover,.brb-chat-launch:focus{background:#c4912e;color:#161616}
 .brb-walter{display:block;line-height:0;flex:0 0 auto;background:transparent}
 .brb-walter img{display:block;width:100%;height:100%;object-fit:contain;background:transparent}
+.brb-walter-stage{position:relative;display:block;overflow:hidden;border-radius:50%;background:#000;border:2px solid #c4912e;flex:0 0 auto}
+.brb-walter-stage .brb-walter-still,.brb-walter-stage video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;pointer-events:none;background:#000}
+.brb-walter-stage video{display:none}
+.brb-walter-stage.is-wave .brb-walter-wave,.brb-walter-stage.is-idle .brb-walter-idle,.brb-walter-stage.is-eyes .brb-walter-eyes{display:block}
+.brb-walter-stage.is-wave .brb-walter-still,.brb-walter-stage.is-idle .brb-walter-still,.brb-walter-stage.is-eyes .brb-walter-still{visibility:hidden}
 .brb-walter-launch{width:52px;height:52px}
 .brb-walter-head{width:48px;height:48px}
 .brb-walter-bubble{width:40px;height:40px;margin-top:2px}
+.brb-typing{display:inline-flex;gap:4px;align-items:center;margin-right:8px}
+.brb-typing[hidden]{display:none!important}
+.brb-typing i{width:6px;height:6px;border-radius:50%;background:#c4912e;display:block;animation:brb-walter-dot 1s infinite ease-in-out}
+.brb-typing i:nth-child(2){animation-delay:.15s}
+.brb-typing i:nth-child(3){animation-delay:.3s}
+@keyframes brb-walter-dot{0%,80%,100%{opacity:.25;transform:translateY(0)}40%{opacity:1;transform:translateY(-2px)}}
+@keyframes brb-walter-glow{0%,100%{box-shadow:0 0 0 0 rgba(196,145,46,0)}35%{box-shadow:0 0 14px 3px rgba(196,145,46,.9)}}
+.brb-chat.is-open .brb-walter-head{animation:brb-walter-glow 1.4s ease-out 1}
+@media (prefers-reduced-motion: reduce){
+.brb-walter-stage video{display:none!important}
+.brb-walter-stage .brb-walter-still{visibility:visible!important}
+.brb-walter-head,.brb-typing i{animation:none!important}
+}
 .brb-chat-launch:focus,.brb-chat-close:focus,.brb-chat-send:focus,.brb-chat-lead-toggle:focus,.brb-chat-input:focus,.brb-chat-chip:focus{outline:2px solid #161616;outline-offset:2px}
 .brb-chat-suggestions{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px}
 .brb-chat-chip{background:#161616;color:#c4912e;border:1px solid #c4912e;border-radius:999px;padding:10px 14px;min-height:44px;font:inherit;font-weight:700;cursor:pointer;text-align:center}

@@ -36,7 +36,7 @@ function brb_chat_reply($text, $history = []) {
 }
 
 try {
-    brb_t(get_option('brb_version') === '2.5.25', 'plugin storage version is 2.5.25');
+    brb_t(get_option('brb_version') === '2.5.26', 'plugin storage version is 2.5.26');
     $cols = $wpdb->get_col('SHOW COLUMNS FROM ' . brb_tour_table(), 0);
     brb_t(in_array('source', $cols, true), 'inquiries can store a source');
     brb_t((string) brb_opt('quote_prices') === '1', 'price estimates are on by default');
@@ -371,11 +371,11 @@ try {
     }
 
     $widget = brb_chat_markup();
-    brb_t(strpos($widget, 'brb-chat-launch') !== false && strpos($widget, 'Ask Walter') !== false && strpos($widget, 'Ask the Chairman') === false && strpos($widget, 'Ask our Chat Bot') === false && strpos($widget, '>Chat<') === false && strpos($widget, 'role="dialog"') !== false && strpos($widget, 'aria-expanded') !== false && strpos($widget, 'A team member will reply using this info') !== false && strpos($widget, 'Hi there! I\'m Walter, the Boardroom\'s butler. How can I help with your event?') !== false && strpos($widget, 'Walter, the Boardroom butler') !== false && strpos($widget, 'walter-96.webp') !== false && strpos($widget, 'walter-64.webp') !== false, 'the chat button and panel introduce Walter');
-    brb_t(strpos($widget, '850') === false && strpos($widget, '1400') === false && strpos($widget, '1500') === false && stripos($widget, $other) === false && stripos($widget, 'owner') === false, 'the chat panel does not publish rates or private topics');
     $plugin_dir = dirname((new ReflectionFunction('brb_chat_markup'))->getFileName());
     $css = file_get_contents($plugin_dir . '/assets/chat.css');
     $js = file_get_contents($plugin_dir . '/assets/chat.js');
+    brb_t(strpos($widget, 'brb-chat-launch') !== false && strpos($widget, 'Ask Walter') !== false && strpos($widget, 'Ask the Chairman') === false && strpos($widget, 'Ask our Chat Bot') === false && strpos($widget, '>Chat<') === false && strpos($widget, 'role="dialog"') !== false && strpos($widget, 'aria-expanded') !== false && strpos($widget, 'A team member will reply using this info') !== false && strpos($widget, 'Hi there! I\'m Walter, the Boardroom\'s butler. How can I help with your event?') !== false && strpos($widget, 'Walter, the Boardroom butler') !== false && strpos($widget, 'walter-64.webp') !== false && strpos($widget, 'wave.mp4') !== false && strpos($widget, 'idle.mp4') !== false && strpos($widget, 'muted') !== false && strpos($widget, 'playsinline') !== false && strpos($widget, 'preload="none"') !== false && strpos($widget, 'autoplay') === false && strpos($css, 'prefers-reduced-motion') !== false && strpos($js, 'reduceMotion') !== false, 'the chat button and panel introduce Walter');
+    brb_t(strpos($widget, '850') === false && strpos($widget, '1400') === false && strpos($widget, '1500') === false && stripos($widget, $other) === false && stripos($widget, 'owner') === false, 'the chat panel does not publish rates or private topics');
     brb_t(is_string($css) && strpos($css, '.brb-chat-msg,.brb-chat-msg.user,.brb-chat-msg.bot{') !== false && strpos($css, 'color:#161616') !== false, 'guest and bot messages share one text color');
     brb_t(is_string($css) && strpos($css, 'EB Garamond') !== false && strpos($css, '#c4912e') !== false && strpos($css, 'position:fixed') !== false && strpos($css, 'brb-chat-scroll') !== false && strpos($css, 'min-height:0') !== false && strpos($css, '100dvh') !== false, 'the chat panel scrolls inside the viewport');
     brb_t(is_string($js) && strpos($js, 'credentials: \'omit\'') !== false && strpos($js, '503') !== false && strpos($js, 'Please try that once more in a moment. You can also use the Contact form.') !== false && stripos($js, 'openai') === false && stripos($js, 'googleapis') === false && stripos($js, $other) === false, 'the chat script stays on this site, retries a temporary failure, and does not call an outside model');

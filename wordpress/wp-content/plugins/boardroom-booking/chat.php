@@ -1346,15 +1346,32 @@ function brb_walter_html($size, $class) {
     $size = (int) $size;
     return '<picture class="' . esc_attr($class) . '"><source srcset="' . esc_url(brb_walter_url($size, 'webp')) . '" type="image/webp"><img src="' . esc_url(brb_walter_url($size, 'png')) . '" alt="Walter, the Boardroom butler" width="' . $size . '" height="' . $size . '" decoding="async"></picture>';
 }
+function brb_walter_clip_url($name, $ext) {
+    $name = in_array($name, ['wave', 'idle', 'eyes'], true) ? $name : 'idle';
+    $ext = $ext === 'webm' ? 'webm' : 'mp4';
+    return BRB_URL . 'assets/video/walter/' . $name . '.' . $ext;
+}
+function brb_walter_stage($place) {
+    $still = brb_walter_url(128, 'png');
+    $poster = BRB_URL . 'assets/video/walter/idle-poster.jpg';
+    $html = '<span class="brb-walter-stage brb-walter-' . esc_attr($place) . '">';
+    $html .= '<img class="brb-walter-still" src="' . esc_url($still) . '" alt="Walter, the Boardroom butler" width="128" height="128" decoding="async">';
+    foreach (['wave' => '', 'idle' => ' loop', 'eyes' => ' loop'] as $clip => $loop) {
+        $html .= '<video class="brb-walter-clip brb-walter-' . $clip . '" muted playsinline webkit-playsinline preload="none" poster="' . esc_url($clip === 'wave' ? $still : $poster) . '"' . $loop
+            . ' data-webm="' . esc_url(brb_walter_clip_url($clip, 'webm')) . '" data-mp4="' . esc_url(brb_walter_clip_url($clip, 'mp4')) . '"></video>';
+    }
+    $html .= '</span>';
+    return $html;
+}
 function brb_chat_markup($mode = 'float') {
     $inline = ($mode === 'inline');
     ob_start();
     echo '<div class="brb-chat' . ($inline ? ' brb-chat-inline' : '') . '" data-walter="' . esc_url(brb_walter_url(64, 'webp')) . '">';
     if (!$inline) {
-        echo '<button type="button" class="brb-chat-launch" aria-expanded="false" aria-controls="brb-chat-panel">' . brb_walter_html(96, 'brb-walter brb-walter-launch') . '<span>Ask Walter</span></button>';
+        echo '<button type="button" class="brb-chat-launch" aria-expanded="false" aria-controls="brb-chat-panel">' . brb_walter_stage('launch') . '<span>Ask Walter</span></button>';
     }
     echo '<section id="brb-chat-panel" class="brb-chat-panel" role="' . ($inline ? 'region' : 'dialog') . '"' . ($inline ? '' : ' aria-modal="true"') . ' aria-labelledby="brb-chat-title"' . ($inline ? '' : ' hidden') . '>';
-    echo '<header class="brb-chat-head">' . brb_walter_html(64, 'brb-walter brb-walter-head') . '<h2 id="brb-chat-title">Ask Walter</h2>';
+    echo '<header class="brb-chat-head">' . brb_walter_stage('head') . '<h2 id="brb-chat-title">Ask Walter</h2><span class="brb-typing" hidden aria-hidden="true"><i></i><i></i><i></i></span>';
     if (!$inline) echo '<button type="button" class="brb-chat-close" aria-label="Close chat">Close</button>';
     echo '</header>';
     echo '<div class="brb-chat-scroll">';
