@@ -108,6 +108,10 @@ function brb_defaults() {
         'rate_sun_thu' => '850',
         'rate_fri_sat' => '1400',
         'rate_ranges' => wp_json_encode(brb_default_rate_ranges()),
+        'mail_from' => 'boardroomqc@gmail.com',
+        'mail_from_name' => 'The Boardroom',
+        'mail_reply_to' => 'boardroomqc@gmail.com',
+        'inquiry_cc' => '',
         'ga_measurement_id' => '',
         'ga_property_id' => '',
         'weekly_summary' => '0',
@@ -175,6 +179,9 @@ function brb_place_schema() {
             'longitude' => BRB_MAPS_LNG,
         ],
         'hasMap' => BRB_MAPS_URL,
+        'url' => home_url('/'),
+        'priceRange' => '$600-$2000',
+        'sameAs' => [BRB_MAPS_URL],
     ];
     if ((is_front_page() || is_home()) && function_exists('br_review_aggregate_schema')) {
         $rating = br_review_aggregate_schema();
@@ -335,8 +342,12 @@ function brb_event_types() {
     return [
         'wedding' => 'Wedding',
         'birthday' => 'Birthday',
+        'graduation' => 'Graduation',
+        'shower' => 'Shower',
+        'reunion' => 'Reunion',
+        'holiday' => 'Holiday party',
         'corporate' => 'Corporate',
-        'fundraiser' => 'Fundraiser',
+        'fundraiser' => 'Fundraiser (private, no ticket sales)',
         'other' => 'Other',
     ];
 }
@@ -386,10 +397,109 @@ function brb_guest_hello_line() {
     return 'Thank you for contacting The Boardroom!';
 }
 function brb_guest_review_line() {
-    return 'As part of our review, we meet every renter in person before approving a booking. It\'s a quick, friendly walk-through where we go over your event plans, the space and our house rules together. ' . brb_appointment_line() . ' Your date will be reserved once the meeting is complete and your deposit is received and approved by the Boardroom.';
+    return 'We review your request and email a price. After approval, we email a payment link. Your date is reserved once your deposit is received and approved by the Boardroom.';
 }
 function brb_terms_review_line() {
-    return 'All bookings are subject to review and approval by the Boardroom, which includes an in-person meeting with the renter. Approval is based on the event details provided, availability and our house rules.';
+    return 'All bookings are subject to review and approval by the Boardroom. Approval is based on the event details provided, availability, and our house rules.';
+}
+function brb_price_range_sentence() {
+    return 'Most events run $600 to about $2,000, typically about $1,200. Your exact price is confirmed by email.';
+}
+function brb_damage_card_refund_line() {
+    return 'If you paid the damage deposit by card, it is refunded to the same card after the event once the space is checked.';
+}
+function brb_first_payment_parts($rental = 1200.0) {
+    $rental = round((float) $rental, 2);
+    $deposit = brb_deposit_due_amount($rental);
+    $damage = round((float) brb_opt('damage_deposit_amount'), 2);
+    if ($damage < 0) $damage = 0;
+    $base = round($deposit + $damage, 2);
+    $base_cents = brb_cents_from_amount($base);
+    $fee_cents = brb_card_fee_cents($base_cents);
+    $card = ($base_cents + $fee_cents) / 100;
+    return [
+        'rental' => $rental,
+        'deposit' => $deposit,
+        'damage' => $damage,
+        'base' => $base,
+        'fee' => $fee_cents / 100,
+        'card' => $card,
+    ];
+}
+function brb_first_payment_sentence() {
+    $ex = brb_first_payment_parts(1200);
+    return 'Your first payment is 50% of the rental plus the ' . brb_whole_money($ex['damage']) . ' refundable damage deposit; card payments add a 3% fee. For example, on a ' . brb_whole_money($ex['rental']) . ' rental the first card payment is ' . brb_whole_money($ex['deposit']) . ' + ' . brb_whole_money($ex['damage']) . ' = ' . brb_whole_money($ex['base']) . ', plus a 3% fee of ' . brb_money($ex['fee']) . ', for ' . brb_money($ex['card']) . '.';
+}
+function brb_deposit_bullets() {
+    return [
+        'The deposit is 50% of the agreed rental. It holds the date once it is received.',
+        'It is refundable if written cancellation is received 60 or more days before the event, less the non-refundable 3% card fee and costs already incurred.',
+        'It is not refundable if cancellation is received less than 60 days before the event.',
+    ];
+}
+function brb_deposit_bullets_html() {
+    $html = '<ul class="brb-deposit-bullets">';
+    foreach (brb_deposit_bullets() as $line) $html .= '<li>' . esc_html($line) . '</li>';
+    $html .= '</ul><p><a href="' . esc_url(home_url('/terms/')) . '">Read the Rental Terms</a></p>';
+    return $html;
+}
+function brb_how_booking_works_steps() {
+    return [
+        'Send a request. Nothing is charged yet.',
+        'We email you a price.',
+        'After approval, we email a payment link.',
+        'Pay 50% of the rental plus the $250 refundable damage deposit by card (a 3% fee is added) or by check, and agree to the Terms and the Rental Agreement.',
+        'Your date is locked. Pay the balance by check or card. Your status link stays with the booking, and we email a checklist reminder about one week before.',
+    ];
+}
+function brb_how_booking_works_html() {
+    $html = '<section class="brb-how"><h2>How booking works</h2><ol>';
+    foreach (brb_how_booking_works_steps() as $step) $html .= '<li>' . esc_html($step) . '</li>';
+    $html .= '</ol></section>';
+    return $html;
+}
+function brb_latest_start_hour() {
+    $min = max(1, (int) brb_opt('min_hours'));
+    $latest = (int) floor(((23 * 60 + 30) - ($min * 60)) / 60);
+    $open = (int) brb_opt('open_hour');
+    if ($latest < $open) $latest = $open;
+    return $latest;
+}
+function brb_named_blackout_map() {
+    return [
+        '2027-04-17' => 'Karyn Miller (paid elsewhere)',
+        '2026-12-06' => 'Kevin Iams',
+        '2027-02-07' => 'Brody',
+    ];
+}
+function brb_hold_covers_date($ymd) {
+    $start = $ymd . ' 00:00:00';
+    try {
+        $next = (new DateTimeImmutable($ymd . ' 00:00:00', brb_tz()))->modify('+1 day')->format('Y-m-d H:i:s');
+    } catch (Exception $e) {
+        return false;
+    }
+    return !empty(brb_holds_overlapping($start, $next));
+}
+function brb_import_named_blackouts() {
+    $made = 0;
+    foreach (brb_named_blackout_map() as $ymd => $name) {
+        if (!in_array($ymd, brb_blackouts(), true) && !brb_hold_covers_date($ymd)) continue;
+        if (!brb_hold_covers_date($ymd)) {
+            $saved = brb_save_hold([
+                'name' => $name,
+                'hold_type' => 'reserved',
+                'start_date' => $ymd,
+                'start_time' => '00:00',
+                'end_date' => $ymd,
+                'end_time' => '23:59',
+                'notes' => 'Converted from a blackout date.',
+            ]);
+            if (!is_wp_error($saved)) $made++;
+        }
+        if (in_array($ymd, brb_blackouts(), true)) brb_drop_blackout_date($ymd);
+    }
+    return $made;
 }
 function brb_addon_price() {
     $n = (float) brb_opt('addon_price');
@@ -408,17 +518,25 @@ function brb_byob_line() {
 function brb_checklist_default() {
     return implode("\n", [
         'Sign the rental agreement.',
-        'Complete the in-person walk-through.',
         'The deposit is received and approved.',
         'The balance is due the week of the event, no later than 48 hours before.',
         'The refundable damage deposit is a flat $250. It is charged with the booking deposit and returned if the room is left as you found it.',
+        'If you paid the damage deposit by card, it is refunded to the same card after the event once the space is checked.',
         'Optional setup or takedown day add-ons, when that day is open, can be added within 72 hours of the event for ' . brb_whole_money(brb_addon_price()) . '.',
         'Setup is the morning of the event. On a full day, setup can begin at 8:00 AM. On a half day, setup can begin one hour before the start.',
         'Everyone is out by 11:30 PM.',
         'All events are free to attend: no tickets, no cover charge, and no sales.',
         brb_byob_line(),
         'Bring your own plates, cups, and utensils. Buffet pans and serving spoons are available. The stovetop cannot be used.',
-        'No glitter and no wall tape. Vaping leaves a residue. All smoking is outside.',
+        'Not allowed: Glitter, confetti, confetti cannons, rice, birdseed, or loose sequins.',
+        'Not allowed: Wall tape.',
+        'Not allowed: Fireworks, sparklers, smoke bombs, pyrotechnics, or explosive or combustible props.',
+        'Not allowed: Open flame, unless we approve it in writing.',
+        'Not allowed: Hazardous materials or illegal substances.',
+        'Not allowed: Weapons, except as the law allows.',
+        'Not allowed: Anything that creates a big mess, a fire or safety risk, a nuisance, or a disturbance.',
+        'Tickets, cover charges, paid admission, door fees, and ticket or merchandise sales aren\'t allowed either.',
+        'Vaping leaves a residue. All smoking is outside.',
         'Balloons are fine.',
         'The space is quiet after 11:30 PM, and nothing is outdoors.',
         'Please clean up and take the garbage to the dumpster.',
@@ -804,7 +922,8 @@ function brb_migrate_prices() {
 function brb_faq_markup() {
     return <<<'HTML'
 <h2>Booking and dates</h2>
-<details><summary>How do I book?</summary><p>We'd love to host you. Request a date on the <a href="/book/">Book</a> page. We meet every renter in person before we approve a booking. No payment is due until the request is approved. Your date is reserved once the meeting is complete and your deposit is received and approved by the Boardroom. A request does not hold the date. Bookings need at least 48 hours' notice. Until we confirm your price, your confirmation says price to be confirmed.</p></details>
+<details><summary>How do I book?</summary><p>We'd love to host you. Request a date on the <a href="/book/">Book</a> page. Nothing is charged yet. We review the request and email a price. After approval, we email a payment link. Your date is reserved once your deposit is received and approved by the Boardroom. A request does not hold the date. Bookings need at least 48 hours' notice. Until we confirm your price, your confirmation says price to be confirmed.</p></details>
+<details><summary>How booking works</summary><p>Send a request. Nothing is charged yet. We email you a price. After approval, we email a payment link. Pay 50% of the rental plus the $250 refundable damage deposit by card (a 3% fee is added) or by check, and agree to the Terms and the Rental Agreement. Your date is locked. Pay the balance by check or card. Your status link stays with the booking, and we email a checklist reminder about one week before.</p></details>
 <details><summary>Where is the rental checklist?</summary><p>It's on the <a href="/rental-checklist/">Rental Checklist</a> page. We email it when a request is approved, and again about 7 days before the event.</p></details>
 <details><summary>Are overnight stays allowed?</summary><p>No overnight stays. The Boardroom is an event space only.</p></details>
 <details><summary>What dates are open?</summary><p>Use the calendar on the <a href="/book/">Book</a> page, or ask us about a date. We'll tell you if it looks open.</p></details>
@@ -818,17 +937,17 @@ function brb_faq_markup() {
 <h2>Setup and hours</h2>
 <details><summary>What are the hours?</summary><p>A full day runs from 10:00 AM to 11:30 PM. Half days are generally available in June: 10:00 AM to 4:00 PM, or 5:00 PM to 11:30 PM. We don't keep set hours for meetings or check drop-off. We meet on demand and set a time together, by appointment.</p></details>
 <details><summary>When does everyone have to be out?</summary><p>Out by 11:30 PM. This one's firm, no exceptions. Everyone must be out of The Boardroom by 11:30 PM so there's time to wrap up.</p></details>
-<details><summary>How is the space set up?</summary><p>The space arrives not set up. You set up and tear down. Our staff can't set the room for you. Staff cannot set the room up. Setup starts at 8:00 AM on full days, or one hour before your start time on half days.</p></details>
-<details><summary>Do you provide decorations?</summary><p>The room isn't decorated when you arrive, except in December, when our Christmas décor is up. Christmas decorations are up in December.</p></details>
+<details><summary>How is the space set up?</summary><p>The space arrives not set up. You set up and tear down. Staff cannot set the room up. Setup starts at 8:00 AM on full days, or one hour before your start time on half days.</p></details>
+<details><summary>Do you provide decorations?</summary><p>The room isn't decorated when you arrive, except that Christmas decorations are up in December.</p></details>
 
 <h2>Food and drink</h2>
-<details><summary>Can I bring my own food?</summary><p>Yes. We provide the space; you bring the food. No cooking or stove-top use. No cooking is allowed in the venue. The stove top may not be used. Food warmers (for keeping prepared food warm) and the bar area are yours to use. You can also have it catered by any caterer. The Boardroom does not provide catering.</p></details>
+<details><summary>Can I bring my own food?</summary><p>Yes. We provide the space; you bring the food. No cooking is allowed in the venue. The stove top may not be used. Food warmers (for keeping prepared food warm) and the bar area are yours to use. You can also have it catered by any caterer. The Boardroom does not provide catering.</p></details>
 <details><summary>Can we bring our own drinks?</summary><p>Yes. There's a bar area and an ice machine, and there are no taps. BYOB is allowed. Guests are responsible for obtaining any permit or license the City of Moline requires for alcohol at their event. Please check with the City of Moline: <a href="https://moline.il.us/244/Liquor-Licensing">https://moline.il.us/244/Liquor-Licensing</a> (City Clerk, 309-524-2004).</p></details>
 <details><summary>Is there a refrigerator or ice?</summary><p>Yes. There is a refrigerator and an ice machine.</p></details>
 
 <h2>Rules</h2>
 <details><summary>How many guests can The Boardroom hold?</summary><p>Up to 75 people.</p></details>
-<details><summary>Is there an age limit for hosts?</summary><p>The host must be 25 or older. The minimum host age is 25 for every booking.</p></details>
+<details><summary>Is there an age limit for hosts?</summary><p>The minimum host age is 25 for every booking.</p></details>
 <details><summary>Can we sell tickets or charge admission?</summary><p>No. All events must be free to attend: no tickets, no cover charge, no paid admission, no door fees, and no ticket or merchandise sales. We do not host concerts or ticketed shows.</p></details>
 <details><summary>Can we have a band?</summary><p>Yes. Guests may have a band or live music, as long as they are not charging for the event.</p></details>
 <details><summary>Can I hold a vendor market or sell items?</summary><p>No. All events are free to attend. There are no merchandise sales and no ticket sales.</p></details>
@@ -838,17 +957,18 @@ function brb_faq_markup() {
 
 <h2>Policies and cancellation</h2>
 <details><summary>What is the cancellation policy?</summary><p>If we receive written cancellation 60 or more days before the event, the deposit is refundable, less any non-refundable processing charges (including the 3% card processing fee) and costs already incurred. It is not refundable if cancellation is received less than 60 days before the event. See the <a href="/terms/">Rental Terms</a>. If a summary and the signed agreement differ, the signed agreement controls.</p></details>
-<details><summary>What if there is bad weather?</summary><p>Bad weather or an emergency out of our control, such as a hurricane, a snowstorm, or a power outage, is refundable. A personal issue, such as a flat tire, is not refundable.</p></details>
-<details><summary>What happens if something gets damaged?</summary><p>The damage deposit covers cleaning and damage. Anything beyond that deposit may be charged. Our team will go over it at the walk-through. See the <a href="/terms/">Terms</a>.</p></details>
+<details><summary>What if there is bad weather?</summary><p>If we have to cancel because of severe weather or another emergency outside our control, such as a severe storm, a snowstorm, or a power outage, the payment is refundable. A personal issue, such as a flat tire, is not refundable.</p></details>
+<details><summary>What happens if something gets damaged?</summary><p>The damage deposit covers cleaning and damage. Anything beyond that deposit may be charged. See the <a href="/terms/">Terms</a>.</p></details>
 <details><summary>Is there a damage deposit?</summary><p>The refundable damage deposit is a flat $250. It is charged with the booking deposit and mainly covers cleaning. A dumpster is on site. It is returned within 72 hours when Venmo or PayPal is on file. A check takes 1 to 2 weeks.</p></details>
 <details><summary>What are our responsibilities before we leave?</summary><p>Please leave it like you got it. Clean and tidy the space, and take the garbage out. Another event is often booked the following day, and a ready room lets the next hosts begin on time.</p></details>
 
 <h2>Facilities</h2>
 <details><summary>Is parking available?</summary><p>Yes. Free parking on premises.</p></details>
-<details><summary>What is there to do?</summary><p>There's an 80in television, pinball, pool, and shuffleboard.</p></details>
+<details><summary>What is there to do?</summary><p>There's an 80-inch TV, pinball, pool, and shuffleboard.</p></details>
 <details><summary>Who is on site during an event?</summary><p>No one is on site during events. Our connected offices are available on demand if something is needed. Cell numbers are given when the contract is signed, and they are not listed on this site.</p></details>
-<details><summary>Is there a private entrance?</summary><p>There is one main entrance. A back entrance can be used for a surprise guest when it is arranged ahead of time with our team.</p></details>
-<details><summary>Is the space accessible?</summary><p>Yes. The space is accessible.</p></details>
+<details><summary>Is there a private entrance?</summary><p>There is a private main entrance. A back entrance can be used for a surprise guest when it is arranged ahead of time with our team.</p></details>
+<details><summary>Is the space accessible?</summary><p>Accessibility: [VERIFY]</p></details>
+<details><summary>If I pay the damage deposit by card, how is it returned?</summary><p>If you paid the damage deposit by card, it is refunded to the same card after the event once the space is checked.</p></details>
 HTML;
 }
 
@@ -881,11 +1001,43 @@ function brb_refresh_contact() {
     $wpdb->update($wpdb->posts, ['post_content' => $next], ['ID' => (int) $page->ID]);
     clean_post_cache((int) $page->ID);
 }
+function brb_refresh_checklist_copy() {
+    $o = get_option('brb_settings', []);
+    if (!is_array($o)) return;
+    $text = (string) ($o['checklist'] ?? '');
+    if ($text === '') return;
+    $next = str_replace('Complete the in-person walk-through.', '', $text);
+    $next = str_replace("\n\n\n", "\n\n", $next);
+    if (strpos($next, 'confetti cannons') === false) {
+        $next = rtrim($next) . "\n" . implode("\n", [
+            'Not allowed: Glitter, confetti, confetti cannons, rice, birdseed, or loose sequins.',
+            'Not allowed: Wall tape.',
+            'Not allowed: Fireworks, sparklers, smoke bombs, pyrotechnics, or explosive or combustible props.',
+            'Not allowed: Open flame, unless we approve it in writing.',
+            'Not allowed: Hazardous materials or illegal substances.',
+            'Not allowed: Weapons, except as the law allows.',
+            'Not allowed: Anything that creates a big mess, a fire or safety risk, a nuisance, or a disturbance.',
+            'Tickets, cover charges, paid admission, door fees, and ticket or merchandise sales aren\'t allowed either.',
+            'If you paid the damage deposit by card, it is refunded to the same card after the event once the space is checked.',
+        ]);
+    }
+    if ($next !== $text) {
+        $o['checklist'] = $next;
+        update_option('brb_settings', $o);
+    }
+}
 function brb_refresh_faq() {
     $page = get_page_by_path('faq');
     if (!$page) return;
     $c = (string) $page->post_content;
     if (stripos($c, 'How many guests can The Boardroom hold') === false) return;
+    if ($c !== brb_faq_markup()) {
+        global $wpdb;
+        $wpdb->update($wpdb->posts, ['post_content' => brb_faq_markup()], ['ID' => (int) $page->ID]);
+        clean_post_cache((int) $page->ID);
+        return;
+    }
+    return;
     if (stripos($c, 'Our staff can\'t set the room for you') === false) {
         global $wpdb;
         $wpdb->update($wpdb->posts, ['post_content' => brb_faq_markup()], ['ID' => (int) $page->ID]);
@@ -1015,6 +1167,8 @@ function brb_maybe_upgrade() {
     brb_install_checklist_page();
     brb_install_report_tables();
     brb_ensure_tour_on_contact();
+    brb_import_named_blackouts();
+    brb_refresh_checklist_copy();
     wp_clear_scheduled_hook('brb_cron_expire');
     update_option('brb_version', BRB_VER);
 }
@@ -1047,8 +1201,9 @@ function brb_slot_info(DateTimeImmutable $day) {
     $mode = $o['mode'];
     $dayOk = ($mode !== 'hourly') && ($day->setTime(10, 0) >= $cutoff);
     $first = null;
+    $latest = brb_latest_start_hour();
     if ($mode !== 'day') {
-        for ($h = $open; $h + $minH <= $close; $h++) {
+        for ($h = $open; $h <= $latest; $h++) {
             if ($midnight->setTime($h, 0) >= $cutoff) { $first = $h; break; }
         }
     }
@@ -1088,8 +1243,10 @@ function brb_build_range($in, $args = []) {
     } else {
         $h = (int) ($in['start_hour'] ?? $o['open_hour']);
         $len = max((int) $o['min_hours'], (int) ($in['hours'] ?? $o['min_hours']));
-        if ($h < (int) $o['open_hour'] || $h + $len > (int) $o['close_hour']) {
-            return new WP_Error('hours', sprintf('Hourly bookings must end by %d:00. Guests must be out by 11:30 PM.', (int) $o['close_hour']));
+        $latest = brb_latest_start_hour();
+        $end_mins = ($h * 60) + ($len * 60);
+        if ($h < (int) $o['open_hour'] || $h > $latest || $end_mins > (23 * 60 + 30)) {
+            return new WP_Error('hours', 'A shorter block must end by 11:30 PM. The latest start for a ' . (int) $o['min_hours'] . '-hour minimum is ' . brb_hour_label($latest) . '.');
         }
         $s = $d0->setTime($h, 0);
         $e = $s->modify("+$len hour");
@@ -1213,7 +1370,7 @@ function brb_send_addon_prompts() {
     foreach ((array) $rows as $b) {
         $link = add_query_arg('br_addon', $b->token, home_url('/book/'));
         $body = brb_guest_hello_line() . "\n\nYour event is coming up. If the day before is open, you can add a setup day for " . brb_money(brb_addon_price()) . ". If the day after is open, you can add a takedown day for the same amount. This includes Sunday.\n\n" . $link . "\n";
-        brb_mail($b->email, 'Setup or takedown day for ' . brb_ref($b), $body, brb_staff_reply());
+        brb_mail($b->email, 'Setup or takedown day for ' . brb_ref($b), $body, brb_guest_reply_to());
         $wpdb->update(brb_table(), ['addon_prompted' => 1], ['id' => (int) $b->id]);
     }
 }
@@ -1357,6 +1514,25 @@ function brb_smtp_from_address() {
     $from = sanitize_email(brb_env('BRB_SMTP_FROM'));
     return is_email($from) ? $from : 'boardroomqc@gmail.com';
 }
+function brb_mail_from_address() {
+    $env = sanitize_email(brb_env('BRB_SMTP_FROM'));
+    if (is_email($env)) return $env;
+    $set = sanitize_email((string) brb_opt('mail_from'));
+    return is_email($set) ? $set : 'boardroomqc@gmail.com';
+}
+function brb_mail_from_name() {
+    $env = trim(brb_env('BRB_SMTP_FROM_NAME'));
+    if ($env !== '') return $env;
+    $name = trim((string) brb_opt('mail_from_name'));
+    return $name !== '' ? $name : 'The Boardroom';
+}
+function brb_guest_reply_to() {
+    $set = sanitize_email((string) brb_opt('mail_reply_to'));
+    return is_email($set) ? $set : brb_mail_from_address();
+}
+function brb_inquiry_cc_list() {
+    return brb_parse_email_list(brb_opt('inquiry_cc'))['valid'];
+}
 function brb_smtp_config() {
     $user = brb_env('BRB_SMTP_USER');
     $pass = brb_env('BRB_SMTP_PASS');
@@ -1387,9 +1563,9 @@ function brb_configure_phpmailer($phpmailer) {
     $phpmailer->SMTPAutoTLS = true;
     $phpmailer->SMTPDebug = 0;
     $phpmailer->Debugoutput = static function () {};
-    $phpmailer->From = $cfg['from'];
-    $phpmailer->FromName = $cfg['from_name'];
-    $phpmailer->Sender = $cfg['from'];
+    $phpmailer->From = brb_mail_from_address();
+    $phpmailer->FromName = brb_mail_from_name();
+    $phpmailer->Sender = brb_mail_from_address();
 }
 add_action('phpmailer_init', 'brb_configure_phpmailer');
 function brb_redact_secret($text) {
@@ -1452,12 +1628,17 @@ function brb_admin_email_notice() {
     if ($html !== '') echo $html;
 }
 add_action('admin_notices', 'brb_admin_email_notice');
-function brb_mail($to, $subject, $body, $reply = '', $from = '') {
+function brb_mail($to, $subject, $body, $reply = '', $from = '', $cc = []) {
     $to = sanitize_email($to);
     if (!$to || !is_email($to)) return false;
+    if (!$from || !is_email($from)) $from = brb_mail_from_address();
     $headers = ['Content-Type: text/plain; charset=UTF-8'];
-    if ($from && is_email($from)) $headers[] = 'From: ' . brb_smtp_from_name() . ' <' . $from . '>';
+    $headers[] = 'From: ' . brb_mail_from_name() . ' <' . $from . '>';
     if ($reply && is_email($reply)) $headers[] = 'Reply-To: ' . $reply;
+    foreach ((array) $cc as $copy) {
+        $copy = sanitize_email($copy);
+        if (is_email($copy) && strcasecmp($copy, $to) !== 0) $headers[] = 'Cc: ' . $copy;
+    }
     return wp_mail($to, $subject, $body, $headers);
 }
 function brb_send_test_email() {
@@ -1499,7 +1680,7 @@ function brb_send_request_emails($b) {
     $facts = brb_approval_line() . "\n\n" . brb_request_open_line() . "\n\n" . brb_reserved_line() . "\n\n" . brb_deposit_line() . "\n\n" . brb_not_held_line();
     $detail = "When: " . brb_when($b) . "\n" . brb_event_type_line($b) . "Guests attending: {$b->guests}\n" . ($screen !== '' ? $screen . "\n" : '') . "Price: {$price}\n";
     $body = brb_guest_hello_line() . "\n\n" . brb_guest_review_line() . "\n\n{$detail}\n" . brb_no_overnight_line() . "\n" . brb_guest_out_line() . "\n" . brb_guest_free_line() . "\n" . brb_hours_line() . "\n\nCancellation policy:\n{$o['policy']}\n\nView your request: " . brb_guest_link($b) . "\n";
-    brb_mail($b->email, 'We received your Boardroom request (' . $ref . ')', $body, brb_staff_reply());
+    brb_mail($b->email, 'We received your Boardroom request (' . $ref . ')', $body, brb_guest_reply_to());
     $admin = "A new request is pending review. The date is not held.\n\nReference: {$ref}\nWhen: " . brb_when($b) . "\nGuest: {$b->name}\nEmail: {$b->email}\nPhone: {$b->phone}\n" . brb_event_type_line($b) . "Guests: {$b->guests}\n" . ($screen !== '' ? $screen . "\n" : '') . "Price: {$price}\nSource: " . brb_source_label($b->source) . "\nNotes: {$b->notes}\n\n" . admin_url('admin.php?page=brb&booking=' . (int) $b->id) . "\n";
     brb_mail_staff('Request pending review ' . $ref . ' – ' . $b->name, $admin, $b->email);
 }
@@ -1514,7 +1695,7 @@ function brb_send_approve_email($b) {
         return !in_array($line, [brb_not_held_line(), brb_reserved_line(), brb_approval_line(), brb_request_open_line()], true);
     })));
     $body = brb_guest_hello_line() . "\n\nYour request is approved.\n\n" . brb_guest_review_line() . "\n\n" . $guest_facts . "\n\n" . brb_guest_out_line() . "\n" . brb_guest_free_line() . "\n\nWhen: " . brb_when($b) . "\n" . brb_event_type_line($b) . "Guests attending: {$b->guests}\nReference: {$ref}\n\n" . brb_checklist_plain() . "\nView your booking: " . brb_guest_link($b) . "\n";
-    brb_mail($b->email, 'Your Boardroom request is approved (' . $ref . ')', $body, brb_staff_reply());
+    brb_mail($b->email, 'Your Boardroom request is approved (' . $ref . ')', $body, brb_guest_reply_to());
     $staff = "Request approved.\n\n{$facts}\n\nWhen: " . brb_when($b) . "\n" . brb_event_type_line($b) . "Guests attending: {$b->guests}\nReference: {$ref}\n\n" . admin_url('admin.php?page=brb&booking=' . (int) $b->id) . "\n";
     brb_mail_staff('Request approved ' . $ref . ' – ' . $b->name, $staff, $b->email);
 }
@@ -1522,7 +1703,7 @@ function brb_send_decline_email($b) {
     $o = brb_opt();
     $ref = brb_ref($b);
     $body = brb_guest_hello_line() . "\n\n" . brb_guest_review_line() . "\n\nThis request ({$ref}, " . brb_when($b) . ") is not approved because it does not meet our event rules or the date is not available. The date is not reserved.\n\n" . brb_deposit_line() . "\n\nIf a payment was recorded, our team will resolve it manually.\n";
-    brb_mail($b->email, 'Your Boardroom request was declined (' . $ref . ')', $body, brb_staff_reply());
+    brb_mail($b->email, 'Your Boardroom request was declined (' . $ref . ')', $body, brb_guest_reply_to());
     $staff = "Request declined.\n\n{$ref}, " . brb_when($b) . "\nThe date is not reserved.\n\n" . brb_deposit_line() . "\n\n" . admin_url('admin.php?page=brb&booking=' . (int) $b->id) . "\n";
     brb_mail_staff('Request declined ' . $ref . ' – ' . $b->name, $staff, $b->email);
 }
@@ -1530,7 +1711,7 @@ function brb_send_checklist_reminder($b) {
     $o = brb_opt();
     $ref = brb_ref($b);
     $body = brb_guest_hello_line() . "\n\nYour event is about a week away. Here is the rental checklist again.\n\n" . brb_checklist_plain() . "\nWhen: " . brb_when($b) . "\nReference: {$ref}\n\nView your booking: " . brb_guest_link($b) . "\n";
-    return brb_mail($b->email, 'Your Boardroom checklist for ' . $ref, $body, brb_staff_reply());
+    return brb_mail($b->email, 'Your Boardroom checklist for ' . $ref, $body, brb_guest_reply_to());
 }
 function brb_checklist_reminders() {
     global $wpdb;
@@ -1572,8 +1753,7 @@ function brb_receipt_block($b, $amount, $method, $received_on) {
 }
 function brb_send_receipt_copies($b, $subject, $admin_subject, $body) {
     $admins = brb_admin_emails();
-    $reply = $admins ? $admins[0] : '';
-    brb_mail($b->email, $subject, $body, $reply);
+    brb_mail($b->email, $subject, $body, brb_guest_reply_to());
     $staff = $body . "\n" . admin_url('admin.php?page=brb&booking=' . (int) $b->id) . "\n";
     foreach ($admins as $admin) {
         brb_mail($admin, $admin_subject, $staff, $b->email);
@@ -1640,7 +1820,7 @@ function brb_send_cancel_email($b) {
     $o = brb_opt();
     $ref = brb_ref($b);
     $body = brb_guest_hello_line() . "\n\nBooking {$ref} (" . brb_when($b) . ") has been cancelled. The date is no longer reserved.\n\nCancellation policy:\n{$o['policy']}\n";
-    brb_mail($b->email, 'Boardroom booking cancelled (' . $ref . ')', $body, brb_staff_reply());
+    brb_mail($b->email, 'Boardroom booking cancelled (' . $ref . ')', $body, brb_guest_reply_to());
     brb_mail_staff('Booking cancelled ' . $ref, "Booking {$ref} was cancelled.\n\n" . admin_url('admin.php?page=brb&booking=' . (int) $b->id) . "\n", $b->email);
 }
 
@@ -1724,6 +1904,8 @@ function brb_process_public_booking($post) {
     if (!$name || !is_email($email)) return new WP_Error('contact', 'Name and a valid email are required.');
     $event_type = sanitize_key($post['event_type'] ?? '');
     if (!isset(brb_event_types()[$event_type])) return new WP_Error('event_type', 'Please choose an event type.');
+    $phone = sanitize_text_field($post['phone'] ?? '');
+    if ($phone === '' || strlen($phone) > 50) return new WP_Error('phone', 'Please enter a phone number.');
     if ((string) ($post['waiver'] ?? '') !== '1') return new WP_Error('waiver', 'Please confirm the assumption of risk.');
     $screen = brb_collect_screening($post, true, is_wp_error($r) ? null : $r['s']);
     if (is_wp_error($screen)) return $screen;
@@ -1731,7 +1913,7 @@ function brb_process_public_booking($post) {
     return brb_insert_booking($r, $q, [
         'name' => $name,
         'email' => $email,
-        'phone' => '',
+        'phone' => $phone,
         'notes' => $screen['event_about'],
         'event_type' => $event_type,
         'public_event' => $screen['public_event'],
@@ -1885,7 +2067,7 @@ function brb_send_price_email($b) {
         $body .= "Payment instructions are sent when the request is approved.\n\n" . brb_deposit_line() . "\n\n";
     }
     $body .= 'When: ' . brb_when($b) . "\n" . brb_event_type_line($b) . "Guests attending: {$b->guests}\nReference: {$ref}\n\nView your booking: " . brb_guest_link($b) . "\n";
-    brb_mail($b->email, 'Your Boardroom price is confirmed (' . $ref . ')', $body, brb_staff_reply());
+    brb_mail($b->email, 'Your Boardroom price is confirmed (' . $ref . ')', $body, brb_guest_reply_to());
     brb_mail_staff('Price set for ' . $ref . ' – ' . $b->name, $body . "\n" . admin_url('admin.php?page=brb&booking=' . (int) $b->id) . "\n", $b->email);
 }
 function brb_extend_hold($booking_id, $hours) {
@@ -2032,8 +2214,7 @@ add_shortcode('boardroom_booking', function () {
     ]);
     ob_start();
     echo '<div class="brb">';
-    echo '<p class="brb-lead">' . esc_html(brb_price_sentence()) . '</p>';
-    echo '<p class="brb-lead">' . esc_html(brb_approval_line()) . ' ' . esc_html(brb_request_open_line()) . ' ' . esc_html(brb_reserved_line()) . ' ' . esc_html(brb_deposit_line()) . ' ' . esc_html(brb_fee_public_line()) . '</p>';
+    echo brb_how_booking_works_html();
     if (!empty($_GET['br_err'])) echo '<div class="brb-alert brb-err">' . esc_html(wp_unslash($_GET['br_err'])) . '</div>';
     if (!empty($_GET['br_addon'])) brb_view_addon(sanitize_text_field(wp_unslash($_GET['br_addon'])));
     elseif (!empty($_GET['br_pay'])) brb_view_pay(sanitize_text_field(wp_unslash($_GET['br_pay'])), sanitize_text_field(wp_unslash($_GET['br_sig'] ?? '')));
@@ -2092,9 +2273,14 @@ function brb_view_select() {
     $notice = brb_notice_hours();
     ?>
     <div class="brb-grid">
-      <div class="brb-card">
+      <div class="brb-card brb-cal-card">
         <div id="brb-cal" class="brb-cal" aria-live="polite" data-api="<?php echo esc_url(rest_url('brb/v1/availability')); ?>" data-nonce="<?php echo esc_attr(wp_create_nonce('wp_rest')); ?>" data-notice="<?php echo (int) $notice; ?>" data-mode="<?php echo esc_attr($o['mode']); ?>">Loading calendar…</div>
         <p class="brb-legend"><span class="free"></span>Available <span class="partial"></span>Partly booked <span class="booked"></span>Unavailable <span class="soon"></span>Inside <?php echo (int) $notice; ?>h notice</p>
+        <p class="brb-lead"><?php echo esc_html(brb_price_sentence()); ?></p>
+        <p class="brb-lead"><?php echo esc_html(brb_price_range_sentence()); ?></p>
+        <p class="brb-lead"><?php echo esc_html(brb_first_payment_sentence()); ?></p>
+        <p class="brb-lead"><?php echo esc_html(brb_damage_card_refund_line()); ?></p>
+        <?php echo brb_deposit_bullets_html(); ?>
       </div>
       <form class="brb-card" method="get" id="brb-form">
         <p class="brb-small">Please choose a start at least <?php echo (int) $notice; ?> hours from now (America/Chicago). Dates and start times inside that window are unavailable. A full day runs from 10:00 AM to 11:30 PM.</p>
@@ -2107,7 +2293,7 @@ function brb_view_select() {
         <?php if ($o['mode'] === 'both'): ?>
         <fieldset class="brb-type"><legend>Booking type</legend>
           <label><input type="radio" name="type" value="day" checked> Full day (10:00 AM–11:30 PM)</label>
-          <label class="brb-half-choice"><input type="radio" name="type" value="half"> Half day</label>
+          <label class="brb-half-choice is-hidden"><input type="radio" name="type" value="half"> Half day (June)</label>
           <label><input type="radio" name="type" value="hourly"> Shorter block (<?php echo (int) $o['min_hours']; ?> hour minimum)</label>
         </fieldset>
         <?php else: ?><input type="hidden" name="type" value="<?php echo esc_attr($o['mode']); ?>"><?php endif; ?>
@@ -2121,10 +2307,12 @@ function brb_view_select() {
         </div>
         <div class="brb-hourly">
           <label>Start time<select name="start_hour" id="brb-start"><?php
-            for ($h = (int) $o['open_hour']; $h < (int) $o['close_hour']; $h++) {
+            $latest = brb_latest_start_hour();
+            for ($h = (int) $o['open_hour']; $h <= $latest; $h++) {
                 printf('<option value="%d">%s</option>', $h, esc_html(brb_hour_label($h)));
             }
           ?></select></label>
+          <p class="brb-small">The latest start is <?php echo esc_html(brb_hour_label($latest)); ?> so a <?php echo (int) $o['min_hours']; ?>-hour block ends by 11:30 PM.</p>
           <label>Hours<input type="number" name="hours" value="<?php echo (int) $o['min_hours']; ?>" min="<?php echo (int) $o['min_hours']; ?>" max="<?php echo (int) $o['close_hour'] - (int) $o['open_hour']; ?>"></label>
           <p class="brb-small" id="brb-busy"></p>
         </div>
@@ -2165,8 +2353,12 @@ function brb_view_quote() {
         <h3>Your date</h3>
         <p><strong><?php echo esc_html($when); ?></strong><br><?php echo (int) $r['guests']; ?> guests attending</p>
         <p><?php echo esc_html(brb_price_sentence()); ?></p>
+        <p><?php echo esc_html(brb_price_range_sentence()); ?></p>
+        <p><?php echo esc_html(brb_no_overnight_line()); ?></p>
+        <p><?php echo esc_html(brb_first_payment_sentence()); ?></p>
+        <p><?php echo esc_html(brb_damage_card_refund_line()); ?></p>
         <p><strong>price to be confirmed</strong></p>
-        <?php brb_echo_lines(brb_preview_lines($q, $r['s'])); ?>
+        <?php echo brb_deposit_bullets_html(); ?>
         <a href="<?php echo esc_url(strtok($_SERVER['REQUEST_URI'] ?? home_url('/book/'), '?')); ?>">← Change date</a>
       </div>
       <form class="brb-card" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
@@ -2177,6 +2369,7 @@ function brb_view_quote() {
         } ?>
         <label>Full name*<input name="name" required autocomplete="name"></label>
         <label>Email*<input type="email" name="email" required autocomplete="email"></label>
+        <label>Phone*<input type="tel" name="phone" required autocomplete="tel" maxlength="50"></label>
         <label>Event type*<select name="event_type" required>
           <option value="">Choose one</option>
           <?php foreach (brb_event_types() as $key => $label): ?>
@@ -2210,9 +2403,9 @@ function brb_view_quote() {
           <?php endforeach; ?>
         </select><span class="brb-small">The minimum host age is 25 for every booking.</span></label>
         <label>Tell us about your event*<textarea name="event_about" rows="4" required></textarea></label>
-        <div class="brb-policy"><strong>Cancellation policy</strong><p><?php echo nl2br(esc_html($o['policy'])); ?></p><p><a href="<?php echo esc_url(home_url('/terms/')); ?>" target="_blank" rel="noopener">Read the Rental Terms</a></p></div>
+        <p class="brb-small"><?php echo esc_html(brb_approval_line()); ?> <?php echo esc_html(brb_request_open_line()); ?></p>
         <label class="brb-check"><input type="checkbox" name="waiver" value="1" required> I and my guests assume all risk. The Boardroom is not responsible for injury, loss, or equipment issues, such as the ice maker or wifi, that affect an event.</label>
-        <label class="brb-check"><input type="checkbox" name="policy" value="1" required> I agree to the <a href="<?php echo esc_url(home_url('/terms/')); ?>" target="_blank" rel="noopener">Terms</a>, the <a href="<?php echo esc_url(home_url('/rental-agreement/')); ?>" target="_blank" rel="noopener">Rental Agreement</a> and the <a href="<?php echo esc_url(home_url('/privacy/')); ?>" target="_blank" rel="noopener">Privacy Policy</a>. I understand <?php echo esc_html(lcfirst(brb_deposit_line())); ?></label>
+        <label class="brb-check"><input type="checkbox" name="policy" value="1" required> I agree to the <a href="<?php echo esc_url(home_url('/terms/')); ?>" target="_blank" rel="noopener">Terms</a>, the <a href="<?php echo esc_url(home_url('/rental-agreement/')); ?>" target="_blank" rel="noopener">Rental Agreement</a> and the <a href="<?php echo esc_url(home_url('/privacy/')); ?>" target="_blank" rel="noopener">Privacy Policy</a>.</label>
         <button class="brb-btn" type="submit">Submit request</button>
       </form>
     </div>
@@ -2286,6 +2479,7 @@ function brb_view_confirmation($token) {
       if (in_array($b->status, ['review', 'pending'], true)) {
           echo '<div class="brb-paybox">';
           echo '<p>' . esc_html(brb_guest_hello_line()) . '</p>';
+          echo '<p>Nothing is charged yet. We review your request and email a price, usually within a few business days.</p>';
           echo '<p>' . esc_html(brb_guest_review_line()) . '</p>';
           echo '<p>Pending review</p>';
           echo '</div>';

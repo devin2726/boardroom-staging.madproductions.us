@@ -77,7 +77,7 @@ try {
         'When is the balance due?' => ['week of the event', '48 hours'],
         'Is there a refrigerator or ice?' => ['refrigerator', 'ice machine'],
         'Who will be there during my event?' => ['No one is on site', 'connected offices', 'contract is signed'],
-        'Is there a private entrance?' => ['one main entrance', 'back entrance', 'surprise guest'],
+        'Is there a private entrance?' => ['private main entrance', 'back entrance', 'surprise guest'],
         'Can I talk to a person?' => ['Contact form', 'boardroomqc@gmail.com', 'contract is signed'],
         'Is there an age limit for hosts?' => ['minimum host age is 25'],
         'Is there a place for a food truck?' => ['place for a food truck'],
@@ -99,7 +99,7 @@ try {
     $tape = brb_chat_reply('Can I use tape on the wall?');
     brb_t(strpos($tape, 'Wall tape is not allowed') !== false, 'wall tape is not allowed');
     $damaged = brb_chat_reply('What happens if something gets damaged?');
-    brb_t(strpos($damaged, 'damage deposit covers cleaning and damage') !== false && strpos($damaged, 'may be charged') !== false && strpos($damaged, 'Terms') !== false && strpos($damaged, 'walk-through') !== false && strpos($damaged, $unknown) === false, 'damage is covered by the deposit and explained at the walk-through');
+    brb_t(strpos($damaged, 'damage deposit covers cleaning and damage') !== false && strpos($damaged, 'may be charged') !== false && strpos($damaged, 'Terms') !== false && stripos($damaged, 'walk-through') === false && strpos($damaged, $unknown) === false, 'damage is covered by the deposit and points to the Terms');
     $market = brb_chat_reply('Can I hold a vendor market or sell items?');
     brb_t(strpos($market, 'No.') !== false && strpos($market, 'free to attend') !== false && strpos($market, 'no merchandise sales') !== false && strpos($market, 'no ticket sales') !== false && strpos($market, $unknown) === false, 'a vendor market is not allowed');
     $receipt = brb_chat_reply('Can I get a receipt or an invoice?');

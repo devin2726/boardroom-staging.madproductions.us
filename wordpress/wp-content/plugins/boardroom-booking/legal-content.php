@@ -126,7 +126,13 @@ function brb_terms_html() {
 <p>The signed agreement, together with your invoice, booking confirmation, and any written addendum or rules from us, is the entire deal. Whoever signs for the renter confirms they're authorized to, and is personally responsible if they're not.</p>
 
 <h2>How booking works</h2>
-<p>Every booking starts as a request. Our team reviews it, which includes a quick in-person meeting with you. We don't keep set hours. We meet on demand and set a time together, by appointment. Approval depends on your event details, availability, and our house rules. No payment is due until you're approved.</p>
+<ol>
+<li>Send a request. Nothing is charged yet.</li>
+<li>We email you a price.</li>
+<li>After approval, we email a payment link.</li>
+<li>Pay 50% of the rental plus the $250 refundable damage deposit by card (a 3% fee is added) or by check, and agree to the Terms and the Rental Agreement.</li>
+<li>Your date is locked. Pay the balance by check or card. Your status link stays with the booking, and we email a checklist reminder about one week before.</li>
+</ol>
 <p>One heads-up: the room isn't set up or decorated when you arrive, except in December, when our Christmas décor is up.</p>
 
 <h2>The signed agreement controls</h2>

@@ -176,7 +176,7 @@ try {
     $home = file_get_contents(get_stylesheet_directory() . '/front-page.php');
     brb_t(is_string($home) && strpos($home, 'br_contact_form') === false && strpos($home, 'name="phone"') === false && strpos($home, "home_url('/contact/')") !== false, 'the homepage links to contact instead of a second form');
     $amenities = br_amenities_html();
-    foreach (['Air conditioning', 'Heating', 'Hot water', 'Private entrance', 'Free parking on premises', 'Free street parking', 'Wifi', 'TV', 'Sound system (Sonos, Aux, Bluetooth)', 'Pool table', 'Board games', 'Dining table', 'Dedicated workspace', 'Refrigerator (large)', 'Freezer', 'Mini fridge', 'Microwave', 'Dishwasher', 'Coffee maker (drip and pour-over)', 'Hot water kettle', 'Toaster', 'Blender', 'Wine glasses', 'Smoke alarm', 'Carbon monoxide alarm', 'Fire extinguisher', 'First aid kit'] as $item) {
+    foreach (['Air conditioning', 'Heating', 'Private main entrance', 'Free parking on premises', 'Free street parking', 'Wifi', 'TV', 'Sound system (Sonos, Aux, Bluetooth)', 'Pool table', 'Board games', 'Dining table', 'Refrigerator (large)', 'Freezer', 'Mini fridge', 'Microwave', 'Dishwasher', 'Coffee maker (drip and pour-over)', 'Hot water kettle', 'Blender', 'Wine glasses', 'Smoke alarm', 'Carbon monoxide alarm', 'Fire extinguisher', 'First aid kit'] as $item) {
         brb_t(strpos($amenities, $item) !== false, 'amenities include ' . $item);
     }
     brb_t(substr_count($amenities, 'Serving and storage only, no cooking or stovetop use.') === 1 && strpos($amenities, 'Kitchen area is for serving and storage. Cooking and stovetop use are not permitted.') === false, 'the kitchen card has one serving-and-storage line');
@@ -201,6 +201,23 @@ try {
     brb_t(strpos($rotator, 'class="review-card on"') !== false && substr_count($rotator, '<blockquote') === 4 && strpos($home, 'br_reviews_html') !== false, 'featured quotes still exist for the home page, which keeps the review marquee');
     $summary = br_review_aggregate_schema();
     brb_t(is_array($summary) && $summary['ratingValue'] === '5.0' && $summary['reviewCount'] === 29, 'the review schema uses the 5.0 rating and the count of 29');
+    global $wp_query, $wp_the_query;
+    $saved_query = $wp_query;
+    $saved_the = $wp_the_query;
+    foreach (br_seo_pages() as $slug => $seo) {
+        if ($slug === 'home') {
+            $front = (int) get_option('page_on_front');
+            $q = $front ? new WP_Query(['page_id' => $front]) : new WP_Query(['post_type' => 'page', 'pagename' => 'home']);
+        } else {
+            $q = new WP_Query(['pagename' => $slug]);
+        }
+        $wp_query = $q;
+        $wp_the_query = $q;
+        $title = html_entity_decode(wp_get_document_title(), ENT_QUOTES, 'UTF-8');
+        brb_t($q->have_posts() && $title === $seo['title'] && substr_count($title, ' – ') === 0, 'the ' . $slug . ' title does not add the site name again');
+    }
+    $wp_query = $saved_query;
+    $wp_the_query = $saved_the;
     ob_start();
     brb_place_schema();
     $plain_schema = ob_get_clean();

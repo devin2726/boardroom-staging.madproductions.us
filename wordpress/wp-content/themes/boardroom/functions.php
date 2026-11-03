@@ -4,8 +4,8 @@ add_action('after_setup_theme', function () {
     register_nav_menus(['primary' => 'Primary', 'footer' => 'Footer']);
 });
 add_action('wp_enqueue_scripts', function () {
-    wp_enqueue_style('boardroom', get_stylesheet_uri(), [], '1.2.21');
-    wp_enqueue_script('boardroom', get_template_directory_uri() . '/assets/site.js', [], '1.2.21', true);
+    wp_enqueue_style('boardroom', get_stylesheet_uri(), [], '1.2.22');
+    wp_enqueue_script('boardroom', get_template_directory_uri() . '/assets/site.js', [], '1.2.22', true);
 });
 function br_img($f) { return get_template_directory_uri() . '/assets/img/' . $f; }
 function br_logo($place) {
@@ -38,12 +38,12 @@ function br_amenity_groups() {
         [
             'title' => 'Comfort and utilities',
             'icon' => 'M12 3v2M12 19v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M3 12h2M19 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z',
-            'items' => ['Air conditioning', 'Heating', 'Hot water'],
+            'items' => ['Air conditioning', 'Heating'],
         ],
         [
             'title' => 'Access and parking',
             'icon' => 'M4 16l2-6h12l2 6M6 16h12M7 16v2M17 16v2M7 10V7h10v3',
-            'items' => ['Private entrance', 'Free parking on premises', 'Free street parking'],
+            'items' => ['Private main entrance', 'Free parking on premises', 'Free street parking'],
         ],
         [
             'title' => 'Tech and entertainment',
@@ -53,13 +53,13 @@ function br_amenity_groups() {
         [
             'title' => 'Furnishings',
             'icon' => 'M6 11V6h12v5M4 11h16v4H4zM7 15v4M17 15v4',
-            'items' => ['Dining table', 'Dedicated workspace'],
+            'items' => ['Dining table'],
         ],
         [
             'title' => 'Kitchen area',
             'icon' => 'M6 10h12l-1 8H7l-1-8zM9 10V7M12 10V5M15 10V7',
             'lead' => 'Serving and storage only, no cooking or stovetop use.',
-            'items' => ['Refrigerator (large)', 'Freezer', 'Mini fridge', 'Microwave', 'Dishwasher', 'Coffee maker (drip and pour-over)', 'Hot water kettle', 'Toaster', 'Blender', 'Wine glasses'],
+            'items' => ['Refrigerator (large)', 'Freezer', 'Mini fridge', 'Microwave', 'Dishwasher', 'Coffee maker (drip and pour-over)', 'Hot water kettle', 'Blender', 'Wine glasses'],
         ],
         [
             'title' => 'Safety',
@@ -142,7 +142,7 @@ function br_reviews_html() {
     $html .= '<p class="review-badge">5.0 ★ from 29 guest reviews</p></header>';
     $html .= '<div class="t-marquee"><div class="t-track">';
     $html .= '<div class="t-set">' . $cards . '</div>';
-    $html .= '<div class="t-set" aria-hidden="true">' . $cards . '</div>';
+    $html .= '<div class="t-set" aria-hidden="true" inert>' . $cards . '</div>';
     $html .= '</div></div></div></section>';
     return $html;
 }
@@ -155,7 +155,7 @@ function br_review_rotator_html() {
     $html = '<div class="review-rotator" aria-roledescription="carousel" aria-label="Guest reviews">';
     foreach ($reviews as $i => $review) {
         $on = $i === 0 ? ' on' : '';
-        $hidden = $i === 0 ? '' : ' aria-hidden="true"';
+        $hidden = $i === 0 ? '' : ' aria-hidden="true" inert';
         $html .= '<blockquote class="review-card' . $on . '"' . $hidden . '><p class="stars" aria-label="5 out of 5 stars">★★★★★</p><p class="review-text">' . esc_html($review['text']) . '</p><footer><cite>' . esc_html($review['name']) . '</cite> <span>' . esc_html($review['when']) . '</span></footer></blockquote>';
     }
     $html .= '</div>';
@@ -268,6 +268,122 @@ function br_footer_map() {
     $src = 'https://www.google.com/maps?q=2220+37th+Street,+Moline,+IL+61265&output=embed';
     return '<iframe class="footer-map" src="' . esc_url($src) . '" loading="lazy" title="Map of The Boardroom at 2220 37th Street, Moline, IL 61265" referrerpolicy="no-referrer-when-downgrade"></iframe>';
 }
+function br_public_email() {
+    return 'boardroomqc@gmail.com';
+}
+function br_webp_file($file) {
+    return preg_replace('/\.(jpe?g|png)$/i', '.webp', (string) $file);
+}
+function br_has_webp($file) {
+    return is_readable(get_template_directory() . '/assets/img/' . br_webp_file($file));
+}
+function br_picture($file, $alt) {
+    $html = '<picture>';
+    if (br_has_webp($file)) {
+        $html .= '<source srcset="' . esc_url(br_img(br_webp_file($file))) . '" type="image/webp">';
+    }
+    $html .= '<img src="' . esc_url(br_img($file)) . '" alt="' . esc_attr($alt) . '">';
+    $html .= '</picture>';
+    return $html;
+}
+function br_photo_alt($file) {
+    $alts = [
+        'IMG_0223.jpeg' => 'The Boardroom main room with tables ready for an event',
+        'IMG_0231.jpeg' => 'The Boardroom bar and seating area',
+        'PXL_20220912_160615354.jpg' => 'The Boardroom game room with the pool table',
+        'PXL_20220912_160655168.jpg' => 'The Boardroom event space looking toward the entrance',
+        'PXL_20220912_161645069.jpg' => 'The Boardroom lounge with the television and games',
+    ];
+    return $alts[$file] ?? 'The Boardroom venue';
+}
+function br_gallery_alt($file) {
+    $n = '00';
+    if (preg_match('/(\d+)/', (string) $file, $m)) $n = $m[1];
+    $alts = [
+        '01' => 'Wide view of The Boardroom event space',
+        '02' => 'The Boardroom seating along the main wall',
+        '03' => 'Tables arranged in The Boardroom',
+        '04' => 'The Boardroom looking toward the bar',
+        '05' => 'The Boardroom private main entrance area',
+        '06' => 'Close view of The Boardroom bar top',
+        '07' => 'The Boardroom ice machine and bar tools',
+        '08' => 'The Boardroom kitchen serving counter',
+        '09' => 'The Boardroom refrigerator and serving space',
+        '10' => 'The Boardroom coffee station',
+        '11' => 'The Boardroom pool table',
+        '12' => 'The Boardroom shuffleboard',
+        '13' => 'The Boardroom pinball machine',
+        '14' => 'The Boardroom 80-inch TV',
+        '15' => 'The Boardroom lounge seating',
+        '16' => 'The Boardroom dining table',
+        '17' => 'The Boardroom set for a small gathering',
+        '18' => 'The Boardroom string lights over the room',
+        '19' => 'The Boardroom restroom hallway',
+        '20' => 'The Boardroom second restroom',
+        '22' => 'The Boardroom back of the room',
+        '23' => 'The Boardroom windows and seating',
+        '24' => 'The Boardroom floor and open space',
+        '25' => 'The Boardroom sound equipment',
+        '26' => 'The Boardroom Bluetooth speaker area',
+        '27' => 'The Boardroom decor along the wall',
+        '28' => 'The Boardroom ceiling and lights',
+        '29' => 'The Boardroom corner seating',
+        '31' => 'The Boardroom parking area outside',
+        '32' => 'The Boardroom exterior and private main entrance',
+        '33' => 'The Boardroom street view',
+        '34' => 'The Boardroom side of the building',
+        '35' => 'The Boardroom evening interior',
+    ];
+    return $alts[$n] ?? ('The Boardroom venue photo ' . $n);
+}
+function br_seo_pages() {
+    $place = 'Party & Event Venue in Moline, IL (Quad Cities)';
+    return [
+        'home' => ['title' => 'The Boardroom | ' . $place, 'description' => 'The Boardroom is a party and event venue in Moline, IL, in the Quad Cities. Most events run $600 to about $2,000. Request a date and we email your price.'],
+        'book' => ['title' => 'Book The Boardroom | ' . $place, 'description' => 'Request a date at The Boardroom in Moline. Nothing is charged until we email a price and approve the booking. Pay 50% plus the $250 damage deposit.'],
+        'faq' => ['title' => 'FAQ | The Boardroom, ' . $place, 'description' => 'Answers about booking, hours, food, BYOB, capacity, and cancellation at The Boardroom in Moline, IL.'],
+        'terms' => ['title' => 'Rental Terms | The Boardroom, ' . $place, 'description' => 'Plain-language rental terms for The Boardroom in Moline, IL. The signed rental agreement controls if they differ.'],
+        'privacy' => ['title' => 'Privacy Policy | The Boardroom, ' . $place, 'description' => 'How The Boardroom in Moline, IL uses booking and contact details. We do not sell your information.'],
+        'rental-agreement' => ['title' => 'Rental Agreement | The Boardroom, ' . $place, 'description' => 'The facility event space rental agreement for The Boardroom at 2220 37th Street, Moline, IL.'],
+        'rental-checklist' => ['title' => 'Rental Checklist | The Boardroom, ' . $place, 'description' => 'What to do before and after an event at The Boardroom in Moline, IL, including setup, cleanup, and house rules.'],
+        'contact' => ['title' => 'Contact The Boardroom | ' . $place, 'description' => 'Email boardroomqc@gmail.com or use the contact form to ask about The Boardroom in Moline, IL.'],
+        'gallery' => ['title' => 'Photo Gallery | The Boardroom, ' . $place, 'description' => 'Photos of The Boardroom, a party and event venue in Moline, IL, in the Quad Cities.'],
+    ];
+}
+function br_seo_key() {
+    if (is_front_page() || is_home()) return 'home';
+    $post = get_queried_object();
+    $slug = ($post && isset($post->post_name)) ? (string) $post->post_name : '';
+    $pages = br_seo_pages();
+    return isset($pages[$slug]) ? $slug : '';
+}
+function br_share_image() {
+    $file = 'PXL_20220912_160655168.jpg';
+    if (br_has_webp($file)) $file = br_webp_file($file);
+    return br_img($file);
+}
+add_filter('document_title_parts', function ($parts) {
+    $key = br_seo_key();
+    $pages = br_seo_pages();
+    if ($key !== '' && isset($pages[$key])) {
+        $parts['title'] = $pages[$key]['title'];
+        unset($parts['site'], $parts['tagline']);
+    }
+    return $parts;
+});
+add_action('wp_head', function () {
+    $key = br_seo_key();
+    if ($key === '') return;
+    $row = br_seo_pages()[$key];
+    $url = $key === 'home' ? home_url('/') : home_url('/' . $key . '/');
+    $image = br_share_image();
+    echo '<meta name="description" content="' . esc_attr($row['description']) . '">' . "\n";
+    echo '<meta property="og:type" content="website">' . "\n";
+    echo '<meta property="og:title" content="' . esc_attr($row['title']) . '">' . "\n";
+    echo '<meta property="og:description" content="' . esc_attr($row['description']) . '">' . "\n";
+    echo '<meta property="og:url" content="' . esc_url($url) . '">' . "\n";
+    echo '<meta property="og:image" content="' . esc_url($image) . '">' . "\n";
+}, 2);
 function br_ensure_gallery() {
     if (get_option('br_gallery_ready') === '1') return;
     $page = get_page_by_path('gallery');
