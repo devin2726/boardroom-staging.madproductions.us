@@ -239,8 +239,7 @@ function brb_inquiry_guest_ack_body($row) {
     $body = "Hi {$first},\n\n"
         . "Thanks for reaching out to The Boardroom! We got your message and will call or email you shortly.\n";
     if ($lines) $body .= "\nHere's what you sent us:\n" . implode("\n", $lines) . "\n";
-    $body .= "\nWhile you wait, take a look at our Rental Checklist: " . home_url('/rental-checklist/') . "\n"
-        . "Want to check open dates or book? Visit " . home_url('/book/') . "\n\n"
+    $body .= "\nWant to check open dates or book? Visit " . home_url('/book/') . "\n\n"
         . "See you soon,\n"
         . "The Boardroom\n"
         . BRB_VENUE_ADDRESS . "\n";
