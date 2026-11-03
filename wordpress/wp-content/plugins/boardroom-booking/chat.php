@@ -1420,6 +1420,7 @@ function brb_chat_send_notice($row) {
     foreach (brb_tour_recipients() as $to) {
         if (brb_mail($to, 'New contact inquiry', $body, $reply, $from, brb_inquiry_cc_list())) $sent = true;
     }
+    brb_send_inquiry_guest_ack($row);
     return $sent;
 }
 
@@ -1498,7 +1499,7 @@ function brb_chat_avatar() {
 function brb_chat_bubble($text) {
     return '<div class="brb-chat-msg bot">' . brb_chat_avatar() . '<span class="brb-chat-copy"><span class="brb-chat-who">Walter</span>' . esc_html($text) . '</span></div>';
 }
-function brb_chat_markup($mode = 'float') {
+function brb_chat_markup($mode = 'float', $details_target = '') {
     $inline = ($mode === 'inline' || $mode === 'home');
     $home = ($mode === 'home');
     $opening = $inline ? 'Hi, How Can I Help You?' : 'Hi there! How can I help with your event?';
@@ -1518,7 +1519,14 @@ function brb_chat_markup($mode = 'float') {
             echo '<button type="button" class="brb-chat-q" data-question="' . esc_attr($question) . '"><span>' . esc_html($question) . '</span>' . brb_chat_chevron() . '</button>';
         }
         echo '</div><div class="brb-chat-side-foot"><p>Prefer a person?</p>';
-        echo '<button type="button" class="brb-chat-lead-toggle" aria-expanded="false" aria-controls="brb-chat-lead">Leave your details</button></div></div>';
+        $details_target = (string) $details_target;
+        if ($details_target !== '' && $details_target[0] !== '#') {
+            echo '<a class="brb-chat-lead-toggle" href="' . esc_url($details_target) . '">Leave your details</a>';
+        } else {
+            $selector = $details_target !== '' ? $details_target : '#contact-inquiry';
+            echo '<button type="button" class="brb-chat-lead-toggle" data-brb-scroll-form="' . esc_attr($selector) . '">Leave your details</button>';
+        }
+        echo '</div></div>';
         echo '<div class="brb-chat-main">';
         echo '<div class="brb-chat-status"><span class="brb-chat-online">Walter is online</span>';
         echo '<span class="brb-typing" hidden aria-hidden="true"><i></i><i></i><i></i></span>';
@@ -1575,8 +1583,12 @@ add_action('wp_enqueue_scripts', function () {
     ]);
 });
 
+function brb_chat_page_is_inline() {
+    if (is_page('faq')) return true;
+    return is_page('contact') && !(function_exists('br_contact_is_thanks') && br_contact_is_thanks());
+}
 add_action('wp_footer', function () {
     if (is_admin()) return;
-    if (is_front_page()) return;
+    if (brb_chat_page_is_inline()) return;
     echo brb_chat_markup();
 });

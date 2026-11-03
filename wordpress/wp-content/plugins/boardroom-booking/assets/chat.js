@@ -229,6 +229,23 @@
   });
   if (closeBtn) closeBtn.addEventListener('click', closePanel);
   leadToggle.addEventListener('click', function () {
+    var formSelector = leadToggle.getAttribute('data-brb-scroll-form');
+    if (leadToggle.tagName === 'A' && !formSelector) return;
+    if (formSelector) {
+      var target = document.querySelector(formSelector);
+      if (!target) return;
+      var field = target.querySelector('[name="name"]');
+      if (field) field.focus({ preventScroll: true });
+      var header = document.querySelector('.site-header');
+      var offset = header ? header.getBoundingClientRect().height + 16 : 96;
+      var top = target.getBoundingClientRect().top + window.scrollY - offset;
+      var rootEl = document.documentElement;
+      var prev = rootEl.style.scrollBehavior;
+      rootEl.style.scrollBehavior = 'auto';
+      window.scrollTo(0, Math.max(0, top));
+      rootEl.style.scrollBehavior = prev;
+      return;
+    }
     if (lead.hidden) showLead();
     else hideLead();
   });
