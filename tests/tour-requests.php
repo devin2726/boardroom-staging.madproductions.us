@@ -33,7 +33,7 @@ $created = [];
 $snapshot = get_option('brb_settings');
 
 try {
-    brb_t(get_option('brb_version') === '2.5.29', 'plugin storage version is 2.5.29');
+    brb_t(get_option('brb_version') === '2.5.30', 'plugin storage version is 2.5.30');
     brb_t($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', brb_tour_table())) === brb_tour_table(), 'inquiry table still exists');
     $cols = $wpdb->get_col('SHOW COLUMNS FROM ' . brb_tour_table(), 0);
     brb_t(in_array('phone', $cols, true) && in_array('topic', $cols, true) && in_array('preferred', $cols, true), 'topic and preferred were added and phone was kept');
@@ -192,7 +192,7 @@ try {
         brb_t(strpos($amenities, $banned_item) === false, 'amenities do not list ' . $banned_item);
     }
     brb_t(strpos($amenities, '<li>Stove</li>') === false && strpos($amenities, '<li>Oven</li>') === false, 'amenities do not list a stove or oven');
-    brb_t(is_string($gallery_tpl) && strpos($gallery_tpl, 'br_amenities_html') !== false && strpos($gallery_tpl, 'id="amenities"') !== false && strpos($gallery_tpl, 'br_good_to_know_html') !== false && strpos($gallery_tpl, 'href="#amenities"') !== false, 'the gallery page renders the amenities on the page');
+    brb_t(is_string($gallery_tpl) && strpos($gallery_tpl, 'br_amenities_html') !== false && strpos($gallery_tpl, 'id="amenities"') !== false && strpos($gallery_tpl, 'br_good_to_know_html') !== false && strpos($gallery_tpl, 'See the amenities') === false && strpos($gallery_tpl, 'href="#amenities"') === false, 'the gallery page keeps the amenities section without the jump link');
     $notes = br_good_to_know_html();
     brb_t(strpos($notes, 'Good to know') !== false && strpos($notes, 'No cooking on the stovetop') !== false && strpos($notes, "We don't provide catering.") !== false && strpos($notes, 'one-day liquor license ($50)') !== false && strpos($notes, 'https://moline.il.us/244/Liquor-Licensing') !== false && strpos($notes, '309-524-2004') === false && stripos($notes, 'airbnb') === false, 'the gallery good-to-know block states the kitchen, catering, and liquor license');
     brb_t(is_string($book_tpl) && strpos($book_tpl, 'br_book_shortcuts_html') !== false && strpos($book_tpl, 'br_review_rotator_html') === false, 'the book page uses the shortcut cards and not the review rotator');

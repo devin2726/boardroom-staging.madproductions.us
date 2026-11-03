@@ -1326,6 +1326,10 @@ function brb_chat_lead_rest($req) {
     return $result;
 }
 
+add_filter('rest_allowed_cors_headers', function ($headers) {
+    $headers[] = 'X-BRB-Chat';
+    return $headers;
+});
 add_action('rest_api_init', function () {
     register_rest_route('brb/v1', '/chat', [
         'methods' => 'POST',
@@ -1383,9 +1387,10 @@ function brb_chat_markup($mode = 'float') {
     echo '</header>';
     $opening = $home ? 'How can I help you?' : $greeting;
     echo '<div class="brb-chat-log brb-chat-scroll" aria-live="polite"><p class="brb-chat-msg bot"><span class="brb-chat-copy"><span class="brb-chat-who">Walter</span>' . $opening . '</span></p></div>';
+    echo '<div class="brb-chat-compose">';
     echo '<form class="brb-chat-ask"><label class="brb-chat-sr" for="brb-chat-input">Your question</label><input id="brb-chat-input" class="brb-chat-input" type="text" maxlength="500" autocomplete="off"><button type="submit" class="brb-chat-send">Send</button></form>';
-    echo '<button type="button" class="brb-chat-lead-toggle">Leave your details</button>';
-    echo '<form class="brb-chat-lead" hidden>';
+    echo '<button type="button" class="brb-chat-lead-toggle" aria-expanded="false" aria-controls="brb-chat-lead">Leave your details</button>';
+    echo '<form class="brb-chat-lead" id="brb-chat-lead" hidden>';
     echo '<p class="brb-chat-hp" aria-hidden="true"><label>Company<input name="company" tabindex="-1" autocomplete="off"></label></p>';
     echo '<label>Name*<input name="name" maxlength="190" autocomplete="name" required></label>';
     echo '<label>Email*<input type="email" name="email" maxlength="190" autocomplete="email" required></label>';
@@ -1399,8 +1404,8 @@ function brb_chat_markup($mode = 'float') {
     echo '<label>Guests (80)<input type="number" name="guests" min="1" max="200"></label>';
     echo '<label>Short note<textarea name="note" rows="3" maxlength="1000"></textarea></label>';
     echo '<label class="brb-chat-consent"><input type="checkbox" name="consent" value="1" required> A team member will reply using this info</label>';
-    echo '<button type="submit" class="brb-chat-send">Send to the team</button>';
-    echo '</form>';
+    echo '<p class="brb-chat-lead-actions"><button type="button" class="brb-chat-lead-cancel">Cancel</button><button type="submit" class="brb-chat-send">Send to the team</button></p>';
+    echo '</form></div>';
     echo '<noscript><p><a href="' . esc_url(home_url('/contact/')) . '">Contact form</a></p></noscript>';
     echo '</section></div>';
     return ob_get_clean();

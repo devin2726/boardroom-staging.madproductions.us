@@ -9,6 +9,7 @@
   var log = root.querySelector('.brb-chat-log');
   var lead = root.querySelector('.brb-chat-lead');
   var leadToggle = root.querySelector('.brb-chat-lead-toggle');
+  var leadCancel = root.querySelector('.brb-chat-lead-cancel');
   var history = [];
   var turns = [];
 
@@ -166,8 +167,25 @@
     if (role === 'user') scrollLogTo(p);
     return p;
   }
+  function keepWindow() {
+    var x = window.scrollX;
+    var y = window.scrollY;
+    return function () { window.scrollTo(x, y); };
+  }
   function showLead() {
+    var restore = keepWindow();
     lead.hidden = false;
+    if (leadToggle) leadToggle.setAttribute('aria-expanded', 'true');
+    var name = lead.querySelector('[name="name"]');
+    if (name) focusEl(name);
+    restore();
+  }
+  function hideLead() {
+    var restore = keepWindow();
+    lead.hidden = true;
+    if (leadToggle) leadToggle.setAttribute('aria-expanded', 'false');
+    if (leadToggle) focusEl(leadToggle);
+    restore();
   }
   if (launch) {
     launch.addEventListener('click', function () {
@@ -175,22 +193,37 @@
       else closePanel();
     });
   }
+  function scrollToChat(chat) {
+    var field = chat.querySelector('.brb-chat-input');
+    if (field) field.focus({ preventScroll: true });
+    var target = document.getElementById('ask-walter') || chat.querySelector('.brb-chat-panel') || chat;
+    var header = document.querySelector('.site-header');
+    var offset = header ? header.getBoundingClientRect().height + 16 : 96;
+    var top = target.getBoundingClientRect().top + window.scrollY - offset;
+    var rootEl = document.documentElement;
+    var prev = rootEl.style.scrollBehavior;
+    rootEl.style.scrollBehavior = 'auto';
+    window.scrollTo(0, Math.max(0, top));
+    rootEl.style.scrollBehavior = prev;
+  }
   document.addEventListener('click', function (e) {
     var opener = e.target.closest('[data-brb-open-chat]');
-    if (!opener) return;
+    if (!opener || opener.closest('.brb-chat')) return;
     e.preventDefault();
-    if (root.classList.contains('brb-chat-inline')) {
-      focusEl(input);
+    var inline = document.querySelector('.brb-chat-inline');
+    if (inline) {
+      scrollToChat(inline);
       return;
     }
-    if (panel.hidden) openPanel();
+    if (panel && panel.hidden) openPanel();
+    else if (input) focusEl(input);
   });
   if (closeBtn) closeBtn.addEventListener('click', closePanel);
   leadToggle.addEventListener('click', function () {
-    showLead();
-    var name = lead.querySelector('[name="name"]');
-    if (name) focusEl(name);
+    if (lead.hidden) showLead();
+    else hideLead();
   });
+  if (leadCancel) leadCancel.addEventListener('click', hideLead);
   panel.addEventListener('keydown', function (e) {
     if (!launch) return;
     if (e.key === 'Escape') {
@@ -316,7 +349,7 @@
       if (res.ok && res.body && res.body.message) {
         scrollLogTo(addMsg('bot', res.body.message));
         lead.reset();
-        lead.hidden = true;
+        hideLead();
       } else {
         var msg = res.body && res.body.message ? res.body.message : 'Please check the form and try again.';
         scrollLogTo(addMsg('bot', msg));

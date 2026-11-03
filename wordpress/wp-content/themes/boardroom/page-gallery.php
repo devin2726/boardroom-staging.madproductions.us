@@ -10,7 +10,6 @@
     );
 } ?>
 </div>
-<p class="gallery-more"><a href="#amenities">See the amenities</a></p>
 </div></div>
 <section class="block alt" id="amenities"><div class="wrap">
 <h2>Amenities</h2>
