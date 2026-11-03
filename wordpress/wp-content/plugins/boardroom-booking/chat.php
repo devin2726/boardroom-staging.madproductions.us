@@ -732,9 +732,9 @@ function brb_chat_rules_text() {
         . brb_hours_line() . ' Everyone is out by 11:30 PM. Smoking is outside only. Service animals only. No pets. '
         . 'All events must be free to attend: no tickets, no cover charge, no paid admission, no door fees, and no ticket or merchandise sales. '
         . 'No cooking is allowed. The stovetop may not be used. There are no taps. ' . brb_byob_line() . ' '
-        . 'Please take the garbage out. The room comes not set up. Capacity is 75 to 80 guests. Graduation parties or open houses can go over, since guests come and go. Christmas decorations are up in December. Event liability insurance is required.';
+        . 'Please take the garbage out. The room comes not set up. Capacity is 80 guests. Graduation parties or open houses can go over, since guests come and go. Christmas decorations are up in December. Event liability insurance is required.';
     if (brb_chat_detail()) return $long;
-    return 'No overnight stays and no cooking. Everyone is out by 11:30 PM, and events are free to attend, with no tickets, for 75 to 80 guests. Want more details?';
+    return 'No overnight stays and no cooking. Everyone is out by 11:30 PM, and events are free to attend, with no tickets, for 80 guests. Want more details?';
 }
 function brb_chat_specific_text($text) {
     $t = strtolower((string) $text);
@@ -905,7 +905,7 @@ function brb_chat_specific_text($text) {
             : 'No. Guests set up. Staff cannot set the room up, and setup starts at 8:00 AM, or one hour before on a half day. Want more details?';
     }
     if (preg_match('/\bparking\b|\bpark\b/', $t)) {
-        $bits[] = 'Yes. Free parking on premises, with space for 40 to 50 cars, and there is free street parking too.';
+        $bits[] = 'Yes. Free parking on premises, with space for 40 to 50 cars.';
     }
     if (preg_match('/music|sound system|sonos|\bvolume\b|speaker/', $t)) {
         $bits[] = 'The room has a sound system (Sonos, Aux, and Bluetooth).';
@@ -920,7 +920,7 @@ function brb_chat_specific_text($text) {
         $bits[] = 'Service animals only. No pets.';
     }
     if (preg_match('/capacity|how many (people|guests)|80 people|75 people|how many can|\b80\b|\b75\b|how many fit/', $t)) {
-        $bits[] = '75 to 80 guests. Graduation parties or open houses can go over, since guests come and go.';
+        $bits[] = '80 guests. Graduation parties or open houses can go over, since guests come and go.';
     }
     $paid = preg_match('/ticket|cover charge|charge a cover|concert|paid admission|door fee|fundrais|merchandise|charge admission|paid event/', $t);
     $band = preg_match('/\bband\b|live music|\bdj\b/', $t);
@@ -1366,17 +1366,23 @@ function brb_walter_stage($place) {
     return $html;
 }
 function brb_chat_markup($mode = 'float') {
-    $inline = ($mode === 'inline');
+    $inline = ($mode === 'inline' || $mode === 'home');
+    $home = ($mode === 'home');
+    $greeting = 'Hi there! I\'m Walter, the Boardroom\'s butler. How can I help with your event?';
     ob_start();
-    echo '<div class="brb-chat' . ($inline ? ' brb-chat-inline' : '') . '" data-walter="' . esc_url(brb_walter_url(64, 'webp')) . '">';
+    echo '<div class="brb-chat' . ($inline ? ' brb-chat-inline' : '') . ($home ? ' brb-chat-home' : '') . '" data-walter="' . esc_url(brb_walter_url(64, 'webp')) . '">';
     if (!$inline) {
         echo '<button type="button" class="brb-chat-launch" aria-expanded="false" aria-controls="brb-chat-panel">' . brb_walter_stage('launch') . '<span>Ask Walter</span></button>';
     }
     echo '<section id="brb-chat-panel" class="brb-chat-panel" role="' . ($inline ? 'region' : 'dialog') . '"' . ($inline ? '' : ' aria-modal="true"') . ' aria-labelledby="brb-chat-title"' . ($inline ? '' : ' hidden') . '>';
-    echo '<header class="brb-chat-head">' . brb_walter_stage('head') . '<h2 id="brb-chat-title">Ask Walter</h2><span class="brb-typing" hidden aria-hidden="true"><i></i><i></i><i></i></span>';
+    echo '<header class="brb-chat-head">' . brb_walter_stage('head');
+    if ($home) echo '<h2 id="brb-chat-title" class="brb-chat-hello">' . $greeting . '</h2>';
+    else echo '<h2 id="brb-chat-title">Ask Walter</h2>';
+    echo '<span class="brb-typing" hidden aria-hidden="true"><i></i><i></i><i></i></span>';
     if (!$inline) echo '<button type="button" class="brb-chat-close" aria-label="Close chat">Close</button>';
     echo '</header>';
-    echo '<div class="brb-chat-log brb-chat-scroll" aria-live="polite"><p class="brb-chat-msg bot"><span class="brb-chat-copy"><span class="brb-chat-who">Walter</span>Hi there! I\'m Walter, the Boardroom\'s butler. How can I help with your event?</span></p></div>';
+    $opening = $home ? 'How can I help you?' : $greeting;
+    echo '<div class="brb-chat-log brb-chat-scroll" aria-live="polite"><p class="brb-chat-msg bot"><span class="brb-chat-copy"><span class="brb-chat-who">Walter</span>' . $opening . '</span></p></div>';
     echo '<form class="brb-chat-ask"><label class="brb-chat-sr" for="brb-chat-input">Your question</label><input id="brb-chat-input" class="brb-chat-input" type="text" maxlength="500" autocomplete="off"><button type="submit" class="brb-chat-send">Send</button></form>';
     echo '<button type="button" class="brb-chat-lead-toggle">Leave your details</button>';
     echo '<form class="brb-chat-lead" hidden>';
@@ -1390,7 +1396,7 @@ function brb_chat_markup($mode = 'float') {
         echo '<option value="' . esc_attr($value) . '">' . esc_html($label) . '</option>';
     }
     echo '</select></label>';
-    echo '<label>Guests (75 to 80)<input type="number" name="guests" min="1" max="200"></label>';
+    echo '<label>Guests (80)<input type="number" name="guests" min="1" max="200"></label>';
     echo '<label>Short note<textarea name="note" rows="3" maxlength="1000"></textarea></label>';
     echo '<label class="brb-chat-consent"><input type="checkbox" name="consent" value="1" required> A team member will reply using this info</label>';
     echo '<button type="submit" class="brb-chat-send">Send to the team</button>';

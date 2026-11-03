@@ -25,7 +25,7 @@ function brb_terms_html() {
 <li>Hours: Full days run 10:00 AM to 11:30 PM. Half days (mostly in June) run 10:00 AM to 4:00 PM or 5:00 PM to 11:30 PM.</li>
 <li>Out by 11:30 PM. This one's firm, no exceptions.</li>
 <li>You set up and tear down. Our staff can't set the room for you. Setup starts at 8:00 AM on full days, or one hour before your start time on half days.</li>
-<li>75 to 80 guests. The host must be 25 or older.</li>
+<li>80 guests. The host must be 25 or older.</li>
 <li>Free events only. Live music and bands are welcome. Tickets, cover charges, and concerts aren't.</li>
 <li>BYOB is fine. No cooking or stove-top use. Food warmers and the bar area are yours to use. There are no draft taps.</li>
 <li>Balloons, yes. Glitter, confetti, and wall tape, no.</li>
@@ -51,7 +51,7 @@ function brb_terms_html() {
 </ul>
 
 <h2>4. Guests and supervision</h2>
-<p>75 to 80 guests, unless we approve a different number in writing. The host must be 25 or older, and you (or a responsible adult you name) must be on site the whole time. You're in charge of everyone who comes in: guests, kids, vendors, and anyone else. Service animals are welcome where the law requires; pets aren't.</p>
+<p>80 guests, unless we approve a different number in writing. The host must be 25 or older, and you (or a responsible adult you name) must be on site the whole time. You're in charge of everyone who comes in: guests, kids, vendors, and anyone else. Service animals are welcome where the law requires; pets aren't.</p>
 
 <h2>5. Event insurance</h2>
 <p>You'll need special event or party liability insurance covering injury, property damage, and your guests' activities. If alcohol is involved, please add liquor liability coverage where it's available and applies. We may ask for proof before giving you access, and may ask that MAD Productions, LLC, The Boardroom QC, the venue owner, and related parties be listed as additional insureds. Without acceptable proof, we may cancel or refuse access, and amounts already owed still apply. We also recommend carrying your own home or renters policy.</p>
@@ -197,7 +197,7 @@ NOW, THEREFORE, in consideration of the mutual promises and covenants stated her
 
 3. Payment, Deposit, and Fees. Before the beginning of the Rental Period, Renter shall pay all rental fees, cleaning fees, security deposits, and any other charges stated by Owner. Unless Owner agrees otherwise in writing, Renter must pay fifty percent (50%) of the invoice within one (1) day after signing this Agreement. That deposit holds the date. It is refundable if the Owner receives written cancellation 60 or more days before the event, less any non-refundable processing charges (including the 3% card processing fee) and costs already incurred. It is not refundable if cancellation is received less than 60 days before the event. A request does not reserve the date until the deposit is received. The remaining balance is due no later than one week before the event. Failure to timely pay may result in cancellation of the reservation without further notice.
 
-4. Occupancy, Conduct, and Supervision. The Venue shall not be occupied by more than 75 to 80 guests unless Owner gives written approval for a different limit. The minimum host age is 25 for every booking. Renter shall be present or shall designate a responsible adult representative who is present during the entire event. Renter is solely responsible for supervising all guests, invitees, children, vendors, contractors, and any other persons entering the Venue during the Rental Period. No pets or animals of any kind are permitted, except documented service animals as required by applicable law.
+4. Occupancy, Conduct, and Supervision. The Venue shall not be occupied by more than 80 guests unless Owner gives written approval for a different limit. The minimum host age is 25 for every booking. Renter shall be present or shall designate a responsible adult representative who is present during the entire event. Renter is solely responsible for supervising all guests, invitees, children, vendors, contractors, and any other persons entering the Venue during the Rental Period. No pets or animals of any kind are permitted, except documented service animals as required by applicable law.
 
 5. Required Event Liability Insurance. As a condition of using the Venue, Renter shall obtain and maintain, at Renter's sole cost, special event liability insurance or party liability insurance covering the event, the Rental Period, bodily injury, property damage, and the activities of Renter and Renter's guests. Owner may require proof of such insurance before granting access to the Venue. If alcohol is served, sold, distributed, or consumed, Renter shall also obtain liquor liability coverage or a special event liquor liability endorsement if available and applicable. Owner may require that MAD Productions, LLC, The Boardroom QC, the Venue owner, and any related parties designated by Owner be named as additional insureds. Failure to provide acceptable proof of insurance may result in cancellation or denial of access, without waiver of any amounts owed.
 

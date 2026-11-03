@@ -38,6 +38,8 @@
 }
 .brb-chat-head{display:flex;align-items:center;justify-content:flex-start;gap:12px;background:#161616;color:#fff;padding:10px 12px;flex:0 0 auto}
 .brb-chat-head h2{margin:0;flex:1;color:#c4912e;font-size:18px;letter-spacing:.04em;text-transform:uppercase;font-weight:600;line-height:1.3}
+.brb-chat-home .brb-chat-head h2{color:#f4efe4;text-transform:none;letter-spacing:0;font-weight:500;font-size:18px;line-height:1.35}
+@media(max-width:600px){.brb-chat-home .brb-chat-head h2{font-size:16px}}
 .brb-chat-head h2:after{display:none}
 .brb-chat-close,.brb-chat-send,.brb-chat-lead-toggle{font-family:"EB Garamond",Georgia,"Times New Roman",serif;cursor:pointer}
 .brb-chat-close{background:transparent;color:#c4912e;border:1px solid #c4912e;padding:4px 10px}

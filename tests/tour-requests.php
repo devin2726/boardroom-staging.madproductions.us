@@ -33,7 +33,7 @@ $created = [];
 $snapshot = get_option('brb_settings');
 
 try {
-    brb_t(get_option('brb_version') === '2.5.28', 'plugin storage version is 2.5.28');
+    brb_t(get_option('brb_version') === '2.5.29', 'plugin storage version is 2.5.29');
     brb_t($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', brb_tour_table())) === brb_tour_table(), 'inquiry table still exists');
     $cols = $wpdb->get_col('SHOW COLUMNS FROM ' . brb_tour_table(), 0);
     brb_t(in_array('phone', $cols, true) && in_array('topic', $cols, true) && in_array('preferred', $cols, true), 'topic and preferred were added and phone was kept');
@@ -176,18 +176,22 @@ try {
     $home = file_get_contents(get_stylesheet_directory() . '/front-page.php');
     brb_t(is_string($home) && strpos($home, 'br_contact_form') === false && strpos($home, 'name="phone"') === false && strpos($home, 'br_tour_video_html') !== false && strpos(br_tour_video_html(), home_url('/contact/')) !== false, 'the homepage links to contact from the tour instead of a second form');
     $amenities = br_amenities_html();
-    foreach (['Air conditioning', 'Heating', 'Private main entrance', 'Free parking on premises', 'Space for 40 to 50 cars', 'Free street parking', 'Wifi', 'TV', 'Sound system (Sonos, Aux, Bluetooth)', 'Pool table', 'Board games', 'Dining table', 'Refrigerator (large)', 'Freezer', 'Mini fridge', 'Microwave', 'Dishwasher', 'Coffee maker (drip and pour-over)', 'Hot water kettle', 'Blender', 'Wine glasses', 'Smoke alarm', 'Carbon monoxide alarm', 'Fire extinguisher', 'First aid kit'] as $item) {
+    foreach (['Private main entrance', 'Free parking on premises', 'Space for 40 to 50 cars', 'Wifi', 'TV', 'Sound system (Sonos, Aux, Bluetooth)', 'Pool table', 'Board games', 'Refrigerator (large)', 'Freezer', 'Mini fridge', 'Microwave', 'Dishwasher', 'Coffee maker (drip and pour-over)', 'Hot water kettle', 'Blender', 'Wine glasses', 'Smoke alarm', 'Carbon monoxide alarm', 'Fire extinguisher', 'First aid kit'] as $item) {
         brb_t(strpos($amenities, $item) !== false, 'amenities include ' . $item);
     }
+    foreach (['Air conditioning', 'Heating', 'Free street parking', 'Dining table', 'Comfort and utilities', 'Furnishings', 'The room comes not set up'] as $gone) {
+        brb_t(strpos($amenities, $gone) === false, 'amenities leave out ' . $gone);
+    }
+    brb_t(substr_count($amenities, '<section class="amenity-group') === 3, 'amenities are three groups');
     brb_t(substr_count($amenities, 'Serving and storage only, no cooking or stovetop use.') === 1 && strpos($amenities, 'Kitchen area is for serving and storage. Cooking and stovetop use are not permitted.') === false, 'the kitchen card has one serving-and-storage line');
-    brb_t(strpos($amenities, 'The room comes not set up.') !== false && strpos($amenities, 'No overnight stays.') !== false, 'amenities say the room is not set up and there are no overnight stays');
+    $gallery_tpl = file_get_contents(get_stylesheet_directory() . '/page-gallery.php');
+    $book_tpl = file_get_contents(get_stylesheet_directory() . '/page.php');
+    brb_t(strpos($amenities, 'The room comes not set up.') === false && strpos($home, 'The room comes not set up.') === false && strpos($gallery_tpl, 'The room comes not set up.') === false && strpos($book_tpl, 'The room comes not set up.') === false, 'the not-set-up note is not a standalone block on the home, gallery, or book page');
     brb_t(strpos($home, 'br_amenities_html') !== false && strpos($home, 'id="amenities"') !== false, 'the homepage amenities section prints the checklist');
     foreach (['Laundromat', 'Airbnb', 'airbnb', 'Cooking basics', 'Baking sheet', 'Barbecue utensils', 'Books and reading material', '$'] as $banned_item) {
         brb_t(strpos($amenities, $banned_item) === false, 'amenities do not list ' . $banned_item);
     }
     brb_t(strpos($amenities, '<li>Stove</li>') === false && strpos($amenities, '<li>Oven</li>') === false, 'amenities do not list a stove or oven');
-    $gallery_tpl = file_get_contents(get_stylesheet_directory() . '/page-gallery.php');
-    $book_tpl = file_get_contents(get_stylesheet_directory() . '/page.php');
     brb_t(is_string($gallery_tpl) && strpos($gallery_tpl, 'br_amenities_html') !== false && strpos($gallery_tpl, 'id="amenities"') !== false && strpos($gallery_tpl, 'br_good_to_know_html') !== false && strpos($gallery_tpl, 'href="#amenities"') !== false, 'the gallery page renders the amenities on the page');
     $notes = br_good_to_know_html();
     brb_t(strpos($notes, 'Good to know') !== false && strpos($notes, 'No cooking on the stovetop') !== false && strpos($notes, "We don't provide catering.") !== false && strpos($notes, 'one-day liquor license ($50)') !== false && strpos($notes, 'https://moline.il.us/244/Liquor-Licensing') !== false && strpos($notes, '309-524-2004') === false && stripos($notes, 'airbnb') === false, 'the gallery good-to-know block states the kitchen, catering, and liquor license');
@@ -199,7 +203,7 @@ try {
     brb_t(stripos($reviews, 'airbnb') === false && strpos($reviews, 'Google') === false && strpos($reviews, 'tel:') === false && strpos($reviews, 'name="phone"') === false, 'guest reviews do not name a source or a phone number');
     $rotator = br_review_rotator_html();
     $shortcuts = br_book_shortcuts_html();
-    brb_t(strpos($shortcuts, 'See the amenities') !== false && strpos($shortcuts, "What's in the room") !== false && strpos($shortcuts, 'Rental checklist') !== false && strpos($shortcuts, 'What to do before and after') !== false && strpos($shortcuts, '/#amenities') !== false && strpos($shortcuts, '/rental-checklist/') !== false, 'the book shortcuts name the amenities and the checklist');
+    brb_t(strpos($shortcuts, 'See the amenities') === false && strpos($shortcuts, 'Rental checklist') !== false && strpos($shortcuts, 'What to do before and after') !== false && strpos($shortcuts, '/#amenities') === false && strpos($shortcuts, '/rental-checklist/') !== false, 'the book page keeps the rental checklist and drops the amenities card');
     brb_t(strpos($rotator, 'class="review-card on"') !== false && substr_count($rotator, '<blockquote') === 4 && strpos($home, 'br_reviews_html') !== false, 'featured quotes still exist for the home page, which keeps the review marquee');
     $summary = br_review_aggregate_schema();
     brb_t(is_array($summary) && $summary['ratingValue'] === '5.0' && $summary['reviewCount'] === 29, 'the review schema uses the 5.0 rating and the count of 29');
@@ -227,7 +231,7 @@ try {
     $video = br_tour_video_html();
     $contact_tpl = file_get_contents(get_stylesheet_directory() . '/page-contact.php');
     brb_t(strpos($home, 'br_tour_video_html') !== false && strpos($home, 'br_tour_video_html') < strpos($home, 'id="amenities"'), 'the tour video sits after the hero and before amenities');
-    brb_t(strpos($video, 'Take a tour') !== false && strpos($video, 'Take a look around The Boardroom') !== false && strpos($video, '<video') !== false && strpos($video, 'controls') !== false && strpos($video, 'preload="none"') !== false && strpos($video, 'playsinline') !== false && strpos($video, 'poster=') !== false && strpos($video, 'autoplay') === false && strpos($video, 'tour-play') !== false, 'the tour video is a native player with a poster and a play button');
+    brb_t(strpos($video, 'Take a tour') !== false && strpos($video, 'Take a look around') === false && strpos($video, 'walter-tour') === false && strpos($video, 'A unique event destination in the Quad Cities') !== false && strpos($video, '<video') !== false && strpos($video, 'controls') !== false && strpos($video, 'preload="none"') !== false && strpos($video, 'playsinline') !== false && strpos($video, 'poster=') !== false && strpos($video, 'autoplay') === false && strpos($video, 'tour-play') !== false && strpos($video, 'Book Now') !== false && strpos($video, 'Request a tour') !== false, 'the tour video is a native player with a poster, a play button, and booking links');
     brb_t(strpos($video, home_url('/book/')) !== false && strpos($video, home_url('/contact/')) !== false && strpos($video, 'boardroom-tour-720.mp4') !== false, 'the tour video links to booking and the contact form');
     brb_t(is_string($contact_tpl) && strpos($contact_tpl, 'br_tour_video_html') === false, 'the contact page does not include the tour video');
     brb_t(stripos($video, 'airbnb') === false && stripos($video, 'google') === false && strpos($video, 'tel:') === false, 'the tour video does not name an outside source or a phone number');
@@ -265,7 +269,9 @@ try {
     $footer_map = function_exists('br_footer_map') ? br_footer_map() : '';
     brb_t(is_string($footer) && strpos($footer, 'br_footer_map') !== false && strpos($footer_map, 'https://www.google.com/maps?q=2220+37th+Street,+Moline,+IL+61265') !== false && strpos($footer_map, 'output=embed') !== false && strpos($footer_map, 'loading="lazy"') !== false && strpos($footer_map, 'referrerpolicy="no-referrer-when-downgrade"') !== false && strpos($footer, 'Get directions') !== false && strpos($footer, '2220 37th Street, Moline, IL 61265') !== false, 'the footer map uses the venue embed');
     brb_t(is_string($contact_tpl) && strpos($contact_tpl, "brb_chat_markup('inline')") !== false && strpos($contact_tpl, 'brb_tour_form') !== false && strpos($contact_tpl, 'brb_map_embed') === false && strpos($contact_tpl, "brb_chat_markup('inline')") < strpos($contact_tpl, 'brb_tour_form'), 'the contact page is the inline assistant, then the form');
-    brb_t(is_string($home) && strpos($home, 'br_tour_video_html') !== false && strpos($home, "brb_chat_markup('inline')") !== false && strpos($home, 'br_tour_video_html') < strpos($home, "brb_chat_markup('inline')") && strpos($home, 'Contact the Boardroom') === false && strpos($home, 'id="contact"') === false, 'the home page puts Walter under the tour and does not repeat a contact section');
+    brb_t(is_string($home) && strpos($home, 'br_tour_video_html') !== false && strpos($home, "brb_chat_markup('home')") !== false && strpos($home, 'br_tour_video_html') < strpos($home, "brb_chat_markup('home')") && strpos($home, 'Contact the Boardroom') === false && strpos($home, 'id="contact"') === false, 'the home page puts Walter under the tour and does not repeat a contact section');
+    $home_chat = function_exists('brb_chat_markup') ? brb_chat_markup('home') : '';
+    brb_t(strpos($home_chat, 'brb-chat-hello') !== false && strpos($home_chat, "Hi there! I'm Walter, the Boardroom's butler. How can I help with your event?") !== false && strpos($home_chat, 'How can I help you?') !== false && strpos($home_chat, 'Leave your details') !== false && strpos($home_chat, 'brb-chat-send') !== false, 'the homepage chat greeting sits in the header and the first bubble asks how to help');
     $css = file_get_contents(get_stylesheet_directory() . '/style.css');
     $site_js = file_get_contents(get_stylesheet_directory() . '/assets/site.js');
     brb_t(is_string($css) && strpos($css, 'z-index:400') !== false && strpos($css, 'body.admin-bar .site-header{top:32px}') !== false && strpos($css, '.nav.open{display:block}') !== false && strpos($css, 't-scroll') !== false && strpos($css, 'translateX(-50%)') !== false, 'the header stays above the page and the review track scrolls in CSS');

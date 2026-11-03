@@ -243,7 +243,7 @@ function brb_tour_form() {
     }
     echo '</select></label>';
     echo '<label>Preferred date or time<input name="preferred" maxlength="190"></label>';
-    echo '<label>Guests<input type="number" name="party_size" min="1" max="75"></label>';
+    echo '<label>Guests<input type="number" name="party_size" min="1" max="200"></label>';
     echo '<label>Message*<textarea name="message" rows="5" maxlength="4000" required></textarea></label>';
     echo '<button class="btn" type="submit">Send</button>';
     echo '</form></section>';

@@ -1,7 +1,7 @@
 /*
 Theme Name: The Boardroom
 Description: Lightweight theme replicating the look of boardroomqc.com (dark + gold, EB Garamond, full-width hero slider). Pairs with the Boardroom Booking plugin.
-Version: 1.2.28
+Version: 1.2.29
 Author: Mad Productions
 Text Domain: boardroom
 */
@@ -61,14 +61,13 @@ body.legal-page{overflow-x:hidden}
 }
 section.block{padding:80px 0}section.alt{background:var(--bg2)}section.dark{background:var(--ink);color:#ddd}section.dark h2{color:#fff}
 #ask-walter{padding:8px 0 48px}
-#ask-walter .brb-chat-inline .brb-chat-panel{margin-top:0}
+#ask-walter .brb-chat-inline{display:flex;justify-content:center}
+#ask-walter .brb-chat-inline .brb-chat-panel{width:100%;max-width:min(960px,100%);margin:0 auto}
 .amen{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:28px}
 .amen .card{background:#fff;text-align:center;box-shadow:0 4px 18px rgba(0,0,0,.08);font-variant-numeric:lining-nums}.amen .card img{aspect-ratio:4/3;object-fit:cover;width:100%}
 .amen .card h3{margin:0;padding:22px 18px;font-size:20px;letter-spacing:.04em}
-.amenity-intro{text-align:center;max-width:42em;margin:48px auto 8px;color:var(--ink);font-family:'EB Garamond',Georgia,'Times New Roman',serif;font-size:23px}
-.amenity-groups{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:20px;margin-top:32px;align-items:stretch}
-.amenity-group{grid-column:span 2;display:flex;flex-direction:column;background:#fff;border:1px solid #e4d3a8;padding:22px 20px 24px;min-width:0}
-.amenity-group:nth-child(4),.amenity-group:nth-child(5){grid-column:span 3}
+.amenity-groups{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;margin-top:32px;align-items:stretch}
+.amenity-group{display:flex;flex-direction:column;background:#fff;border:1px solid #e4d3a8;padding:22px 20px 24px;min-width:0}
 .amenity-group h3{display:flex;align-items:flex-start;gap:12px;font-family:'EB Garamond',Georgia,'Times New Roman',serif;color:var(--ink);font-size:clamp(22px,2vw,28px);letter-spacing:.04em;text-transform:uppercase;text-align:left;line-height:1.2;margin:0 0 12px}
 .amenity-group h3:after{display:none}
 .amenity-icon{flex:0 0 auto;margin-top:.2em}
@@ -85,13 +84,13 @@ section.block{padding:80px 0}section.alt{background:var(--bg2)}section.dark{back
 .good-to-know li{position:relative;padding:6px 0 6px 22px;color:#fff;font-family:'EB Garamond',Georgia,'Times New Roman',serif;font-size:22px;line-height:1.45}
 .good-to-know li:before{content:"";position:absolute;left:0;top:.72em;width:8px;height:8px;border-radius:50%;background:var(--gold)}
 .good-to-know a{color:var(--gold)}
-@media(max-width:980px){.amenity-groups{grid-template-columns:1fr 1fr;gap:18px}.amenity-group,.amenity-group:nth-child(4),.amenity-group:nth-child(5){grid-column:auto}}
-@media(max-width:640px){.amenity-groups{grid-template-columns:1fr}.amenity-kitchen ul{columns:1}}
+@media(max-width:800px){.amenity-groups{grid-template-columns:1fr;gap:18px}.amenity-kitchen ul{columns:1}}
 body.book-dated .page-hero,body.book-dated .book-shortcuts,body.book-dated .brb-how{display:none}
 #brb-your-date{scroll-margin-top:96px}
 body.admin-bar #brb-your-date{scroll-margin-top:128px}
 @media(max-width:782px){body.admin-bar #brb-your-date{scroll-margin-top:142px}}
-.book-shortcuts{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:4px 0 28px}
+body.book-page .page-hero h1{font-family:'EB Garamond',Georgia,'Times New Roman',serif;font-weight:500;font-size:clamp(44px,6.5vw,76px);letter-spacing:.02em;text-transform:none;color:#fff;background:none;text-shadow:0 2px 18px rgba(0,0,0,.75);z-index:1}
+.book-shortcuts{display:block;max-width:720px;margin:0 auto 28px}
 .book-shortcut{display:flex;align-items:center;gap:16px;min-height:96px;padding:20px 22px;background:#161616;color:#fff!important;text-decoration:none;border:2px solid var(--gold);font-family:'EB Garamond',Georgia,'Times New Roman',serif}
 .book-shortcut-icon{color:var(--gold);flex:0 0 auto}
 .book-shortcut-label{display:block;font-size:28px;letter-spacing:.04em;text-transform:uppercase;line-height:1.15}
@@ -182,8 +181,7 @@ body.contact-page .content{padding:28px 0 56px}
 .review-rotator .review-card{transition:none}
 }
 #take-a-tour{text-align:center}
-#take-a-tour h2,#take-a-tour .tour-intro{font-family:'EB Garamond',Georgia,'Times New Roman',serif}
-.tour-intro{margin:-12px auto 24px;color:var(--ink)}
+#take-a-tour h2{font-family:'EB Garamond',Georgia,'Times New Roman',serif}
 .tour-frame{position:relative;width:min(960px,100%);margin:0 auto;aspect-ratio:16/9;background:#161616}
 .tour-frame video{width:100%;height:100%;display:block;object-fit:contain;background:#161616}
 .tour-play{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:88px;height:88px;border-radius:50%;border:0;background:var(--gold);color:#161616;font-family:'EB Garamond',Georgia,'Times New Roman',serif;font-weight:700;font-size:18px;letter-spacing:.06em;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.35)}
@@ -193,24 +191,11 @@ body.contact-page .content{padding:28px 0 56px}
 .tour-headline{position:absolute;left:0;right:0;bottom:78px;z-index:2;margin:0;padding:0 8%;text-align:center;color:#c4912e;font-family:'EB Garamond',Georgia,'Times New Roman',serif;font-weight:500;font-size:clamp(22px,4.2vw,42px);line-height:1.15;letter-spacing:.01em;text-shadow:0 2px 18px rgba(0,0,0,.85);pointer-events:none}
 .tour-stage.is-playing .tour-headline{visibility:hidden}
 @media(max-width:600px){
-.tour-headline{position:static;margin:12px 12px 0;padding:0;font-size:clamp(22px,6vw,28px);text-shadow:none;line-height:1.2}
+.tour-headline{bottom:30px;font-size:15px;line-height:1.15;padding:0 6%}
 .tour-play{width:64px;height:64px;font-size:16px}
+.tour-links .btn{display:block;margin:0 auto 12px;max-width:280px}
 }
 .tour-links{margin:24px 0 0}
 .tour-links .btn{margin:0 8px 8px}
-.walter-tour{display:flex;align-items:center;justify-content:center;gap:18px;max-width:640px;margin:22px auto 8px;text-align:left}
-.walter-tour-card{flex:0 0 148px;background:#000;border:2px solid var(--gold);border-radius:18px;overflow:hidden;line-height:0}
-.walter-tour-card img{display:block;width:148px;height:auto}
-.walter-tour-bubble{margin:0 0 12px;background:#161616;color:#fff;border:2px solid var(--gold);border-radius:16px;padding:12px 16px;font-size:22px;line-height:1.35;position:relative}
-.walter-tour-bubble:before{content:"";position:absolute;left:-8px;top:22px;width:14px;height:14px;background:#161616;border-left:2px solid var(--gold);border-bottom:2px solid var(--gold);transform:rotate(45deg)}
-.walter-tour-ask{background:transparent;color:var(--gold-d);border:2px solid var(--gold);border-radius:999px;padding:8px 16px;font-family:'EB Garamond',Georgia,'Times New Roman',serif;font-weight:700;font-size:18px;letter-spacing:.04em;cursor:pointer}
-.walter-tour-ask:hover,.walter-tour-ask:focus{background:var(--gold);color:#161616}
-@media(max-width:600px){
-.walter-tour{flex-direction:column;text-align:center;gap:12px}
-.walter-tour-card{flex-basis:auto}
-.walter-tour-card img{width:120px}
-.walter-tour-bubble{font-size:20px}
-.walter-tour-bubble:before{left:50%;top:-8px;margin-left:-7px;border-left:2px solid var(--gold);border-top:2px solid var(--gold);border-bottom:0;transform:translateX(-50%) rotate(45deg)}
-}
 .btn.ghost-dark{background:transparent;color:var(--ink)!important;border:2px solid var(--ink)}
 .content #take-a-tour{padding:0 0 12px}

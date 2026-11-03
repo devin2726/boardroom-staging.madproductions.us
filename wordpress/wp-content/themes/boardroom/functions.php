@@ -4,8 +4,8 @@ add_action('after_setup_theme', function () {
     register_nav_menus(['primary' => 'Primary', 'footer' => 'Footer']);
 });
 add_action('wp_enqueue_scripts', function () {
-    wp_enqueue_style('boardroom', get_stylesheet_uri(), [], '1.2.28');
-    wp_enqueue_script('boardroom', get_template_directory_uri() . '/assets/site.js', [], '1.2.28', true);
+    wp_enqueue_style('boardroom', get_stylesheet_uri(), [], '1.2.29');
+    wp_enqueue_script('boardroom', get_template_directory_uri() . '/assets/site.js', [], '1.2.29', true);
 });
 function br_img($f) { return get_template_directory_uri() . '/assets/img/' . $f; }
 function br_logo($place) {
@@ -36,24 +36,14 @@ function br_amenity_icon($d) {
 function br_amenity_groups() {
     return [
         [
-            'title' => 'Comfort and utilities',
-            'icon' => 'M12 3v2M12 19v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M3 12h2M19 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z',
-            'items' => ['Air conditioning', 'Heating'],
-        ],
-        [
             'title' => 'Access and parking',
             'icon' => 'M4 16l2-6h12l2 6M6 16h12M7 16v2M17 16v2M7 10V7h10v3',
-            'items' => ['Private main entrance', 'Free parking on premises', 'Space for 40 to 50 cars', 'Free street parking'],
+            'items' => ['Private main entrance', 'Free parking on premises', 'Space for 40 to 50 cars'],
         ],
         [
             'title' => 'Tech and entertainment',
             'icon' => 'M4 9a12 12 0 0 1 16 0M7 13a7 7 0 0 1 10 0M12 17h.01',
             'items' => ['Wifi', 'TV', 'Sound system (Sonos, Aux, Bluetooth)', 'Pool table', 'Board games'],
-        ],
-        [
-            'title' => 'Furnishings',
-            'icon' => 'M6 11V6h12v5M4 11h16v4H4zM7 15v4M17 15v4',
-            'items' => ['Dining table'],
         ],
         [
             'title' => 'Kitchen area',
@@ -69,8 +59,7 @@ function br_amenity_groups() {
     ];
 }
 function br_amenities_html() {
-    $html = '<p class="amenity-intro">The room comes not set up. No overnight stays. The Boardroom is an event space only. 75 to 80 guests. Graduation parties or open houses can go over, since guests come and go.</p>';
-    $html .= '<div class="amenity-groups">';
+    $html = '<div class="amenity-groups">';
     $safety = '';
     foreach (br_amenity_groups() as $group) {
         if (!empty($group['quiet'])) {
@@ -173,11 +162,10 @@ function br_review_rotator_html() {
 }
 function br_tour_video_html() {
     $base = get_template_directory_uri() . '/assets/video/';
-    $src = $base . 'boardroom-tour-720.mp4';
-    $poster = $base . 'boardroom-tour-poster.jpg?v=127';
+    $src = $base . 'boardroom-tour-720.mp4?v=128';
+    $poster = $base . 'boardroom-tour-poster.jpg?v=128';
     $html = '<section class="block alt" id="take-a-tour"><div class="wrap">';
     $html .= '<h2>Take a tour</h2>';
-    $html .= '<p class="tour-intro">Take a look around The Boardroom</p>';
     $html .= '<div class="tour-stage"><div class="tour-frame">';
     $html .= '<video id="boardroom-tour" controls preload="none" playsinline poster="' . esc_url($poster) . '">';
     $html .= '<source src="' . esc_url($src) . '" type="video/mp4">';
@@ -185,26 +173,13 @@ function br_tour_video_html() {
     $html .= '<button type="button" class="tour-play" aria-controls="boardroom-tour">Play</button>';
     $html .= '</div>';
     $html .= '<p class="tour-headline">A unique event destination in the Quad Cities</p></div>';
-    $html .= br_walter_tour_callout();
     $html .= '<p class="tour-links"><a class="btn" href="' . esc_url(home_url('/book/')) . '">Book Now</a> <a class="btn ghost-dark" href="' . esc_url(home_url('/contact/')) . '">Request a tour</a></p>';
     $html .= '</div></section>';
-    return $html;
-}
-function br_walter_tour_callout() {
-    if (!defined('BRB_URL')) return '';
-    $base = BRB_URL . 'assets/img/walter/poses/walter-presenting-360';
-    $html = '<aside class="walter-tour">';
-    $html .= '<div class="walter-tour-card"><picture><source srcset="' . esc_url($base . '.webp') . '" type="image/webp">';
-    $html .= '<img src="' . esc_url($base . '.png') . '" alt="Walter, the Boardroom butler" width="180" height="314" decoding="async"></picture></div>';
-    $html .= '<div class="walter-tour-copy"><p class="walter-tour-bubble">Take a look around!</p>';
-    $html .= '<button type="button" class="walter-tour-ask" data-brb-open-chat>Questions? Ask Walter</button></div>';
-    $html .= '</aside>';
     return $html;
 }
 add_action('wp_head', function () { echo '<link rel="icon" href="' . esc_url(br_img('boardroom-siteicon-512.png')) . '">'; });
 function br_book_shortcuts_html() {
     $items = [
-        ['href' => home_url('/#amenities'), 'label' => 'See the amenities', 'sub' => "What's in the room", 'icon' => 'M12 3l1.2 3.6L17 8l-3.8 1.4L12 13l-1.2-3.6L7 8l3.8-1.4zM18 14l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7z'],
         ['href' => home_url('/rental-checklist/'), 'label' => 'Rental checklist', 'sub' => 'What to do before and after', 'icon' => 'M8 3h8v3H8zM6 5h12v16H6zM9 12l2 2 4-4'],
     ];
     $html = '<nav class="book-shortcuts" aria-label="Booking help">';
@@ -225,6 +200,7 @@ add_shortcode('boardroom_contact', 'br_contact_form');
 add_filter('body_class', function ($classes) {
     if (is_page(['privacy', 'terms', 'rental-agreement', 'privacy-policy', 'terms-and-conditions'])) $classes[] = 'legal-page';
     if (is_page('contact')) $classes[] = 'contact-page';
+    if (is_page('book')) $classes[] = 'book-page';
     if (is_page('book') && !empty($_GET['date'])) $classes[] = 'book-dated';
     return $classes;
 });
