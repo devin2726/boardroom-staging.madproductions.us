@@ -1,4 +1,5 @@
 .brb{--g:#c4912e;--gd:#996f1d;--k:#161616;font-size:21px;font-weight:500;font-family:"EB Garamond",Georgia,"Times New Roman",serif;color:#1a1a1a;line-height:1.7}
+@media(max-width:700px){.brb{padding-bottom:104px}}
 .brb-steps{display:flex;flex-wrap:wrap;gap:8px;list-style:none;padding:0;margin:0 0 24px;counter-reset:s}
 .brb-steps li{counter-increment:s;padding:8px 14px;background:#eee;color:#333;font-size:16px;letter-spacing:.05em;text-transform:uppercase}
 .brb-steps li:before{content:counter(s) ". "}.brb-steps li.on{background:var(--k);color:#fff}.brb-steps li.done{background:var(--g);color:#fff}

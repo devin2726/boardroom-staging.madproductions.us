@@ -170,7 +170,7 @@ function brb_send_tour_notice($row) {
     $from = brb_smtp_from_address();
     $sent = false;
     foreach (brb_tour_recipients() as $to) {
-        if (brb_mail($to, $subject, $body, $reply, $from)) $sent = true;
+        if (brb_mail($to, $subject, $body, $reply, $from, brb_inquiry_cc_list())) $sent = true;
     }
     return $sent;
 }

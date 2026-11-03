@@ -76,7 +76,9 @@
     var halfRadio = form.querySelector('input[name=type][value=half]');
     var note = document.getElementById('brb-half-note');
     var june = juneDate();
-    if (halfRadio) halfRadio.disabled = date.value && !june;
+    var choice = form.querySelector('.brb-half-choice');
+    if (choice) choice.classList.toggle('is-hidden', !june);
+    if (halfRadio) halfRadio.disabled = !june;
     if (halfRadio && halfRadio.disabled && halfRadio.checked) {
       var dayRadio = form.querySelector('input[name=type][value=day]');
       if (dayRadio) dayRadio.checked = true;
