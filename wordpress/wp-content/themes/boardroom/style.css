@@ -1,7 +1,7 @@
 /*
 Theme Name: The Boardroom
 Description: Lightweight theme replicating the look of boardroomqc.com (dark + gold, EB Garamond, full-width hero slider). Pairs with the Boardroom Booking plugin.
-Version: 1.2.23
+Version: 1.2.24
 Author: Mad Productions
 Text Domain: boardroom
 */
@@ -120,6 +120,10 @@ body.contact-page .content{padding:28px 0 56px}
 .content details{border-bottom:1px solid #ddd;padding:16px 0}.content summary{font-family:'EB Garamond',Georgia,'Times New Roman',serif;font-size:22px;font-weight:600;color:var(--ink);cursor:pointer;font-variant-numeric:lining-nums}
 .placeholder{background:#fff7e6;border:1px dashed var(--gold);padding:10px 14px;font-size:16px}
 .site-footer{background:var(--ink2);color:#ccc;text-align:center;padding:40px 24px 48px;font-size:17px;line-height:1.7}.site-footer a{color:#fff;margin:0 10px}
+.footer-ask-wrap{margin:8px 0 18px}
+.footer-ask{display:inline-flex;align-items:center;gap:12px;max-width:calc(100% - 8px);padding:6px 18px 6px 6px;background:#161616;color:#c4912e;border:2px solid #c4912e;border-radius:999px;font-family:'EB Garamond',Georgia,'Times New Roman',serif;font-weight:700;font-size:20px;letter-spacing:.04em;line-height:1.2;cursor:pointer}
+.footer-ask .brb-walter-footer{width:64px;height:64px}
+.footer-ask:hover,.footer-ask:focus{background:#c4912e;color:#161616}
 .footer-map-wrap{max-width:920px;margin:0 auto 24px}
 .footer-map{display:block;width:100%;height:300px;border:3px solid var(--gold);background:#161616}
 .legal-links{margin-top:8px}.legal-page .content h2{text-align:left;font-size:clamp(22px,3vw,32px);margin:36px 0 12px}.legal-page .content h2:after{margin:10px 0 0}.legal-page .content h3{margin:28px 0 8px}.legal-page .updated{color:#777;font-size:16px}.legal-page .rules{background:var(--bg2);border-left:4px solid var(--gold);padding:8px 20px 16px;margin:8px 0 24px}.legal-page .rules li{margin:6px 0}.legal-page .content p{font-variant-numeric:lining-nums}

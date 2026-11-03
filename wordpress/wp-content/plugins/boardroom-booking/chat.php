@@ -1337,19 +1337,28 @@ add_action('rest_api_init', function () {
     ]);
 });
 
+function brb_walter_url($size = 128, $ext = 'webp') {
+    $size = in_array((int) $size, [64, 96, 128, 512], true) ? (int) $size : 128;
+    $ext = $ext === 'png' ? 'png' : 'webp';
+    return BRB_URL . 'assets/img/walter/walter-' . $size . '.' . $ext;
+}
+function brb_walter_html($size, $class) {
+    $size = (int) $size;
+    return '<picture class="' . esc_attr($class) . '"><source srcset="' . esc_url(brb_walter_url($size, 'webp')) . '" type="image/webp"><img src="' . esc_url(brb_walter_url($size, 'png')) . '" alt="Walter, the Boardroom butler" width="' . $size . '" height="' . $size . '" decoding="async"></picture>';
+}
 function brb_chat_markup($mode = 'float') {
     $inline = ($mode === 'inline');
     ob_start();
-    echo '<div class="brb-chat' . ($inline ? ' brb-chat-inline' : '') . '">';
+    echo '<div class="brb-chat' . ($inline ? ' brb-chat-inline' : '') . '" data-walter="' . esc_url(brb_walter_url(64, 'webp')) . '">';
     if (!$inline) {
-        echo '<button type="button" class="brb-chat-launch" aria-expanded="false" aria-controls="brb-chat-panel">Ask the Chairman</button>';
+        echo '<button type="button" class="brb-chat-launch" aria-expanded="false" aria-controls="brb-chat-panel">' . brb_walter_html(96, 'brb-walter brb-walter-launch') . '<span>Ask the Chairman</span></button>';
     }
     echo '<section id="brb-chat-panel" class="brb-chat-panel" role="' . ($inline ? 'region' : 'dialog') . '"' . ($inline ? '' : ' aria-modal="true"') . ' aria-labelledby="brb-chat-title"' . ($inline ? '' : ' hidden') . '>';
-    echo '<header class="brb-chat-head"><h2 id="brb-chat-title">Ask the Chairman</h2>';
+    echo '<header class="brb-chat-head">' . brb_walter_html(64, 'brb-walter brb-walter-head') . '<h2 id="brb-chat-title">Ask the Chairman</h2>';
     if (!$inline) echo '<button type="button" class="brb-chat-close" aria-label="Close chat">Close</button>';
     echo '</header>';
     echo '<div class="brb-chat-scroll">';
-    echo '<div class="brb-chat-log" aria-live="polite"><p class="brb-chat-msg bot"><span class="brb-chat-who">Chairman</span>Hi there! I\'m the Chairman. I\'d love to help you plan your event.</p></div>';
+    echo '<div class="brb-chat-log" aria-live="polite"><p class="brb-chat-msg bot">' . brb_walter_html(64, 'brb-walter brb-walter-bubble') . '<span class="brb-chat-copy"><span class="brb-chat-who">Walter</span>Hi there! I\'m Walter, the Boardroom\'s butler. How can I help with your event?</span></p></div>';
     echo '<form class="brb-chat-ask"><label class="brb-chat-sr" for="brb-chat-input">Your question</label><input id="brb-chat-input" class="brb-chat-input" type="text" maxlength="500" autocomplete="off"><button type="submit" class="brb-chat-send">Send</button></form>';
     echo '<button type="button" class="brb-chat-lead-toggle">Leave your details</button>';
     echo '<form class="brb-chat-lead" hidden>';

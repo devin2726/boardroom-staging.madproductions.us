@@ -36,7 +36,7 @@ function brb_chat_reply($text, $history = []) {
 }
 
 try {
-    brb_t(get_option('brb_version') === '2.5.24', 'plugin storage version is 2.5.24');
+    brb_t(get_option('brb_version') === '2.5.25', 'plugin storage version is 2.5.25');
     $cols = $wpdb->get_col('SHOW COLUMNS FROM ' . brb_tour_table(), 0);
     brb_t(in_array('source', $cols, true), 'inquiries can store a source');
     brb_t((string) brb_opt('quote_prices') === '1', 'price estimates are on by default');
@@ -371,7 +371,7 @@ try {
     }
 
     $widget = brb_chat_markup();
-    brb_t(strpos($widget, 'brb-chat-launch') !== false && strpos($widget, 'Ask the Chairman') !== false && strpos($widget, 'Ask our Chat Bot') === false && strpos($widget, '>Chat<') === false && strpos($widget, 'role="dialog"') !== false && strpos($widget, 'aria-expanded') !== false && strpos($widget, 'A team member will reply using this info') !== false && strpos($widget, 'Hi there! I\'m the Chairman. I\'d love to help you plan your event.') !== false, 'the chat button and panel are on the page');
+    brb_t(strpos($widget, 'brb-chat-launch') !== false && strpos($widget, 'Ask the Chairman') !== false && strpos($widget, 'Ask our Chat Bot') === false && strpos($widget, '>Chat<') === false && strpos($widget, 'role="dialog"') !== false && strpos($widget, 'aria-expanded') !== false && strpos($widget, 'A team member will reply using this info') !== false && strpos($widget, 'Hi there! I\'m Walter, the Boardroom\'s butler. How can I help with your event?') !== false && strpos($widget, 'Walter, the Boardroom butler') !== false && strpos($widget, 'walter-96.webp') !== false && strpos($widget, 'walter-64.webp') !== false, 'the chat button and panel introduce Walter');
     brb_t(strpos($widget, '850') === false && strpos($widget, '1400') === false && strpos($widget, '1500') === false && stripos($widget, $other) === false && stripos($widget, 'owner') === false, 'the chat panel does not publish rates or private topics');
     $plugin_dir = dirname((new ReflectionFunction('brb_chat_markup'))->getFileName());
     $css = file_get_contents($plugin_dir . '/assets/chat.css');

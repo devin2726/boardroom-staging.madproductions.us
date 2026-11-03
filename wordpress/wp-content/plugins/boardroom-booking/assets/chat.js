@@ -49,12 +49,25 @@
   }
   function addMsg(role, text) {
     var p = document.createElement('p');
-    p.className = 'brb-chat-msg ' + (role === 'user' ? 'user' : 'bot');
+    var bot = role !== 'user';
+    p.className = 'brb-chat-msg ' + (bot ? 'bot' : 'user');
+    if (bot && root.getAttribute('data-walter')) {
+      var img = document.createElement('img');
+      img.className = 'brb-walter brb-walter-bubble';
+      img.src = root.getAttribute('data-walter');
+      img.alt = 'Walter, the Boardroom butler';
+      img.width = 64;
+      img.height = 64;
+      p.appendChild(img);
+    }
+    var copy = document.createElement('span');
+    copy.className = 'brb-chat-copy';
     var who = document.createElement('span');
     who.className = 'brb-chat-who';
-    who.textContent = role === 'user' ? 'You' : 'Boardroom';
-    p.appendChild(who);
-    p.appendChild(document.createTextNode(text));
+    who.textContent = bot ? 'Walter' : 'You';
+    copy.appendChild(who);
+    copy.appendChild(document.createTextNode(text));
+    p.appendChild(copy);
     log.appendChild(p);
     var scroller = log.closest('.brb-chat-scroll') || log;
     scroller.scrollTop = scroller.scrollHeight;
@@ -68,6 +81,17 @@
       else closePanel();
     });
   }
+  document.addEventListener('click', function (e) {
+    var opener = e.target.closest('[data-brb-open-chat]');
+    if (!opener) return;
+    e.preventDefault();
+    if (root.classList.contains('brb-chat-inline')) {
+      root.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (input) input.focus();
+      return;
+    }
+    if (panel.hidden) openPanel();
+  });
   if (closeBtn) closeBtn.addEventListener('click', closePanel);
   leadToggle.addEventListener('click', function () {
     showLead();
