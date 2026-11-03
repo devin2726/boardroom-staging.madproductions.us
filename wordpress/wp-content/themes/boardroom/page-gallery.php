@@ -14,6 +14,5 @@
 <section class="block alt" id="amenities"><div class="wrap">
 <h2>Amenities</h2>
 <?php echo br_amenities_html(); ?>
-<?php echo br_good_to_know_html(); ?>
 </div></section>
 <?php get_footer();

@@ -36,7 +36,7 @@ function brb_chat_reply($text, $history = []) {
 }
 
 try {
-    brb_t(get_option('brb_version') === '2.5.37', 'plugin storage version is 2.5.37');
+    brb_t(get_option('brb_version') === '2.5.38', 'plugin storage version is 2.5.38');
     $cols = $wpdb->get_col('SHOW COLUMNS FROM ' . brb_tour_table(), 0);
     brb_t(in_array('source', $cols, true), 'inquiries can store a source');
     brb_t((string) brb_opt('quote_prices') === '1', 'price estimates are on by default');
@@ -56,20 +56,20 @@ try {
     brb_t(strpos($rules, '$50') === false && strpos($rules, 'fee $50') === false && strpos($rules, '309-524-2004') === false, 'the short rules answer skips the liquor fee and the clerk phone');
     brb_t(stripos($rules, 'owner') === false && stripos($rules, $other) === false && stripos($rules, 'midnight') === false, 'rules answer stays on the venue and states the departure and admission rules');
     $rules_more = brb_chat_reply('yes', [['role' => 'user', 'text' => 'What are the house rules?']]);
-    foreach (['stovetop', 'no taps', 'BYOB', 'City of Moline', 'https://moline.il.us/244/Liquor-Licensing', '309-524-2004', 'not set up', 'garbage', 'Christmas decorations are up in December', 'insurance'] as $needle) {
+    foreach (['stovetop', 'no taps', 'BYOB', 'not set up', 'garbage', 'Christmas decorations are up in December', 'insurance'] as $needle) {
         brb_t(stripos($rules_more, $needle) !== false, 'rules follow-up includes ' . $needle);
     }
-    brb_t(strpos($rules_more, 'one-day liquor license ($50)') !== false && stripos($rules_more, 'midnight') === false && stripos($rules_more, 'owner') === false, 'rules follow-up includes the liquor license and keeps midnight and private topics out');
+    brb_t(strpos($rules_more, 'one-day liquor license') === false && strpos($rules_more, '309-524-2004') === false && stripos($rules_more, 'midnight') === false && stripos($rules_more, 'owner') === false, 'rules follow-up keeps the liquor license and private topics out');
     $food = brb_chat_reply('Can I bring my own food?');
     brb_t(stripos($food, 'own food') !== false && stripos($food, 'warmers') !== false && stripos($food, 'stovetop') !== false && stripos($food, 'any caterer') !== false && stripos($food, 'does not provide catering') !== false && strpos($food, 'Want more details?') !== false, 'own food is allowed with warmers and without catering from us');
     $byob = brb_chat_reply('Is BYOB allowed?');
-    brb_t(strpos($byob, 'BYOB') !== false && strpos($byob, 'City of Moline') !== false && strpos($byob, 'one-day liquor license ($50)') !== false && strpos($byob, 'Want more details?') !== false && strpos($byob, '309-524-2004') === false, 'BYOB stays short and names the one-day license');
+    brb_t(strpos($byob, 'BYOB') !== false && strpos($byob, 'one-day liquor license') === false && strpos($byob, 'Want more details?') !== false && strpos($byob, '309-524-2004') === false, 'BYOB stays short and does not name a liquor license');
     $byob_more = brb_chat_reply('tell me more', [['role' => 'user', 'text' => 'Is BYOB allowed?']]);
-    brb_t(strpos($byob_more, 'https://moline.il.us/244/Liquor-Licensing') !== false && strpos($byob_more, '309-524-2004') !== false && strpos($byob_more, 'one-day liquor license ($50)') !== false && strpos($byob_more, 'leave it like you got it') !== false && strpos($byob_more, 'garbage') !== false, 'BYOB follow-up includes the license, the City Clerk, and cleanup');
+    brb_t(strpos($byob_more, 'BYOB is allowed') !== false && strpos($byob_more, 'one-day liquor license') === false && strpos($byob_more, '309-524-2004') === false && strpos($byob_more, 'leave it like you got it') !== false && strpos($byob_more, 'garbage') !== false, 'BYOB follow-up skips the liquor license and includes cleanup');
     $out = brb_chat_reply('How late can we stay?');
     brb_t(strpos($out, '11:30 PM') !== false && stripos($out, 'midnight') === false && stripos($out, 'permit') === false, 'end time questions say 11:30 PM');
     $hours = brb_chat_reply('What are your hours?');
-    brb_t(strpos($hours, '10:00 AM') !== false && strpos($hours, '11:30 PM') !== false && strpos($hours, 'Half days') !== false && strpos($hours, 'June') !== false && strpos($hours, 'office hours') !== false && strpos($hours, 'appointment') !== false, 'hours include the full day and June half days, and do not sound like office hours');
+    brb_t(strpos($hours, '10:00 AM') !== false && strpos($hours, '11:30 PM') !== false && strpos($hours, 'Half days') === false && strpos($hours, 'office hours') !== false && strpos($hours, 'appointment') !== false, 'hours are the full day and do not sound like office hours');
     $open = brb_chat_reply('Is a date open?');
     brb_t(strpos($open, 'I\'m not sure') === false && strpos($open, 'Tell me a date') === false && strpos($open, '/book/?date=') !== false, 'an open-date question suggests real calendar dates');
     $saturday = brb_chat_reply('what is the first available date for a saturday');
@@ -106,7 +106,7 @@ try {
         }
     }
     $setup_time = brb_chat_reply('What time can I get in to set up?');
-    brb_t(strpos($setup_time, 'No. Guests set up') !== false && strpos($setup_time, '8:00 AM') !== false && strpos($setup_time, 'one hour before') !== false && strpos($setup_time, $unknown) === false, 'setup time is the morning of the event');
+    brb_t(strpos($setup_time, 'No. Guests set up') !== false && strpos($setup_time, '8:00 AM') !== false && strpos($setup_time, 'one hour before') === false && strpos($setup_time, $unknown) === false, 'setup can begin at 8:00 AM');
     $setup_help = brb_chat_reply('Can you set it up for me?');
     brb_t(strpos($setup_help, 'No. Guests set up') !== false && strpos($setup_help, 'Staff cannot set the room up') !== false && stripos($setup_help, 'extra fee') === false, 'staff cannot set the room up');
     $balloons = brb_chat_reply('Are balloons allowed?');
