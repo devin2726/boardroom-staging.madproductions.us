@@ -45,7 +45,7 @@ add_filter('pre_wp_mail', function ($short, $atts) {
 $GLOBALS['brb_mails'] = [];
 
 try {
-    brb_t(get_option('brb_version') === '2.5.34', 'plugin storage version is 2.5.34');
+    brb_t(get_option('brb_version') === '2.5.35', 'plugin storage version is 2.5.35');
     $example = brb_first_payment_parts(1200);
     brb_t($example['deposit'] === 600.0 && $example['damage'] === 250.0 && $example['base'] === 850.0 && abs($example['card'] - 875.50) < 0.001, 'a $1,200 rental first card payment is 600 + 250 plus 3 percent');
     brb_t(brb_latest_start_hour() === 21, 'the latest shorter-block start is 9:00 PM');
@@ -849,7 +849,7 @@ try {
     brb_t(is_string($footer) && strpos($footer, '/rental-checklist/') !== false, 'footer links to the rental checklist');
     $book_page = file_get_contents(get_stylesheet_directory() . '/page.php');
     $book_fn = file_get_contents(get_stylesheet_directory() . '/functions.php');
-    brb_t(is_string($book_page) && strpos($book_page, 'br_book_shortcuts_html') !== false && is_string($book_fn) && strpos($book_fn, '/rental-checklist/') !== false, 'the book page links to the rental checklist');
+    brb_t(is_string($book_page) && strpos($book_page, 'br_book_shortcuts_html') !== false && strpos($book_page, 'br_good_to_know_html') !== false && strpos($book_page, 'br_book_shortcuts_html') < strpos($book_page, 'br_good_to_know_html') && is_string($book_fn) && strpos($book_fn, '/rental-checklist/') !== false && strpos($book_fn, 'function br_good_to_know_html') !== false, 'the book page links to the rental checklist and reuses Good to know');
     $checklist_page = get_page_by_path('rental-checklist');
     $checklist_html = $checklist_page ? do_shortcode((string) $checklist_page->post_content) : '';
     brb_t($checklist_page && $checklist_page->post_title === 'Rental Checklist' && strpos($checklist_html, '8:00 AM') !== false && strpos($checklist_html, '309-524-2004') !== false && strpos($checklist_html, 'one-day liquor license ($50)') !== false && strpos($checklist_html, brb_whole_money(brb_addon_price())) !== false && substr_count($checklist_html, 'Balloons are fine, no glitter.') === 1 && strpos($checklist_html, 'Not allowed: Glitter,') === false, 'the rental checklist names the one-day liquor license and says balloons are fine, no glitter');

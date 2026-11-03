@@ -1493,7 +1493,7 @@ function brb_chat_chevron() {
     return '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 }
 function brb_chat_avatar() {
-    return '<img class="brb-chat-avatar" src="' . esc_url(brb_walter_url(64, 'webp')) . '" alt="" width="28" height="28" decoding="async">';
+    return '<img class="brb-chat-avatar" src="' . esc_url(brb_walter_url(64, 'webp')) . '" alt="" width="40" height="40" decoding="async">';
 }
 function brb_chat_bubble($text) {
     return '<div class="brb-chat-msg bot">' . brb_chat_avatar() . '<span class="brb-chat-copy"><span class="brb-chat-who">Walter</span>' . esc_html($text) . '</span></div>';
@@ -1501,7 +1501,7 @@ function brb_chat_bubble($text) {
 function brb_chat_markup($mode = 'float') {
     $inline = ($mode === 'inline' || $mode === 'home');
     $home = ($mode === 'home');
-    $opening = $inline ? 'Hi there! Pick a question on the left, or type your own below.' : 'Hi there! How can I help with your event?';
+    $opening = $inline ? 'Hi, How Can I Help You?' : 'Hi there! How can I help with your event?';
     $placeholder = $inline ? 'Type your question...' : 'Ask Walter...';
     ob_start();
     echo '<div class="brb-chat' . ($inline ? ' brb-chat-inline' : '') . ($home ? ' brb-chat-home' : '') . '" data-walter="' . esc_url(brb_walter_url(64, 'webp')) . '" data-opening="' . esc_attr($opening) . '">';
@@ -1513,9 +1513,8 @@ function brb_chat_markup($mode = 'float') {
         echo '<div class="brb-chat-side">';
         echo '<header class="brb-chat-lockup">' . brb_walter_stage('head');
         echo '<div><h2 id="brb-chat-title" class="brb-chat-hello">Ask Walter</h2><p>The Boardroom\'s butler</p></div></header>';
-        echo '<p class="brb-chat-intro">Quick answers about dates, guests, what\'s included and booking. Day or night.</p>';
         echo '<p class="brb-chat-popular-label">Popular questions</p><div class="brb-chat-popular">';
-        foreach (['Is my date available?', 'How many guests fit?', 'What does a full day include?', 'How do deposits work?'] as $question) {
+        foreach (['Is my date available?', 'How many guests fit?'] as $question) {
             echo '<button type="button" class="brb-chat-q" data-question="' . esc_attr($question) . '"><span>' . esc_html($question) . '</span>' . brb_chat_chevron() . '</button>';
         }
         echo '</div><div class="brb-chat-side-foot"><p>Prefer a person?</p>';

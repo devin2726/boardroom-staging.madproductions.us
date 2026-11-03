@@ -158,8 +158,8 @@
       var face = document.createElement('img');
       face.className = 'brb-chat-avatar';
       face.alt = '';
-      face.width = 28;
-      face.height = 28;
+      face.width = 40;
+      face.height = 40;
       face.src = root.getAttribute('data-walter') || '';
       row.appendChild(face);
     }
