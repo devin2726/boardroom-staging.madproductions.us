@@ -7,4 +7,23 @@ var more=document.querySelector('.reviews-more');if(more){more.addEventListener(
 var rot=document.querySelector('.review-rotator');if(rot){var quotes=rot.querySelectorAll('blockquote'),ri=0,rtimer,reduce=window.matchMedia('(prefers-reduced-motion: reduce)').matches;function showQuote(n){quotes[ri].classList.remove('on');quotes[ri].setAttribute('aria-hidden','true');quotes[ri].setAttribute('inert','');ri=(n+quotes.length)%quotes.length;quotes[ri].classList.add('on');quotes[ri].removeAttribute('aria-hidden');quotes[ri].removeAttribute('inert');}function startQuotes(){if(reduce||quotes.length<2)return;rtimer=setInterval(function(){showQuote(ri+1)},7000);}function stopQuotes(){clearInterval(rtimer);}rot.addEventListener('mouseenter',stopQuotes);rot.addEventListener('mouseleave',startQuotes);rot.addEventListener('focusin',stopQuotes);rot.addEventListener('focusout',function(e){if(!rot.contains(e.relatedTarget))startQuotes();});startQuotes();}
 var lb=document.querySelector('.lightbox');if(lb){document.querySelectorAll('.gallery a').forEach(function(a){a.onclick=function(e){e.preventDefault();var img=lb.querySelector('img'),thumb=a.querySelector('img');img.src=a.href;img.alt=thumb?thumb.alt:'The Boardroom';lb.classList.add('on')}});document.addEventListener('keydown',function(e){if(e.key==='Escape')lb.classList.remove('on')});}
 if(document.body.classList.contains('book-dated')){var dateBlock=document.getElementById('brb-your-date');if(dateBlock)dateBlock.scrollIntoView({block:'start'});}
+var walterCard=document.getElementById('ask-walter');
+var floatingChat=document.querySelector('.brb-chat:not(.brb-chat-inline)');
+if(walterCard&&floatingChat){
+  var launch=floatingChat.querySelector('.brb-chat-launch');
+  if(launch)document.body.appendChild(launch);
+  floatingChat.remove();
+  if(launch)launch.addEventListener('click',function(e){
+    e.preventDefault();
+    var header=document.querySelector('.site-header');
+    var offset=header?header.getBoundingClientRect().height+16:96;
+    var rootEl=document.documentElement;
+    var prev=rootEl.style.scrollBehavior;
+    rootEl.style.scrollBehavior='auto';
+    window.scrollTo(0,Math.max(0,walterCard.getBoundingClientRect().top+window.scrollY-offset));
+    rootEl.style.scrollBehavior=prev;
+    var field=walterCard.querySelector('.brb-chat-input');
+    if(field&&field.focus)field.focus({preventScroll:true});
+  });
+}
 })();
