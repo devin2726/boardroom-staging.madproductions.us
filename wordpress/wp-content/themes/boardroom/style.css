@@ -1,7 +1,7 @@
 /*
 Theme Name: The Boardroom
 Description: Lightweight theme replicating the look of boardroomqc.com (dark + gold, EB Garamond, full-width hero slider). Pairs with the Boardroom Booking plugin.
-Version: 1.2.29
+Version: 1.2.30
 Author: Mad Productions
 Text Domain: boardroom
 */
@@ -116,6 +116,12 @@ body.book-page .page-hero h1{font-family:'EB Garamond',Georgia,'Times New Roman'
 body.contact-page .content{padding:48px 0 80px}
 body.contact-page .inquiry-block{margin:0 0 40px}
 body.contact-page .inquiry-block .form label,body.contact-page .inquiry-block .form input,body.contact-page .inquiry-block .form textarea,body.contact-page .inquiry-block .form select,body.contact-page .inquiry-block .btn{font-size:23px}
+.contact-ask-wrap{margin:0 0 18px;text-align:center}
+.contact-ask{display:inline-flex;align-items:center;gap:10px;max-width:100%;padding:4px 16px 4px 4px;background:#161616;color:#c4912e;border:2px solid #c4912e;border-radius:999px;font-family:'EB Garamond',Georgia,'Times New Roman',serif;font-weight:700;font-size:18px;letter-spacing:.04em;line-height:1.2;cursor:pointer}
+.contact-ask .brb-walter-contact{width:40px;height:40px;border-radius:50%;overflow:hidden;flex:0 0 auto}
+.contact-ask .brb-walter-contact img{width:40px;height:40px;object-fit:cover}
+.contact-ask:hover,.contact-ask:focus{background:#c4912e;color:#161616}
+.contact-ask:focus{outline:2px solid #161616;outline-offset:3px}
 @media(max-width:700px){
 body.contact-page .page-hero{padding:64px 16px}
 body.contact-page .content{padding:28px 0 56px}

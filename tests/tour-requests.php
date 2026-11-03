@@ -33,7 +33,7 @@ $created = [];
 $snapshot = get_option('brb_settings');
 
 try {
-    brb_t(get_option('brb_version') === '2.5.31', 'plugin storage version is 2.5.31');
+    brb_t(get_option('brb_version') === '2.5.32', 'plugin storage version is 2.5.32');
     brb_t($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', brb_tour_table())) === brb_tour_table(), 'inquiry table still exists');
     $cols = $wpdb->get_col('SHOW COLUMNS FROM ' . brb_tour_table(), 0);
     brb_t(in_array('phone', $cols, true) && in_array('topic', $cols, true) && in_array('preferred', $cols, true), 'topic and preferred were added and phone was kept');
@@ -168,7 +168,7 @@ try {
     brb_t(strpos($contact_html, '[boardroom_tour]') === false && strpos($contact_html, '2220 37th Street') === false && strpos($contact_html, 'mailto:') === false, 'stored contact content does not repeat the venue or email');
     $template = file_get_contents(get_stylesheet_directory() . '/page-contact.php');
     $map = brb_map_embed();
-    brb_t(is_string($template) && strpos($template, 'brb_map_embed') === false && strpos($template, 'brb_tour_form') !== false && strpos($template, "brb_chat_markup('inline')") !== false, 'the contact template is the assistant and the form, without its own map');
+    brb_t(is_string($template) && strpos($template, 'brb_map_embed') === false && strpos($template, 'brb_tour_form') !== false && strpos($template, 'brb_chat_markup') === false && strpos($template, 'data-brb-open-chat') !== false && strpos($template, '>Ask Walter<') !== false && strpos($template, 'data-brb-open-chat') < strpos($template, 'brb_tour_form') && strpos($template, 'tel:') === false && strpos($template, '2212') === false, 'the contact template is the form with Ask Walter above it, without its own map');
     brb_t(strpos($map, 'loading="lazy"') !== false && strpos($map, 'https://www.google.com/maps/embed') !== false && strpos($map, '41.4913116') !== false && strpos($map, '-90.4820481') !== false, 'the map iframe is lazy and uses the venue coordinates');
     brb_t(strpos($map, BRB_MAPS_URL) === false, 'the directions short link stays outside the iframe');
     $header = file_get_contents(get_stylesheet_directory() . '/header.php');
@@ -268,13 +268,16 @@ try {
     $footer = file_get_contents(get_stylesheet_directory() . '/footer.php');
     $footer_map = function_exists('br_footer_map') ? br_footer_map() : '';
     brb_t(is_string($footer) && strpos($footer, 'br_footer_map') !== false && strpos($footer_map, 'https://www.google.com/maps?q=2220+37th+Street,+Moline,+IL+61265') !== false && strpos($footer_map, 'output=embed') !== false && strpos($footer_map, 'loading="lazy"') !== false && strpos($footer_map, 'referrerpolicy="no-referrer-when-downgrade"') !== false && strpos($footer, 'Get directions') !== false && strpos($footer, '2220 37th Street, Moline, IL 61265') !== false, 'the footer map uses the venue embed');
-    brb_t(is_string($contact_tpl) && strpos($contact_tpl, "brb_chat_markup('inline')") !== false && strpos($contact_tpl, 'brb_tour_form') !== false && strpos($contact_tpl, 'brb_map_embed') === false && strpos($contact_tpl, "brb_chat_markup('inline')") < strpos($contact_tpl, 'brb_tour_form'), 'the contact page is the inline assistant, then the form');
+    brb_t(is_string($contact_tpl) && strpos($contact_tpl, 'brb_chat_markup') === false && strpos($contact_tpl, 'brb_tour_form') !== false && strpos($contact_tpl, 'brb_map_embed') === false && strpos($contact_tpl, 'data-brb-open-chat') !== false && strpos($contact_tpl, 'data-brb-open-chat') < strpos($contact_tpl, 'brb_tour_form'), 'the contact page is a centered form with Ask Walter above it');
+    $chat_src = file_get_contents(dirname((new ReflectionFunction('brb_chat_markup'))->getFileName()) . '/chat.php');
+    brb_t(is_string($chat_src) && strpos($chat_src, "if (is_front_page()) return;") !== false && strpos($chat_src, "is_page('contact')") === false, 'the floating Walter chat stays on the contact page');
     brb_t(is_string($home) && strpos($home, 'br_tour_video_html') !== false && strpos($home, "brb_chat_markup('home')") !== false && strpos($home, 'br_tour_video_html') < strpos($home, "brb_chat_markup('home')") && strpos($home, 'Contact the Boardroom') === false && strpos($home, 'id="contact"') === false, 'the home page puts Walter under the tour and does not repeat a contact section');
     $home_chat = function_exists('brb_chat_markup') ? brb_chat_markup('home') : '';
     brb_t(strpos($home_chat, 'brb-chat-hello') !== false && strpos($home_chat, "Hi there! I'm Walter, the Boardroom's butler. How can I help with your event?") !== false && strpos($home_chat, 'How can I help you?') !== false && strpos($home_chat, 'Leave your details') !== false && strpos($home_chat, 'brb-chat-send') !== false, 'the homepage chat greeting sits in the header and the first bubble asks how to help');
     $css = file_get_contents(get_stylesheet_directory() . '/style.css');
     $site_js = file_get_contents(get_stylesheet_directory() . '/assets/site.js');
     brb_t(is_string($css) && strpos($css, 'z-index:400') !== false && strpos($css, 'body.admin-bar .site-header{top:32px}') !== false && strpos($css, '.nav.open{display:block}') !== false && strpos($css, 't-scroll') !== false && strpos($css, 'translateX(-50%)') !== false, 'the header stays above the page and the review track scrolls in CSS');
+    brb_t(is_string($css) && strpos($css, '.contact-ask{display:inline-flex') !== false && strpos($css, 'border:2px solid #c4912e') !== false && strpos($css, "font-family:'EB Garamond'") !== false, 'the contact Ask Walter button is a small gold outline in EB Garamond');
     brb_t(is_string($site_js) && strpos($site_js, ".nav a") === false && strpos($site_js, "querySelectorAll('.gallery a')") !== false, 'the gallery lightbox does not capture menu links');
 
     $privacy = get_page_by_path('privacy');
