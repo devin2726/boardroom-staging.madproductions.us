@@ -21,36 +21,15 @@
 
   function pad(n) { return (n < 10 ? '0' : '') + n; }
   function key(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
-  function currentType() {
-    var t = form.querySelector('input[name=type]:checked') || form.querySelector('input[name=type]');
-    return t ? t.value : 'day';
-  }
   function dayInfo() { return data[date.value] || null; }
-  function refreshHours() {
-    if (!startSel) return;
-    var info = dayInfo();
-    var first = info && info.first_hour !== null && info.first_hour !== undefined ? +info.first_hour : null;
-    var picked = null;
-    Array.prototype.forEach.call(startSel.options, function (op) {
-      var off = !info || first === null || (+op.value) < first;
-      op.disabled = off;
-      if (!off && picked === null) picked = op.value;
-    });
-    if (picked !== null && startSel.selectedOptions.length && startSel.selectedOptions[0].disabled) startSel.value = picked;
-  }
   function refreshNotice() {
     var btn = form.querySelector('.brb-btn');
     var info = dayInfo();
     var msg = '';
     var block = false;
     if (date.value && info) {
-      var hourly = currentType() === 'hourly';
-      if (!hourly && !info.day_ok) {
-        msg = 'A full day on this date starts inside the ' + BRB.noticeHours + '-hour minimum notice. Choose a later date' + (BRB.mode !== 'day' ? ', or switch to hourly if a later start time is open' : '') + '.';
-        block = BRB.mode === 'day' || currentType() !== 'hourly';
-      }
-      if (hourly && (info.first_hour === null || info.first_hour === undefined)) {
-        msg = 'No start time on this date is at least ' + BRB.noticeHours + ' hours from now.';
+      if (!info.day_ok) {
+        msg = 'A full day on this date starts inside the ' + BRB.noticeHours + '-hour minimum notice. Choose a later date.';
         block = true;
       }
       if (info.status === 'soon' || info.status === 'booked' || info.status === 'blackout' || info.status === 'past') {
@@ -62,35 +41,7 @@
     if (btn) btn.disabled = block;
     return !block;
   }
-  function juneDate() {
-    if (!date || !date.value) return false;
-    return date.value.slice(5, 7) === '06';
-  }
   function syncType() {
-    var kind = currentType();
-    var hourly = kind === 'hourly';
-    var half = kind === 'half';
-    var dayBox = form.querySelector('.brb-day');
-    var hourBox = form.querySelector('.brb-hourly');
-    var halfBox = form.querySelector('.brb-half');
-    var halfRadio = form.querySelector('input[name=type][value=half]');
-    var note = document.getElementById('brb-half-note');
-    var june = juneDate();
-    var choice = form.querySelector('.brb-half-choice');
-    if (choice) choice.classList.toggle('is-hidden', !june);
-    if (halfRadio) halfRadio.disabled = !june;
-    if (halfRadio && halfRadio.disabled && halfRadio.checked) {
-      var dayRadio = form.querySelector('input[name=type][value=day]');
-      if (dayRadio) dayRadio.checked = true;
-      kind = 'day';
-      hourly = false;
-      half = false;
-    }
-    if (dayBox) dayBox.style.display = (hourly || half) ? 'none' : '';
-    if (hourBox) hourBox.style.display = hourly ? '' : 'none';
-    if (halfBox) halfBox.style.display = half ? '' : 'none';
-    if (note) note.textContent = june ? 'Half days are available for this June date.' : 'Half days are generally available in June.';
-    refreshHours();
     refreshNotice();
   }
   if (form) {
@@ -165,40 +116,6 @@
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
   else boot();
-  function bindEnd() {
-    var input = document.querySelector('input[name="end_time"]');
-    if (!input || !input.form || input.dataset.brbBound) return;
-    input.dataset.brbBound = '1';
-    input.setAttribute('max', '23:30');
-    input.setAttribute('step', '60');
-    input.form.addEventListener('submit', function (e) {
-      var v = input.value || '';
-      var parts = v.split(':');
-      var msg = '';
-      if (parts.length >= 2) {
-        var mins = (+parts[0]) * 60 + (+parts[1]);
-        if (mins > 23 * 60 + 30 || mins < 5 * 60) msg = 'Everyone must be out of The Boardroom by 11:30 PM. Please choose an end time no later than 11:30 PM so there is time to wrap up. An early-morning time is not available.';
-        var type = input.form.querySelector('input[name="type"]');
-        var start = input.form.querySelector('input[name="start_hour"]');
-        if (!msg && type && type.value === 'hourly' && start && mins <= (+start.value) * 60) msg = 'That end time is before the booking starts. Please choose a time after the start and no later than 11:30 PM. Everyone must be out by 11:30 PM.';
-      }
-      var alert = input.form.querySelector('.brb-end-err');
-      if (!msg) {
-        if (alert) alert.remove();
-        return;
-      }
-      e.preventDefault();
-      if (!alert) {
-        alert = document.createElement('div');
-        alert.className = 'brb-alert brb-err brb-end-err';
-        input.form.insertBefore(alert, input.form.firstChild);
-      }
-      alert.textContent = msg;
-      input.focus();
-    });
-  }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bindEnd);
-  else bindEnd();
   function trackBooking(name) {
     var cfg = window.BRB || {};
     if (!cfg.eventEndpoint) return;

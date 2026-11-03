@@ -33,7 +33,7 @@ $created = [];
 $snapshot = get_option('brb_settings');
 
 try {
-    brb_t(get_option('brb_version') === '2.5.37', 'plugin storage version is 2.5.37');
+    brb_t(get_option('brb_version') === '2.5.38', 'plugin storage version is 2.5.38');
     brb_t($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', brb_tour_table())) === brb_tour_table(), 'inquiry table still exists');
     $cols = $wpdb->get_col('SHOW COLUMNS FROM ' . brb_tour_table(), 0);
     brb_t(in_array('phone', $cols, true) && in_array('topic', $cols, true) && in_array('preferred', $cols, true), 'topic and preferred were added and phone was kept');
@@ -312,10 +312,8 @@ try {
         brb_t(strpos($amenities, $banned_item) === false, 'amenities do not list ' . $banned_item);
     }
     brb_t(strpos($amenities, '<li>Stove</li>') === false && strpos($amenities, '<li>Oven</li>') === false, 'amenities do not list a stove or oven');
-    brb_t(is_string($gallery_tpl) && strpos($gallery_tpl, 'br_amenities_html') !== false && strpos($gallery_tpl, 'id="amenities"') !== false && strpos($gallery_tpl, 'br_good_to_know_html') !== false && strpos($gallery_tpl, 'See the amenities') === false && strpos($gallery_tpl, 'href="#amenities"') === false, 'the gallery page keeps the amenities section without the jump link');
-    $notes = br_good_to_know_html();
-    brb_t(strpos($notes, 'Good to know') !== false && strpos($notes, 'No cooking on the stovetop') !== false && strpos($notes, "We don't provide catering.") !== false && strpos($notes, 'one-day liquor license ($50)') !== false && strpos($notes, 'https://moline.il.us/244/Liquor-Licensing') !== false && strpos($notes, '309-524-2004') === false && stripos($notes, 'airbnb') === false, 'the gallery good-to-know block states the kitchen, catering, and liquor license');
-    brb_t(is_string($book_tpl) && strpos($book_tpl, 'br_book_shortcuts_html') !== false && strpos($book_tpl, 'br_good_to_know_html') !== false && strpos($book_tpl, 'the_content') < strpos($book_tpl, 'br_book_shortcuts_html') && strpos($book_tpl, 'br_book_shortcuts_html') < strpos($book_tpl, 'br_good_to_know_html') && strpos($book_tpl, "is_page('faq')") !== false && strpos($book_tpl, 'br_review_rotator_html') === false, 'the book page ends with the rental checklist then Good to know, and the FAQ page reuses that block');
+    brb_t(is_string($gallery_tpl) && strpos($gallery_tpl, 'br_amenities_html') !== false && strpos($gallery_tpl, 'id="amenities"') !== false && strpos($gallery_tpl, 'br_good_to_know_html') === false && strpos($gallery_tpl, 'Good to know') === false && strpos($gallery_tpl, 'See the amenities') === false && strpos($gallery_tpl, 'href="#amenities"') === false, 'the gallery page keeps the amenities section without Good to know');
+    brb_t(is_string($book_tpl) && strpos($book_tpl, 'br_book_shortcuts_html') === false && strpos($book_tpl, 'br_good_to_know_html') === false && strpos($book_tpl, 'Good to know') === false && strpos($book_tpl, "br_ask_walter_card(home_url('/contact/'))") !== false && strpos($book_tpl, 'br_ask_walter_card') < strpos($book_tpl, 'the_content') && strpos($book_tpl, 'br_review_rotator_html') === false, 'the book page is only the booking content, and FAQ keeps Walter at the top');
     brb_t(is_string($book_tpl) && strpos($book_tpl, "br_ask_walter_card(home_url('/contact/'))") !== false && strpos($book_tpl, 'br_ask_walter_card') < strpos($book_tpl, 'the_content'), 'FAQ opens with the shared Walter card');
     $reviews = br_reviews_html();
     brb_t(strpos($home, 'br_reviews_html') !== false && strpos($home, 'br_reviews_html') < strpos($home, 'block dark cta'), 'guest reviews sit before the reservation call to action');
@@ -324,7 +322,7 @@ try {
     brb_t(stripos($reviews, 'airbnb') === false && strpos($reviews, 'Google') === false && strpos($reviews, 'tel:') === false && strpos($reviews, 'name="phone"') === false, 'guest reviews do not name a source or a phone number');
     $rotator = br_review_rotator_html();
     $shortcuts = br_book_shortcuts_html();
-    brb_t(strpos($shortcuts, 'See the amenities') === false && strpos($shortcuts, 'Rental checklist') !== false && strpos($shortcuts, 'What to do before and after') !== false && strpos($shortcuts, '/#amenities') === false && strpos($shortcuts, '/rental-checklist/') !== false, 'the book page keeps the rental checklist and drops the amenities card');
+    brb_t(strpos($shortcuts, 'See the amenities') === false && strpos($shortcuts, 'Rental checklist') !== false && strpos($shortcuts, 'What to do before and after') !== false && strpos($shortcuts, '/#amenities') === false && strpos($shortcuts, '/rental-checklist/') !== false && strpos($book_tpl, 'br_book_shortcuts_html') === false, 'the standalone checklist helper remains, and the book page does not print that card');
     brb_t(strpos($rotator, 'class="review-card on"') !== false && substr_count($rotator, '<blockquote') === 4 && strpos($home, 'br_reviews_html') !== false, 'featured quotes still exist for the home page, which keeps the review marquee');
     $summary = br_review_aggregate_schema();
     brb_t(is_array($summary) && $summary['ratingValue'] === '5.0' && $summary['reviewCount'] === 29, 'the review schema uses the 5.0 rating and the count of 29');

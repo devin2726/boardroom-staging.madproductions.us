@@ -1,12 +1,12 @@
 <?php
 /**
  * Plugin Name: Boardroom Booking
- * Description: Self-hosted direct booking for The Boardroom — full-day and hourly blocks, availability calendar, agreed prices, approval before payment, blackout dates, and emails.
- * Version: 2.5.37
+ * Description: Self-hosted direct booking for The Boardroom — full-day blocks, availability calendar, agreed prices, approval before payment, blackout dates, and emails.
+ * Version: 2.5.38
  * Author: Mad Productions
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.5.37');
+define('BRB_VER', '2.5.38');
 define('BRB_VENUE_ADDRESS', '2220 37th Street, Moline, IL 61265');
 define('BRB_CHECK_ADDRESS', '2212 37th Street, Moline, IL 61265');
 define('BRB_MAPS_URL', 'https://maps.app.goo.gl/nVqUsGTcy48nPzc18');
@@ -72,7 +72,7 @@ function brb_price_phrase($b) {
 function brb_defaults() {
     $admin = function_exists('get_option') ? (string) get_option('admin_email') : '';
     return [
-        'mode' => 'both',
+        'mode' => 'day',
         'day_rate' => '500',
         'hourly_rate' => '75',
         'starting_price' => '600',
@@ -112,7 +112,7 @@ function brb_defaults() {
         'mail_from' => 'boardroomqc@gmail.com',
         'mail_from_name' => 'The Boardroom',
         'mail_reply_to' => 'boardroomqc@gmail.com',
-        'inquiry_cc' => '',
+        'inquiry_cc' => 'contiveros8@gmail.com',
         'ga_measurement_id' => '',
         'ga_property_id' => '',
         'weekly_summary' => '0',
@@ -127,6 +127,7 @@ function brb_opt($k = null) {
     if (!is_array($stored)) $stored = [];
     $o = wp_parse_args($stored, brb_defaults());
     foreach (brb_legacy_keys() as $lk) unset($o[$lk]);
+    $o['mode'] = 'day';
     if ($k === null) return $o;
     return $o[$k] ?? '';
 }
@@ -533,7 +534,7 @@ function brb_guest_free_line() {
     return 'Events are free to attend: no tickets, no cover charge, no paid admission, no door fees, and no ticket or merchandise sales. A band or live music is welcome when guests are not charged for the event.';
 }
 function brb_byob_line() {
-    return 'BYOB is allowed. If you serve alcohol, the City of Moline requires a one-day liquor license ($50). Please check with the City of Moline: https://moline.il.us/244/Liquor-Licensing (City Clerk, 309-524-2004).';
+    return 'BYOB is allowed.';
 }
 function brb_checklist_default() {
     return implode("\n", [
@@ -543,7 +544,7 @@ function brb_checklist_default() {
         'The refundable damage deposit is a flat $250. It is charged with the booking deposit and returned if the room is left as you found it.',
         'If you paid the damage deposit by card, it is refunded to the same card after the event once the space is checked.',
         'Optional setup or takedown day add-ons, when that day is open, can be added within 72 hours of the event for ' . brb_whole_money(brb_addon_price()) . '.',
-        'Setup is the morning of the event. On a full day, setup can begin at 8:00 AM. On a half day, setup can begin one hour before the start.',
+        'Setup is the morning of the event. Setup can begin at 8:00 AM.',
         'Everyone is out by 11:30 PM.',
         'All events are free to attend: no tickets, no cover charge, and no sales.',
         brb_byob_line(),
@@ -625,7 +626,7 @@ function brb_replace_liquor_fee($text) {
     return $text;
 }
 function brb_hours_line() {
-    return 'A full day runs from 10:00 AM to 11:30 PM. Half days are generally available in June: 10:00 AM to 4:00 PM, or 5:00 PM to 11:30 PM.';
+    return 'A full day runs from 10:00 AM to 11:30 PM.';
 }
 function brb_half_day_month($day) {
     return (int) $day->format('n') === 6;
@@ -698,39 +699,24 @@ function brb_screening_lines($b) {
     return $lines;
 }
 function brb_collect_screening($post, $required = true, $start = null) {
-    if (isset($post['private_event'])) {
-        $private = sanitize_key($post['private_event']);
-        $public = $private === 'yes' ? 'no' : ($private === 'no' ? 'yes' : '');
-    } else {
-        $public = sanitize_key($post['public_event'] ?? '');
-    }
+    unset($start);
     $free = sanitize_key($post['free_admission'] ?? '');
     $alcohol = sanitize_key($post['alcohol'] ?? '');
-    $end = sanitize_text_field($post['end_time'] ?? '');
-    if (preg_match('/^(\d{2}:\d{2})/', $end, $m)) $end = $m[1];
-    $age = sanitize_key($post['host_age'] ?? '');
     $about = sanitize_textarea_field($post['event_about'] ?? '');
     if ($required) {
         if ($free !== '1') return new WP_Error('free_admission', 'Please confirm that the event is free to attend.');
-        if (!in_array($public, ['yes', 'no'], true)) return new WP_Error('private_event', 'Please say whether this is a private, invitation-only gathering.');
         if (!in_array($alcohol, ['yes', 'no'], true)) return new WP_Error('alcohol', 'Please say whether alcohol will be served.');
-        $end_error = brb_end_time_error($end, $start);
-        if ($end_error !== '') return new WP_Error('end_time', $end_error);
-        if (!isset(brb_host_ages()[$age])) return new WP_Error('host_age', 'Please choose the host age bracket.');
         if ($about === '') return new WP_Error('event_about', 'Please tell us about your event.');
     } else {
         if ($free !== '1') $free = '';
-        if (!in_array($public, ['yes', 'no'], true)) $public = '';
         if (!in_array($alcohol, ['yes', 'no'], true)) $alcohol = '';
-        if ($end !== '' && brb_end_time_error($end, $start) !== '') $end = '';
-        if (!isset(brb_host_ages()[$age])) $age = '';
     }
     return [
-        'public_event' => $public,
+        'public_event' => '',
         'free_admission' => $free === '1' ? '1' : '',
         'alcohol' => $alcohol,
-        'end_time' => $end,
-        'host_age' => $age,
+        'end_time' => '',
+        'host_age' => '',
         'event_about' => $about,
     ];
 }
@@ -954,6 +940,7 @@ function brb_migrate_settings() {
     if (!isset($stored['rate_fri_sat']) || !is_numeric($stored['rate_fri_sat']) || (float) $stored['rate_fri_sat'] <= 0) $merged['rate_fri_sat'] = '1400';
     $ranges = json_decode((string) ($stored['rate_ranges'] ?? ''), true);
     if (!isset($stored['rate_ranges']) || !is_array($ranges)) $merged['rate_ranges'] = wp_json_encode(brb_default_rate_ranges());
+    $merged['mode'] = 'day';
     update_option('brb_settings', $merged);
 }
 function brb_migrate_bookings() {
@@ -988,14 +975,14 @@ function brb_faq_markup() {
 <details><summary>Is sales tax included?</summary><p>Sales tax is included in the price.</p></details>
 
 <h2>Setup and hours</h2>
-<details><summary>What are the hours?</summary><p>A full day runs from 10:00 AM to 11:30 PM. Half days are generally available in June: 10:00 AM to 4:00 PM, or 5:00 PM to 11:30 PM. We don't keep set hours for meetings or check drop-off. We meet on demand and set a time together, by appointment.</p></details>
+<details><summary>What are the hours?</summary><p>A full day runs from 10:00 AM to 11:30 PM. We don't keep set hours for meetings or check drop-off. We meet on demand and set a time together, by appointment.</p></details>
 <details><summary>When does everyone have to be out?</summary><p>Out by 11:30 PM. This one's firm, no exceptions. Everyone must be out of The Boardroom by 11:30 PM so there's time to wrap up.</p></details>
-<details><summary>How is the space set up?</summary><p>The space arrives not set up. You set up and tear down. Staff cannot set the room up. Setup starts at 8:00 AM on full days, or one hour before your start time on half days.</p></details>
+<details><summary>How is the space set up?</summary><p>The space arrives not set up. You set up and tear down. Staff cannot set the room up. Setup can begin at 8:00 AM.</p></details>
 <details><summary>Do you provide decorations?</summary><p>The room isn't decorated when you arrive, except that Christmas decorations are up in December.</p></details>
 
 <h2>Food and drink</h2>
 <details><summary>Can I bring my own food?</summary><p>Yes. We provide the space; you bring the food. No cooking is allowed in the venue. The stove top may not be used. Food warmers (for keeping prepared food warm) and the bar area are yours to use. You can also have it catered by any caterer. The Boardroom does not provide catering.</p></details>
-<details><summary>Can we bring our own drinks?</summary><p>Yes. There's a bar area and an ice machine, and there are no taps. BYOB is allowed. If you serve alcohol, the City of Moline requires a one-day liquor license ($50). Please check with the City of Moline: <a href="https://moline.il.us/244/Liquor-Licensing">https://moline.il.us/244/Liquor-Licensing</a> (City Clerk, 309-524-2004).</p></details>
+<details><summary>Can we bring our own drinks?</summary><p>Yes. There's a bar area and an ice machine, and there are no taps. BYOB is allowed.</p></details>
 <details><summary>Is there a refrigerator or ice?</summary><p>Yes. There is a refrigerator and an ice machine.</p></details>
 
 <h2>Rules</h2>
@@ -1044,11 +1031,9 @@ function brb_patch_faq_drinks() {
     $next = $c;
     foreach ($replacements as $old => $new) $next = str_replace($old, $new, $next);
     $next = brb_replace_liquor_fee($next);
-    $next = str_replace(
-        'Guests are responsible for obtaining any permit or license the City of Moline requires for alcohol at their event.',
-        'If you serve alcohol, the City of Moline requires a one-day liquor license ($50).',
-        $next
-    );
+    $next = str_replace('Guests are responsible for obtaining any permit or license the City of Moline requires for alcohol at their event. Please check with the City of Moline: <a href="https://moline.il.us/244/Liquor-Licensing">https://moline.il.us/244/Liquor-Licensing</a> (City Clerk, 309-524-2004). ', '', $next);
+    $next = str_replace('If you serve alcohol, the City of Moline requires a one-day liquor license ($50). Please check with the City of Moline: <a href="https://moline.il.us/244/Liquor-Licensing">https://moline.il.us/244/Liquor-Licensing</a> (City Clerk, 309-524-2004).', '', $next);
+    $next = str_replace('If you serve alcohol, the City of Moline requires a one-day liquor license ($50).', '', $next);
     if ($next === $c) return;
     global $wpdb;
     $wpdb->update($wpdb->posts, ['post_content' => $next], ['ID' => (int) $page->ID]);
@@ -1094,6 +1079,9 @@ function brb_refresh_checklist_copy() {
     $next = str_replace('Balloons are fine.', 'Balloons are fine, no glitter.', $next);
     $next = str_replace('Balloons are fine, no glitter, no glitter.', 'Balloons are fine, no glitter.', $next);
     $next = str_replace('Not allowed: Glitter, confetti, confetti cannons, rice, birdseed, or loose sequins.', 'Not allowed: Confetti, confetti cannons, rice, birdseed, or loose sequins.', $next);
+    $next = str_replace('Setup is the morning of the event. On a full day, setup can begin at 8:00 AM. On a half day, setup can begin one hour before the start.', 'Setup is the morning of the event. Setup can begin at 8:00 AM.', $next);
+    $next = str_replace('If you serve alcohol, the City of Moline requires a one-day liquor license ($50). Please check with the City of Moline: https://moline.il.us/244/Liquor-Licensing (City Clerk, 309-524-2004).', brb_byob_line(), $next);
+    $next = str_replace(brb_byob_line() . ' ' . brb_byob_line(), brb_byob_line(), $next);
     if ($next !== $text) {
         $o['checklist'] = $next;
         update_option('brb_settings', $o);
@@ -1141,18 +1129,18 @@ function brb_refresh_faq() {
     $next = str_replace('less than 90 days before the event', 'less than 60 days before the event', $next);
     $next = str_replace('Yes, on-site parking.', 'Yes. Free parking on premises.', $next);
     $next = str_replace('Please clean and tidy the space, and take the garbage out.', 'Please leave it like you got it. Clean and tidy the space, and take the garbage out.', $next);
-    $next = str_replace('If you would like a hand, our staff can help with setup for an extra fee.', 'Renters set up and tear down. Staff cannot set the room up. On a full day, setup can begin at 8:00 AM. On a half day, setup can begin one hour before the start.', $next);
+    $next = str_replace('If you would like a hand, our staff can help with setup for an extra fee.', 'Renters set up and tear down. Staff cannot set the room up. Setup can begin at 8:00 AM.', $next);
     $next = str_replace('Sales tax is added.', 'Sales tax is included in the price.', $next);
     $next = str_replace('Sales tax is added', 'Sales tax is included in the price.', $next);
     $next = brb_replace_liquor_fee($next);
-    $hours_plain = 'A full day runs from 10:00 AM to 11:30 PM. Half days are generally available in June: 10:00 AM to 4:00 PM, or 5:00 PM to 11:30 PM.';
+    $hours_plain = 'A full day runs from 10:00 AM to 11:30 PM.';
     $hours_meet = $hours_plain . ' We don\'t keep set hours for meetings or check drop-off. We meet on demand and set a time together, by appointment.';
     if (strpos($next, $hours_meet) === false) $next = str_replace($hours_plain, $hours_meet, $next);
     $next = str_replace('Our team will reach out to schedule it.', 'We don\'t keep set hours. We meet on demand and set a time together, by appointment.', $next);
     $next = str_replace('Mail or drop off checks payable to Mad Productions at 2212 37th Street, Moline, IL 61265. The deposit (50% of the agreed total) holds the date.', 'Mail or drop off checks payable to Mad Productions at The Boardroom, ' . BRB_VENUE_ADDRESS . '. We don\'t keep set hours. We meet on demand and set a time together, by appointment. The deposit (50% of the agreed total) holds the date.', $next);
     $house = [
         'When does everyone have to be out?' => 'Everyone must be out of The Boardroom by 11:30 PM. This is firm, with no exceptions. Please finish in time to wrap up.',
-        'What are the hours?' => 'A full day runs from 10:00 AM to 11:30 PM. Half days are generally available in June: 10:00 AM to 4:00 PM, or 5:00 PM to 11:30 PM. We don\'t keep set hours for meetings or check drop-off. We meet on demand and set a time together, by appointment.',
+        'What are the hours?' => 'A full day runs from 10:00 AM to 11:30 PM. We don\'t keep set hours for meetings or check drop-off. We meet on demand and set a time together, by appointment.',
         'Do I have to meet you?' => 'Yes. We meet every renter before approving a booking. It is a short, friendly visit to talk through your plans and the house rules. We don\'t keep set hours. We meet on demand and set a time together, by appointment.',
         'What if there is bad weather?' => 'Bad weather or an emergency out of our control, such as a hurricane, a snowstorm, or a power outage, is refundable. A personal issue, such as a flat tire, is not refundable.',
         'Is there a damage deposit?' => 'The refundable damage deposit is a flat $250. It is charged with the booking deposit and mainly covers cleaning. It may be applied to excessive cleaning or garbage. A dumpster is on site. It is returned within 72 hours when Venmo or PayPal is on file. A check takes 1 to 2 weeks. No glitter. Vaping leaves a residue and can affect the deposit. All smoking, including cigars and cigarettes, is outside only.',
@@ -1265,33 +1253,19 @@ add_action('brb_cron_expire', 'brb_expire_holds');
 
 /* ---------- quotes, notice, availability ---------- */
 function brb_slot_info(DateTimeImmutable $day) {
-    $o = brb_opt();
     $cutoff = brb_notice_cutoff();
-    $open = (int) $o['open_hour'];
-    $close = (int) $o['close_hour'];
-    $minH = max(1, (int) $o['min_hours']);
-    $midnight = $day->setTime(0, 0);
-    $mode = $o['mode'];
-    $dayOk = ($mode !== 'hourly') && ($day->setTime(10, 0) >= $cutoff);
-    $first = null;
-    $latest = brb_latest_start_hour();
-    if ($mode !== 'day') {
-        for ($h = $open; $h <= $latest; $h++) {
-            if ($midnight->setTime($h, 0) >= $cutoff) { $first = $h; break; }
-        }
-    }
-    $any = $dayOk || ($first !== null && $mode !== 'day');
-    return ['day_ok' => $dayOk, 'first_hour' => $first, 'any' => $any];
+    $dayOk = ($day->setTime(10, 0) >= $cutoff);
+    return ['day_ok' => $dayOk, 'first_hour' => null, 'any' => $dayOk];
 }
 function brb_build_range($in, $args = []) {
     $o = brb_opt();
     $date = sanitize_text_field($in['date'] ?? '');
     if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) return new WP_Error('date', 'Please choose a date.');
     $asked = (string) ($in['type'] ?? 'day');
-    if ($asked === 'hourly') $type = 'hourly';
-    elseif ($asked === 'half') $type = 'half';
-    else $type = 'day';
-    if ($type !== 'half' && $o['mode'] !== 'both') $type = $o['mode'];
+    if ($asked !== '' && $asked !== 'day') {
+        return new WP_Error('type', 'Bookings are for a full day, from 10:00 AM to 11:30 PM.');
+    }
+    $type = 'day';
     $tz = brb_tz();
     try {
         $d0 = new DateTimeImmutable($date . ' 00:00:00', $tz);
@@ -1299,32 +1273,16 @@ function brb_build_range($in, $args = []) {
         return new WP_Error('date', 'Please choose a date.');
     }
     if ($d0 < brb_now()->setTime(0, 0)) return new WP_Error('past', 'That date is in the past.');
-    if ($type === 'half') {
-        if (!brb_half_day_month($d0) && empty($args['override_notice'])) {
-            return new WP_Error('half', 'Half days are generally available in June. Please choose a full day, or ask our team about another month.');
-        }
-        $which = ($in['half'] ?? 'day') === 'eve' ? 'eve' : 'day';
-        $s = $d0->setTime($which === 'eve' ? 17 : 10, 0);
-        $e = $which === 'eve' ? $d0->setTime(23, 30) : $d0->setTime(16, 0);
-        $units = 1;
-        $type = 'half';
-    } elseif ($type === 'day') {
-        $days = max(1, min((int) $o['max_days'], (int) ($in['days'] ?? 1)));
-        $s = $d0->setTime(10, 0);
-        $e = $d0->modify('+' . ($days - 1) . ' day')->setTime(23, 30);
-        $units = $days;
-    } else {
-        $h = (int) ($in['start_hour'] ?? $o['open_hour']);
-        $len = max((int) $o['min_hours'], (int) ($in['hours'] ?? $o['min_hours']));
-        $latest = brb_latest_start_hour();
-        $end_mins = ($h * 60) + ($len * 60);
-        if ($h < (int) $o['open_hour'] || $h > $latest || $end_mins > (23 * 60 + 30)) {
-            return new WP_Error('hours', 'A shorter block must end by 11:30 PM. The latest start for a ' . (int) $o['min_hours'] . '-hour minimum is ' . brb_hour_label($latest) . '.');
-        }
-        $s = $d0->setTime($h, 0);
-        $e = $s->modify("+$len hour");
-        $units = $len;
+    $days_raw = $in['days'] ?? 1;
+    $days = (int) $days_raw;
+    if ($days > 1 && empty($args['allow_multi'])) {
+        return new WP_Error('days', 'A booking is one full day, from 10:00 AM to 11:30 PM.');
     }
+    if (!empty($args['allow_multi'])) $days = max(1, min((int) $o['max_days'], $days));
+    else $days = 1;
+    $s = $d0->setTime(10, 0);
+    $e = $d0->modify('+' . ($days - 1) . ' day')->setTime(23, 30);
+    $units = $days;
     $guests = max(1, (int) ($in['guests'] ?? 1));
     $guest_cap = max(200, (int) $o['max_guests']);
     if ($guests > $guest_cap) return new WP_Error('guests', '80 guests is the usual capacity. Graduation parties or open houses can go over. For a much larger guest count, please contact us.');
@@ -1527,8 +1485,6 @@ function brb_seasonal_price_html() {
     $labels = [
         'weekday_full' => 'Sunday to Thursday, full day',
         'weekend_full' => 'Friday and Saturday, full day',
-        'weekday_shorter' => 'Sunday to Thursday, shorter block',
-        'weekend_shorter' => 'Friday and Saturday, shorter block',
     ];
     foreach ($rates['rules'] as $rule) {
         $when = [];
@@ -1549,7 +1505,7 @@ function brb_seasonal_price_html() {
     foreach ($rates['overrides'] as $row) {
         $date = trim((string) ($row['date'] ?? ''));
         if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) continue;
-        foreach (['full' => 'full day', 'shorter' => 'shorter block'] as $key => $label) {
+        foreach (['full' => 'full day'] as $key => $label) {
             $amount = brb_rate_number($row[$key] ?? '');
             if ($amount === null) continue;
             $items .= '<li>' . esc_html($date . ': ' . $label . ' ' . brb_whole_money($amount)) . '</li>';
@@ -1600,12 +1556,17 @@ function brb_faq_price_html() {
     return $text;
 }
 function brb_calendar_rates_from_post($post) {
+    $saved = brb_calendar_rates();
+    $saved_rules = $saved['rules'];
+    $saved_overrides = $saved['overrides'];
+    $shorter_keys = ['sun_shorter', 'mon_thu_shorter', 'fri_sat_shorter', 'weekday_shorter', 'weekend_shorter'];
     $rules = [];
     $raw_rules = $post['brb_rate_rules'] ?? [];
     if (is_array($raw_rules)) {
+        $i = 0;
         foreach ($raw_rules as $row) {
             if (!is_array($row)) continue;
-            $amount_keys = ['sun_full', 'mon_thu_full', 'fri_sat_full', 'sun_shorter', 'mon_thu_shorter', 'fri_sat_shorter', 'weekday_full', 'weekend_full', 'weekday_shorter', 'weekend_shorter'];
+            $amount_keys = ['sun_full', 'mon_thu_full', 'fri_sat_full', 'weekday_full', 'weekend_full'];
             $clean = [
                 'start' => preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) ($row['start'] ?? '')) ? $row['start'] : '',
                 'end' => preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) ($row['end'] ?? '')) ? $row['end'] : '',
@@ -1617,8 +1578,27 @@ function brb_calendar_rates_from_post($post) {
                 $clean[$key] = $amount === null ? '' : (string) $amount;
                 if ($clean[$key] !== '') $has_amount = true;
             }
+            $match = null;
+            foreach ($saved_rules as $prev) {
+                if ((string) ($prev['start'] ?? '') === $clean['start'] && (string) ($prev['end'] ?? '') === $clean['end'] && (string) ($prev['months'] ?? '') === $clean['months']) {
+                    $match = $prev;
+                    break;
+                }
+            }
+            if (!$match && isset($saved_rules[$i]) && is_array($saved_rules[$i])) $match = $saved_rules[$i];
+            foreach ($shorter_keys as $key) {
+                if (array_key_exists($key, $row)) {
+                    $amount = brb_rate_number($row[$key] ?? '');
+                    $clean[$key] = $amount === null ? '' : (string) $amount;
+                } else {
+                    $amount = is_array($match) ? brb_rate_number($match[$key] ?? '') : null;
+                    $clean[$key] = $amount === null ? '' : (string) $amount;
+                }
+                if ($clean[$key] !== '') $has_amount = true;
+            }
             $has = $has_amount || $clean['start'] !== '' || $clean['end'] !== '' || $clean['months'] !== '';
             if ($has) $rules[] = $clean;
+            $i++;
         }
     }
     $overrides = [];
@@ -1629,7 +1609,17 @@ function brb_calendar_rates_from_post($post) {
             $date = (string) ($row['date'] ?? '');
             if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) continue;
             $full = brb_rate_number($row['full'] ?? '');
-            $shorter = brb_rate_number($row['shorter'] ?? '');
+            if (array_key_exists('shorter', $row)) {
+                $shorter = brb_rate_number($row['shorter'] ?? '');
+            } else {
+                $shorter = null;
+                foreach ($saved_overrides as $prev) {
+                    if ((string) ($prev['date'] ?? '') === $date) {
+                        $shorter = brb_rate_number($prev['shorter'] ?? '');
+                        break;
+                    }
+                }
+            }
             if ($full === null && $shorter === null) continue;
             $overrides[] = [
                 'date' => $date,
@@ -1648,11 +1638,11 @@ function brb_admin_calendar_rate_fields() {
     while (count($rules) < 4) $rules[] = $blank_rule;
     while (count($overrides) < 8) $overrides[] = ['date' => '', 'full' => '', 'shorter' => ''];
     echo '<h2>Calendar date prices</h2>';
-    echo '<p class="description">Full-day prices shown on the booking calendar. Sunday, Monday through Thursday, and Friday and Saturday can differ. Leave a shorter-block amount blank when that date should say price to be confirmed. A narrower date range wins. A single date override wins over a range. Booked and blocked dates stay unavailable.</p>';
-    echo '<table class="widefat"><thead><tr><th>Start</th><th>End</th><th>Months</th><th>Sunday</th><th>Mon–Thu</th><th>Fri–Sat</th><th>Sunday shorter</th><th>Mon–Thu shorter</th><th>Fri–Sat shorter</th></tr></thead><tbody>';
+    echo '<p class="description">Full-day prices shown on the booking calendar. Sunday, Monday through Thursday, and Friday and Saturday can differ. Leave an amount blank when that date should say price to be confirmed. A narrower date range wins. A single date override wins over a range. Booked and blocked dates stay unavailable.</p>';
+    echo '<table class="widefat"><thead><tr><th>Start</th><th>End</th><th>Months</th><th>Sunday</th><th>Mon–Thu</th><th>Fri–Sat</th></tr></thead><tbody>';
     foreach ($rules as $i => $row) {
         echo '<tr>';
-        foreach (['start' => 'date', 'end' => 'date', 'months' => 'text', 'sun_full' => 'text', 'mon_thu_full' => 'text', 'fri_sat_full' => 'text', 'sun_shorter' => 'text', 'mon_thu_shorter' => 'text', 'fri_sat_shorter' => 'text'] as $key => $type) {
+        foreach (['start' => 'date', 'end' => 'date', 'months' => 'text', 'sun_full' => 'text', 'mon_thu_full' => 'text', 'fri_sat_full' => 'text'] as $key => $type) {
             $value = (string) ($row[$key] ?? '');
             echo '<td><input type="' . esc_attr($type) . '" name="brb_rate_rules[' . (int) $i . '][' . esc_attr($key) . ']" value="' . esc_attr($value) . '" class="regular-text"></td>';
         }
@@ -1660,12 +1650,11 @@ function brb_admin_calendar_rate_fields() {
     }
     echo '</tbody></table>';
     echo '<p class="description">Months can be numbers or names, such as 6, 7 or June, July. Start and end are optional.</p>';
-    echo '<table class="widefat"><thead><tr><th>Date override</th><th>Full day</th><th>Shorter block</th></tr></thead><tbody>';
+    echo '<table class="widefat"><thead><tr><th>Date override</th><th>Full day</th></tr></thead><tbody>';
     foreach ($overrides as $i => $row) {
         echo '<tr>';
         echo '<td><input type="date" name="brb_rate_overrides[' . (int) $i . '][date]" value="' . esc_attr((string) ($row['date'] ?? '')) . '"></td>';
         echo '<td><input type="text" name="brb_rate_overrides[' . (int) $i . '][full]" value="' . esc_attr((string) ($row['full'] ?? '')) . '" class="regular-text"></td>';
-        echo '<td><input type="text" name="brb_rate_overrides[' . (int) $i . '][shorter]" value="' . esc_attr((string) ($row['shorter'] ?? '')) . '" class="regular-text"></td>';
         echo '</tr>';
     }
     echo '</tbody></table>';
@@ -1927,6 +1916,23 @@ function brb_guest_reply_to() {
 function brb_inquiry_cc_list() {
     return brb_parse_email_list(brb_opt('inquiry_cc'))['valid'];
 }
+function brb_ensure_inquiry_cc() {
+    if (get_option('brb_inquiry_cc_seeded') === '1') return;
+    $email = 'contiveros8@gmail.com';
+    $stored = get_option('brb_settings', []);
+    if (!is_array($stored)) $stored = [];
+    $current = (string) ($stored['inquiry_cc'] ?? '');
+    $have = false;
+    foreach (brb_parse_email_list($current)['valid'] as $one) {
+        if (strcasecmp($one, $email) === 0) $have = true;
+    }
+    if (!$have) {
+        $stored['inquiry_cc'] = trim($current) === '' ? $email : rtrim($current) . "\n" . $email;
+        update_option('brb_settings', $stored);
+    }
+    update_option('brb_inquiry_cc_seeded', '1');
+}
+add_action('init', 'brb_ensure_inquiry_cc', 30);
 function brb_smtp_config() {
     $user = brb_env('BRB_SMTP_USER');
     $pass = brb_env('BRB_SMTP_PASS');
@@ -2072,7 +2078,7 @@ function brb_send_request_emails($b) {
     $price = brb_price_phrase($b);
     $screen = implode("\n", brb_screening_lines($b));
     $facts = brb_approval_line() . "\n\n" . brb_request_open_line() . "\n\n" . brb_reserved_line() . "\n\n" . brb_deposit_line() . "\n\n" . brb_not_held_line();
-    $detail = "When: " . brb_when($b) . "\n" . brb_event_type_line($b) . "Guests attending: {$b->guests}\n" . ($screen !== '' ? $screen . "\n" : '') . "Price: {$price}\n";
+    $detail = "When: " . brb_when($b) . "\n" . brb_event_type_line($b) . "Estimated Guests: {$b->guests}\n" . ($screen !== '' ? $screen . "\n" : '') . "Price: {$price}\n";
     $body = brb_guest_hello_line() . "\n\n" . brb_guest_review_line() . "\n\n{$detail}\n" . brb_no_overnight_line() . "\n" . brb_guest_out_line() . "\n" . brb_guest_free_line() . "\n" . brb_hours_line() . "\n\nCancellation policy:\n{$o['policy']}\n\nView your request: " . brb_guest_link($b) . "\n";
     brb_mail($b->email, 'We received your Boardroom request (' . $ref . ')', $body, brb_guest_reply_to());
     $admin = "A new request is pending review. The date is not held.\n\nReference: {$ref}\nWhen: " . brb_when($b) . "\nGuest: {$b->name}\nEmail: {$b->email}\nPhone: {$b->phone}\n" . brb_event_type_line($b) . "Guests: {$b->guests}\n" . ($screen !== '' ? $screen . "\n" : '') . "Price: {$price}\nSource: " . brb_source_label($b->source) . "\nNotes: {$b->notes}\n\n" . admin_url('admin.php?page=brb&booking=' . (int) $b->id) . "\n";
@@ -2088,9 +2094,9 @@ function brb_send_approve_email($b) {
     $guest_facts = implode("\n\n", array_values(array_filter(brb_payment_lines($b), function ($line) {
         return !in_array($line, [brb_not_held_line(), brb_reserved_line(), brb_approval_line(), brb_request_open_line()], true);
     })));
-    $body = brb_guest_hello_line() . "\n\nYour request is approved.\n\n" . brb_guest_review_line() . "\n\n" . $guest_facts . "\n\n" . brb_guest_out_line() . "\n" . brb_guest_free_line() . "\n\nWhen: " . brb_when($b) . "\n" . brb_event_type_line($b) . "Guests attending: {$b->guests}\nReference: {$ref}\n\n" . brb_checklist_plain() . "\nView your booking: " . brb_guest_link($b) . "\n";
+    $body = brb_guest_hello_line() . "\n\nYour request is approved.\n\n" . brb_guest_review_line() . "\n\n" . $guest_facts . "\n\n" . brb_guest_out_line() . "\n" . brb_guest_free_line() . "\n\nWhen: " . brb_when($b) . "\n" . brb_event_type_line($b) . "Estimated Guests: {$b->guests}\nReference: {$ref}\n\n" . brb_checklist_plain() . "\nView your booking: " . brb_guest_link($b) . "\n";
     brb_mail($b->email, 'Your Boardroom request is approved (' . $ref . ')', $body, brb_guest_reply_to());
-    $staff = "Request approved.\n\n{$facts}\n\nWhen: " . brb_when($b) . "\n" . brb_event_type_line($b) . "Guests attending: {$b->guests}\nReference: {$ref}\n\n" . admin_url('admin.php?page=brb&booking=' . (int) $b->id) . "\n";
+    $staff = "Request approved.\n\n{$facts}\n\nWhen: " . brb_when($b) . "\n" . brb_event_type_line($b) . "Estimated Guests: {$b->guests}\nReference: {$ref}\n\n" . admin_url('admin.php?page=brb&booking=' . (int) $b->id) . "\n";
     brb_mail_staff('Request approved ' . $ref . ' – ' . $b->name, $staff, $b->email);
 }
 function brb_send_decline_email($b) {
@@ -2204,7 +2210,7 @@ function brb_send_payment_email($b, $amount, $check_number, $method = 'check') {
         $subject = 'Your Boardroom receipt for ' . $ref;
         $admin_subject = 'Check recorded for ' . $ref . ' – ' . $b->name;
     }
-    $body = brb_guest_hello_line() . "\n\nHere is your receipt.\n\n" . brb_receipt_block($b, $amount, $method, $received_on) . "\n\n{$check}\n\n{$follow}\n\n" . brb_event_type_line($b) . "Guests attending: {$b->guests}\n\nView your booking: " . brb_guest_link($b) . "\n";
+    $body = brb_guest_hello_line() . "\n\nHere is your receipt.\n\n" . brb_receipt_block($b, $amount, $method, $received_on) . "\n\n{$check}\n\n{$follow}\n\n" . brb_event_type_line($b) . "Estimated Guests: {$b->guests}\n\nView your booking: " . brb_guest_link($b) . "\n";
     brb_send_receipt_copies($b, $subject, $admin_subject, $body);
 }
 function brb_send_expired_emails($b) {
@@ -2460,7 +2466,7 @@ function brb_send_price_email($b) {
     } else {
         $body .= "Payment instructions are sent when the request is approved.\n\n" . brb_deposit_line() . "\n\n";
     }
-    $body .= 'When: ' . brb_when($b) . "\n" . brb_event_type_line($b) . "Guests attending: {$b->guests}\nReference: {$ref}\n\nView your booking: " . brb_guest_link($b) . "\n";
+    $body .= 'When: ' . brb_when($b) . "\n" . brb_event_type_line($b) . "Estimated Guests: {$b->guests}\nReference: {$ref}\n\nView your booking: " . brb_guest_link($b) . "\n";
     brb_mail($b->email, 'Your Boardroom price is confirmed (' . $ref . ')', $body, brb_guest_reply_to());
     brb_mail_staff('Price set for ' . $ref . ' – ' . $b->name, $body . "\n" . admin_url('admin.php?page=brb&booking=' . (int) $b->id) . "\n", $b->email);
 }
@@ -2640,7 +2646,7 @@ function brb_view_addon($token) {
     $price = brb_money(brb_addon_price());
     echo '<h2>Setup or takedown day</h2>';
     echo '<p>' . esc_html(brb_guest_hello_line()) . ' ' . esc_html(brb_guest_review_line()) . '</p>';
-    echo '<p>Renters set up and tear down. Staff cannot set the room up. On a full day, setup can begin at 8:00 AM. On a half day, setup can begin one hour before the start. If you want the whole day before, and that day is open, you can rent it for ' . esc_html($price) . '. Please arrange that at least 72 hours before the event. There are no two-night rentals. If the next day is open, you can rent that day for ' . esc_html($price) . ' for takedown. If the next day is booked, everything is picked up and tidy by midnight for the cleaning crew. The same choices apply on Sunday.</p>';
+    echo '<p>Renters set up and tear down. Staff cannot set the room up. Setup can begin at 8:00 AM. If you want the whole day before, and that day is open, you can rent it for ' . esc_html($price) . '. Please arrange that at least 72 hours before the event. There are no two-night rentals. If the next day is open, you can rent that day for ' . esc_html($price) . ' for takedown. If the next day is booked, everything is picked up and tidy by midnight for the cleaning crew. The same choices apply on Sunday.</p>';
     echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
     echo '<input type="hidden" name="action" value="brb_addon"><input type="hidden" name="token" value="' . esc_attr($b->token) . '">';
     wp_nonce_field('brb_addon');
@@ -2675,41 +2681,13 @@ function brb_view_select() {
         <?php echo brb_book_policy_html(); ?>
       </div>
       <form class="brb-card" method="get" id="brb-form">
-        <p class="brb-small">Please choose a start at least <?php echo (int) $notice; ?> hours from now (America/Chicago). Dates and start times inside that window are unavailable. A full day runs from 10:00 AM to 11:30 PM.</p>
+        <p class="brb-small">Please choose a start at least <?php echo (int) $notice; ?> hours from now (America/Chicago). Dates inside that window are unavailable.</p>
         <p class="brb-small"><?php echo esc_html(brb_hours_line()); ?></p>
         <p class="brb-small"><?php echo esc_html(brb_no_overnight_line()); ?></p>
-        <?php if ($o['mode'] !== 'day'): ?>
-        <p class="brb-small">A shorter block reserves part of the day. There is no separate hourly price. The price is confirmed for the event, from the same starting price.</p>
-        <?php endif; ?>
         <label>Date<input type="date" name="date" id="brb-date" required min="<?php echo esc_attr(brb_now()->format('Y-m-d')); ?>"></label>
-        <?php if ($o['mode'] === 'both'): ?>
-        <fieldset class="brb-type"><legend>Booking type</legend>
-          <label><input type="radio" name="type" value="day" checked> Full day (10:00 AM–11:30 PM)</label>
-          <label class="brb-half-choice is-hidden"><input type="radio" name="type" value="half"> Half day (June)</label>
-          <label><input type="radio" name="type" value="hourly"> Shorter block (<?php echo (int) $o['min_hours']; ?> hour minimum)</label>
-        </fieldset>
-        <?php else: ?><input type="hidden" name="type" value="<?php echo esc_attr($o['mode']); ?>"><?php endif; ?>
-        <div class="brb-day"><label>Number of days<input type="number" name="days" value="1" min="1" max="<?php echo (int) $o['max_days']; ?>"></label></div>
-        <div class="brb-half">
-          <fieldset><legend>Half day</legend>
-            <label><input type="radio" name="half" value="day" checked> 10:00 AM to 4:00 PM</label>
-            <label><input type="radio" name="half" value="eve"> 5:00 PM to 11:30 PM</label>
-          </fieldset>
-          <p class="brb-small" id="brb-half-note">Half days are generally available in June.</p>
-        </div>
-        <div class="brb-hourly">
-          <label>Start time<select name="start_hour" id="brb-start"><?php
-            $latest = brb_latest_start_hour();
-            for ($h = (int) $o['open_hour']; $h <= $latest; $h++) {
-                printf('<option value="%d">%s</option>', $h, esc_html(brb_hour_label($h)));
-            }
-          ?></select></label>
-          <p class="brb-small">The latest start is <?php echo esc_html(brb_hour_label($latest)); ?> so a <?php echo (int) $o['min_hours']; ?>-hour block ends by 11:30 PM.</p>
-          <label>Hours<input type="number" name="hours" value="<?php echo (int) $o['min_hours']; ?>" min="<?php echo (int) $o['min_hours']; ?>" max="<?php echo (int) $o['close_hour'] - (int) $o['open_hour']; ?>"></label>
-          <p class="brb-small" id="brb-busy"></p>
-        </div>
+        <input type="hidden" name="type" value="day">
         <p class="brb-small" id="brb-notice"></p>
-        <label>Guests attending<input type="number" name="guests" value="10" min="1" max="200"></label>
+        <label>Estimated Guests<input type="number" name="guests" value="10" min="1" max="200"></label>
         <p class="brb-small">80 guests. Graduation parties or open houses can go over, since guests come and go.</p>
         <button class="brb-btn" type="submit">Continue</button>
       </form>
@@ -2744,7 +2722,7 @@ function brb_view_quote() {
     <div class="brb-grid" id="brb-your-date">
       <div class="brb-card">
         <h3>Your date</h3>
-        <p><strong><?php echo esc_html($when); ?></strong><br><?php echo (int) $r['guests']; ?> guests attending</p>
+        <p><strong><?php echo esc_html($when); ?></strong><br>Estimated Guests: <?php echo (int) $r['guests']; ?></p>
         <?php if (!empty($q['price_set'])): ?>
         <p><strong>Your price: <?php echo esc_html(brb_whole_money($q['total'])); ?></strong></p>
         <?php else: ?>
@@ -2757,7 +2735,7 @@ function brb_view_quote() {
       <form class="brb-card brb-guest" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
         <h3>Guest details</h3>
         <input type="hidden" name="action" value="brb_book"><?php wp_nonce_field('brb_book', '_brb');
-        foreach (['date', 'type', 'days', 'start_hour', 'hours', 'guests'] as $k) {
+        foreach (['date', 'type', 'guests'] as $k) {
             if (isset($in[$k])) printf('<input type="hidden" name="%s" value="%s">', esc_attr($k), esc_attr($in[$k]));
         } ?>
         <div class="brb-field"><label>Full name<span class="brb-req">*</span><input name="name" required autocomplete="name"></label></div>
@@ -2770,13 +2748,6 @@ function brb_view_quote() {
           <?php endforeach; ?>
         </select></label></div>
         <div class="brb-field"><label class="brb-check"><input type="checkbox" name="free_admission" value="1" required><span class="brb-check-copy"><strong>Free to attend</strong><span class="brb-callout"><?php echo esc_html(brb_free_admission_rule()); ?></span></span></label></div>
-        <div class="brb-field"><label>Is this a private, invitation-only gathering?<span class="brb-req">*</span>
-          <select name="private_event" required>
-            <option value="">Choose one</option>
-            <option value="yes">Yes</option>
-            <option value="no">No, it's open to the public</option>
-          </select>
-        </label><p class="brb-callout">An event that is open to the public is flagged for staff review.</p></div>
         <div class="brb-field"><label>Will alcohol be served?<span class="brb-req">*</span>
           <select name="alcohol" required>
             <option value="">Choose one</option>
@@ -2784,15 +2755,6 @@ function brb_view_quote() {
             <option value="no">No</option>
           </select>
         </label></div>
-        <div class="brb-field"><label>What time will your event end?<span class="brb-req">*</span>
-          <input type="time" name="end_time" required max="23:30" step="60">
-        </label><p class="brb-callout"><?php echo esc_html(brb_out_by_line()); ?></p></div>
-        <div class="brb-field"><label>Host age (25 or older for every booking)<span class="brb-req">*</span><select name="host_age" required>
-          <option value="">Choose one</option>
-          <?php foreach (brb_host_ages() as $key => $label): ?>
-          <option value="<?php echo esc_attr($key); ?>"><?php echo esc_html($label); ?></option>
-          <?php endforeach; ?>
-        </select></label><p class="brb-callout">The minimum host age is 25 for every booking.</p></div>
         <div class="brb-field"><label>Tell us about your event<span class="brb-req">*</span><textarea name="event_about" rows="4" required></textarea></label></div>
         <p class="brb-callout"><?php echo esc_html(brb_approval_line()); ?> <?php echo esc_html(brb_request_open_line()); ?></p>
         <div class="brb-field"><label class="brb-check"><input type="checkbox" name="waiver" value="1" required><span class="brb-check-copy"><strong>Assumption of risk</strong><span class="brb-callout">I and my guests assume all risk. The Boardroom is not responsible for injury, loss, or equipment issues, such as the ice maker or wifi, that affect an event.</span></span></label></div>
@@ -2840,7 +2802,7 @@ function brb_view_confirmation($token) {
       <h2><?php echo esc_html($title); ?></h2>
       <p>Reference <strong><?php echo esc_html(brb_ref($b)); ?></strong></p>
       <p><?php
-        $summary = brb_when($b) . ' · ' . (int) $b->guests . ' guests attending';
+        $summary = brb_when($b) . ' · Estimated Guests: ' . (int) $b->guests;
         $event_label = brb_event_type_label($b->event_type ?? '');
         if ($event_label !== '') $summary .= ' · ' . $event_label;
         echo esc_html($summary);

@@ -301,14 +301,18 @@ function brb_admin_detail($id) {
     echo '<table class="widefat" style="max-width:760px"><tbody>';
     $rows = [
         'When' => brb_when($b),
-        'Guests' => (string) (int) $b->guests,
+        'Estimated Guests' => (string) (int) $b->guests,
         'Event type' => brb_event_type_label($b->event_type ?? '') ?: '—',
         'Free admission' => (($b->free_admission ?? '') === '1') ? 'Acknowledged' : '—',
-        'Private, invitation-only' => ($b->public_event ?? '') === 'no' ? 'Yes' : (($b->public_event ?? '') === 'yes' ? 'No, it is open to the public' : '—'),
         'Alcohol served' => brb_yes_no_label($b->alcohol ?? '') ?: '—',
-        'Planned end time' => ($b->end_time ?? '') !== '' ? brb_end_time_label($b->end_time) : '—',
-        'Host age bracket' => brb_host_age_label($b->host_age ?? '') ?: '—',
         'About the event' => ($b->event_about ?? '') !== '' ? $b->event_about : '—',
+    ];
+    if (($b->public_event ?? '') === 'no') $rows['Private, invitation-only'] = 'Yes';
+    elseif (($b->public_event ?? '') === 'yes') $rows['Private, invitation-only'] = 'No, it is open to the public';
+    if (trim((string) ($b->end_time ?? '')) !== '') $rows['Planned end time'] = brb_end_time_label($b->end_time);
+    $saved_age = brb_host_age_label($b->host_age ?? '');
+    if ($saved_age !== '') $rows['Host age bracket'] = $saved_age;
+    $rows += [
         'Source' => brb_source_label($b->source),
         'Name' => $b->name,
         'Email' => $b->email,
@@ -495,11 +499,8 @@ function brb_admin_new() {
     echo '<table class="form-table">';
     echo '<tr><th>Source</th><td><select name="source"><option value="phone">Phone</option><option value="walk-in">Walk-in</option><option value="online">Online</option></select></td></tr>';
     echo '<tr><th><label for="date">Date</label></th><td><input type="date" name="date" id="date" required value="' . esc_attr(brb_now()->modify('+3 days')->format('Y-m-d')) . '"></td></tr>';
-    echo '<tr><th>Type</th><td><label><input type="radio" name="type" value="day" checked> Full day</label> &nbsp; <label><input type="radio" name="type" value="hourly"> Hourly</label></td></tr>';
-    echo '<tr><th><label for="days">Days (full day)</label></th><td><input type="number" name="days" id="days" min="1" max="' . (int) $o['max_days'] . '" value="1"></td></tr>';
-    echo '<tr><th><label for="start_hour">Start hour (hourly)</label></th><td><input type="number" name="start_hour" id="start_hour" min="' . (int) $o['open_hour'] . '" max="' . ((int) $o['close_hour'] - 1) . '" value="' . (int) $o['open_hour'] . '"> <span class="description">0–23, venue hours ' . (int) $o['open_hour'] . ':00–' . (int) $o['close_hour'] . ':00</span></td></tr>';
-    echo '<tr><th><label for="hours">Hours</label></th><td><input type="number" name="hours" id="hours" min="' . (int) $o['min_hours'] . '" value="' . (int) $o['min_hours'] . '"></td></tr>';
-    echo '<tr><th><label for="guests">Guests</label></th><td><input type="number" name="guests" id="guests" min="1" max="' . (int) $o['max_guests'] . '" value="10"></td></tr>';
+    echo '<tr><th>Type</th><td>Full day, 10:00 AM to 11:30 PM<input type="hidden" name="type" value="day"></td></tr>';
+    echo '<tr><th><label for="guests">Estimated Guests</label></th><td><input type="number" name="guests" id="guests" min="1" max="' . (int) $o['max_guests'] . '" value="10"></td></tr>';
     echo '<tr><th><label for="event_type">Event type</label></th><td><select name="event_type" id="event_type"><option value="">Not specified</option>';
     foreach (brb_event_types() as $key => $label) {
         printf('<option value="%s">%s</option>', esc_attr($key), esc_html($label));
@@ -773,7 +774,7 @@ function brb_admin_settings() {
                     : sanitize_text_field($raw);
             }
         }
-        if (!in_array($new['mode'], ['both', 'day', 'hourly'], true)) $new['mode'] = 'both';
+        $new['mode'] = 'day';
         if (!in_array($new['deposit_type'], ['full', 'percent', 'fixed'], true)) $new['deposit_type'] = 'full';
         $new['min_notice_hours'] = (string) max(0, (int) $new['min_notice_hours']);
         $new['hold_hours'] = (string) max(1, (int) $new['hold_hours']);
@@ -811,7 +812,6 @@ function brb_admin_settings() {
             ['typical_price', 'Typical price text', 'text', null, 'Shown in parentheses after the starting price. Default: most events around $1,200.'],
         ],
         'Hours and capacity' => [
-            ['mode', 'Booking type offered', 'select', ['both' => 'Full day + shorter block', 'day' => 'Full day only', 'hourly' => 'Shorter block only'], 'A shorter block reserves part of the day. Guests still see the same starting price. There is no public hourly rate. Staff set one agreed price either way.'],
             ['min_hours', 'Minimum hours', 'number', null, ''],
             ['open_hour', 'Hourly open (0–23)', 'number', null, ''],
             ['close_hour', 'Hourly close (1–24)', 'number', null, ''],
@@ -841,7 +841,7 @@ function brb_admin_settings() {
             ['mail_from', 'From address', 'text', null, 'Guest emails use this From address. Default is boardroomqc@gmail.com. Gmail only delivers that From when the SMTP account is this address, or this address is a Send mail as alias on that account. The SMTP password stays on the server.'],
             ['mail_from_name', 'From name', 'text', null, 'Default is The Boardroom.'],
             ['mail_reply_to', 'Reply-To', 'text', null, 'Guest emails use this Reply-To. Default is boardroomqc@gmail.com.'],
-            ['inquiry_cc', 'New inquiry CC', 'textarea', null, 'Optional copies of new contact, tour, and chat inquiries. Leave empty to send none. Separate addresses with a comma, semicolon, or a new line. This list starts empty.'],
+            ['inquiry_cc', 'New inquiry CC', 'textarea', null, 'Copies of new contact, tour, and chat inquiries. Separate addresses with a comma, semicolon, or a new line. An address already saved here is kept. You can remove an address later.'],
         ],
         'Reports' => [
             ['ga_measurement_id', 'GA4 measurement ID', 'text', null, 'Example: G-XXXX. The tag is added on the public site only when this is set and search indexing is allowed. Staging stays noindex and does not load the tag.'],
@@ -860,7 +860,7 @@ function brb_admin_settings() {
     if ($email_warn !== '') echo $email_warn;
     brb_admin_note();
     echo '<p>Guests save a date on the website. They can pay by check or in person, or online by card when the Stripe secret key is set. ' . esc_html(brb_price_sentence()) . ' Staff set the final price on each booking. The venue and the check address are separate settings.</p>';
-    echo '<p>No overnight stays. The Boardroom is an event space only. ' . esc_html(brb_out_by_line()) . ' ' . esc_html(brb_free_admission_rule()) . ' Hourly bookings still end by 11:00 PM because the calendar uses whole hours.</p>';
+    echo '<p>No overnight stays. The Boardroom is an event space only. ' . esc_html(brb_out_by_line()) . ' ' . esc_html(brb_free_admission_rule()) . ' A booking is one full day, from 10:00 AM to 11:30 PM.</p>';
     $sampleStart = brb_now()->modify('+10 days')->setTime(0, 0);
     echo '<div class="brb-paybox"><strong>What guests see before a price is set</strong>';
     brb_echo_lines(brb_preview_lines(['total' => 0, 'due' => 0, 'price_set' => 0], $sampleStart));

@@ -666,7 +666,7 @@ function brb_chat_day_sentence($ymd) {
     if ($status === 'notice') {
         $slot = brb_slot_info(new DateTimeImmutable($ymd . ' 00:00:00', brb_tz()));
         $notice = 'Bookings need at least ' . brb_notice_hours() . ' hours\' notice.';
-        if (!empty($slot['any']) && empty($slot['day_ok'])) return $label . ' is a bit soon for a full day. ' . $notice . ' A shorter block may be possible later that day.';
+        if (!empty($slot['any']) && empty($slot['day_ok'])) return $label . ' is a bit soon for a full day. ' . $notice;
         return $label . ' is a bit soon. ' . $notice;
     }
     $open = $label . ' looks open. Your date is reserved once the meeting is complete and your deposit is received and approved by the Boardroom.';
@@ -749,7 +749,7 @@ function brb_chat_suggestion_bits($rows) {
         $dt = new DateTimeImmutable($row['date'] . ' 12:00:00', brb_tz());
         $label = $dt->format('l, M j');
         $money = $row['price'] === null ? '' : ' (' . brb_whole_money($row['price']) . ')';
-        $note = !empty($row['partial']) ? ' (part of the day is taken)' : '';
+        $note = !empty($row['partial']) ? ' (not fully open)' : '';
         $url = home_url('/book/?date=' . $row['date']);
         $bits[] = $label . $money . $note . ' ' . $url;
         $chips[] = ['label' => $dt->format('D M j') . ($row['price'] === null ? '' : ' ' . brb_whole_money($row['price'])), 'href' => $url];
@@ -899,8 +899,8 @@ function brb_chat_specific_text($text) {
     }
     if (preg_match('/night before|day before/', $t) && preg_match('/decorat|set-?up|setup|\bcome\b/', $t)) {
         $bits[] = brb_chat_detail()
-            ? 'On a full day, setup can begin at 8:00 AM. On a half day, setup can begin one hour before the start. Optional setup or takedown day add-ons, when that day is open, can be added within 72 hours of the event for ' . brb_whole_money(brb_addon_price()) . '.'
-            : 'Setup starts at 8:00 AM on a full day, or one hour before on a half day. An open setup or takedown day is ' . brb_whole_money(brb_addon_price()) . '. Want more details?';
+            ? 'Setup can begin at 8:00 AM. Optional setup or takedown day add-ons, when that day is open, can be added within 72 hours of the event for ' . brb_whole_money(brb_addon_price()) . '.'
+            : 'Setup can begin at 8:00 AM. An open setup or takedown day is ' . brb_whole_money(brb_addon_price()) . '. Want more details?';
     }
     if (preg_match('/cleaning fee|security deposit|damage deposit|extra for cleaning|pays for damage|who pays for damage/', $t)) {
         $bits[] = brb_chat_detail()
@@ -1003,7 +1003,7 @@ function brb_chat_specific_text($text) {
     } elseif (preg_match('/\bbyob\b|liquor|alcohol|\bdrinks?\b/', $t)) {
         $bits[] = brb_chat_detail()
             ? 'Yes. ' . brb_byob_line() . ' Please leave it like you got it, and take the garbage out.'
-            : 'Yes, BYOB is allowed. If you serve alcohol, the City of Moline requires a one-day liquor license ($50). Want more details?';
+            : 'Yes, BYOB is allowed. Want more details?';
     }
     if (preg_match('/decorat/', $t)) {
         $bits[] = 'Decorations are not provided, except that Christmas decorations are up in December.';
@@ -1012,8 +1012,8 @@ function brb_chat_specific_text($text) {
     if (preg_match('/\bglitter\b/', $t) && !preg_match('/balloon/', $t)) $bits[] = 'Glitter is not allowed.';
     if (preg_match('/get in|set it up|set the room|set up|set-?up|setup|tear ?down|put away/', $t)) {
         $bits[] = brb_chat_detail()
-            ? 'No. Guests set up and put everything away. Our staff can\'t set the room for you. Staff cannot set the room up. On a full day, setup can begin at 8:00 AM. On a half day, setup can begin one hour before the start.'
-            : 'No. Guests set up. Staff cannot set the room up, and setup starts at 8:00 AM, or one hour before on a half day. Want more details?';
+            ? 'No. Guests set up and put everything away. Our staff can\'t set the room for you. Staff cannot set the room up. Setup can begin at 8:00 AM.'
+            : 'No. Guests set up. Staff cannot set the room up. Setup can begin at 8:00 AM. Want more details?';
     }
     if (preg_match('/\bparking\b|\bpark\b/', $t)) {
         $bits[] = 'Yes. Free parking on premises, with space for 40 to 50 cars.';

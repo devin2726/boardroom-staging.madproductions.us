@@ -79,16 +79,6 @@ function br_amenities_html() {
     if ($safety !== '') $html .= '<p class="amenity-safety">Safety: ' . esc_html($safety) . '.</p>';
     return $html;
 }
-function br_good_to_know_html() {
-    $url = 'https://moline.il.us/244/Liquor-Licensing';
-    $html = '<div class="good-to-know">';
-    $html .= '<h3>Good to know</h3><ul>';
-    $html .= '<li>No cooking on the stovetop. You\'re welcome to bring prepared food or have it catered, and we have warmers for buffet-style serving.</li>';
-    $html .= '<li>We don\'t provide catering.</li>';
-    $html .= '<li>BYOB is allowed. If you serve alcohol, the City of Moline requires a one-day liquor license ($50). <a href="' . esc_url($url) . '">' . esc_html($url) . '</a></li>';
-    $html .= '</ul></div>';
-    return $html;
-}
 function br_review_summary() {
     return ['rating' => 5.0, 'count' => 29, 'label' => 'from 29 guest reviews'];
 }
