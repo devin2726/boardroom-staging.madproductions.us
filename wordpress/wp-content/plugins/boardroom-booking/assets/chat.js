@@ -316,7 +316,6 @@
       history.push({ role: 'user', text: text });
       history.push({ role: 'assistant', text: data.reply });
       if (history.length > 16) history = history.slice(-16);
-      if (data.lead) showLead();
     }).catch(function () {
       setTyping(false);
       scrollLogTo(addMsg('bot', 'Please try that once more in a moment. You can also use the Contact form.'));

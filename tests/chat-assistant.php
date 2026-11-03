@@ -36,7 +36,7 @@ function brb_chat_reply($text, $history = []) {
 }
 
 try {
-    brb_t(get_option('brb_version') === '2.5.30', 'plugin storage version is 2.5.30');
+    brb_t(get_option('brb_version') === '2.5.31', 'plugin storage version is 2.5.31');
     $cols = $wpdb->get_col('SHOW COLUMNS FROM ' . brb_tour_table(), 0);
     brb_t(in_array('source', $cols, true), 'inquiries can store a source');
     brb_t((string) brb_opt('quote_prices') === '1', 'price estimates are on by default');
@@ -71,7 +71,9 @@ try {
     $hours = brb_chat_reply('What are your hours?');
     brb_t(strpos($hours, '10:00 AM') !== false && strpos($hours, '11:30 PM') !== false && strpos($hours, 'Half days') !== false && strpos($hours, 'June') !== false && strpos($hours, 'office hours') !== false && strpos($hours, 'appointment') !== false, 'hours include the full day and June half days, and do not sound like office hours');
     $open = brb_chat_reply('Is a date open?');
-    brb_t(strpos($open, 'I\'m not sure') === false && strpos($open, 'Tell me a date') !== false && strpos($open, '/book/#brb-cal') !== false && strpos($open, 'each date\'s price') !== false, 'an open-date question points at the calendar');
+    brb_t(strpos($open, 'I\'m not sure') === false && strpos($open, 'Tell me a date') === false && strpos($open, '/book/?date=') !== false, 'an open-date question suggests real calendar dates');
+    $saturday = brb_chat_reply('what is the first available date for a saturday');
+    brb_t(strpos($saturday, 'Tell me a date') === false && strpos($saturday, '/book/?date=') !== false && strpos($saturday, 'Saturday') !== false, 'a first-open Saturday question lists calendar dates');
     $chips = brb_chat_answer('How much does it cost?');
     $check = null;
     foreach ((array) ($chips['suggestions'] ?? []) as $chip) {

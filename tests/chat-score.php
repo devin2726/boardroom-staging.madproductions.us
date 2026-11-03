@@ -226,6 +226,12 @@ function brb_chat_score_dynamic($spec, $question, $reply, &$missing, &$bad) {
 
 function brb_chat_score_audit($spec, $question, $reply, &$bad) {
     $allowed = brb_chat_allowed_money($spec, $question);
+    if (preg_match_all('/\/book\/\?date=(\d{4}-\d{2}-\d{2})/', $reply, $links)) {
+        foreach ($links[1] as $ymd) {
+            $amount = function_exists('brb_rate_for_date') ? brb_rate_for_date($ymd, 'full') : null;
+            if ($amount !== null) $allowed[brb_whole_money($amount)] = true;
+        }
+    }
     if (preg_match_all('/\$\d{1,3}(?:,\d{3})*(?:\.\d{2})?/', $reply, $found)) {
         foreach (array_unique($found[0]) as $money) {
             if ($money === '$50' && strpos($reply, 'one-day liquor license ($50)') !== false) continue;

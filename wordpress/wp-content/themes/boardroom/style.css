@@ -85,7 +85,9 @@ section.block{padding:80px 0}section.alt{background:var(--bg2)}section.dark{back
 .good-to-know li:before{content:"";position:absolute;left:0;top:.72em;width:8px;height:8px;border-radius:50%;background:var(--gold)}
 .good-to-know a{color:var(--gold)}
 @media(max-width:800px){.amenity-groups{grid-template-columns:1fr;gap:18px}.amenity-kitchen ul{columns:1}}
-body.book-dated .page-hero,body.book-dated .book-shortcuts,body.book-dated .brb-how{display:none}
+body.book-dated .page-hero,body.book-dated .brb-how{display:none}
+body.book-status .page-hero,body.book-status .brb-how,body.book-status .brb-steps{display:none}
+.book-shortcuts{margin-top:36px}
 #brb-your-date{scroll-margin-top:96px}
 body.admin-bar #brb-your-date{scroll-margin-top:128px}
 @media(max-width:782px){body.admin-bar #brb-your-date{scroll-margin-top:142px}}

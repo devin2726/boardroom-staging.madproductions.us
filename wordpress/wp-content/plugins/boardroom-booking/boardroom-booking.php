@@ -2,11 +2,11 @@
 /**
  * Plugin Name: Boardroom Booking
  * Description: Self-hosted direct booking for The Boardroom — full-day and hourly blocks, availability calendar, agreed prices, approval before payment, blackout dates, and emails.
- * Version: 2.5.30
+ * Version: 2.5.31
  * Author: Mad Productions
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.5.30');
+define('BRB_VER', '2.5.31');
 define('BRB_VENUE_ADDRESS', '2220 37th Street, Moline, IL 61265');
 define('BRB_CHECK_ADDRESS', '2212 37th Street, Moline, IL 61265');
 define('BRB_MAPS_URL', 'https://maps.app.goo.gl/nVqUsGTcy48nPzc18');
@@ -2583,8 +2583,8 @@ add_shortcode('boardroom_booking', function () {
         'cutoff' => brb_notice_cutoff()->format('c'),
     ]);
     ob_start();
-    echo '<div class="brb">';
-    echo brb_how_booking_works_html();
+    echo '<div class="brb' . (!empty($_GET['br_token']) ? ' brb-status' : '') . '">';
+    if (empty($_GET['br_token'])) echo brb_how_booking_works_html();
     if (!empty($_GET['br_err'])) echo '<div class="brb-alert brb-err">' . esc_html(wp_unslash($_GET['br_err'])) . '</div>';
     if (!empty($_GET['br_addon'])) brb_view_addon(sanitize_text_field(wp_unslash($_GET['br_addon'])));
     elseif (!empty($_GET['br_pay'])) brb_view_pay(sanitize_text_field(wp_unslash($_GET['br_pay'])), sanitize_text_field(wp_unslash($_GET['br_sig'] ?? '')));
@@ -2728,51 +2728,49 @@ function brb_view_quote() {
         <?php echo brb_book_policy_html(); ?>
         <a href="<?php echo esc_url(strtok($_SERVER['REQUEST_URI'] ?? home_url('/book/'), '?')); ?>">← Change date</a>
       </div>
-      <form class="brb-card" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+      <form class="brb-card brb-guest" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
         <h3>Guest details</h3>
         <input type="hidden" name="action" value="brb_book"><?php wp_nonce_field('brb_book', '_brb');
         foreach (['date', 'type', 'days', 'start_hour', 'hours', 'guests'] as $k) {
             if (isset($in[$k])) printf('<input type="hidden" name="%s" value="%s">', esc_attr($k), esc_attr($in[$k]));
         } ?>
-        <label>Full name*<input name="name" required autocomplete="name"></label>
-        <label>Email*<input type="email" name="email" required autocomplete="email"></label>
-        <label>Phone*<input type="tel" name="phone" required autocomplete="tel" maxlength="50"></label>
-        <label>Event type*<select name="event_type" required>
+        <div class="brb-field"><label>Full name<span class="brb-req">*</span><input name="name" required autocomplete="name"></label></div>
+        <div class="brb-field"><label>Email<span class="brb-req">*</span><input type="email" name="email" required autocomplete="email"></label></div>
+        <div class="brb-field"><label>Phone<span class="brb-req">*</span><input type="tel" name="phone" required autocomplete="tel" maxlength="50"></label></div>
+        <div class="brb-field"><label>Event type<span class="brb-req">*</span><select name="event_type" required>
           <option value="">Choose one</option>
           <?php foreach (brb_event_types() as $key => $label): ?>
           <option value="<?php echo esc_attr($key); ?>"><?php echo esc_html($label); ?></option>
           <?php endforeach; ?>
-        </select></label>
-        <label class="brb-check"><input type="checkbox" name="free_admission" value="1" required> <?php echo esc_html(brb_free_admission_rule()); ?></label>
-        <label>Is this a private, invitation-only gathering?*
+        </select></label></div>
+        <div class="brb-field"><label class="brb-check"><input type="checkbox" name="free_admission" value="1" required><span class="brb-check-copy"><strong>Free to attend</strong><span class="brb-callout"><?php echo esc_html(brb_free_admission_rule()); ?></span></span></label></div>
+        <div class="brb-field"><label>Is this a private, invitation-only gathering?<span class="brb-req">*</span>
           <select name="private_event" required>
             <option value="">Choose one</option>
             <option value="yes">Yes</option>
             <option value="no">No, it's open to the public</option>
           </select>
-        </label>
-        <p class="brb-small">An event that is open to the public is flagged for staff review. <?php echo esc_html(brb_free_admission_rule()); ?></p>
-        <label>Will alcohol be served?*
+        </label><p class="brb-callout">An event that is open to the public is flagged for staff review.</p></div>
+        <div class="brb-field"><label>Will alcohol be served?<span class="brb-req">*</span>
           <select name="alcohol" required>
             <option value="">Choose one</option>
             <option value="yes">Yes</option>
             <option value="no">No</option>
           </select>
-        </label>
-        <label>What time will your event end?*
+        </label></div>
+        <div class="brb-field"><label>What time will your event end?<span class="brb-req">*</span>
           <input type="time" name="end_time" required max="23:30" step="60">
-          <span class="brb-small"><?php echo esc_html(brb_out_by_line()); ?></span>
-        </label>
-        <label>Host age (25 or older for every booking)*<select name="host_age" required>
+        </label><p class="brb-callout"><?php echo esc_html(brb_out_by_line()); ?></p></div>
+        <div class="brb-field"><label>Host age (25 or older for every booking)<span class="brb-req">*</span><select name="host_age" required>
           <option value="">Choose one</option>
           <?php foreach (brb_host_ages() as $key => $label): ?>
           <option value="<?php echo esc_attr($key); ?>"><?php echo esc_html($label); ?></option>
           <?php endforeach; ?>
-        </select><span class="brb-small">The minimum host age is 25 for every booking.</span></label>
-        <label>Tell us about your event*<textarea name="event_about" rows="4" required></textarea></label>
-        <p class="brb-small"><?php echo esc_html(brb_approval_line()); ?> <?php echo esc_html(brb_request_open_line()); ?></p>
-        <label class="brb-check"><input type="checkbox" name="waiver" value="1" required> I and my guests assume all risk. The Boardroom is not responsible for injury, loss, or equipment issues, such as the ice maker or wifi, that affect an event.</label>
-        <label class="brb-check"><input type="checkbox" name="policy" value="1" required> I agree to the <a href="<?php echo esc_url(home_url('/terms/')); ?>" target="_blank" rel="noopener">Terms</a>, the <a href="<?php echo esc_url(home_url('/rental-agreement/')); ?>" target="_blank" rel="noopener">Rental Agreement</a> and the <a href="<?php echo esc_url(home_url('/privacy/')); ?>" target="_blank" rel="noopener">Privacy Policy</a>.</label>
+        </select></label><p class="brb-callout">The minimum host age is 25 for every booking.</p></div>
+        <div class="brb-field"><label>Tell us about your event<span class="brb-req">*</span><textarea name="event_about" rows="4" required></textarea></label></div>
+        <p class="brb-callout"><?php echo esc_html(brb_approval_line()); ?> <?php echo esc_html(brb_request_open_line()); ?></p>
+        <div class="brb-field"><label class="brb-check"><input type="checkbox" name="waiver" value="1" required><span class="brb-check-copy"><strong>Assumption of risk</strong><span class="brb-callout">I and my guests assume all risk. The Boardroom is not responsible for injury, loss, or equipment issues, such as the ice maker or wifi, that affect an event.</span></span></label></div>
+        <div class="brb-field"><label class="brb-check"><input type="checkbox" name="policy" value="1" required><span class="brb-check-copy"><strong>I agree</strong><span class="brb-callout">I agree to the <a href="<?php echo esc_url(home_url('/terms/')); ?>" target="_blank" rel="noopener">Terms</a>, the <a href="<?php echo esc_url(home_url('/rental-agreement/')); ?>" target="_blank" rel="noopener">Rental Agreement</a> and the <a href="<?php echo esc_url(home_url('/privacy/')); ?>" target="_blank" rel="noopener">Privacy Policy</a>.</span></span></label></div>
         <button class="brb-btn" type="submit">Submit request</button>
       </form>
     </div>
@@ -2786,9 +2784,6 @@ function brb_view_confirmation($token) {
     }
     $paid_off = round((float) $b->total - (float) $b->amount_paid, 2);
     $priced = brb_price_is_set($b);
-    $labels = ['Choose date', 'Review', $b->status === 'paid' ? 'Confirmed' : 'Request sent'];
-    $step = in_array($b->status, ['cancelled', 'expired', 'declined'], true) ? 1 : 2;
-    brb_steps($step, $labels);
     $recorded = brb_payments($b->id);
     $latest = $recorded ? end($recorded) : null;
     $latest_method = $latest ? (string) ($latest->method ?? 'check') : 'check';
@@ -2804,7 +2799,17 @@ function brb_view_confirmation($token) {
         'expired' => 'Request closed',
     ];
     $title = $titles[$b->status] ?? 'Booking';
+    $first = trim((string) preg_replace('/\s+/', ' ', (string) $b->name));
+    $first = $first === '' ? 'there' : strtok($first, ' ');
+    $next = 'Nothing is charged yet. We review your request. Once it\'s approved, we\'ll email you a payment link.';
+    $headline = 'Thank you, ' . $first . '! Your request is in.';
+    if (in_array($b->status, ['approved', 'held'], true)) $next = 'Your request is approved. We\'ll email you a payment link so you can hold the date.';
+    elseif ($b->status === 'deposit_paid') $next = 'Your deposit is recorded. The recap below shows what is still due.';
+    elseif ($b->status === 'paid') $next = 'Your booking is confirmed. We\'ll see you at the Boardroom.';
+    elseif ($b->status === 'declined') { $headline = $first . ', this request was not approved.'; $next = 'The date is not reserved.'; }
+    elseif (in_array($b->status, ['cancelled', 'expired'], true)) { $headline = $first . ', this request is closed.'; $next = 'The date is not reserved.'; }
     ?>
+    <div class="brb-thanks"><h2><?php echo esc_html($headline); ?></h2><p><?php echo esc_html($next); ?></p></div>
     <div class="brb-card brb-confirm">
       <h2><?php echo esc_html($title); ?></h2>
       <p>Reference <strong><?php echo esc_html(brb_ref($b)); ?></strong></p>
