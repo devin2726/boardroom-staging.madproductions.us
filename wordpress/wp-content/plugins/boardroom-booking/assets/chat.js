@@ -151,9 +151,18 @@
     el.appendChild(document.createTextNode(text.slice(last)));
   }
   function addMsg(role, text) {
-    var p = document.createElement('p');
+    var row = document.createElement('div');
     var bot = role !== 'user';
-    p.className = 'brb-chat-msg ' + (bot ? 'bot' : 'user');
+    row.className = 'brb-chat-msg ' + (bot ? 'bot' : 'user');
+    if (bot) {
+      var face = document.createElement('img');
+      face.className = 'brb-chat-avatar';
+      face.alt = '';
+      face.width = 28;
+      face.height = 28;
+      face.src = root.getAttribute('data-walter') || '';
+      row.appendChild(face);
+    }
     var copy = document.createElement('span');
     copy.className = 'brb-chat-copy';
     var who = document.createElement('span');
@@ -162,10 +171,10 @@
     copy.appendChild(who);
     if (bot) linkify(copy, text);
     else copy.appendChild(document.createTextNode(text));
-    p.appendChild(copy);
-    log.appendChild(p);
-    if (role === 'user') scrollLogTo(p);
-    return p;
+    row.appendChild(copy);
+    log.appendChild(row);
+    if (role === 'user') scrollLogTo(row);
+    return row;
   }
   function keepWindow() {
     var x = window.scrollX;
@@ -244,22 +253,33 @@
       first.focus({ preventScroll: true });
     }
   });
+  var chipRow = root.querySelector('.brb-chat-chip-row');
+  var starterHTML = chipRow ? chipRow.innerHTML : '';
   function clearSuggestions() {
-    var old = log.querySelectorAll('.brb-chat-suggestions');
+    var old = root.querySelectorAll('.brb-chat-suggestions');
     for (var i = 0; i < old.length; i++) old[i].parentNode.removeChild(old[i]);
+  }
+  function restoreStarters() {
+    if (chipRow) chipRow.innerHTML = starterHTML;
   }
   function addSuggestions(items) {
     clearSuggestions();
     if (!items || !items.length) return;
-    var wrap = document.createElement('div');
-    wrap.className = 'brb-chat-suggestions';
-    wrap.setAttribute('role', 'group');
-    wrap.setAttribute('aria-label', 'Suggested questions');
+    var questions = document.createElement('div');
+    questions.className = 'brb-chat-suggestions';
+    questions.setAttribute('role', 'group');
+    questions.setAttribute('aria-label', 'Suggested questions');
+    var actions = document.createElement('div');
+    actions.className = 'brb-chat-suggestions brb-chat-actions';
+    actions.setAttribute('role', 'group');
+    actions.setAttribute('aria-label', 'Suggested questions');
+    var qCount = 0;
+    var aCount = 0;
     items.slice(0, 3).forEach(function (item) {
       if (!item || (!item.question && !item.href)) return;
       var b = document.createElement('button');
       b.type = 'button';
-      b.className = 'brb-chat-chip';
+      b.className = 'brb-chat-chip' + (item.href ? ' brb-chat-action' : '');
       b.textContent = item.label || item.question;
       if (item.href) {
         b.setAttribute('aria-label', item.label || 'Open');
@@ -275,13 +295,20 @@
           }
           window.location.assign(url.href);
         });
+        actions.appendChild(b);
+        aCount++;
       } else {
         b.setAttribute('aria-label', 'Ask: ' + (item.label || item.question));
         b.addEventListener('click', function () { sendMessage(item.question); });
+        questions.appendChild(b);
+        qCount++;
       }
-      wrap.appendChild(b);
     });
-    log.appendChild(wrap);
+    if (qCount) {
+      if (chipRow) chipRow.appendChild(questions);
+      else log.appendChild(questions);
+    }
+    if (aCount) log.appendChild(actions);
   }
   function sendMessage(text) {
     text = (text || '').trim();
@@ -325,6 +352,59 @@
     e.preventDefault();
     sendMessage(input.value);
   });
+  if (chipRow) {
+    chipRow.addEventListener('click', function (e) {
+      var chip = e.target.closest('.brb-chat-chip[data-question]');
+      if (!chip) return;
+      sendMessage(chip.getAttribute('data-question'));
+    });
+  }
+  var popular = root.querySelectorAll('.brb-chat-q');
+  for (var q = 0; q < popular.length; q++) {
+    popular[q].addEventListener('click', function () {
+      sendMessage(this.getAttribute('data-question'));
+    });
+  }
+  var resetBtn = root.querySelector('.brb-chat-reset');
+  if (resetBtn) {
+    resetBtn.addEventListener('click', function () {
+      history = [];
+      turns = [];
+      input.value = '';
+      if (lead && !lead.hidden) hideLead();
+      log.innerHTML = '';
+      addMsg('bot', root.getAttribute('data-opening') || '');
+      clearSuggestions();
+      restoreStarters();
+    });
+  }
+  var grab = root.querySelector('.brb-chat-grab');
+  if (grab && panel && !root.classList.contains('brb-chat-inline')) {
+    grab.addEventListener('pointerdown', function (e) {
+      var rect = panel.getBoundingClientRect();
+      var ox = e.clientX;
+      var oy = e.clientY;
+      var left = rect.left;
+      var top = rect.top;
+      panel.style.right = 'auto';
+      panel.style.bottom = 'auto';
+      panel.style.left = left + 'px';
+      panel.style.top = top + 'px';
+      grab.setPointerCapture(e.pointerId);
+      function move(ev) {
+        var x = Math.max(8, Math.min(window.innerWidth - rect.width - 8, left + ev.clientX - ox));
+        var y = Math.max(8, Math.min(window.innerHeight - 80, top + ev.clientY - oy));
+        panel.style.left = x + 'px';
+        panel.style.top = y + 'px';
+      }
+      function up() {
+        grab.removeEventListener('pointermove', move);
+        grab.removeEventListener('pointerup', up);
+      }
+      grab.addEventListener('pointermove', move);
+      grab.addEventListener('pointerup', up);
+    });
+  }
   lead.addEventListener('submit', function (e) {
     e.preventDefault();
     var data = new FormData(lead);
