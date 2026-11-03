@@ -145,7 +145,7 @@ function brb_privacy_html() {
 <p>This policy describes what MAD Productions, LLC, doing business as The Boardroom QC, at 2220 37th Street, Moline, IL 61265, collects on this website and how it is used.</p>
 
 <h2>Information we collect</h2>
-<p>The booking form asks for your name, email, event type, event date and time, party size, confirmation that the event is free to attend, whether the gathering is private and invitation-only, whether alcohol will be served, what time the event will end, a host age bracket, and a description of the event. The contact form asks for your name, email, and a message. You can also say what the message is about, and a preferred date or time. When a check is received, staff enter the check number and the payment record by hand. When a card is used, Stripe processes the payment and this site stores the amount, the processing fee, and the payment id. We never see or store card numbers. That record is stored with the booking. A contact inquiry is stored with the inquiry. Messages submitted through the chat assistant are stored with the inquiry.</p>
+<p>The booking form asks for your name, email, event type, event date and time, party size, confirmation that the event is free to attend, whether the gathering is private and invitation-only, whether alcohol will be served, what time the event will end, a host age bracket, and a description of the event. The contact form asks for your name, email, and a message. You can also give preferred dates. When a check is received, staff enter the check number and the payment record by hand. When a card is used, Stripe processes the payment and this site stores the amount, the processing fee, and the payment id. We never see or store card numbers. That record is stored with the booking. A contact inquiry is stored with the inquiry. Messages submitted through the chat assistant are stored with the inquiry.</p>
 
 <h2>How we use it</h2>
 <p>We use this information only to manage reservations and contact inquiries, and to communicate with you about them. Email about a booking or a contact inquiry is sent through this site’s mail system.</p>
@@ -171,7 +171,7 @@ function brb_privacy_html() {
 
 <h2>Changes</h2>
 <p>If this policy changes, the date below will change.</p>
-<p class="updated">Last updated: October 28, 2026</p>
+<p class="updated">Last updated: November 3, 2026</p>
 PRIVACY_HTML;
 }
 

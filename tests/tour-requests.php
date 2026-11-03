@@ -33,7 +33,7 @@ $created = [];
 $snapshot = get_option('brb_settings');
 
 try {
-    brb_t(get_option('brb_version') === '2.5.31', 'plugin storage version is 2.5.31');
+    brb_t(get_option('brb_version') === '2.5.33', 'plugin storage version is 2.5.33');
     brb_t($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', brb_tour_table())) === brb_tour_table(), 'inquiry table still exists');
     $cols = $wpdb->get_col('SHOW COLUMNS FROM ' . brb_tour_table(), 0);
     brb_t(in_array('phone', $cols, true) && in_array('topic', $cols, true) && in_array('preferred', $cols, true), 'topic and preferred were added and phone was kept');
@@ -87,8 +87,11 @@ try {
     brb_t(is_wp_error($bad_email) && $bad_email->get_error_code() === 'email', 'a bad email is rejected');
     $no_message = brb_tour_submit(['name' => 'Ada', 'email' => 'ada@example.com', 'message' => '']);
     brb_t(is_wp_error($no_message) && $no_message->get_error_code() === 'message', 'an inquiry needs a message');
-    $bad_topic = brb_tour_submit(['name' => 'Ada', 'email' => 'ada@example.com', 'message' => 'Hello', 'topic' => 'midnight']);
-    brb_t(is_wp_error($bad_topic) && $bad_topic->get_error_code() === 'topic', 'an unknown topic is rejected');
+    $timed = brb_tour_submit(['name' => 'Ada', 'email' => 'ada@example.com', 'message' => 'Hello', 'preferred' => 'Saturday afternoon']);
+    brb_t(is_wp_error($timed) && $timed->get_error_code() === 'preferred', 'a preferred time is rejected');
+    $unknown = brb_tour_submit(['name' => 'Ada', 'email' => 'topic-inquiry@example.com', 'message' => 'Hello', 'topic' => 'midnight']);
+    brb_t(!is_wp_error($unknown) && $unknown && $unknown->topic === 'general' && $unknown->preferred === '', 'a missing or unknown topic is stored as a general inquiry');
+    if (!is_wp_error($unknown) && $unknown) $created[] = (int) $unknown->id;
     $spam = brb_tour_submit(['name' => 'Ada', 'email' => 'ada@example.com', 'message' => 'Hello', 'company' => 'http://spam.test']);
     brb_t(is_wp_error($spam) && $spam->get_error_code() === 'spam', 'a filled honeypot is not stored');
     brb_t((int) $wpdb->get_var("SELECT COUNT(*) FROM " . brb_tour_table() . " WHERE email='ada@example.com'") === 0, 'rejected inquiries are not stored');
@@ -100,14 +103,14 @@ try {
         'email' => 'inquiry-guest@example.com',
         'phone' => '309-555-0100',
         'topic' => 'tour',
-        'preferred' => 'Saturday afternoon',
+        'preferred' => '2026-12-12',
         'message' => 'Can we see the room?',
     ]);
     brb_t(!is_wp_error($row) && $row && $row->status === 'new', 'a name and email store a new inquiry');
     if (!is_wp_error($row) && $row) {
         $created[] = (int) $row->id;
         brb_t($row->phone === '' && $row->preferred_date === null && $row->time_window === '' && $row->party_size === null, 'a new inquiry leaves the old tour columns empty');
-        brb_t($row->topic === 'tour' && $row->preferred === 'Saturday afternoon' && $row->notes === 'Can we see the room?' && $row->staff_notes === '', 'topic, preferred time, and message are stored');
+        brb_t($row->topic === 'general' && $row->preferred === '2026-12-12' && $row->notes === 'Can we see the room?' && $row->staff_notes === '', 'a contact inquiry is a general inquiry and stores the preferred date');
         brb_t(brb_tour($legacy_id) && brb_tour($legacy_id)->notes === 'Old tour note', 'saving an inquiry does not delete an older row');
         $tos = [];
         foreach ($GLOBALS['brb_mails'] as $mail) $tos[] = $mail['to'];
@@ -119,14 +122,14 @@ try {
         brb_t(strpos($header_text, 'From: The Boardroom <boardroomqc@gmail.com>') !== false, 'inquiry mail is from boardroomqc@gmail.com');
         brb_t(strpos($header_text, 'Reply-To: inquiry-guest@example.com') !== false, 'inquiry mail replies to the guest');
         $body = (string) ($GLOBALS['brb_mails'][0]['message'] ?? '');
-        brb_t(strpos($body, 'A contact inquiry was received.') !== false && strpos($body, 'No date is held.') !== false && strpos($body, 'Inquiry Guest') !== false && strpos($body, 'Can we see the room?') !== false && strpos($body, 'Tour the venue') !== false && strpos($body, 'Saturday afternoon') !== false, 'the notice describes the inquiry and does not hold a date');
+        brb_t(strpos($body, 'A contact inquiry was received.') !== false && strpos($body, 'No date is held.') !== false && strpos($body, 'Inquiry Guest') !== false && strpos($body, 'Can we see the room?') !== false && strpos($body, 'General inquiry') !== false && strpos($body, 'Preferred dates: December 12, 2026') !== false && stripos($body, 'Saturday afternoon') === false && stripos($body, 'or time') === false, 'the notice describes the inquiry, the preferred date, and does not hold a date');
         brb_t(strpos($body, 'Phone:') === false && stripos($body, 'tour was requested') === false && strpos($body, '309-555-0100') === false, 'the inquiry email omits a phone number');
         foreach ($banned as $w) brb_t(stripos($body, $w) === false, 'inquiry email has no ' . $w);
     }
 
     delete_transient(brb_tour_rate_key());
     $blank = brb_tour_submit(['name' => 'Optional Guest', 'email' => 'optional-inquiry@example.com', 'message' => 'Just a question', 'topic' => '', 'preferred' => '']);
-    brb_t(!is_wp_error($blank) && $blank->topic === '' && $blank->preferred === '' && $blank->preferred_date === null, 'topic and preferred date or time can be left blank');
+    brb_t(!is_wp_error($blank) && $blank->topic === 'general' && $blank->preferred === '' && $blank->preferred_date === null, 'a blank preferred date is still saved as a general inquiry');
     if (!is_wp_error($blank) && $blank) $created[] = (int) $blank->id;
 
     $soon = brb_tour_submit(['name' => 'Again', 'email' => 'again-inquiry@example.com', 'message' => 'Again']);
@@ -152,8 +155,8 @@ try {
     brb_t(strpos($html, 'id="tour"') === false && strpos($html, '#tour') === false && stripos($html, 'Schedule a tour') === false, 'the form is not a schedule-a-tour section');
     brb_t(strpos($html, 'name="company"') !== false && strpos($html, 'name="_brb_tour"') !== false, 'the form has a honeypot and a nonce');
     brb_t(strpos($html, 'name="phone"') === false && stripos($html, 'tel:') === false, 'the inquiry form has no phone field');
-    brb_t(strpos($html, 'Question') !== false && strpos($html, 'Tour the venue') !== false && strpos($html, 'Planning an event') !== false, 'the optional topic lists question, tour, and event');
-    brb_t(strpos($html, 'name="preferred"') !== false && strpos($html, 'name="message"') !== false, 'the form has a message and a preferred date or time');
+    brb_t(strpos($html, "What's this about") === false && strpos($html, 'name="topic"') === false && strpos($html, 'Tour the venue') === false, 'the contact form has no topic menu');
+    brb_t(strpos($html, 'Preferred Dates') !== false && strpos($html, 'type="date"') !== false && strpos($html, 'name="preferred"') !== false && strpos($html, 'name="message"') !== false && strpos($html, 'type="time"') === false && strpos($html, 'datetime-local') === false && stripos($html, 'or time') === false, 'the preferred field is a date and does not ask for a time');
     brb_t(strpos($html, 'Ready to reserve?') === false && strpos($html, 'name="name"') !== false && strpos($html, 'name="message"') !== false, 'the form is the fields without a booking link above them');
     brb_t(stripos($html, 'Book Now') === false && stripos($html, 'Request a tour') === false, 'the form does not add another booking button');
     foreach ($banned as $w) brb_t(stripos($html, $w) === false, 'inquiry form has no ' . $w);
@@ -168,7 +171,18 @@ try {
     brb_t(strpos($contact_html, '[boardroom_tour]') === false && strpos($contact_html, '2220 37th Street') === false && strpos($contact_html, 'mailto:') === false, 'stored contact content does not repeat the venue or email');
     $template = file_get_contents(get_stylesheet_directory() . '/page-contact.php');
     $map = brb_map_embed();
-    brb_t(is_string($template) && strpos($template, 'brb_map_embed') === false && strpos($template, 'brb_tour_form') !== false && strpos($template, "brb_chat_markup('inline')") !== false, 'the contact template is the assistant and the form, without its own map');
+    brb_t(is_string($template) && strpos($template, 'brb_map_embed') === false && strpos($template, 'brb_tour_form') !== false && strpos($template, 'brb_chat_markup') === false && strpos($template, 'br_contact_ask_button') !== false && strpos($template, 'br_contact_ask_button') < strpos($template, 'brb_tour_form') && strpos($template, 'tel:') === false && strpos($template, '2212') === false, 'the contact template is the form with Ask Walter above it, without its own map');
+    $ask = br_contact_ask_button();
+    brb_t(strpos($ask, 'data-brb-open-chat') !== false && strpos($ask, '>Ask Walter<') !== false && strpos($ask, 'tel:') === false, 'Ask Walter on the contact page opens the floating chat');
+    $_GET['inquiry'] = 'ok';
+    brb_t(br_contact_is_thanks(), 'inquiry=ok is the thank-you state');
+    $_GET['inquiry'] = 'missing';
+    brb_t(!br_contact_is_thanks(), 'a form error still uses the contact form');
+    unset($_GET['inquiry']);
+    $hero_at = strpos($template, 'page-hero');
+    $form_at = strpos($template, 'brb_tour_form');
+    $thank_at = strpos($template, 'Thank You!');
+    brb_t($hero_at !== false && $form_at !== false && $thank_at !== false && $hero_at < $form_at && $form_at < $thank_at && strpos($template, 'page-hero', $thank_at) === false && strpos($template, 'brb_tour_form', $thank_at) === false && strpos($template, 'We will call or email you shortly!') !== false && strpos($template, '/rental-checklist/') !== false && strpos($template, 'if (!$thanks)') !== false, 'a successful inquiry replaces the page with a thank-you, the checklist, and Ask Walter');
     brb_t(strpos($map, 'loading="lazy"') !== false && strpos($map, 'https://www.google.com/maps/embed') !== false && strpos($map, '41.4913116') !== false && strpos($map, '-90.4820481') !== false, 'the map iframe is lazy and uses the venue coordinates');
     brb_t(strpos($map, BRB_MAPS_URL) === false, 'the directions short link stays outside the iframe');
     $header = file_get_contents(get_stylesheet_directory() . '/header.php');
@@ -268,13 +282,16 @@ try {
     $footer = file_get_contents(get_stylesheet_directory() . '/footer.php');
     $footer_map = function_exists('br_footer_map') ? br_footer_map() : '';
     brb_t(is_string($footer) && strpos($footer, 'br_footer_map') !== false && strpos($footer_map, 'https://www.google.com/maps?q=2220+37th+Street,+Moline,+IL+61265') !== false && strpos($footer_map, 'output=embed') !== false && strpos($footer_map, 'loading="lazy"') !== false && strpos($footer_map, 'referrerpolicy="no-referrer-when-downgrade"') !== false && strpos($footer, 'Get directions') !== false && strpos($footer, '2220 37th Street, Moline, IL 61265') !== false, 'the footer map uses the venue embed');
-    brb_t(is_string($contact_tpl) && strpos($contact_tpl, "brb_chat_markup('inline')") !== false && strpos($contact_tpl, 'brb_tour_form') !== false && strpos($contact_tpl, 'brb_map_embed') === false && strpos($contact_tpl, "brb_chat_markup('inline')") < strpos($contact_tpl, 'brb_tour_form'), 'the contact page is the inline assistant, then the form');
+    brb_t(is_string($contact_tpl) && strpos($contact_tpl, 'brb_chat_markup') === false && strpos($contact_tpl, 'brb_tour_form') !== false && strpos($contact_tpl, 'brb_map_embed') === false && strpos($contact_tpl, 'br_contact_ask_button') !== false && strpos($contact_tpl, 'br_contact_ask_button') < strpos($contact_tpl, 'brb_tour_form') && strpos($contact_tpl, 'Thank You!') !== false && strpos($contact_tpl, 'brb_tour_form') < strpos($contact_tpl, 'Thank You!'), 'the contact page is a centered form, and a successful inquiry replaces it');
+    $chat_src = file_get_contents(dirname((new ReflectionFunction('brb_chat_markup'))->getFileName()) . '/chat.php');
+    brb_t(is_string($chat_src) && strpos($chat_src, "if (is_front_page()) return;") !== false && strpos($chat_src, "is_page('contact')") === false, 'the floating Walter chat stays on the contact page');
     brb_t(is_string($home) && strpos($home, 'br_tour_video_html') !== false && strpos($home, "brb_chat_markup('home')") !== false && strpos($home, 'br_tour_video_html') < strpos($home, "brb_chat_markup('home')") && strpos($home, 'Contact the Boardroom') === false && strpos($home, 'id="contact"') === false, 'the home page puts Walter under the tour and does not repeat a contact section');
     $home_chat = function_exists('brb_chat_markup') ? brb_chat_markup('home') : '';
     brb_t(strpos($home_chat, 'brb-chat-hello') !== false && strpos($home_chat, "Hi there! I'm Walter, the Boardroom's butler. How can I help with your event?") !== false && strpos($home_chat, 'How can I help you?') !== false && strpos($home_chat, 'Leave your details') !== false && strpos($home_chat, 'brb-chat-send') !== false, 'the homepage chat greeting sits in the header and the first bubble asks how to help');
     $css = file_get_contents(get_stylesheet_directory() . '/style.css');
     $site_js = file_get_contents(get_stylesheet_directory() . '/assets/site.js');
     brb_t(is_string($css) && strpos($css, 'z-index:400') !== false && strpos($css, 'body.admin-bar .site-header{top:32px}') !== false && strpos($css, '.nav.open{display:block}') !== false && strpos($css, 't-scroll') !== false && strpos($css, 'translateX(-50%)') !== false, 'the header stays above the page and the review track scrolls in CSS');
+    brb_t(is_string($css) && strpos($css, '.contact-ask{display:inline-flex') !== false && strpos($css, 'border:2px solid #c4912e') !== false && strpos($css, "font-family:'EB Garamond'") !== false && strpos($css, '.contact-thanks h2{text-transform:none') !== false, 'the contact Ask Walter button is a small gold outline, and the thank-you heading keeps its wording');
     brb_t(is_string($site_js) && strpos($site_js, ".nav a") === false && strpos($site_js, "querySelectorAll('.gallery a')") !== false, 'the gallery lightbox does not capture menu links');
 
     $privacy = get_page_by_path('privacy');
@@ -296,7 +313,7 @@ try {
         ob_start();
         brb_admin_tours();
         $detail = ob_get_clean();
-        brb_t(strpos($detail, 'Delete this inquiry') !== false && strpos($detail, 'name="staff_notes"') !== false && strpos($detail, 'Tour the venue') !== false, 'the detail page has notes and a delete button');
+        brb_t(strpos($detail, 'Delete this inquiry') !== false && strpos($detail, 'name="staff_notes"') !== false && strpos($detail, 'General inquiry') !== false && strpos($detail, 'Preferred dates') !== false && strpos($detail, 'December 12, 2026') !== false, 'the detail page has notes, the general inquiry, and the preferred date');
         brb_t(strpos($detail, '>Phone<') === false, 'a new inquiry detail does not show an empty phone');
         $_GET = ['page' => 'brb-tours', 'id' => $legacy_id];
         ob_start();
@@ -311,7 +328,7 @@ try {
         $in = implode(',', array_map('intval', $created));
         $wpdb->query("DELETE FROM " . brb_tour_table() . " WHERE id IN ($in)");
     }
-    $wpdb->query("DELETE FROM " . brb_tour_table() . " WHERE email IN ('inquiry-guest@example.com','optional-inquiry@example.com','again-inquiry@example.com','later-inquiry@example.com','ada@example.com','legacy-tour@example.com') OR name IN ('Legacy Guest')");
+    $wpdb->query("DELETE FROM " . brb_tour_table() . " WHERE email IN ('inquiry-guest@example.com','optional-inquiry@example.com','again-inquiry@example.com','later-inquiry@example.com','ada@example.com','legacy-tour@example.com','topic-inquiry@example.com') OR name IN ('Legacy Guest')");
     if ($snapshot !== false && $snapshot !== null) update_option('brb_settings', $snapshot);
     else delete_option('brb_settings');
 }

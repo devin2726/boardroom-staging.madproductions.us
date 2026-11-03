@@ -1542,6 +1542,6 @@ add_action('wp_enqueue_scripts', function () {
 
 add_action('wp_footer', function () {
     if (is_admin()) return;
-    if (is_page('contact') || is_front_page()) return;
+    if (is_front_page()) return;
     echo brb_chat_markup();
 });

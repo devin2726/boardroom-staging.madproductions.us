@@ -4,8 +4,8 @@ add_action('after_setup_theme', function () {
     register_nav_menus(['primary' => 'Primary', 'footer' => 'Footer']);
 });
 add_action('wp_enqueue_scripts', function () {
-    wp_enqueue_style('boardroom', get_stylesheet_uri(), [], '1.2.29');
-    wp_enqueue_script('boardroom', get_template_directory_uri() . '/assets/site.js', [], '1.2.29', true);
+    wp_enqueue_style('boardroom', get_stylesheet_uri(), [], '1.2.31');
+    wp_enqueue_script('boardroom', get_template_directory_uri() . '/assets/site.js', [], '1.2.31', true);
 });
 function br_img($f) { return get_template_directory_uri() . '/assets/img/' . $f; }
 function br_logo($place) {
@@ -195,6 +195,16 @@ function br_book_shortcuts_html() {
 function br_contact_form() {
     if (function_exists('brb_tour_form')) return brb_tour_form();
     return '';
+}
+function br_contact_is_thanks() {
+    $code = isset($_GET['inquiry']) ? sanitize_key(wp_unslash($_GET['inquiry'])) : '';
+    return $code === 'ok';
+}
+function br_contact_ask_button() {
+    $html = '<p class="contact-ask-wrap"><button type="button" class="contact-ask" data-brb-open-chat>';
+    if (function_exists('brb_walter_html')) $html .= brb_walter_html(64, 'brb-walter brb-walter-contact');
+    $html .= '<span>Ask Walter</span></button></p>';
+    return $html;
 }
 add_shortcode('boardroom_contact', 'br_contact_form');
 add_filter('body_class', function ($classes) {
