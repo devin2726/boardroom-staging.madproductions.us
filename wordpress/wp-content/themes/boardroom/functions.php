@@ -4,8 +4,8 @@ add_action('after_setup_theme', function () {
     register_nav_menus(['primary' => 'Primary', 'footer' => 'Footer']);
 });
 add_action('wp_enqueue_scripts', function () {
-    wp_enqueue_style('boardroom', get_stylesheet_uri(), [], '1.2.27');
-    wp_enqueue_script('boardroom', get_template_directory_uri() . '/assets/site.js', [], '1.2.27', true);
+    wp_enqueue_style('boardroom', get_stylesheet_uri(), [], '1.2.28');
+    wp_enqueue_script('boardroom', get_template_directory_uri() . '/assets/site.js', [], '1.2.28', true);
 });
 function br_img($f) { return get_template_directory_uri() . '/assets/img/' . $f; }
 function br_logo($place) {
@@ -225,6 +225,7 @@ add_shortcode('boardroom_contact', 'br_contact_form');
 add_filter('body_class', function ($classes) {
     if (is_page(['privacy', 'terms', 'rental-agreement', 'privacy-policy', 'terms-and-conditions'])) $classes[] = 'legal-page';
     if (is_page('contact')) $classes[] = 'contact-page';
+    if (is_page('book') && !empty($_GET['date'])) $classes[] = 'book-dated';
     return $classes;
 });
 function br_menu_title($item) {

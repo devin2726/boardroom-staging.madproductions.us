@@ -1,7 +1,7 @@
 /*
 Theme Name: The Boardroom
 Description: Lightweight theme replicating the look of boardroomqc.com (dark + gold, EB Garamond, full-width hero slider). Pairs with the Boardroom Booking plugin.
-Version: 1.2.27
+Version: 1.2.28
 Author: Mad Productions
 Text Domain: boardroom
 */
@@ -87,6 +87,10 @@ section.block{padding:80px 0}section.alt{background:var(--bg2)}section.dark{back
 .good-to-know a{color:var(--gold)}
 @media(max-width:980px){.amenity-groups{grid-template-columns:1fr 1fr;gap:18px}.amenity-group,.amenity-group:nth-child(4),.amenity-group:nth-child(5){grid-column:auto}}
 @media(max-width:640px){.amenity-groups{grid-template-columns:1fr}.amenity-kitchen ul{columns:1}}
+body.book-dated .page-hero,body.book-dated .book-shortcuts,body.book-dated .brb-how{display:none}
+#brb-your-date{scroll-margin-top:96px}
+body.admin-bar #brb-your-date{scroll-margin-top:128px}
+@media(max-width:782px){body.admin-bar #brb-your-date{scroll-margin-top:142px}}
 .book-shortcuts{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:4px 0 28px}
 .book-shortcut{display:flex;align-items:center;gap:16px;min-height:96px;padding:20px 22px;background:#161616;color:#fff!important;text-decoration:none;border:2px solid var(--gold);font-family:'EB Garamond',Georgia,'Times New Roman',serif}
 .book-shortcut-icon{color:var(--gold);flex:0 0 auto}

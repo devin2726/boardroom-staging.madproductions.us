@@ -2705,7 +2705,7 @@ function brb_view_quote() {
         ? $r['s']->format('D M j, Y') . ($r['units'] > 1 ? ' – ' . $r['e']->modify('-1 day')->format('D M j, Y') : '') . ' (full day)'
         : $r['s']->format('D M j, Y g:i A') . ' – ' . $r['e']->format('g:i A');
     ?>
-    <div class="brb-grid">
+    <div class="brb-grid" id="brb-your-date">
       <div class="brb-card">
         <h3>Your date</h3>
         <p><strong><?php echo esc_html($when); ?></strong><br><?php echo (int) $r['guests']; ?> guests attending</p>
