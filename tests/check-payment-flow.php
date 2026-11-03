@@ -45,7 +45,7 @@ add_filter('pre_wp_mail', function ($short, $atts) {
 $GLOBALS['brb_mails'] = [];
 
 try {
-    brb_t(get_option('brb_version') === '2.5.29', 'plugin storage version is 2.5.29');
+    brb_t(get_option('brb_version') === '2.5.31', 'plugin storage version is 2.5.31');
     $example = brb_first_payment_parts(1200);
     brb_t($example['deposit'] === 600.0 && $example['damage'] === 250.0 && $example['base'] === 850.0 && abs($example['card'] - 875.50) < 0.001, 'a $1,200 rental first card payment is 600 + 250 plus 3 percent');
     brb_t(brb_latest_start_hour() === 21, 'the latest shorter-block start is 9:00 PM');
@@ -465,7 +465,7 @@ try {
         $_GET = ['br_token' => $b->token];
         $html = do_shortcode('[boardroom_booking]');
         brb_t(strpos($html, 'held for 48 hours') === false && strpos($html, 'Your date is held until') === false, 'confirmation page does not describe a 48 hour hold');
-        brb_t(strpos($html, 'Thank you for contacting The Boardroom!') !== false && strpos($html, 'Nothing is charged yet') !== false && strpos($html, 'email you a payment link') !== false && strpos($html, 'email a price') === false, 'confirmation page thanks the guest and says nothing is charged yet');
+        brb_t(strpos($html, 'Your request is in.') !== false && strpos($html, 'Nothing is charged yet') !== false && strpos($html, 'email you a payment link') !== false && strpos($html, 'email a price') === false && strpos($html, 'How booking works') === false, 'confirmation page thanks the guest and says nothing is charged yet');
         brb_t(strpos($html, 'Wedding') !== false, 'confirmation page shows the event type');
         brb_t(strpos($html, '[VERIFY] Test instructions.') === false && strpos($html, 'Extra instructions for bringing the check') === false, 'confirmation hides payment instructions until the request is approved');
         brb_t(strpos($html, 'Pending review') !== false, 'confirmation page says the request is pending review');

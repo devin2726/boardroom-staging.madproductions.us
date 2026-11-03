@@ -202,6 +202,7 @@ add_filter('body_class', function ($classes) {
     if (is_page('contact')) $classes[] = 'contact-page';
     if (is_page('book')) $classes[] = 'book-page';
     if (is_page('book') && !empty($_GET['date'])) $classes[] = 'book-dated';
+    if (is_page('book') && !empty($_GET['br_token'])) $classes[] = 'book-status';
     return $classes;
 });
 function br_menu_title($item) {
