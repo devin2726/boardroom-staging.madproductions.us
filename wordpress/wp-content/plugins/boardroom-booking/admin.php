@@ -246,6 +246,46 @@ function brb_admin_list() {
     }
     echo '</tbody></table></div>';
 }
+function brb_admin_card_payment($b) {
+    $link = brb_pay_link($b);
+    $blockers = brb_pay_link_blockers($b);
+    echo '<h2>Card payment (Stripe)</h2>';
+    echo '<p>' . esc_html('Approving the request emails the guest a Stripe pay link automatically. Use this button to resend it.') . '</p>';
+    if ($link !== '') {
+        $due = brb_amount_due_now($b);
+        $base_cents = brb_cents_from_amount($due);
+        $fee_cents = brb_card_fee_cents($base_cents);
+        echo '<table class="form-table"><tbody>';
+        echo '<tr><th>Amount due now</th><td>' . esc_html(brb_money($due)) . '</td></tr>';
+        echo '<tr><th>Card fee (' . esc_html(brb_fee_percent_label()) . ')</th><td>' . esc_html(brb_money($fee_cents / 100)) . '</td></tr>';
+        echo '<tr><th>Card total</th><td>' . esc_html(brb_money(($base_cents + $fee_cents) / 100)) . '</td></tr>';
+        echo '</tbody></table>';
+        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="max-width:640px">';
+        echo '<input type="hidden" name="action" value="brb_send_pay_link"><input type="hidden" name="booking" value="' . (int) $b->id . '">';
+        wp_nonce_field('brb_send_pay_link');
+        echo '<p><button class="button button-primary">Send payment link</button></p>';
+        echo '<p><label for="brb-pay-link">Payment link<br><input id="brb-pay-link" class="large-text" type="text" readonly value="' . esc_attr($link) . '"></label></p>';
+        echo '</form>';
+        return;
+    }
+    echo '<p><button class="button" type="button" disabled>Send payment link</button></p>';
+    echo '<ul>';
+    foreach (brb_pay_link_checklist() as $key => $label) {
+        $met = !isset($blockers[$key]);
+        echo '<li>' . ($met ? '✓' : '✗') . ' ' . esc_html($label);
+        if (!$met && $key === 'stripe') {
+            echo ' <span class="description">' . esc_html('Add BRB_STRIPE_SECRET_KEY on the server.') . ' <a href="' . esc_url(admin_url('admin.php?page=brb-settings')) . '">Booking Settings</a></span>';
+        }
+        if (!$met && $key === 'approved' && in_array((string) $b->status, ['review', 'pending'], true)) {
+            echo ' <form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="display:inline">';
+            echo '<input type="hidden" name="action" value="brb_approve"><input type="hidden" name="booking" value="' . (int) $b->id . '">';
+            wp_nonce_field('brb_approve');
+            echo '<button class="button button-primary">Approve</button></form>';
+        }
+        echo '</li>';
+    }
+    echo '</ul>';
+}
 function brb_admin_detail($id) {
     $b = brb_booking($id);
     echo '<div class="wrap"><h1>Booking</h1>';
@@ -356,6 +396,8 @@ function brb_admin_detail($id) {
         echo '<p><button class="button button-primary">Set agreed price and email guest</button></p></form>';
     }
 
+    if (!in_array($b->status, ['cancelled', 'declined', 'expired', 'paid'], true)) brb_admin_card_payment($b);
+
     if (!$set && !in_array($b->status, ['cancelled', 'expired', 'paid'], true)) {
         echo '<h2>Record payment</h2><p>Set the agreed price before recording a payment.</p>';
     }
@@ -390,11 +432,6 @@ function brb_admin_detail($id) {
         echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" onsubmit="return confirm(\'Decline this request? The date is not reserved.\');"><input type="hidden" name="action" value="brb_decline"><input type="hidden" name="booking" value="' . (int) $b->id . '">';
         wp_nonce_field('brb_decline');
         echo '<button class="button">Decline</button></form>';
-    }
-    if (brb_pay_link($b) !== '') {
-        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '"><input type="hidden" name="action" value="brb_send_pay_link"><input type="hidden" name="booking" value="' . (int) $b->id . '">';
-        wp_nonce_field('brb_send_pay_link');
-        echo '<button class="button">Send payment link</button></form>';
     }
     if ((float) ($b->damage_paid ?? 0) > 0.009 && empty($b->damage_refunded)) {
         echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '"><input type="hidden" name="action" value="brb_refund_damage"><input type="hidden" name="booking" value="' . (int) $b->id . '">';
