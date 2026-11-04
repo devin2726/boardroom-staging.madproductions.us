@@ -45,7 +45,7 @@ add_filter('pre_wp_mail', function ($short, $atts) {
 $GLOBALS['brb_mails'] = [];
 
 try {
-    brb_t(get_option('brb_version') === '2.5.43', 'plugin storage version is 2.5.43');
+    brb_t(get_option('brb_version') === '2.5.45', 'plugin storage version is 2.5.45');
     $cc_before = (string) brb_opt('inquiry_cc');
     delete_option('brb_inquiry_cc_seeded');
     $cc_settings = get_option('brb_settings');
@@ -862,7 +862,7 @@ try {
         'Balloons, yes' => $terms_html,
         'Wall tape' => $terms_html,
         'Sales tax is included in the price.' => $terms_html,
-        'Last updated: November 3, 2026' => $terms_html,
+        'Last updated: November 4, 2026' => $terms_html,
         '60 or more days before your event' => $terms_html,
         'MAD Productions, LLC' => $privacy_html,
         'boardroomqc@gmail.com' => $privacy_html,
@@ -874,7 +874,7 @@ try {
     }
     brb_t(strpos($terms_html, 'No cooking or stove-top use') !== false && strpos($terms_html, 'Food warmers and the bar area are yours to use') !== false, 'terms say no cooking and allow food warmers');
     brb_t(strpos($terms_html, 'https://moline.il.us/244/Liquor-Licensing') === false && strpos($terms_html, '309-524-2004') === false && strpos($terms_html, 'Half days') === false && strpos($terms_html, 'one-day liquor license') === false && strpos($agreement_html, 'https://moline.il.us/244/Liquor-Licensing') === false && strpos($agreement_html, 'Half days') === false && strpos($agreement_html, 'one-day liquor license') === false && strpos($privacy_html, 'host age bracket') === false && strpos($privacy_html, 'invitation-only') === false && strpos($privacy_html, 'what time the event will end') === false, 'legal pages drop half days, the city liquor license, and the removed booking questions');
-    brb_t(strpos($terms_html, 'The price shows right on the calendar.') !== false && strpos($terms_html, 'no later than one week before your event') !== false && strpos($terms_html, '2212') === false && strpos($terms_html, 'Venmo') === false && strpos($terms_html, 'refunded through Stripe, less the card processing fee') !== false, 'the terms page uses one week, the venue for checks, and a Stripe refund');
+    brb_t(strpos($terms_html, 'Prices are on the calendar.') !== false && strpos($terms_html, 'no later than one week before your event') !== false && strpos($terms_html, '2212') === false && strpos($terms_html, 'Venmo') === false && strpos($terms_html, 'refunded through Stripe, less the card processing fee') !== false && strpos($terms_html, 'Book at least 48 hours ahead.') !== false && strpos($terms_html, 'Full days start at $600.') !== false, 'the terms page uses one week, the venue for checks, and a Stripe refund');
     brb_t(strpos(brb_cancellation_summary(), 'no later than one week before the event') !== false && strpos(brb_cancellation_summary(), '48 hours before the event') === false && strpos(brb_cancellation_summary(), 'Mad Productions at The Boardroom, 2220 37th Street, Moline, IL 61265') !== false && strpos(brb_cancellation_summary(), '2212') === false && strpos(brb_agreement_html(), 'no later than one week before the event') !== false && strpos(brb_agreement_html(), '48 hours before the event') === false && strpos(brb_agreement_html(), '80 guests') !== false && strpos(brb_agreement_html(), '75 to 80') === false, 'the summary and the rental agreement use one week, 80 guests, and checks at The Boardroom');
     brb_t(strpos($terms_html, '[VERIFY current fee and issuing office]') === false, 'liquor license fee is no longer marked for verification');
     brb_t(strpos($terms_html, '2220 37th Street, Moline, IL 61265') !== false && strpos($terms_html, 'MAD Productions, LLC') !== false, 'terms name the venue at 2220 37th Street');
@@ -884,9 +884,11 @@ try {
     brb_t(strpos($privacy_html, 'Mail or drop off checks payable to Mad Productions at The Boardroom, 2220 37th Street, Moline, IL 61265.') !== false && strpos($privacy_html, '2212') === false, 'privacy tells guests to bring checks to The Boardroom');
     brb_t(strpos($agreement_html, '2220 37th Street, Moline, Illinois 61265') !== false && strpos($agreement_html, '2220 37th Street, Moline, IL 61265') !== false, 'signed agreement body keeps 2220 37th Street');
     brb_t(strpos($agreement_html, 'Staff cannot set the room up') !== false && strpos($agreement_html, 'The minimum host age is 25 for every booking') !== false && strpos($agreement_html, 'no later than one week before the event') !== false && strpos($agreement_html, 'Balloons are allowed') !== false && strpos($agreement_html, 'wall tape') !== false, 'the rental agreement states setup, host age, balance, balloons, and wall tape');
-    $recording = 'The Boardroom is monitored by video and audio recording. By renting the space, Renter consents to being recorded and agrees to inform all guests, vendors and attendees that they may be recorded.';
+    brb_t(strpos($privacy_html, 'event type') === false && strpos($privacy_html, 'whether alcohol will be served') === false && strpos($privacy_html, 'confirmation that the event is free to attend') !== false && strpos($privacy_html, 'event date and time') !== false, 'privacy no longer says the booking form asks for event type or alcohol');
+    brb_t(strpos($agreement_html, 'Except in December, when Owner') === false && strpos($agreement_html, 'Renter may bring and put up Renter') !== false && strpos($agreement_html, 'Glitter and confetti are not allowed') !== false && strpos($agreement_html, 'birdseed') === false && strpos($agreement_html, 'loose sequins') === false && strpos($agreement_html, 'confetti cannons') === false && strpos($terms_html, 'You may bring and put up your own decorations') !== false && strpos($terms_html, 'confetti cannons') === false && strpos($faq_html, 'You may bring and put up your own decorations') !== false && strpos($faq_html, 'Glitter and confetti aren') !== false, 'decorations copy lets renters decorate and bans only glitter and confetti');
+    $recording = 'The Venue may use audio and video recording, including security cameras in common areas and exterior areas. Cameras are not used in restrooms.';
     $agreement_src = brb_agreement_html();
-    brb_t(strpos($agreement_src, '22. Recording Notice. ' . $recording) !== false && strpos($agreement_html, '22. Recording Notice. ' . $recording) !== false && strpos($agreement_src, '21. Entire Agreement; Authority to Sign.') < strpos($agreement_src, '22. Recording Notice.') && strpos($agreement_src, '22. Recording Notice.') < strpos($agreement_src, 'IN WITNESS WHEREOF') && strpos($terms_html, 'video and audio recording') === false, 'the rental agreement adds the recording notice after section 21, and the terms page does not');
+    brb_t(strpos($agreement_src, '22. Recording Notice. ' . $recording) !== false && strpos($agreement_html, '22. Recording Notice. ' . $recording) !== false && strpos($agreement_src, 'consent to that recording') !== false && strpos($agreement_html, 'consent to that recording') !== false && strpos($agreement_src, '21. Entire Agreement; Authority to Sign.') < strpos($agreement_src, '22. Recording Notice.') && strpos($agreement_src, '22. Recording Notice.') < strpos($agreement_src, 'IN WITNESS WHEREOF') && strpos($terms_html, '22. Recording') !== false && strpos($terms_html, 'Cameras are not used in restrooms.') !== false && strpos($terms_html, '21. The whole agreement') < strpos($terms_html, '22. Recording'), 'the rental agreement and the terms page both state the recording notice after section 21');
     brb_t(strpos($agreement_html, '2212 37th Street') === false && strpos($agreement_html, '2212 47 Ave') === false, 'signed agreement body is not rewritten to the site address');
     $contact = get_page_by_path('contact');
     $contact_html = $contact ? (string) $contact->post_content : '';
