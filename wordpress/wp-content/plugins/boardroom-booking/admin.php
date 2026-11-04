@@ -852,7 +852,7 @@ function brb_admin_settings() {
         'Calendar and policy' => [
             ['blackouts', 'Blackout dates (YYYY-MM-DD, one per line)', 'textarea', null, 'Saved dates stay in the database when the plugin is updated. Emptying this box does not delete them unless you tick the box under it.'],
             ['policy', 'Cancellation policy', 'textarea', null, 'Shown before a guest saves a date, and included in emails.'],
-            ['checklist', 'Rental checklist', 'textarea', null, 'Emailed when a request is approved and again about 7 days before the event. Also shown on the Rental Checklist page. One item per line. Leave the saved text in place to keep the current list.'],
+            ['checklist', 'Rental checklist', 'textarea', null, 'Shown on the Rental Checklist page. One item per line. Leave the saved text in place to keep the current list.'],
         ],
     ];
     echo '<div class="wrap"><h1>Booking Settings</h1>';

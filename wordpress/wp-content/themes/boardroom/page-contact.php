@@ -11,7 +11,6 @@ if (!$thanks): ?>
 <div class="wrap"><div class="content contact-thanks">
   <h2>Thank You!</h2>
   <p class="contact-thanks-line">We will call or email you shortly!</p>
-  <p class="contact-thanks-next"><a class="btn" href="<?php echo esc_url(home_url('/rental-checklist/')); ?>">Rental Checklist</a></p>
   <?php echo br_contact_ask_button(); ?>
 </div></div>
 <?php endif; endwhile; get_footer();
