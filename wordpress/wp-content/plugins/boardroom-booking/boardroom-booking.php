@@ -2781,8 +2781,7 @@ function brb_view_quote() {
         <h3>Your date</h3>
         <p><strong><?php echo esc_html($when); ?></strong><br>Estimated Guests: <?php echo (int) $r['guests']; ?></p>
         <?php if (!empty($q['price_set'])): ?>
-        <p><strong>Rental Price*: <?php echo esc_html(brb_whole_money($q['total'])); ?></strong></p>
-        <p class="brb-small">*plus deposit</p>
+        <p><strong>Rental Price: <?php echo esc_html(brb_whole_money($q['total'])); ?> (+deposit)</strong></p>
         <?php else: ?>
         <p><strong>price to be confirmed</strong></p>
         <?php endif; ?>

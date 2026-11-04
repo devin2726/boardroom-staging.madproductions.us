@@ -1,7 +1,7 @@
 <?php get_header(); $p = br_photos(); $book = brb_book_url(); ?>
 <section class="hero" aria-label="Photos of The Boardroom">
   <?php foreach ($p as $i => $f) printf('<div class="slide%s">%s</div>', $i ? '' : ' on', br_picture($f, br_photo_alt($f))); ?>
-  <div class="cap"><h1>Welcome to The Boardroom</h1><p class="hero-sub">Moline's one-of-a-kind party venue <br>in the heart of the Quad&nbsp;Cities</p></div>
+  <div class="cap"><h1>Welcome to The Boardroom</h1><p class="hero-sub">Moline's one-of-a-kind party venue</p><a class="btn" href="<?php echo esc_url($book); ?>">Reserve Now</a></div>
   <button class="arrow prev" aria-label="Previous">‹</button><button class="arrow next" aria-label="Next">›</button><div class="dots"></div>
 </section>
 <p class="hero-facts"><span>Serving&nbsp;Kitchen</span><span>Up&nbsp;to&nbsp;80&nbsp;Guests</span><span class="facts-break" aria-hidden="true"></span><span>Game&nbsp;Room</span><span>80&#8209;Inch&nbsp;TV</span><span>Ample&nbsp;Parking</span></p>
