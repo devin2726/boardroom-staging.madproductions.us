@@ -36,7 +36,7 @@ function brb_chat_reply($text, $history = []) {
 }
 
 try {
-    brb_t(get_option('brb_version') === '2.5.47', 'plugin storage version is 2.5.47');
+    brb_t(get_option('brb_version') === '2.5.48', 'plugin storage version is 2.5.48');
     $cols = $wpdb->get_col('SHOW COLUMNS FROM ' . brb_tour_table(), 0);
     brb_t(in_array('source', $cols, true), 'inquiries can store a source');
     brb_t((string) brb_opt('quote_prices') === '1', 'price estimates are on by default');
@@ -421,6 +421,72 @@ try {
     brb_t(count($chip_labels) >= 2 && count($chip_labels) <= 3 && in_array('Check dates', $chip_labels, true) && in_array('Deposit', $chip_labels, true) && in_array('BYOB', $chip_labels, true), 'a price answer offers check dates, deposit, and BYOB');
     brb_t(strpos($js, 'brb-chat-chip') !== false && strpos($js, 'Suggested questions') !== false && strpos($js, "b.type = 'button'") !== false, 'suggestion chips are real buttons');
     brb_t(strpos($css, '.brb-chat-chip{background:#f7f3ea;color:#3a342c') !== false && strpos($css, 'min-height:44px') !== false, 'suggestion chips are cream pills with a large tap target');
+    $safety_catalog = brb_chat_safety_catalog();
+    $safety_sexual = [
+        "I'm afraid that isn't acceptable at the Boardroom, and it's not something I can help with. I'm happy to help you plan a great event, though. Shall we check a date?",
+        "That's not the kind of event the Boardroom hosts. If you're planning a party, a shower or a celebration, I'd be glad to help.",
+        "Let's keep things respectful, please. I'm here to help with bookings, pricing and venue questions.",
+    ];
+    $safety_violent = [
+        "That's not acceptable at the Boardroom, and I can't help with it. Weapons, fighting and threats aren't allowed at the venue.",
+        "I'm sorry, I can't discuss that. If anyone is in danger, please call 911. Otherwise, I'm glad to help with your event.",
+    ];
+    $safety_harassment = "I'd like to keep this conversation respectful. If you have a question about the venue, I'm happy to help.";
+    $safety_care = "I'm really sorry you're feeling this way. You don't have to go through it alone. Please call or text 988 to talk with someone right now. If you're in immediate danger, call 911.";
+    $safety_end = "I'm going to end our chat here. If you'd like help planning an event at the Boardroom, you're welcome to start over anytime.";
+    brb_t($safety_catalog['sexual']['replies'] === $safety_sexual && $safety_catalog['violent']['replies'] === $safety_violent && $safety_catalog['harassment']['replies'] === [$safety_harassment] && $safety_catalog['self-harm']['replies'] === [$safety_care] && brb_chat_safety_end_reply() === $safety_end, 'safety replies use the approved wording');
+    foreach (['strip show', 'hire strippers', 'have sex in the venue', 'film an adult video', 'nude party', 'naked photo shoot', 'private rooms for hooking up', 'bring escorts', 'are you single', 'what are you wearing', 'topless guests', 'swingers night', 'send me something sexy', 'sex toy party'] as $flagged) {
+        $hit = brb_chat_answer($flagged);
+        brb_t(!empty($hit['blocked']) && ($hit['category'] ?? '') === 'sexual' && $hit['reply'] === $safety_sexual[0] && empty($hit['closed']), 'flags sexual: ' . $flagged);
+    }
+    foreach (['bring guns', 'hurt a guest without getting caught', 'fight night with real fighting', "I'm going to hurt someone", 'start a fire in the building', 'bring a knife or weapon', 'rush the door', 'purge night with real weapons', "I'll trash the place if you don't refund me"] as $flagged) {
+        $hit = brb_chat_answer($flagged);
+        brb_t(!empty($hit['blocked']) && ($hit['category'] ?? '') === 'violent' && $hit['reply'] === $safety_violent[0] && empty($hit['closed']), 'flags violent: ' . $flagged);
+    }
+    foreach (['I want to hurt myself', "I don't want to be here anymore"] as $flagged) {
+        $hit = brb_chat_answer($flagged);
+        brb_t(!empty($hit['blocked']) && ($hit['category'] ?? '') === 'self-harm' && $hit['reply'] === $safety_care && empty($hit['closed']), 'self-harm stays gentle: ' . $flagged);
+    }
+    $rude = brb_chat_answer('you are an idiot');
+    brb_t(!empty($rude['blocked']) && ($rude['category'] ?? '') === 'harassment' && $rude['reply'] === $safety_harassment && empty($rude['closed']), 'an insult at Walter gets the respectful reply');
+    $second = brb_chat_answer('nude party', [['role' => 'user', 'text' => '[message blocked]', 'flag' => 'sexual']]);
+    brb_t(!empty($second['blocked']) && $second['reply'] === $safety_sexual[1] && empty($second['closed']), 'the second sexual message uses the next variant');
+    $third = brb_chat_answer('topless guests', [
+        ['role' => 'user', 'text' => '[message blocked]', 'flag' => 'sexual'],
+        ['role' => 'user', 'text' => '[message blocked]', 'flag' => 'violent'],
+    ]);
+    brb_t(!empty($third['blocked']) && !empty($third['closed']) && $third['reply'] === $safety_end, 'the third flagged message ends the chat');
+    $care_after = brb_chat_answer('I want to hurt myself', [
+        ['role' => 'user', 'text' => '[message blocked]', 'flag' => 'sexual'],
+        ['role' => 'user', 'text' => '[message blocked]', 'flag' => 'violent'],
+    ]);
+    brb_t(!empty($care_after['blocked']) && empty($care_after['closed']) && $care_after['reply'] === $safety_care, 'self-harm does not count as a strike and does not end the chat');
+    foreach ([
+        'Can we book a bachelorette party?',
+        'Can we book a bachelor party?',
+        'We are planning a gender reveal',
+        'We just want to kill time before dinner',
+        'Can we shoot photos in the room?',
+        'lingerie shower',
+        'murder mystery party',
+        'Can the kids play nerf or laser tag?',
+        'Do you allow a fire pit or candles?',
+        'command strips or tape?',
+        'who takes out the trash',
+    ] as $safe) {
+        $hit = brb_chat_answer($safe);
+        brb_t(empty($hit['blocked']) && ($hit['category'] ?? '') === '' && $hit['reply'] !== $safety_sexual[0] && $hit['reply'] !== $safety_violent[0] && $hit['reply'] !== $safety_care, 'does not flag: ' . $safe);
+    }
+    $cameras = brb_chat_answer('do you have security cameras');
+    brb_t(empty($cameras['blocked']) && strpos($cameras['reply'], 'security cameras') !== false, 'a normal security camera question is answered, not blocked');
+    $block_req = new WP_REST_Request('POST', '/brb/v1/chat');
+    $block_req->set_param('message', 'strip show');
+    $block_req->set_header('x-brb-chat', wp_create_nonce('brb_chat'));
+    $blocked_rest = brb_chat_rest($block_req);
+    $blocked_row = $wpdb->get_row('SELECT question FROM ' . brb_chatlog_table() . ' ORDER BY id DESC LIMIT 1');
+    brb_t(is_array($blocked_rest) && !empty($blocked_rest['blocked']) && $blocked_row && $blocked_row->question === '[message blocked]' && $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM ' . brb_chatlog_table() . ' WHERE question LIKE %s', '%strip show%')) == 0, 'a flagged chat is stored as [message blocked]');
+    $js_guard = file_get_contents(dirname((new ReflectionFunction('brb_chat_markup'))->getFileName()) . '/assets/chat.js');
+    brb_t(is_string($js_guard) && strpos($js_guard, "data.blocked ? '[message blocked]'") !== false && strpos($js_guard, 'setChatClosed') !== false && strpos($js_guard, 'if (data.closed) setChatClosed(true)') !== false && strpos($js_guard, 'input.disabled') !== false, 'desktop and mobile share the blocked placeholder and the closed input');
     $inline_card = brb_chat_markup('home', home_url('/contact/'));
     brb_t(strpos($inline_card, 'Ask Walter, the Boardroom\'s butler') !== false && strpos($inline_card, 'Popular questions') !== false && strpos($inline_card, 'Prefer a person?') !== false && strpos($inline_card, 'Leave your details') !== false && strpos($inline_card, 'Walter is online') !== false && strpos($inline_card, 'Start over') !== false && strpos($widget, 'Ask Walter, the Boardroom\'s butler') !== false && strpos($widget, 'brb-chat-title-desk">Walter') !== false && strpos($widget, 'brb-chat-starters') !== false && strpos($widget, 'Leave your details') !== false && strpos($css, '@media(max-width:800px)') !== false && strpos($css, '.brb-chat-popular,.brb-chat-popular-label{display:none}') !== false && strpos($css, '.brb-chat-side-foot{display:none}') !== false && strpos($css, '.brb-chat-starters{display:none}') !== false && strpos($css, '.brb-chat:not(.brb-chat-inline) .brb-chat-lead-toggle') !== false && strpos($css, '.brb-chat-title-mobile{display:inline}') !== false && strpos($css, '.brb-chat-title-mobile{display:none}') !== false, 'phones hide popular questions and leave-your-details, and title the card Ask Walter, the Boardroom\'s butler');
     require __DIR__ . '/chat-score.php';

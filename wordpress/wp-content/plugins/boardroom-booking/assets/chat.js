@@ -327,13 +327,17 @@
     }
     if (aCount) log.appendChild(actions);
   }
+  function setChatClosed(closed) {
+    input.disabled = !!closed;
+    var send = ask.querySelector('.brb-chat-send');
+    if (send) send.disabled = !!closed;
+  }
   function sendMessage(text) {
     text = (text || '').trim();
-    if (!text) return;
+    if (!text || input.disabled) return;
     clearSuggestions();
     addMsg('user', text);
     input.value = '';
-    turns.push({ role: 'user', text: text });
     function askChat(attempt) {
       return fetch(BRB_CHAT.endpoint, {
         method: 'POST',
@@ -356,9 +360,12 @@
       var reply = addMsg('bot', data.reply);
       scrollLogTo(reply);
       addSuggestions(data.suggestions);
+      var stored = data.blocked ? '[message blocked]' : text;
+      turns.push({ role: 'user', text: stored });
       turns.push({ role: 'assistant', text: data.reply });
-      history.push({ role: 'user', text: text });
+      history.push({ role: 'user', text: stored, flag: data.blocked ? (data.category || '') : '' });
       history.push({ role: 'assistant', text: data.reply });
+      if (data.closed) setChatClosed(true);
       if (history.length > 16) history = history.slice(-16);
     }).catch(function () {
       setTyping(false);
@@ -388,6 +395,7 @@
       history = [];
       turns = [];
       input.value = '';
+      setChatClosed(false);
       if (lead && !lead.hidden) hideLead();
       log.innerHTML = '';
       addMsg('bot', root.getAttribute('data-opening') || '');
