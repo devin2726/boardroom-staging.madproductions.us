@@ -21,8 +21,12 @@
 
   function pad(n) { return (n < 10 ? '0' : '') + n; }
   function key(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
-  function dayInfo() { return data[date.value] || null; }
+  function dayInfo() {
+    if (!date || !date.value) return null;
+    return data[date.value] || null;
+  }
   function refreshNotice() {
+    if (!form) return true;
     var btn = form.querySelector('.brb-btn');
     var info = dayInfo();
     var msg = '';
@@ -71,7 +75,7 @@
       var s = info.status || 'free';
       var off = (s === 'past' || s === 'booked' || s === 'blackout' || s === 'soon');
       var price = info.price ? '<span class="brb-dayprice">' + info.price + '</span>' : '';
-      h += '<button type="button" class="d ' + s + (date.value === k ? ' sel' : '') + '" data-k="' + k + '"' + (off ? ' disabled' : '') + '><span class="brb-daynum">' + d.getDate() + '</span>' + price + '</button>';
+      h += '<button type="button" class="d ' + s + (date && date.value === k ? ' sel' : '') + '" data-k="' + k + '"' + (off ? ' disabled' : '') + '><span class="brb-daynum">' + d.getDate() + '</span>' + price + '</button>';
       d.setDate(d.getDate() + 1);
     }
     cal.innerHTML = h + '</div>';
@@ -102,6 +106,12 @@
     if (!b) return;
     if (b.dataset.n) { cur.setMonth(cur.getMonth() + (+b.dataset.n)); load(); return; }
     if (b.disabled) return;
+    var dest = cal.getAttribute('data-book');
+    if (dest) {
+      window.location = dest.replace(/\/?$/, '/') + '?date=' + encodeURIComponent(b.dataset.k);
+      return;
+    }
+    if (!date) return;
     date.value = b.dataset.k;
     showBusy();
     syncType();
@@ -112,7 +122,19 @@
       if (!refreshNotice()) e.preventDefault();
     });
   }
-  load();
+  if (cal.getAttribute('data-lazy') === '1' && 'IntersectionObserver' in window) {
+    var seen = false;
+    var watch = new IntersectionObserver(function (entries) {
+      if (seen) return;
+      if (!entries.some(function (entry) { return entry.isIntersecting; })) return;
+      seen = true;
+      watch.disconnect();
+      load();
+    }, { rootMargin: '200px' });
+    watch.observe(cal);
+  } else {
+    load();
+  }
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
   else boot();

@@ -2597,7 +2597,7 @@ function brb_rest_availability($req) {
 }
 
 /* ---------- front end ---------- */
-add_shortcode('boardroom_booking', function () {
+function brb_enqueue_public_calendar() {
     wp_enqueue_style('brb', BRB_URL . 'assets/brb.css', [], BRB_VER);
     wp_enqueue_script('brb', BRB_URL . 'assets/brb.js', [], BRB_VER, true);
     $o = brb_opt();
@@ -2612,6 +2612,34 @@ add_shortcode('boardroom_booking', function () {
         'mode' => $o['mode'],
         'cutoff' => brb_notice_cutoff()->format('c'),
     ]);
+}
+add_action('wp_enqueue_scripts', function () {
+    if (function_exists('is_front_page') && is_front_page()) brb_enqueue_public_calendar();
+}, 20);
+function brb_public_date_is_open($ymd) {
+    $ymd = (string) $ymd;
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $ymd)) return false;
+    $r = brb_build_range(['date' => $ymd, 'type' => 'day', 'days' => 1, 'guests' => 1]);
+    if (is_wp_error($r)) return false;
+    return brb_is_free($r['s'], $r['e']);
+}
+function brb_calendar_markup($link_to_book = false) {
+    $o = brb_opt();
+    $notice = brb_notice_hours();
+    $extra = '';
+    if ($link_to_book) {
+        $extra = ' data-book="' . esc_url(home_url('/book/')) . '" data-lazy="1"';
+    }
+    $html = '<div id="brb-cal" class="brb-cal" aria-live="polite" data-api="' . esc_url(rest_url('brb/v1/availability')) . '" data-nonce="' . esc_attr(wp_create_nonce('wp_rest')) . '" data-notice="' . (int) $notice . '" data-mode="' . esc_attr($o['mode']) . '"' . $extra . '>Loading calendar…</div>';
+    $html .= '<p class="brb-legend"><span class="free"></span>Available <span class="partial"></span>Partly booked <span class="booked"></span>Unavailable <span class="soon"></span>Inside ' . (int) $notice . 'h notice</p>';
+    return $html;
+}
+function brb_home_calendar_html() {
+    brb_enqueue_public_calendar();
+    return '<div class="brb brb-home-cal">' . brb_calendar_markup(true) . '</div>';
+}
+add_shortcode('boardroom_booking', function () {
+    brb_enqueue_public_calendar();
     ob_start();
     echo '<div class="brb' . (!empty($_GET['br_token']) ? ' brb-status' : '') . '">';
     if (empty($_GET['br_token'])) echo brb_how_booking_works_html();
@@ -2619,7 +2647,7 @@ add_shortcode('boardroom_booking', function () {
     if (!empty($_GET['br_addon'])) brb_view_addon(sanitize_text_field(wp_unslash($_GET['br_addon'])));
     elseif (!empty($_GET['br_pay'])) brb_view_pay(sanitize_text_field(wp_unslash($_GET['br_pay'])), sanitize_text_field(wp_unslash($_GET['br_sig'] ?? '')));
     elseif (!empty($_GET['br_token'])) brb_view_confirmation(sanitize_text_field(wp_unslash($_GET['br_token'])));
-    elseif (!empty($_GET['date'])) brb_view_quote();
+    elseif (!empty($_GET['date']) && brb_public_date_is_open(sanitize_text_field(wp_unslash($_GET['date'])))) brb_view_quote();
     else brb_view_select();
     echo '</div>';
     return ob_get_clean();
@@ -2668,14 +2696,12 @@ function brb_handle_addon() {
     exit;
 }
 function brb_view_select() {
-    $o = brb_opt();
     brb_steps(0);
     $notice = brb_notice_hours();
     ?>
     <div class="brb-grid">
       <div class="brb-card brb-cal-card">
-        <div id="brb-cal" class="brb-cal" aria-live="polite" data-api="<?php echo esc_url(rest_url('brb/v1/availability')); ?>" data-nonce="<?php echo esc_attr(wp_create_nonce('wp_rest')); ?>" data-notice="<?php echo (int) $notice; ?>" data-mode="<?php echo esc_attr($o['mode']); ?>">Loading calendar…</div>
-        <p class="brb-legend"><span class="free"></span>Available <span class="partial"></span>Partly booked <span class="booked"></span>Unavailable <span class="soon"></span>Inside <?php echo (int) $notice; ?>h notice</p>
+        <?php echo brb_calendar_markup(false); ?>
         <?php echo brb_book_policy_html(); ?>
       </div>
       <form class="brb-card" method="get" id="brb-form">

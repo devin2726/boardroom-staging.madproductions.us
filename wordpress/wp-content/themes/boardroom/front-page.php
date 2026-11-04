@@ -4,6 +4,12 @@
   <div class="cap"><h1>Welcome to The Boardroom</h1><a class="btn" href="<?php echo esc_url($book); ?>">Book Now</a></div>
   <button class="arrow prev" aria-label="Previous">‹</button><button class="arrow next" aria-label="Next">›</button><div class="dots"></div>
 </section>
+<section class="block" id="check-your-date"><div class="wrap">
+<h2>Check Your Date</h2>
+<p class="home-cal-lead">Prices show on the calendar. Nothing's charged until we approve.</p>
+<?php if (function_exists('brb_home_calendar_html')) echo brb_home_calendar_html(); ?>
+<p class="home-cal-more"><a href="<?php echo esc_url($book); ?>">See full booking details</a></p>
+</div></section>
 <?php echo br_tour_video_html(br_ask_walter_card(home_url('/contact/'))); ?>
 <section class="block alt" id="amenities"><div class="wrap"><h2>Amenities</h2><div class="amen">
   <div class="card"><?php echo br_picture($p[2], 'The Boardroom game room with pinball, pool, and shuffleboard'); ?><h3>80-inch TV, Pinball, Pool, Shuffleboard</h3></div>
