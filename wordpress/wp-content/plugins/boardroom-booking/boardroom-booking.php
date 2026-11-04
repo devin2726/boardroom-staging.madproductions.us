@@ -2,11 +2,11 @@
 /**
  * Plugin Name: Boardroom Booking
  * Description: Self-hosted direct booking for The Boardroom — full-day blocks, availability calendar, agreed prices, approval before payment, blackout dates, and emails.
- * Version: 2.5.41
+ * Version: 2.5.42
  * Author: Mad Productions
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.5.41');
+define('BRB_VER', '2.5.42');
 define('BRB_BOOK_SLUG', 'reserve-the-boardroom-quad-cities');
 function brb_book_url() {
     return home_url('/' . BRB_BOOK_SLUG . '/');
@@ -496,9 +496,24 @@ function brb_how_booking_works_steps() {
     ];
 }
 function brb_how_booking_works_html() {
+    $steps = [
+        'Pick a date. Prices are on the calendar.',
+        'Send a request. No charge yet.',
+        'We approve it and email a payment link.',
+        'Pay 50% plus a $250 refundable deposit to hold your date.',
+        'Pay the rest a week before your event.',
+    ];
+    $notes = [
+        ['Hours', '10 AM–11:30 PM. No overnight stays. Book at least 48 hours ahead.'],
+        ['Price', 'From $600; most events are about $1,200.'],
+        ['Payment', 'Card (3% fee) or check.'],
+        ['Cancellation', 'Full refund of your 50% if you cancel 60+ days out. No refund after that.'],
+    ];
     $html = '<section class="brb-how"><h2>Pick a Date</h2><ol>';
-    foreach (brb_how_booking_works_steps() as $step) $html .= '<li>' . esc_html($step) . '</li>';
-    $html .= '</ol></section>';
+    foreach ($steps as $step) $html .= '<li>' . esc_html($step) . '</li>';
+    $html .= '</ol><h3>Good to know</h3><ul>';
+    foreach ($notes as $note) $html .= '<li><strong>' . esc_html($note[0]) . ':</strong> ' . esc_html($note[1]) . '</li>';
+    $html .= '</ul><p class="brb-how-guests"><strong>Guests:</strong> Up to 80. Open houses can go over.</p></section>';
     return $html;
 }
 function brb_book_policy_html() {
@@ -2735,17 +2750,13 @@ function brb_view_select() {
     <div class="brb-grid">
       <div class="brb-card brb-cal-card">
         <?php echo brb_calendar_markup(false); ?>
-        <?php echo brb_book_policy_html(); ?>
       </div>
       <form class="brb-card" method="get" id="brb-form">
         <p class="brb-small">Please choose a start at least <?php echo (int) $notice; ?> hours from now (America/Chicago). Dates inside that window are unavailable.</p>
-        <p class="brb-small"><?php echo esc_html(brb_hours_line()); ?></p>
-        <p class="brb-small"><?php echo esc_html(brb_no_overnight_line()); ?></p>
         <label>Date<input type="date" name="date" id="brb-date" required min="<?php echo esc_attr(brb_now()->format('Y-m-d')); ?>"></label>
         <input type="hidden" name="type" value="day">
         <p class="brb-small" id="brb-notice"></p>
         <label>Estimated Guests<input type="number" name="guests" value="10" min="1" max="200"></label>
-        <p class="brb-small">80 guests. Graduation parties or open houses can go over, since guests come and go.</p>
         <button class="brb-btn" type="submit">Continue</button>
       </form>
     </div>
@@ -2785,8 +2796,6 @@ function brb_view_quote() {
         <?php else: ?>
         <p><strong>price to be confirmed</strong></p>
         <?php endif; ?>
-        <p><?php echo esc_html(brb_no_overnight_line()); ?></p>
-        <?php echo brb_book_policy_html(); ?>
         <a href="<?php echo esc_url(strtok($_SERVER['REQUEST_URI'] ?? brb_book_url(), '?')); ?>">← Change date</a>
       </div>
       <form class="brb-card brb-guest" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
