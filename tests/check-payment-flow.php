@@ -45,7 +45,7 @@ add_filter('pre_wp_mail', function ($short, $atts) {
 $GLOBALS['brb_mails'] = [];
 
 try {
-    brb_t(get_option('brb_version') === '2.5.39', 'plugin storage version is 2.5.39');
+    brb_t(get_option('brb_version') === '2.5.40', 'plugin storage version is 2.5.40');
     $cc_before = (string) brb_opt('inquiry_cc');
     delete_option('brb_inquiry_cc_seeded');
     $cc_settings = get_option('brb_settings');
@@ -874,6 +874,9 @@ try {
     brb_t(strpos($privacy_html, 'Mail or drop off checks payable to Mad Productions at The Boardroom, 2220 37th Street, Moline, IL 61265.') !== false && strpos($privacy_html, '2212') === false, 'privacy tells guests to bring checks to The Boardroom');
     brb_t(strpos($agreement_html, '2220 37th Street, Moline, Illinois 61265') !== false && strpos($agreement_html, '2220 37th Street, Moline, IL 61265') !== false, 'signed agreement body keeps 2220 37th Street');
     brb_t(strpos($agreement_html, 'Staff cannot set the room up') !== false && strpos($agreement_html, 'The minimum host age is 25 for every booking') !== false && strpos($agreement_html, 'no later than one week before the event') !== false && strpos($agreement_html, 'Balloons are allowed') !== false && strpos($agreement_html, 'wall tape') !== false, 'the rental agreement states setup, host age, balance, balloons, and wall tape');
+    $recording = 'The Boardroom is monitored by video and audio recording. By renting the space, Renter consents to being recorded and agrees to inform all guests, vendors and attendees that they may be recorded.';
+    $agreement_src = brb_agreement_html();
+    brb_t(strpos($agreement_src, '22. Recording Notice. ' . $recording) !== false && strpos($agreement_html, '22. Recording Notice. ' . $recording) !== false && strpos($agreement_src, '21. Entire Agreement; Authority to Sign.') < strpos($agreement_src, '22. Recording Notice.') && strpos($agreement_src, '22. Recording Notice.') < strpos($agreement_src, 'IN WITNESS WHEREOF') && strpos($terms_html, 'video and audio recording') === false, 'the rental agreement adds the recording notice after section 21, and the terms page does not');
     brb_t(strpos($agreement_html, '2212 37th Street') === false && strpos($agreement_html, '2212 47 Ave') === false, 'signed agreement body is not rewritten to the site address');
     $contact = get_page_by_path('contact');
     $contact_html = $contact ? (string) $contact->post_content : '';
