@@ -2,11 +2,11 @@
 /**
  * Plugin Name: Boardroom Booking
  * Description: Self-hosted direct booking for The Boardroom — full-day blocks, availability calendar, agreed prices, approval before payment, blackout dates, and emails.
- * Version: 2.5.38
+ * Version: 2.5.39
  * Author: Mad Productions
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.5.38');
+define('BRB_VER', '2.5.39');
 define('BRB_VENUE_ADDRESS', '2220 37th Street, Moline, IL 61265');
 define('BRB_CHECK_ADDRESS', '2212 37th Street, Moline, IL 61265');
 define('BRB_MAPS_URL', 'https://maps.app.goo.gl/nVqUsGTcy48nPzc18');
@@ -964,7 +964,6 @@ function brb_faq_markup() {
 <h2>Booking and dates</h2>
 <details><summary>How do I book?</summary><p>We'd love to host you. Pick your date on the <a href="/book/">Book</a> page. The price shows right on the calendar. Send a request. Nothing is charged yet. Once it's approved, we'll email you a payment link. Your date is reserved once your deposit is received and approved by the Boardroom. A request does not hold the date. Bookings need at least 48 hours' notice.</p></details>
 <details><summary>How booking works</summary><p>HOW_STEPS</p></details>
-<details><summary>Where is the rental checklist?</summary><p>It's on the <a href="/rental-checklist/">Rental Checklist</a> page. We email it when a request is approved, and again about 7 days before the event.</p></details>
 <details><summary>Are overnight stays allowed?</summary><p>No overnight stays. The Boardroom is an event space only.</p></details>
 <details><summary>What dates are open?</summary><p>Use the calendar on the <a href="/book/">Book</a> page, or ask us about a date. We'll tell you if it looks open.</p></details>
 
@@ -1159,7 +1158,6 @@ function brb_refresh_faq() {
         'Can I hold a vendor market or sell items?' => 'No. All events are free to attend. There are no merchandise sales and no ticket sales.',
         'Can I get an invoice or a receipt?' => 'Yes. Card payments get an emailed receipt, and we can provide an invoice or receipt for any payment on request.',
         'Is sales tax included?' => 'Sales tax is included in the price.',
-        'Where is the rental checklist?' => 'The rental checklist is on the <a href="/rental-checklist/">Rental Checklist</a> page. We email it when a request is approved, and again about 7 days before the event.',
     ];
     foreach ($house as $question => $answer) {
         if (strpos($next, $question) !== false) continue;
@@ -2094,7 +2092,7 @@ function brb_send_approve_email($b) {
     $guest_facts = implode("\n\n", array_values(array_filter(brb_payment_lines($b), function ($line) {
         return !in_array($line, [brb_not_held_line(), brb_reserved_line(), brb_approval_line(), brb_request_open_line()], true);
     })));
-    $body = brb_guest_hello_line() . "\n\nYour request is approved.\n\n" . brb_guest_review_line() . "\n\n" . $guest_facts . "\n\n" . brb_guest_out_line() . "\n" . brb_guest_free_line() . "\n\nWhen: " . brb_when($b) . "\n" . brb_event_type_line($b) . "Estimated Guests: {$b->guests}\nReference: {$ref}\n\n" . brb_checklist_plain() . "\nView your booking: " . brb_guest_link($b) . "\n";
+    $body = brb_guest_hello_line() . "\n\nYour request is approved.\n\n" . brb_guest_review_line() . "\n\n" . $guest_facts . "\n\n" . brb_guest_out_line() . "\n" . brb_guest_free_line() . "\n\nWhen: " . brb_when($b) . "\n" . brb_event_type_line($b) . "Estimated Guests: {$b->guests}\nReference: {$ref}\n\nView your booking: " . brb_guest_link($b) . "\n";
     brb_mail($b->email, 'Your Boardroom request is approved (' . $ref . ')', $body, brb_guest_reply_to());
     $staff = "Request approved.\n\n{$facts}\n\nWhen: " . brb_when($b) . "\n" . brb_event_type_line($b) . "Estimated Guests: {$b->guests}\nReference: {$ref}\n\n" . admin_url('admin.php?page=brb&booking=' . (int) $b->id) . "\n";
     brb_mail_staff('Request approved ' . $ref . ' – ' . $b->name, $staff, $b->email);
@@ -2110,8 +2108,8 @@ function brb_send_decline_email($b) {
 function brb_send_checklist_reminder($b) {
     $o = brb_opt();
     $ref = brb_ref($b);
-    $body = brb_guest_hello_line() . "\n\nYour event is about a week away. Here is the rental checklist again.\n\n" . brb_checklist_plain() . "\nWhen: " . brb_when($b) . "\nReference: {$ref}\n\nView your booking: " . brb_guest_link($b) . "\n";
-    return brb_mail($b->email, 'Your Boardroom checklist for ' . $ref, $body, brb_guest_reply_to());
+    $body = brb_guest_hello_line() . "\n\nYour event is about a week away.\n\nWhen: " . brb_when($b) . "\nReference: {$ref}\n\nView your booking: " . brb_guest_link($b) . "\n";
+    return brb_mail($b->email, 'Your Boardroom event is about a week away (' . $ref . ')', $body, brb_guest_reply_to());
 }
 function brb_checklist_reminders() {
     global $wpdb;

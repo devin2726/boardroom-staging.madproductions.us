@@ -45,7 +45,7 @@ add_filter('pre_wp_mail', function ($short, $atts) {
 $GLOBALS['brb_mails'] = [];
 
 try {
-    brb_t(get_option('brb_version') === '2.5.38', 'plugin storage version is 2.5.38');
+    brb_t(get_option('brb_version') === '2.5.39', 'plugin storage version is 2.5.39');
     $cc_before = (string) brb_opt('inquiry_cc');
     delete_option('brb_inquiry_cc_seeded');
     $cc_settings = get_option('brb_settings');
@@ -527,7 +527,7 @@ try {
         brb_t($approve_mail && strpos($approve_mail['message'], 'payable to [VERIFY] Test Payee') !== false && strpos($approve_mail['message'], '[VERIFY] Test Window') !== false && strpos($approve_mail['message'], '[VERIFY] Test Hours') === false && strpos($approve_mail['message'], 'by appointment') !== false, 'the approval email names the payee and the drop-off place, and meetings are by appointment');
         brb_t($approve_mail && strpos($approve_mail['message'], 'Write booking reference ' . brb_ref($priced) . ' on the memo line.') !== false && strpos($approve_mail['message'], '[VERIFY] Test instructions.') !== false, 'the approval email includes the memo line and custom instructions');
         brb_t($approve_mail && strpos($approve_mail['message'], '60 or more days before the event') !== false && strpos($approve_mail['message'], 'less than 60 days before the event') !== false && strpos($approve_mail['message'], 'Refunds are issued manually.') !== false && strpos($approve_mail['message'], '[VERIFY: attorney review]') === false, 'the approval email states the 60-day deposit rule and has no attorney note');
-        brb_t($approve_mail && strpos($approve_mail['message'], 'Rental checklist') !== false && strpos($approve_mail['message'], '8:00 AM') !== false && strpos($approve_mail['message'], 'one-day liquor license') === false && strpos($approve_mail['message'], 'fee $50') === false && strpos($approve_mail['message'], 'minimum host age is 25') !== false, 'the approval email includes the rental checklist without a liquor license');
+        brb_t($approve_mail && strpos($approve_mail['message'], 'Your request is approved.') !== false && strpos($approve_mail['message'], 'Rental checklist') === false && strpos($approve_mail['message'], '/rental-checklist/') === false && strpos($approve_mail['message'], 'one-day liquor license') === false && strpos($approve_mail['message'], 'fee $50') === false, 'the approval email does not include the rental checklist');
         brb_t($approve_mail && strpos($approve_mail['message'], 'a check for $850.00') !== false && strpos($approve_mail['message'], 'That amount is the $600.00 deposit plus the $250.00 refundable damage deposit.') !== false && strpos($approve_mail['message'], 'the remaining balance of $600.00') !== false, 'the approval email asks for the deposit plus the unpaid damage deposit, then the rental remainder');
         $sample = clone $approved;
         $sample->total = 1000;
@@ -786,7 +786,7 @@ try {
     brb_t(stripos($faq_html, 'How many guests can The Boardroom hold') !== false && stripos($faq_html, '80 guests') !== false && stripos($faq_html, '75 to 80') === false && stripos($faq_html, 'Graduation parties or open houses can go over') !== false, 'faq says 80 guests and keeps the graduation note');
     brb_t(strpos($faq_html, 'Sunday to Thursday from $850') !== false && strpos($faq_html, 'Friday and Saturday $1,400') !== false && strpos($faq_html, 'holiday dates priced higher') !== false, 'faq explains the calendar rates');
     brb_t(strpos($faq_html, 'No cooking is allowed in the venue') !== false && strpos($faq_html, 'The stove top may not be used') !== false && strpos($faq_html, 'Food warmers (for keeping prepared food warm)') !== false, 'faq says no cooking and allows food warmers');
-    brb_t(strpos($faq_html, 'https://moline.il.us/244/Liquor-Licensing') === false && strpos($faq_html, 'one-day liquor license') === false && strpos($faq_html, 'The price shows right on the calendar.') !== false && strpos($faq_html, '/rental-checklist/') !== false && strpos($faq_html, 'handicapped accessible') !== false && strpos($faq_html, 'What decorations are allowed?') !== false && strpos($faq_html, 'Venmo') === false && strpos($faq_html, 'A full day runs from 10:00 AM to 11:30 PM.') !== false && strpos($faq_html, 'Half days') === false && strpos($faq_html, 'Setup can begin at 8:00 AM.') !== false, 'faq keeps the calendar price, decorations, access, and the rental checklist, without a liquor license or half days');
+    brb_t(strpos($faq_html, 'https://moline.il.us/244/Liquor-Licensing') === false && strpos($faq_html, 'one-day liquor license') === false && strpos($faq_html, 'The price shows right on the calendar.') !== false && strpos($faq_html, '/rental-checklist/') === false && strpos($faq_html, 'Where is the rental checklist?') === false && strpos($faq_html, 'handicapped accessible') !== false && strpos($faq_html, 'What decorations are allowed?') !== false && strpos($faq_html, 'Venmo') === false && strpos($faq_html, 'A full day runs from 10:00 AM to 11:30 PM.') !== false && strpos($faq_html, 'Half days') === false && strpos($faq_html, 'Setup can begin at 8:00 AM.') !== false, 'faq keeps the calendar price, decorations, and access, without the rental checklist, a liquor license, or half days');
     if ($faq) {
         wp_update_post(['ID' => (int) $faq->ID, 'post_content' => '<p>Custom FAQ without the seed question.</p>']);
         clean_post_cache((int) $faq->ID);
@@ -856,13 +856,13 @@ try {
     $contact_template = file_get_contents(get_stylesheet_directory() . '/page-contact.php');
     brb_t(strpos($map, '<iframe') !== false && strpos($map, 'loading="lazy"') !== false && strpos($map, 'google.com/maps/embed') !== false && strpos($map, '41.4913116') !== false && strpos($map, '-90.4820481') !== false && stripos($map, 'Load map') === false, 'the venue map embed still loads from Google with the venue coordinates');
     $contact_ask = function_exists('br_contact_ask_button') ? br_contact_ask_button() : '';
-    brb_t(is_string($contact_template) && strpos($contact_template, 'brb_tour_form') !== false && strpos($contact_template, 'brb_map_embed') === false && strpos($contact_template, "br_ask_walter_card('#contact-inquiry')") !== false && strpos($contact_template, "br_ask_walter_card('#contact-inquiry')") < strpos($contact_template, 'brb_tour_form') && strpos($contact_ask, 'data-brb-open-chat') !== false && strpos($contact_template, 'Thank You!') !== false && strpos($contact_template, 'We will call or email you shortly!') !== false && strpos($contact_template, '/rental-checklist/') !== false && strpos($contact_template, 'brb_tour_form') < strpos($contact_template, 'br_contact_ask_button()') && strpos($contact_template, 'mailto:') === false && strpos($contact_template, 'tel:') === false && strpos($contact_template, '2212') === false && strpos($contact_template, 'brb_directions_markup') === false && strpos($contact_template, 'br_tour_video_html') === false, 'the contact page is Walter then the form, and the thank-you keeps Ask Walter');
+    brb_t(is_string($contact_template) && strpos($contact_template, 'brb_tour_form') !== false && strpos($contact_template, 'brb_map_embed') === false && strpos($contact_template, "br_ask_walter_card('#contact-inquiry')") !== false && strpos($contact_template, "br_ask_walter_card('#contact-inquiry')") < strpos($contact_template, 'brb_tour_form') && strpos($contact_ask, 'data-brb-open-chat') !== false && strpos($contact_template, 'Thank You!') !== false && strpos($contact_template, 'We will call or email you shortly!') !== false && strpos($contact_template, '/rental-checklist/') === false && strpos($contact_template, 'brb_tour_form') < strpos($contact_template, 'br_contact_ask_button()') && strpos($contact_template, 'mailto:') === false && strpos($contact_template, 'tel:') === false && strpos($contact_template, '2212') === false && strpos($contact_template, 'brb_directions_markup') === false && strpos($contact_template, 'br_tour_video_html') === false, 'the contact page is Walter then the form, and the thank-you keeps Ask Walter');
     $footer = file_get_contents(get_stylesheet_directory() . '/footer.php');
     brb_t(is_string($footer) && strpos($footer, '2220 37th Street, Moline, IL 61265') !== false && strpos($footer, '2212 37th Street') === false, 'footer shows the venue address');
-    brb_t(is_string($footer) && strpos($footer, '/rental-checklist/') !== false, 'footer links to the rental checklist');
+    brb_t(is_string($footer) && substr_count($footer, '/rental-checklist/') === 1 && strpos($footer, '>Rental Checklist</a>') !== false && strpos($footer, 'class="btn"') === false, 'the footer has one plain rental checklist link');
     $book_page = file_get_contents(get_stylesheet_directory() . '/page.php');
     $book_fn = file_get_contents(get_stylesheet_directory() . '/functions.php');
-    brb_t(is_string($book_page) && strpos($book_page, 'br_book_shortcuts_html') === false && strpos($book_page, 'br_good_to_know_html') === false && strpos($book_page, "br_ask_walter_card(home_url('/contact/'))") !== false, 'the book page drops the checklist card and Good to know, and FAQ keeps the Walter card');
+    brb_t(is_string($book_page) && strpos($book_page, 'br_book_shortcuts_html') === false && strpos($book_page, 'br_good_to_know_html') === false && strpos($book_page, "br_ask_walter_card(home_url('/contact/'))") !== false && strpos($book_page, 'the_content') < strpos($book_page, "br_ask_walter_card(home_url('/contact/#contact-inquiry'))"), 'the book page drops the checklist card and Good to know, and puts Walter after the calendar');
     $checklist_page = get_page_by_path('rental-checklist');
     $checklist_html = $checklist_page ? do_shortcode((string) $checklist_page->post_content) : '';
     brb_t($checklist_page && $checklist_page->post_title === 'Rental Checklist' && strpos($checklist_html, '8:00 AM') !== false && strpos($checklist_html, '309-524-2004') === false && strpos($checklist_html, 'one-day liquor license') === false && strpos($checklist_html, 'BYOB is allowed.') !== false && strpos($checklist_html, brb_whole_money(brb_addon_price())) !== false && substr_count($checklist_html, 'Balloons are fine, no glitter.') === 1 && strpos($checklist_html, 'Not allowed: Glitter,') === false, 'the rental checklist drops the liquor license and says balloons are fine, no glitter');
@@ -887,17 +887,17 @@ try {
         $remind_mail = null;
         $remind_mails = 0;
         foreach ($GLOBALS['brb_mails'] as $m) {
-            if (stripos($m['to'], 'checklist-renter@example.com') !== false && stripos($m['subject'], 'checklist') !== false) {
+            if (stripos($m['to'], 'checklist-renter@example.com') !== false && stripos($m['subject'], 'about a week away') !== false) {
                 $remind_mails++;
                 $remind_mail = $m;
             }
         }
         $reminded = brb_booking((int) $remind->id);
-        brb_t($remind_mails === 1 && $remind_mail && strpos($remind_mail['message'], 'about a week away') !== false && $reminded && !empty($reminded->checklist_reminded), 'the checklist reminder is sent about 7 days before the event');
+        brb_t($remind_mails === 1 && $remind_mail && strpos($remind_mail['message'], 'about a week away') !== false && strpos($remind_mail['message'], 'Rental checklist') === false && strpos($remind_mail['message'], '/rental-checklist/') === false && $reminded && !empty($reminded->checklist_reminded), 'the week-away reminder does not include the rental checklist');
         brb_checklist_reminders();
         $again = 0;
         foreach ($GLOBALS['brb_mails'] as $m) {
-            if (stripos($m['to'], 'checklist-renter@example.com') !== false && stripos($m['subject'], 'checklist') !== false) $again++;
+            if (stripos($m['to'], 'checklist-renter@example.com') !== false && stripos($m['subject'], 'about a week away') !== false) $again++;
         }
         brb_t($again === 1, 'the checklist reminder is sent once');
     } else {

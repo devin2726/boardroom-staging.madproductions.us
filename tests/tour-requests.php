@@ -33,7 +33,7 @@ $created = [];
 $snapshot = get_option('brb_settings');
 
 try {
-    brb_t(get_option('brb_version') === '2.5.38', 'plugin storage version is 2.5.38');
+    brb_t(get_option('brb_version') === '2.5.39', 'plugin storage version is 2.5.39');
     brb_t($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', brb_tour_table())) === brb_tour_table(), 'inquiry table still exists');
     $cols = $wpdb->get_col('SHOW COLUMNS FROM ' . brb_tour_table(), 0);
     brb_t(in_array('phone', $cols, true) && in_array('topic', $cols, true) && in_array('preferred', $cols, true), 'topic and preferred were added and phone was kept');
@@ -288,7 +288,7 @@ try {
     $hero_at = strpos($template, 'page-hero');
     $form_at = strpos($template, 'brb_tour_form');
     $thank_at = strpos($template, 'Thank You!');
-    brb_t($hero_at !== false && $form_at !== false && $thank_at !== false && $hero_at < $form_at && $form_at < $thank_at && strpos($template, 'page-hero', $thank_at) === false && strpos($template, 'brb_tour_form', $thank_at) === false && strpos($template, 'We will call or email you shortly!') !== false && strpos($template, '/rental-checklist/') !== false && strpos($template, 'if (!$thanks)') !== false, 'a successful inquiry replaces the page with a thank-you, the checklist, and Ask Walter');
+    brb_t($hero_at !== false && $form_at !== false && $thank_at !== false && $hero_at < $form_at && $form_at < $thank_at && strpos($template, 'page-hero', $thank_at) === false && strpos($template, 'brb_tour_form', $thank_at) === false && strpos($template, 'We will call or email you shortly!') !== false && strpos($template, '/rental-checklist/') === false && strpos($template, 'if (!$thanks)') !== false, 'a successful inquiry replaces the page with a thank-you and Ask Walter');
     brb_t(strpos($map, 'loading="lazy"') !== false && strpos($map, 'https://www.google.com/maps/embed') !== false && strpos($map, '41.4913116') !== false && strpos($map, '-90.4820481') !== false, 'the map iframe is lazy and uses the venue coordinates');
     brb_t(strpos($map, BRB_MAPS_URL) === false, 'the directions short link stays outside the iframe');
     $header = file_get_contents(get_stylesheet_directory() . '/header.php');
@@ -313,7 +313,12 @@ try {
     }
     brb_t(strpos($amenities, '<li>Stove</li>') === false && strpos($amenities, '<li>Oven</li>') === false, 'amenities do not list a stove or oven');
     brb_t(is_string($gallery_tpl) && strpos($gallery_tpl, 'br_amenities_html') !== false && strpos($gallery_tpl, 'id="amenities"') !== false && strpos($gallery_tpl, 'br_good_to_know_html') === false && strpos($gallery_tpl, 'Good to know') === false && strpos($gallery_tpl, 'See the amenities') === false && strpos($gallery_tpl, 'href="#amenities"') === false, 'the gallery page keeps the amenities section without Good to know');
-    brb_t(is_string($book_tpl) && strpos($book_tpl, 'br_book_shortcuts_html') === false && strpos($book_tpl, 'br_good_to_know_html') === false && strpos($book_tpl, 'Good to know') === false && strpos($book_tpl, "br_ask_walter_card(home_url('/contact/'))") !== false && strpos($book_tpl, 'br_ask_walter_card') < strpos($book_tpl, 'the_content') && strpos($book_tpl, 'br_review_rotator_html') === false, 'the book page is only the booking content, and FAQ keeps Walter at the top');
+    $book_card_at = strpos($book_tpl, "br_ask_walter_card(home_url('/contact/#contact-inquiry'))");
+    $calendar_at = strpos($book_tpl, 'the_content');
+    brb_t(is_string($book_tpl) && strpos($book_tpl, 'br_book_shortcuts_html') === false && strpos($book_tpl, 'br_good_to_know_html') === false && strpos($book_tpl, 'Good to know') === false && strpos($book_tpl, "br_ask_walter_card(home_url('/contact/'))") !== false && strpos($book_tpl, 'br_ask_walter_card') < $calendar_at && strpos($book_tpl, 'br_review_rotator_html') === false, 'FAQ keeps Walter above the page content, without Good to know or the checklist card');
+    brb_t($calendar_at !== false && $book_card_at !== false && $calendar_at < $book_card_at && strpos($book_tpl, "is_page('book')") !== false, 'the book page renders the Walter card after the calendar');
+    $book_card = br_ask_walter_card(home_url('/contact/#contact-inquiry'));
+    brb_t(strpos($book_card, 'href="' . esc_url(home_url('/contact/#contact-inquiry')) . '"') !== false && strpos($book_card, 'Leave your details') !== false && strpos($book_card, 'Hi, How Can I Help You?') !== false && strpos($book_card, 'data-brb-scroll-form="#contact-inquiry"') === false, 'the book Walter card links Leave your details to the contact form');
     brb_t(is_string($book_tpl) && strpos($book_tpl, "br_ask_walter_card(home_url('/contact/'))") !== false && strpos($book_tpl, 'br_ask_walter_card') < strpos($book_tpl, 'the_content'), 'FAQ opens with the shared Walter card');
     $reviews = br_reviews_html();
     brb_t(strpos($home, 'br_reviews_html') !== false && strpos($home, 'br_reviews_html') < strpos($home, 'block dark cta'), 'guest reviews sit before the reservation call to action');
