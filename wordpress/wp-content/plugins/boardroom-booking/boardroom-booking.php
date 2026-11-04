@@ -2,11 +2,20 @@
 /**
  * Plugin Name: Boardroom Booking
  * Description: Self-hosted direct booking for The Boardroom — full-day blocks, availability calendar, agreed prices, approval before payment, blackout dates, and emails.
- * Version: 2.5.43
+ * Version: 2.5.44
  * Author: Mad Productions
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.5.43');
+define('BRB_VER', '2.5.44');
+function brb_reserve_explainer_steps() {
+    return [
+        'Pick a date. Prices are on the calendar.',
+        'Send a request. No charge yet.',
+        'We approve it and email a payment link.',
+        'Within 1 day of signing, pay 50% of the invoice. That deposit holds the date. The $250 refundable damage deposit is separate.',
+        'Pay the rest a week before your event.',
+    ];
+}
 define('BRB_BOOK_SLUG', 'reserve-the-boardroom-quad-cities');
 function brb_book_url() {
     return home_url('/' . BRB_BOOK_SLUG . '/');
@@ -496,13 +505,7 @@ function brb_how_booking_works_steps() {
     ];
 }
 function brb_how_booking_works_html() {
-    $steps = [
-        'Pick a date. Prices are on the calendar.',
-        'Send a request. No charge yet.',
-        'We approve it and email a payment link.',
-        'Within 1 day of signing, pay 50% of the invoice. That deposit holds the date. The $250 refundable damage deposit is separate.',
-        'Pay the rest a week before your event.',
-    ];
+    $steps = brb_reserve_explainer_steps();
     $notes = [
         ['Hours', 'A full day runs from 10:00 AM to 11:30 PM. Everyone must be out by 11:30 PM. This is firm, with no exceptions. Overnight stays are not permitted. Book at least 48 hours ahead.'],
         ['Price', 'From $600; most events are about $1,200.'],

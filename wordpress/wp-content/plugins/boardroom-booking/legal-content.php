@@ -22,10 +22,11 @@ function brb_terms_html() {
 
 <h2>The quick version</h2>
 <ul>
-<li>Hours: Full days run 10:00 AM to 11:30 PM.</li>
+<li>Hours: Each booking is one full day, 10:00 AM to 11:30 PM. Book at least 48 hours ahead.</li>
 <li>Out by 11:30 PM. This one's firm, no exceptions.</li>
 <li>You set up and tear down. Our staff can't set the room for you. Setup starts at 8:00 AM on full days.</li>
-<li>80 guests. The host must be 25 or older.</li>
+<li>Full days start at $600. Most events are about $1,200. The price for a date is on the calendar.</li>
+<li>Up to 80 guests. Open houses and graduation parties can go over, since guests come and go. The host must be 25 or older.</li>
 <li>Free events only. Live music and bands are welcome. Tickets, cover charges, and concerts aren't.</li>
 <li>BYOB is fine. No cooking or stove-top use. Food warmers and the bar area are yours to use. There are no draft taps.</li>
 <li>Balloons, yes. Glitter, confetti, and wall tape, no.</li>
@@ -34,7 +35,7 @@ function brb_terms_html() {
 </ul>
 
 <h2>1. Your rental time</h2>
-<p>Your rental period is the date and times on your invoice, booking confirmation, or written OK from us. Please don't arrive before setup, stay past your end time, or use the space for anything other than your approved event without checking with us in writing first. Doing so can mean extra charges, a lost deposit, or other remedies.</p>
+<p>Your rental period is the date and times on your invoice, booking confirmation, or written OK from us. Each booking is one full day, from 10:00 AM to 11:30 PM. Book at least 48 hours ahead. Please don't arrive before setup, stay past your end time, or use the space for anything other than your approved event without checking with us in writing first. Doing so can mean extra charges, a lost deposit, or other remedies.</p>
 
 <h2>2. Keys and codes</h2>
 <p>We'll give you a key, code, or other way in. Please keep it safe, don't copy it, and only share it with your approved event helpers. Return any physical keys as soon as your rental ends. If something is lost or used without permission by you or anyone with your event, you'll cover rekeying, lock or code changes, and related costs.</p>
@@ -45,13 +46,14 @@ function brb_terms_html() {
 <li>The remaining balance is due no later than one week before your event.</li>
 <li>Before your event starts: all rental, cleaning, and damage deposit amounts must be paid.</li>
 <li>Sales tax is included in the price.</li>
+<li>Full days start at $600, and most events are about $1,200. The price for your date is on the calendar, and we confirm the final price by email.</li>
 <li>Pay by check, in person, or online by card once approved. Card payments add a 3% processing fee on top of the amount paid, and that fee isn't refundable.</li>
 <li>Make checks payable to Mad Productions at The Boardroom, 2220 37th Street, Moline, IL 61265.</li>
 <li>Late payment may cancel your reservation without further notice.</li>
 </ul>
 
 <h2>4. Guests and supervision</h2>
-<p>80 guests, unless we approve a different number in writing. The host must be 25 or older, and you (or a responsible adult you name) must be on site the whole time. You're in charge of everyone who comes in: guests, kids, vendors, and anyone else. Service animals are welcome where the law requires; pets aren't.</p>
+<p>Up to 80 guests. Open houses and graduation parties can go over, since guests come and go. Any other number over 80 needs our approval in writing. The host must be 25 or older, and you (or a responsible adult you name) must be on site the whole time. You're in charge of everyone who comes in: guests, kids, vendors, and anyone else. Service animals are welcome where the law requires; pets aren't.</p>
 
 <h2>5. Event insurance</h2>
 <p>You'll need special event or party liability insurance covering injury, property damage, and your guests' activities. If alcohol is involved, please add liquor liability coverage where it's available and applies. We may ask for proof before giving you access, and may ask that MAD Productions, LLC, The Boardroom QC, the venue owner, and related parties be listed as additional insureds. Without acceptable proof, we may cancel or refuse access, and amounts already owed still apply. We also recommend carrying your own home or renters policy.</p>
@@ -125,6 +127,9 @@ function brb_terms_html() {
 <h2>21. The whole agreement</h2>
 <p>The signed agreement, together with your invoice, booking confirmation, and any written addendum or rules from us, is the entire deal. Whoever signs for the renter confirms they're authorized to, and is personally responsible if they're not.</p>
 
+<h2>22. Recording</h2>
+<p>The venue may use audio and video recording, including security cameras in common areas and outside. Cameras are not used in restrooms. By entering, you and your guests consent to that recording. Please tell your guests before they come.</p>
+
 <h2>How booking works</h2>
 TERMS_STEPS
 <p>One heads-up: the room isn't set up or decorated when you arrive, except in December, when our Christmas décor is up.</p>
@@ -132,11 +137,11 @@ TERMS_STEPS
 <h2>The signed agreement controls</h2>
 <p>This page is a friendly summary. If anything here differs from your signed <a href="/rental-agreement/">Rental Agreement</a>, the agreement controls.</p>
 <p>Questions? We're happy to help. <a href="/contact/">Get in touch</a>.</p>
-<p class="updated">Last updated: November 3, 2026</p>
+<p class="updated">Last updated: November 4, 2026</p>
 <p>The Boardroom QC · 2220 37th Street, Moline, IL 61265 · <a href="https://maps.app.goo.gl/nVqUsGTcy48nPzc18" rel="noopener noreferrer">Get directions</a></p>
 TERMS_HTML;
     $steps = '';
-    foreach (brb_how_booking_works_steps() as $step) $steps .= '<li>' . $step . '</li>';
+    foreach (brb_reserve_explainer_steps() as $step) $steps .= '<li>' . $step . '</li>';
     return str_replace('TERMS_STEPS', '<ol>' . $steps . '</ol>', $html);
 }
 
@@ -191,13 +196,13 @@ WHEREAS, Owner agrees to allow such temporary use only under the terms, conditio
 
 NOW, THEREFORE, in consideration of the mutual promises and covenants stated herein, the Parties agree as follows:
 
-1. Rental Period and Limited Use. Renter shall have access to and use of the Venue only during the date(s) and time(s) stated on the invoice, booking confirmation, or written approval issued by Owner (the "Rental Period"). Renter shall not enter before the setup time, remain after the end of the Rental Period, or use the Venue for any purpose other than the approved event without Owner's prior written consent. Setup on the morning of the event is included. Renters set up and tear down. Staff cannot set the room up. On a full day, setup can begin at 8:00 AM. Balloons are allowed. Wall tape is not allowed. Overnight stays are not permitted. The Venue is an event space only. A full day runs from 10:00 AM to 11:30 PM. Everyone must be out of the Venue by 11:30 PM. This is firm, with no exceptions. All events must be free to attend: no tickets, no cover charge, no paid admission, no door fees, and no ticket or merchandise sales. Guests may have a band or live music, as long as they are not charging for the event. Owner does not host concerts or ticketed shows. Any entry before the setup time, late departure, or unapproved use may result in additional charges, loss of deposit, and any other remedies available to Owner.
+1. Rental Period and Limited Use. Renter shall have access to and use of the Venue only during the date(s) and time(s) stated on the invoice, booking confirmation, or written approval issued by Owner (the "Rental Period"). Renter shall not enter before the setup time, remain after the end of the Rental Period, or use the Venue for any purpose other than the approved event without Owner's prior written consent. Setup on the morning of the event is included. Renters set up and tear down. Staff cannot set the room up. Except in December, when Owner's Christmas décor is in place, the Venue is not decorated when Renter arrives. On a full day, setup can begin at 8:00 AM. Balloons are allowed. Wall tape is not allowed. Overnight stays are not permitted. The Venue is an event space only. Each booking is one full day only. Half-day and hourly rentals are not offered. A booking must begin at least 48 hours after it is requested, unless Owner agrees otherwise in writing. A full day runs from 10:00 AM to 11:30 PM. Everyone must be out of the Venue by 11:30 PM. This is firm, with no exceptions. All events must be free to attend: no tickets, no cover charge, no paid admission, no door fees, and no ticket or merchandise sales. Guests may have a band or live music, as long as they are not charging for the event. Owner does not host concerts or ticketed shows. Any entry before the setup time, late departure, or unapproved use may result in additional charges, loss of deposit, and any other remedies available to Owner.
 
 2. Access, Keys, and Codes. Owner may provide Renter with one (1) key, access code, or other entry method as deemed necessary by Owner. Renter shall safeguard all keys, codes, and access credentials, shall not duplicate or share them except with approved event representatives, and shall return all physical access items immediately at the end of the Rental Period. Renter is responsible for all costs related to lost keys, rekeying, lock changes, code changes, or unauthorized access caused by Renter or Renter's guests, invitees, vendors, contractors, agents, or representatives.
 
-3. Payment, Deposit, and Fees. Before the beginning of the Rental Period, Renter shall pay all rental fees, cleaning fees, security deposits, and any other charges stated by Owner. Unless Owner agrees otherwise in writing, Renter must pay fifty percent (50%) of the invoice within one (1) day after signing this Agreement. That deposit holds the date. It is refundable if the Owner receives written cancellation 60 or more days before the event, less any non-refundable processing charges (including the 3% card processing fee) and costs already incurred. It is not refundable if cancellation is received less than 60 days before the event. A request does not reserve the date until the deposit is received. The remaining balance is due no later than one week before the event. Failure to timely pay may result in cancellation of the reservation without further notice.
+3. Payment, Deposit, and Fees. Before the beginning of the Rental Period, Renter shall pay all rental fees, cleaning fees, security deposits, and any other charges stated by Owner. Unless Owner agrees otherwise in writing, Renter must pay fifty percent (50%) of the invoice within one (1) day after signing this Agreement. That deposit holds the date. It is refundable if the Owner receives written cancellation 60 or more days before the event, less any non-refundable processing charges (including the 3% card processing fee) and costs already incurred. It is not refundable if cancellation is received less than 60 days before the event. A request does not reserve the date until the deposit is received. The remaining balance is due no later than one week before the event. Published full-day rates start at $600, and most events are about $1,200. The price for a date is the rate shown on the booking calendar, and Owner confirms the final price in writing. Sales tax is included in the price. The refundable damage deposit is a flat $250. It is charged with the booking deposit, is separate from the 50% deposit that holds the date, and mainly covers cleaning and garbage. Failure to timely pay may result in cancellation of the reservation without further notice.
 
-4. Occupancy, Conduct, and Supervision. The Venue shall not be occupied by more than 80 guests unless Owner gives written approval for a different limit. The minimum host age is 25 for every booking. Renter shall be present or shall designate a responsible adult representative who is present during the entire event. Renter is solely responsible for supervising all guests, invitees, children, vendors, contractors, and any other persons entering the Venue during the Rental Period. No pets or animals of any kind are permitted, except documented service animals as required by applicable law.
+4. Occupancy, Conduct, and Supervision. The Venue shall not be occupied by more than 80 guests unless the event is an open house or a graduation party, in which case guests may come and go above that number, or Owner gives written approval for a different limit. The minimum host age is 25 for every booking. Renter shall be present or shall designate a responsible adult representative who is present during the entire event. Renter is solely responsible for supervising all guests, invitees, children, vendors, contractors, and any other persons entering the Venue during the Rental Period. No pets or animals of any kind are permitted, except documented service animals as required by applicable law.
 
 5. Required Event Liability Insurance. As a condition of using the Venue, Renter shall obtain and maintain, at Renter's sole cost, special event liability insurance or party liability insurance covering the event, the Rental Period, bodily injury, property damage, and the activities of Renter and Renter's guests. Owner may require proof of such insurance before granting access to the Venue. If alcohol is served, sold, distributed, or consumed, Renter shall also obtain liquor liability coverage or a special event liquor liability endorsement if available and applicable. Owner may require that MAD Productions, LLC, The Boardroom QC, the Venue owner, and any related parties designated by Owner be named as additional insureds. Failure to provide acceptable proof of insurance may result in cancellation or denial of access, without waiver of any amounts owed.
 
@@ -233,7 +238,7 @@ NOW, THEREFORE, in consideration of the mutual promises and covenants stated her
 
 21. Entire Agreement; Authority to Sign. This Agreement, together with any invoice, booking confirmation, written addendum, or written rules provided by Owner, constitutes the entire agreement between the Parties regarding the rental and use of the Venue. The person signing for Renter represents that he or she has authority to bind Renter and accepts personal responsibility if such authority does not exist.
 
-22. Recording Notice. The Boardroom is monitored by video and audio recording. By renting the space, Renter consents to being recorded and agrees to inform all guests, vendors and attendees that they may be recorded.
+22. Recording Notice. The Venue may use audio and video recording, including security cameras in common areas and exterior areas. Cameras are not used in restrooms. By entering the Venue, Renter and Renter's guests, vendors, and other attendees consent to that recording. Renter shall inform Renter's guests, vendors, and other attendees that recording may be in use.
 
 IN WITNESS WHEREOF, the Parties acknowledge that they have read, understand, and agree to be bound by this Agreement as of the date(s) signed below.
 
