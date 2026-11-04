@@ -997,6 +997,7 @@ try {
     $_GET = [];
     $picker = do_shortcode('[boardroom_booking]');
     brb_t(strpos($picker, 'Continue') !== false && strpos($picker, 'hours from now') !== false, 'calendar explains the minimum notice');
+    brb_t(strpos($picker, '<h2>Reserve Your Date</h2>') !== false && strpos($picker, 'How booking works') === false && strpos($picker, 'Pick your date. The price shows right on the calendar.') !== false, 'the book page heading is Reserve Your Date and the steps stay');
     brb_t(strpos($picker, 'Full days start at $600, and most events come to about $1,200. We confirm your final price by email.') !== false && strpos($picker, 'To hold your date, pay 50% of the rental plus a $250 refundable damage deposit.') !== false && strpos($picker, 'Cancellations made less than 60 days out are not refunded.') !== false && strpos($picker, 'no separate hourly price') === false && strpos($picker, 'Half day') === false && strpos($picker, 'Number of days') === false && strpos($picker, 'Estimated Guests') !== false && strpos($picker, 'Pricing from $600 per day') === false && strpos($picker, 'Read the Rental Terms') === false, 'the book calendar shows the three policy sections and a one-day form');
     brb_t(strpos($picker, '$500') === false && strpos($picker, '$75') === false && strpos($picker, '/hr') === false, 'calendar has no hourly dollar rate');
 
