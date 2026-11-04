@@ -994,14 +994,14 @@ try {
     brb_t(strpos($quote_html, 'No overnight stays. The Boardroom is an event space only.') !== false && strpos($quote_html, 'Estimated Guests:') !== false, 'review step states the no-overnight rule and estimated guests');
     brb_t(stripos($quote_html, 'check-in') === false && stripos($quote_html, 'check-out') === false && stripos($quote_html, 'per night') === false && stripos($quote_html, 'per-night') === false && stripos($quote_html, 'guests staying') === false && strpos($quote_html, '[VERIFY] latest end time') === false, 'review step uses event wording');
     brb_t(strpos($quote_html, 'name="event_type"') === false && strpos($quote_html, 'name="alcohol"') === false && strpos($quote_html, 'Will alcohol be served?') === false, 'review page does not ask for an event type or alcohol');
-    brb_t(strpos($quote_html, 'name="private_event"') === false && strpos($quote_html, 'name="end_time"') === false && strpos($quote_html, 'name="host_age"') === false && strpos($quote_html, 'name="days"') === false && strpos($quote_html, 'name="free_admission"') !== false && strpos($quote_html, 'liquor license') === false && strpos($quote_html, 'Tell us about your event') !== false && strpos($quote_html, 'Estimated Guests:') !== false && strpos($quote_html, 'Rental Price*:') !== false && strpos($quote_html, '*plus deposit') !== false, 'review page keeps free-to-attend and estimated guests, and labels the rental price');
+    brb_t(strpos($quote_html, 'name="private_event"') === false && strpos($quote_html, 'name="end_time"') === false && strpos($quote_html, 'name="host_age"') === false && strpos($quote_html, 'name="days"') === false && strpos($quote_html, 'name="free_admission"') !== false && strpos($quote_html, 'liquor license') === false && strpos($quote_html, 'Tell us about your event') !== false && strpos($quote_html, 'Estimated Guests:') !== false && strpos($quote_html, 'Rental Price: ') !== false && strpos($quote_html, '(+deposit)') !== false && strpos($quote_html, 'Rental Price*:') === false && strpos($quote_html, '*plus deposit') === false, 'review page keeps free-to-attend and estimated guests, and labels the rental price');
     brb_t(brb_host_age_label('under_21') === 'Under 21' && brb_host_age_label('age_21_24') === '21 to 24' && brb_host_age_label('under_25') === 'Under 25' && !isset(brb_host_ages()['age_21_24']), 'older host-age answers still display and new bookings use 25');
     brb_t(strpos($quote_html, '60 or more days before the event') !== false && strpos($quote_html, 'less than 60 days out') !== false && strpos($quote_html, 'subject to approval') !== false && strpos($quote_html, '<h3>Pricing</h3>') !== false && strpos($quote_html, '<h3>Payment</h3>') !== false && strpos($quote_html, '<h3>Cancellation</h3>') !== false, 'review page states approval and the book pricing, payment, and cancellation sections');
     brb_t(strpos($quote_html, '[VERIFY] Test instructions.') === false && strpos($quote_html, 'Extra instructions for bringing the check') === false && strpos($quote_html, '[VERIFY: attorney review]') === false, 'review page hides payment instructions and the attorney note');
     brb_t(stripos($quote_html, 'cash') === false, 'the public review step stays check-only');
     $later_rate = brb_rate_for_date($later, 'full');
     if ($later_rate !== null) {
-        brb_t(strpos($quote_html, 'Rental Price*: ' . brb_whole_money($later_rate)) !== false && strpos($quote_html, '*plus deposit') !== false, 'review shows the calendar price for the date');
+        brb_t(strpos($quote_html, 'Rental Price: ' . brb_whole_money($later_rate) . ' (+deposit)') !== false && strpos($quote_html, '*plus deposit') === false, 'review shows the calendar price for the date');
     } else {
         brb_t(strpos($quote_html, 'Full days start at $600, and most events come to about $1,200. We confirm your final price by email.') !== false, 'review page shows the book pricing paragraph');
         brb_t(stripos($quote_html, 'price to be confirmed') !== false, 'review page says price to be confirmed');
@@ -1021,7 +1021,7 @@ try {
     $priced = brb_quote(brb_build_range(['date' => $later, 'type' => 'day', 'days' => 1, 'guests' => 4]));
     brb_t(!empty($priced['price_set']) && (float) $priced['total'] === 900.0, 'a saved calendar rate becomes the quote total');
     $priced_html = do_shortcode('[boardroom_booking]');
-    brb_t(strpos($priced_html, 'Rental Price*: $900') !== false && strpos($priced_html, '*plus deposit') !== false, 'review shows the date price when a rate is saved');
+    brb_t(strpos($priced_html, 'Rental Price: $900 (+deposit)') !== false && strpos($priced_html, '*plus deposit') === false, 'review shows the date price when a rate is saved');
     update_option('brb_settings', $rate_saved);
     brb_t(brb_rate_for_date('2026-11-23', 'full') === 850.0, 'a Monday in the default season is 850');
     brb_t(brb_rate_for_date('2026-11-25', 'full') === 1500.0, 'November 25 uses its date rate');
