@@ -861,6 +861,9 @@ function brb_chat_specific_text($text) {
     if (preg_match('/\b(monday|tuesday|wednesday|thursday|weekday)s?\b/', $t) && !preg_match('/\b(this|next)\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/', $t) && !preg_match('/discount|cheaper|secret/', $t)) {
         $bits[] = brb_hours_line();
     }
+    if (preg_match('/\b(?:bachelorettes?|bachelor part(?:y|ies)|bridal part(?:y|ies)|hens? part(?:y|ies)|hen\'s part(?:y|ies)|stag part(?:y|ies))\b/', $t)) {
+        $bits[] = brb_chat_party_line();
+    }
     if (preg_match('/wedding|shower|graduation|\bgrad\b|birthday|funeral|celebration of life|\bteens?\b|\bteenagers?\b|corporate|business meeting|\bmeeting\b/', $t)) {
         $bits[] = brb_chat_detail()
             ? 'We\'d love to host you. Weddings, showers, graduations, kids birthdays, funerals, business meetings, and teen events are welcome when the event is free to attend, within capacity, and finished by 11:30 PM. The minimum host age is 25 for every booking.'
@@ -1106,6 +1109,9 @@ function brb_chat_payment_text($include_checks = false) {
     return 'The deposit is 50% of the agreed total, due within 1 day of signing.' . $card . ' Want more details?';
 }
 
+function brb_chat_party_line() {
+    return 'Yes. We\'d be glad to host a bachelorette or bachelor party. A full day runs from 10:00 AM to 11:30 PM, and setup can begin at 8:00 AM. Up to 80 guests, with a serving kitchen, a game room, an 80-inch TV, and ample parking. You may bring your own decorations. Balloons are fine. Glitter, confetti, confetti cannons, rice, birdseed, loose sequins, and wall tape aren\'t allowed. Check a date and reserve here: ' . brb_book_url();
+}
 function brb_chat_book_text() {
     $core = 'Submit a request on the Book page: ' . brb_book_url() . '. Your date is reserved once the meeting is complete and your deposit is received and approved by the Boardroom.';
     if (brb_chat_detail()) return $core . ' ' . brb_guest_review_line();
