@@ -477,6 +477,17 @@ try {
         $hit = brb_chat_answer($safe);
         brb_t(empty($hit['blocked']) && ($hit['category'] ?? '') === '' && $hit['reply'] !== $safety_sexual[0] && $hit['reply'] !== $safety_violent[0] && $hit['reply'] !== $safety_care, 'does not flag: ' . $safe);
     }
+    $party_line = brb_chat_party_line();
+    foreach (['Can we have a bachelorette party?', 'bachelorette', 'Can we have a bachelor party?', 'bachelor parties', 'bridal party', 'hen party', 'hens party', "hen's party", 'stag party'] as $party_q) {
+        $hit = brb_chat_answer($party_q);
+        brb_t(empty($hit['blocked']) && $hit['reply'] === $party_line, 'party answer: ' . $party_q);
+    }
+    $party_book = brb_chat_answer('Can we book a bachelorette party?');
+    brb_t(empty($party_book['blocked']) && strpos($party_book['reply'], $party_line) !== false && strpos($party_book['reply'], brb_book_url()) !== false && strpos($party_book['reply'], '$') === false, 'booking a bachelorette party keeps the party answer and does not invent a price');
+    foreach (['hire strippers for a bachelor party', 'strip show for a bachelorette', 'strippers at our stag party'] as $flagged_party) {
+        $hit = brb_chat_answer($flagged_party);
+        brb_t(!empty($hit['blocked']) && ($hit['category'] ?? '') === 'sexual' && $hit['reply'] === $safety_sexual[0], 'stripper party still flagged: ' . $flagged_party);
+    }
     $cameras = brb_chat_answer('do you have security cameras');
     brb_t(empty($cameras['blocked']) && strpos($cameras['reply'], 'security cameras') !== false, 'a normal security camera question is answered, not blocked');
     $block_req = new WP_REST_Request('POST', '/brb/v1/chat');
