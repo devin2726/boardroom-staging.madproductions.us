@@ -1,9 +1,10 @@
 <?php get_header(); $p = br_photos(); $book = home_url('/book/'); ?>
 <section class="hero" aria-label="Photos of The Boardroom">
   <?php foreach ($p as $i => $f) printf('<div class="slide%s">%s</div>', $i ? '' : ' on', br_picture($f, br_photo_alt($f))); ?>
-  <div class="cap"><h1>Welcome to The Boardroom</h1><a class="btn" href="<?php echo esc_url($book); ?>">Book Now</a></div>
+  <div class="cap"><h1>Welcome to The Boardroom</h1><p class="hero-sub">A one-of-a-kind party venue in the heart of the Quad Cities, Moline, IL</p><a class="btn" href="#check-your-date">Check dates</a></div>
   <button class="arrow prev" aria-label="Previous">‹</button><button class="arrow next" aria-label="Next">›</button><div class="dots"></div>
 </section>
+<p class="hero-facts"><span>Up to 80 guests</span><span>BYOB</span><span>Free parking</span><span class="facts-break" aria-hidden="true"></span><span>Setup from 8 AM, out by 11:30 PM</span><span>From $850</span></p>
 <section class="block" id="check-your-date"><div class="wrap">
 <h2>Check Your Date</h2>
 <p class="home-cal-lead">Prices show on the calendar. Nothing's charged until we approve.</p>
