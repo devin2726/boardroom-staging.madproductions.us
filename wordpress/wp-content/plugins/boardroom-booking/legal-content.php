@@ -29,7 +29,7 @@ function brb_terms_html() {
 <li>Up to 80 guests. Open houses and graduation parties can go over, since guests come and go. The host must be 25 or older.</li>
 <li>Free events only. Live music and bands are welcome. Tickets, cover charges, and concerts aren't.</li>
 <li>BYOB is fine. No cooking or stove-top use. Food warmers and the bar area are yours to use. There are no draft taps.</li>
-<li>You may bring and put up your own decorations. Balloons, yes. Glitter and confetti, no. Wall tape, no.</li>
+<li>You may bring and put up your own decorations. Balloons, yes. Glitter, confetti, confetti cannons, rice, birdseed, and loose sequins, no. Wall tape, no.</li>
 <li>No smoking or vaping inside. Smoking is outside only.</li>
 <li>Service animals only. No pets, and no overnight stays.</li>
 </ul>
@@ -69,7 +69,7 @@ function brb_terms_html() {
 <h2>8. Please leave these at home</h2>
 <p>To keep everyone safe and the space clean, these aren't allowed inside, outside, on the sidewalks, or in the parking lot:</p>
 <ul>
-<li>Glitter and confetti</li>
+<li>Glitter, confetti, confetti cannons, rice, birdseed, or loose sequins</li>
 <li>Wall tape</li>
 <li>Fireworks, sparklers, smoke bombs, pyrotechnics, or explosive or combustible props</li>
 <li>Open flame, unless we approve it in writing</li>
@@ -132,7 +132,7 @@ function brb_terms_html() {
 
 <h2>How booking works</h2>
 TERMS_STEPS
-<p>One heads-up: the room isn't set up when you arrive. It doesn't come decorated, though our Christmas décor is up in December. You may bring and put up your own decorations. Glitter and confetti aren't allowed.</p>
+<p>One heads-up: the room isn't set up when you arrive. It doesn't come decorated, though our Christmas décor is up in December. You may bring and put up your own decorations. Glitter, confetti, confetti cannons, rice, birdseed, and loose sequins aren't allowed.</p>
 
 <h2>The signed agreement controls</h2>
 <p>This page is a friendly summary. If anything here differs from your signed <a href="/rental-agreement/">Rental Agreement</a>, the agreement controls.</p>
@@ -210,7 +210,7 @@ NOW, THEREFORE, in consideration of the mutual promises and covenants stated her
 
 7. Food, Alcohol, Kitchen, and Equipment. Owner does not provide food, beverages, alcohol, catering, bartending, food service, security, medical services, or event supervision. Renter is solely responsible for compliance with all laws, rules, and regulations involving food, alcohol, service, consumption, sales, licensing, age restrictions, intoxication, and transportation after the event. BYOB is allowed. Renter accepts all risk and liability arising from the use of kitchen utensils, appliances, equipment, furniture, fixtures, décor, or other property at the Venue, whether used properly or improperly.
 
-8. Strictly Prohibited Items and Activities. The following are strictly prohibited inside the Venue, outside the Venue, on sidewalks, in parking areas, and anywhere on or around the premises: glitter; party confetti; wall tape; fireworks; sparklers; smoke bombs; pyrotechnics; explosive devices; explosive props; combustible props; open flame not expressly approved in writing by Owner; hazardous materials; illegal substances; weapons except as permitted by law; ticketed events; cover charges; paid admission; door fees; ticket or merchandise sales; concerts; and any activity that creates unusual mess, fire risk, explosion risk, property damage risk, injury risk, nuisance, or disturbance. A band or live music is allowed only when guests are not charged for the event. Violation of this section may result in immediate termination of the event, forfeiture of deposit, additional cleaning or repair charges, and liability for all resulting damages, claims, fines, attorney fees, and costs.
+8. Strictly Prohibited Items and Activities. The following are strictly prohibited inside the Venue, outside the Venue, on sidewalks, in parking areas, and anywhere on or around the premises: glitter; wall tape; party confetti; confetti cannons; rice; birdseed; loose sequins; fireworks; sparklers; smoke bombs; pyrotechnics; explosive devices; explosive props; combustible props; open flame not expressly approved in writing by Owner; hazardous materials; illegal substances; weapons except as permitted by law; ticketed events; cover charges; paid admission; door fees; ticket or merchandise sales; concerts; and any activity that creates unusual mess, fire risk, explosion risk, property damage risk, injury risk, nuisance, or disturbance. A band or live music is allowed only when guests are not charged for the event. Violation of this section may result in immediate termination of the event, forfeiture of deposit, additional cleaning or repair charges, and liability for all resulting damages, claims, fines, attorney fees, and costs.
 
 9. Condition of Premises; Return in Same Condition. Renter accepts the Venue in its existing "AS IS" condition at the time Renter takes possession. Renter shall inspect the Venue upon arrival and shall immediately report any pre-existing damage or concern to Owner. Renter shall leave the Venue, fixtures, furniture, restrooms, kitchen areas, floors, walls, décor, equipment, sidewalks, entry areas, and parking-related areas in the same condition and arrangement as when Renter arrived, ordinary wear and tear excepted. The Venue must be left clean, orderly, secure, and free of personal property, decorations, trash, food, spills, stains, debris, glitter, confetti, and any items brought in by Renter or Renter's guests or vendors.
 

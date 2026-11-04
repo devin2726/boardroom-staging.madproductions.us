@@ -843,7 +843,7 @@ function brb_chat_rules_text() {
         . brb_hours_line() . ' Everyone is out by 11:30 PM. Smoking is outside only. Service animals only. No pets. '
         . 'All events must be free to attend: no tickets, no cover charge, no paid admission, no door fees, and no ticket or merchandise sales. '
         . 'No cooking is allowed. The stovetop may not be used. There are no taps. ' . brb_byob_line() . ' '
-        . 'Please take the garbage out. The room comes not set up and doesn\'t come decorated. You may bring and put up your own decorations. Glitter and confetti aren\'t allowed. Christmas decorations are up in December. Capacity is 80 guests. Graduation parties or open houses can go over, since guests come and go. Event liability insurance is required.';
+        . 'Please take the garbage out. The room comes not set up and doesn\'t come decorated. You may bring and put up your own decorations. Glitter, confetti, confetti cannons, rice, birdseed, and loose sequins aren\'t allowed. Christmas decorations are up in December. Capacity is 80 guests. Graduation parties or open houses can go over, since guests come and go. Event liability insurance is required.';
     if (brb_chat_detail()) return $long;
     return 'No overnight stays and no cooking. Everyone is out by 11:30 PM, and events are free to attend, with no tickets, for 80 guests. Want more details?';
 }
@@ -920,7 +920,7 @@ function brb_chat_specific_text($text) {
         $bits[] = 'Use the Contact form or email boardroomqc@gmail.com. Cell numbers are given when the contract is signed, and they are not listed on this site.';
     }
     if (preg_match('/balloon/', $t)) {
-        $bits[] = 'Balloons are fine. Wall tape is not allowed. You may bring and put up your own decorations. Glitter is not allowed. Confetti is not allowed. The space doesn\'t come decorated, though Christmas decorations are up in December.';
+        $bits[] = 'Balloons are fine. Wall tape is not allowed. You may bring and put up your own decorations. Glitter is not allowed. Confetti is not allowed. Confetti cannons, rice, birdseed, and loose sequins are not allowed. The space doesn\'t come decorated, though Christmas decorations are up in December.';
     }
     if (preg_match('/wall tape|tape on the wall|\btape\b/', $t)) {
         $bits[] = 'No. Wall tape is not allowed. Balloons are fine. Glitter is not allowed.';
@@ -1006,7 +1006,7 @@ function brb_chat_specific_text($text) {
             : 'Yes, BYOB is allowed. Want more details?';
     }
     if (preg_match('/decorat/', $t)) {
-        $bits[] = 'You may bring and put up your own decorations. The room doesn\'t come decorated, though Christmas decorations are up in December. Glitter and confetti aren\'t allowed.';
+        $bits[] = 'You may bring and put up your own decorations. The room doesn\'t come decorated, though Christmas decorations are up in December. Glitter, confetti, confetti cannons, rice, birdseed, and loose sequins aren\'t allowed.';
     }
     if (preg_match('/confetti/', $t)) $bits[] = 'Confetti is not allowed.';
     if (preg_match('/\bglitter\b/', $t) && !preg_match('/balloon/', $t)) $bits[] = 'Glitter is not allowed.';

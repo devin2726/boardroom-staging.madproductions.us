@@ -2,11 +2,11 @@
 /**
  * Plugin Name: Boardroom Booking
  * Description: Self-hosted direct booking for The Boardroom — full-day blocks, availability calendar, agreed prices, approval before payment, blackout dates, and emails.
- * Version: 2.5.45
+ * Version: 2.5.46
  * Author: Mad Productions
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.5.45');
+define('BRB_VER', '2.5.46');
 function brb_reserve_explainer_steps() {
     return [
         'Pick a date. Prices are on the calendar.',
@@ -602,7 +602,7 @@ function brb_checklist_default() {
         'All events are free to attend: no tickets, no cover charge, and no sales.',
         brb_byob_line(),
         'Bring your own plates, cups, and utensils. Buffet pans and serving spoons are available. The stovetop cannot be used.',
-        'Not allowed: Glitter and confetti.',
+        'Not allowed: Confetti, confetti cannons, rice, birdseed, or loose sequins.',
         'Not allowed: Wall tape.',
         'Not allowed: Fireworks, sparklers, smoke bombs, pyrotechnics, or explosive or combustible props.',
         'Not allowed: Open flame, unless we approve it in writing.',
@@ -633,8 +633,8 @@ function brb_checklist_lines() {
             $line = 'Balloons are fine, no glitter.';
             $saw_balloons = true;
         }
-        if ($line === 'Not allowed: Glitter, confetti, confetti cannons, rice, birdseed, or loose sequins.' || $line === 'Not allowed: Confetti, confetti cannons, rice, birdseed, or loose sequins.') {
-            $line = 'Not allowed: Glitter and confetti.';
+        if ($line === 'Not allowed: Glitter, confetti, confetti cannons, rice, birdseed, or loose sequins.' || $line === 'Not allowed: Glitter and confetti.') {
+            $line = 'Not allowed: Confetti, confetti cannons, rice, birdseed, or loose sequins.';
         }
         $lines[] = $line;
     }
@@ -1027,7 +1027,7 @@ function brb_faq_markup() {
 <details><summary>What are the hours?</summary><p>A full day runs from 10:00 AM to 11:30 PM. We don't keep set hours for meetings or check drop-off. We meet on demand and set a time together, by appointment.</p></details>
 <details><summary>When does everyone have to be out?</summary><p>Out by 11:30 PM. This one's firm, no exceptions. Everyone must be out of The Boardroom by 11:30 PM so there's time to wrap up.</p></details>
 <details><summary>How is the space set up?</summary><p>The space arrives not set up. You set up and tear down. Staff cannot set the room up. Setup can begin at 8:00 AM.</p></details>
-<details><summary>Do you provide decorations?</summary><p>The room doesn't come decorated, though Christmas decorations are up in December. You may bring and put up your own decorations. Glitter and confetti aren't allowed.</p></details>
+<details><summary>Do you provide decorations?</summary><p>The room doesn't come decorated, though Christmas decorations are up in December. You may bring and put up your own decorations. Glitter, confetti, confetti cannons, rice, birdseed, and loose sequins aren't allowed.</p></details>
 
 <h2>Food and drink</h2>
 <details><summary>Can I bring my own food?</summary><p>Yes. We provide the space; you bring the food. No cooking is allowed in the venue. The stove top may not be used. Food warmers (for keeping prepared food warm) and the bar area are yours to use. You can also have it catered by any caterer. The Boardroom does not provide catering.</p></details>
@@ -1040,7 +1040,7 @@ function brb_faq_markup() {
 <details><summary>Can we sell tickets or charge admission?</summary><p>No. All events must be free to attend: no tickets, no cover charge, no paid admission, no door fees, and no ticket or merchandise sales. We do not host concerts or ticketed shows.</p></details>
 <details><summary>Can we have a band?</summary><p>Yes. Guests may have a band or live music, as long as they are not charging for the event.</p></details>
 <details><summary>Can I hold a vendor market or sell items?</summary><p>No. All events are free to attend. There are no merchandise sales and no ticket sales.</p></details>
-<details><summary>What decorations are allowed?</summary><p>You may bring and put up your own decorations. Balloons are fine. Wall tape is not allowed. Glitter and confetti aren't allowed. The space doesn't come decorated, though Christmas decorations are up in December.</p></details>
+<details><summary>What decorations are allowed?</summary><p>You may bring and put up your own decorations. Balloons are fine. Wall tape is not allowed. Glitter, confetti, confetti cannons, rice, birdseed, and loose sequins aren't allowed. The space doesn't come decorated, though Christmas decorations are up in December.</p></details>
 <details><summary>Is smoking allowed?</summary><p>All smoking, including cigars and cigarettes, is outside only. Vaping leaves a residue and can affect the damage deposit.</p></details>
 <details><summary>Can I bring a pet?</summary><p>Service animals only. No pets.</p></details>
 
@@ -1112,9 +1112,11 @@ function brb_refresh_checklist_copy() {
     );
     $next = str_replace('The balance is due the week of the event, no later than 48 hours before.', 'The balance is due no later than one week before the event.', $next);
     $next = str_replace('It is returned within 72 hours when Venmo or PayPal is on file. A check takes 1 to 2 weeks.', 'It is refunded through Stripe, less the card processing fee, after the event once the space is checked.', $next);
+    $next = str_replace('Not allowed: Glitter, confetti, confetti cannons, rice, birdseed, or loose sequins.', 'Not allowed: Confetti, confetti cannons, rice, birdseed, or loose sequins.', $next);
+    $next = str_replace('Not allowed: Glitter and confetti.', 'Not allowed: Confetti, confetti cannons, rice, birdseed, or loose sequins.', $next);
     if (strpos($next, 'confetti cannons') === false) {
         $next = rtrim($next) . "\n" . implode("\n", [
-            'Not allowed: Glitter and confetti.',
+            'Not allowed: Confetti, confetti cannons, rice, birdseed, or loose sequins.',
             'Not allowed: Wall tape.',
             'Not allowed: Fireworks, sparklers, smoke bombs, pyrotechnics, or explosive or combustible props.',
             'Not allowed: Open flame, unless we approve it in writing.',
@@ -1127,8 +1129,6 @@ function brb_refresh_checklist_copy() {
     }
     $next = str_replace('Balloons are fine.', 'Balloons are fine, no glitter.', $next);
     $next = str_replace('Balloons are fine, no glitter, no glitter.', 'Balloons are fine, no glitter.', $next);
-    $next = str_replace('Not allowed: Glitter, confetti, confetti cannons, rice, birdseed, or loose sequins.', 'Not allowed: Glitter and confetti.', $next);
-    $next = str_replace('Not allowed: Confetti, confetti cannons, rice, birdseed, or loose sequins.', 'Not allowed: Glitter and confetti.', $next);
     $next = str_replace('Setup is the morning of the event. On a full day, setup can begin at 8:00 AM. On a half day, setup can begin one hour before the start.', 'Setup is the morning of the event. Setup can begin at 8:00 AM.', $next);
     $next = str_replace('If you serve alcohol, the City of Moline requires a one-day liquor license ($50). Please check with the City of Moline: https://moline.il.us/244/Liquor-Licensing (City Clerk, 309-524-2004).', brb_byob_line(), $next);
     $next = str_replace(brb_byob_line() . ' ' . brb_byob_line(), brb_byob_line(), $next);
