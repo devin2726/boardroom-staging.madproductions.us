@@ -1,7 +1,7 @@
 /*
 Theme Name: The Boardroom
 Description: Lightweight theme replicating the look of boardroomqc.com (dark + gold, EB Garamond, full-width hero slider). Pairs with the Boardroom Booking plugin.
-Version: 1.2.37
+Version: 1.2.39
 Author: Mad Productions
 Text Domain: boardroom
 */
@@ -43,7 +43,7 @@ body.admin-bar .site-header{top:32px}
 .hero .slide.on{opacity:1}.hero:after{content:"";position:absolute;inset:0;background:rgba(0,0,0,.45)}
 .hero .cap{position:absolute;inset:0;z-index:2;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px}
 .hero h1{color:#fff;font-size:clamp(40px,7vw,76px);margin:0 0 12px}
-.hero .hero-sub{margin:0 0 26px;max-width:22em;color:#fff;text-align:center;font-family:'EB Garamond',Georgia,'Times New Roman',serif;font-size:clamp(16px,2.8vw,30px);font-weight:500;line-height:1.35;text-shadow:0 2px 14px rgba(0,0,0,.65)}
+.hero .hero-sub{margin:0;max-width:22em;color:#fff;text-align:center;font-family:'EB Garamond',Georgia,'Times New Roman',serif;font-size:clamp(16px,2.8vw,30px);font-weight:500;line-height:1.35;text-shadow:0 2px 14px rgba(0,0,0,.65)}
 .hero-facts{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;margin:0;padding:16px 18px;text-align:center;text-transform:uppercase;letter-spacing:.14em;font-family:'EB Garamond',Georgia,'Times New Roman',serif;font-size:16px;font-weight:600;line-height:1.7;color:var(--ink);background:#fff;overflow-x:clip}
 .hero-facts span{white-space:nowrap}
 .hero-facts .facts-break{display:none}
@@ -73,7 +73,6 @@ section.block{padding:80px 0}section.alt{background:var(--bg2)}section.dark{back
 #check-your-date{overflow-x:clip;scroll-margin-top:100px}
 body.admin-bar #check-your-date{scroll-margin-top:132px}
 @media(max-width:782px){body.admin-bar #check-your-date{scroll-margin-top:146px}}
-#check-your-date .home-cal-lead{text-align:center;margin:-8px auto 28px;max-width:28em}
 #check-your-date .brb-home-cal{max-width:720px;margin:0 auto}
 #check-your-date .home-cal-more{text-align:center;margin:20px 0 0}
 #check-your-date .home-cal-more a{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:0 8px}
@@ -166,6 +165,8 @@ body.contact-page .content{padding:28px 0 56px}
 .form .hp{position:absolute;left:-9999px}.notice{padding:12px 16px;background:#fff7e6;border-left:4px solid var(--gold);margin-bottom:16px}
 .page-hero{background:var(--ink) center/cover;padding:90px 0;text-align:center;position:relative}.page-hero:before{content:"";position:absolute;inset:0;background:rgba(0,0,0,.55)}
 .page-hero h1{position:relative;color:#fff;margin:0;font-size:clamp(36px,5vw,60px)}
+.page-hero.gallery-hero:before{background:rgba(0,0,0,.68)}
+.page-hero.gallery-hero h1{text-shadow:0 2px 18px rgba(0,0,0,.75)}
 .content{padding:60px 0;max-width:900px;margin:auto}.content.wide{max-width:1200px}
 .content details{border-bottom:1px solid #ddd;padding:16px 0}.content summary{font-family:'EB Garamond',Georgia,'Times New Roman',serif;font-size:22px;font-weight:600;color:var(--ink);cursor:pointer;font-variant-numeric:lining-nums}
 .placeholder{background:#fff7e6;border:1px dashed var(--gold);padding:10px 14px;font-size:16px}

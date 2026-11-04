@@ -4,8 +4,8 @@ add_action('after_setup_theme', function () {
     register_nav_menus(['primary' => 'Primary', 'footer' => 'Footer']);
 });
 add_action('wp_enqueue_scripts', function () {
-    wp_enqueue_style('boardroom', get_stylesheet_uri(), [], '1.2.37');
-    wp_enqueue_script('boardroom', get_template_directory_uri() . '/assets/site.js', [], '1.2.37', true);
+    wp_enqueue_style('boardroom', get_stylesheet_uri(), [], '1.2.39');
+    wp_enqueue_script('boardroom', get_template_directory_uri() . '/assets/site.js', [], '1.2.39', true);
 });
 function br_img($f) { return get_template_directory_uri() . '/assets/img/' . $f; }
 function br_logo($place) {
@@ -206,11 +206,50 @@ add_shortcode('boardroom_contact', 'br_contact_form');
 add_filter('body_class', function ($classes) {
     if (is_page(['privacy', 'terms', 'rental-agreement', 'privacy-policy', 'terms-and-conditions'])) $classes[] = 'legal-page';
     if (is_page('contact')) $classes[] = 'contact-page';
-    if (is_page('book')) $classes[] = 'book-page';
-    if (is_page('book') && !empty($_GET['date'])) $classes[] = 'book-dated';
-    if (is_page('book') && !empty($_GET['br_token'])) $classes[] = 'book-status';
+    if (br_is_book_page()) $classes[] = 'book-page';
+    if (br_is_book_page() && !empty($_GET['date'])) $classes[] = 'book-dated';
+    if (br_is_book_page() && !empty($_GET['br_token'])) $classes[] = 'book-status';
     return $classes;
 });
+function br_book_slug() {
+    return defined('BRB_BOOK_SLUG') ? BRB_BOOK_SLUG : 'reserve-the-boardroom-quad-cities';
+}
+function br_is_book_page() {
+    return is_page(br_book_slug());
+}
+function br_rename_reserve_menu() {
+    $locs = get_nav_menu_locations();
+    $menu_id = (int) ($locs['primary'] ?? 0);
+    if (!$menu_id) return;
+    $slug = br_book_slug();
+    foreach ((array) wp_get_nav_menu_items($menu_id) as $item) {
+        if (!$item) continue;
+        if (br_menu_title($item) !== 'book') continue;
+        $path = trim((string) br_menu_path($item->url), '/');
+        $base = $path === '' ? '' : basename($path);
+        $linked = ($base === 'book' || $base === $slug);
+        if (!$linked && !empty($item->object_id)) {
+            $post = get_post((int) $item->object_id);
+            if ($post && in_array($post->post_name, ['book', $slug], true)) $linked = true;
+        }
+        if (!$linked) continue;
+        $args = [
+            'menu-item-title' => 'Reserve',
+            'menu-item-status' => 'publish',
+            'menu-item-type' => $item->type ?: 'post_type',
+            'menu-item-parent-id' => (int) $item->menu_item_parent,
+            'menu-item-position' => (int) $item->menu_order,
+        ];
+        if (($item->type ?? '') === 'post_type') {
+            $args['menu-item-object'] = $item->object ?: 'page';
+            $args['menu-item-object-id'] = (int) $item->object_id;
+        } else {
+            $args['menu-item-url'] = function_exists('brb_book_url') ? brb_book_url() : home_url('/' . $slug . '/');
+        }
+        wp_update_nav_menu_item($menu_id, (int) $item->ID, $args);
+    }
+}
+add_action('init', 'br_rename_reserve_menu', 30);
 function br_menu_title($item) {
     return strtolower(trim(wp_strip_all_tags((string) $item->title)));
 }
@@ -347,7 +386,7 @@ function br_seo_pages() {
     $place = 'Party & Event Venue in Moline, IL (Quad Cities)';
     return [
         'home' => ['title' => 'The Boardroom | ' . $place, 'description' => 'The Boardroom is a party and event venue in Moline, IL, in the Quad Cities. Most events run $600 to about $2,000. Request a date and we email your price.'],
-        'book' => ['title' => 'Book The Boardroom | ' . $place, 'description' => 'Request a date at The Boardroom in Moline. The price shows on the calendar. Nothing is charged until we approve the booking and email a payment link. Pay 50% plus the $250 damage deposit.'],
+        'reserve-the-boardroom-quad-cities' => ['title' => 'Book The Boardroom | ' . $place, 'description' => 'Request a date at The Boardroom in Moline. The price shows on the calendar. Nothing is charged until we approve the booking and email a payment link. Pay 50% plus the $250 damage deposit.'],
         'faq' => ['title' => 'FAQ | The Boardroom, ' . $place, 'description' => 'Answers about booking, hours, food, BYOB, capacity, and cancellation at The Boardroom in Moline, IL.'],
         'terms' => ['title' => 'Rental Terms | The Boardroom, ' . $place, 'description' => 'Plain-language rental terms for The Boardroom in Moline, IL. The signed rental agreement controls if they differ.'],
         'privacy' => ['title' => 'Privacy Policy | The Boardroom, ' . $place, 'description' => 'How The Boardroom in Moline, IL uses booking and contact details. We do not sell your information.'],

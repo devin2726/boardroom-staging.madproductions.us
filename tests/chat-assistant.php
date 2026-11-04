@@ -36,7 +36,7 @@ function brb_chat_reply($text, $history = []) {
 }
 
 try {
-    brb_t(get_option('brb_version') === '2.5.40', 'plugin storage version is 2.5.40');
+    brb_t(get_option('brb_version') === '2.5.41', 'plugin storage version is 2.5.41');
     $cols = $wpdb->get_col('SHOW COLUMNS FROM ' . brb_tour_table(), 0);
     brb_t(in_array('source', $cols, true), 'inquiries can store a source');
     brb_t((string) brb_opt('quote_prices') === '1', 'price estimates are on by default');
@@ -71,20 +71,20 @@ try {
     $hours = brb_chat_reply('What are your hours?');
     brb_t(strpos($hours, '10:00 AM') !== false && strpos($hours, '11:30 PM') !== false && strpos($hours, 'Half days') === false && strpos($hours, 'office hours') !== false && strpos($hours, 'appointment') !== false, 'hours are the full day and do not sound like office hours');
     $open = brb_chat_reply('Is a date open?');
-    brb_t(strpos($open, 'I\'m not sure') === false && strpos($open, 'Tell me a date') === false && strpos($open, '/book/?date=') !== false, 'an open-date question suggests real calendar dates');
+    brb_t(strpos($open, 'I\'m not sure') === false && strpos($open, 'Tell me a date') === false && strpos($open, '/reserve-the-boardroom-quad-cities/?date=') !== false, 'an open-date question suggests real calendar dates');
     $saturday = brb_chat_reply('what is the first available date for a saturday');
-    brb_t(strpos($saturday, 'Tell me a date') === false && strpos($saturday, '/book/?date=') !== false && strpos($saturday, 'Saturday') !== false, 'a first-open Saturday question lists calendar dates');
+    brb_t(strpos($saturday, 'Tell me a date') === false && strpos($saturday, '/reserve-the-boardroom-quad-cities/?date=') !== false && strpos($saturday, 'Saturday') !== false, 'a first-open Saturday question lists calendar dates');
     $chips = brb_chat_answer('How much does it cost?');
     $check = null;
     foreach ((array) ($chips['suggestions'] ?? []) as $chip) {
         if (($chip['label'] ?? '') === 'Check dates') $check = $chip;
     }
-    brb_t(is_array($check) && strpos((string) ($check['href'] ?? ''), '/book/#brb-cal') !== false && empty($check['question']), 'Check dates opens the booking calendar');
+    brb_t(is_array($check) && strpos((string) ($check['href'] ?? ''), '/reserve-the-boardroom-quad-cities/#brb-cal') !== false && empty($check['question']), 'Check dates opens the booking calendar');
     $book_chip = null;
     foreach (brb_chat_chips('unknown') as $chip) {
         if (($chip['label'] ?? '') === 'Book') $book_chip = $chip;
     }
-    brb_t(is_array($book_chip) && strpos((string) ($book_chip['href'] ?? ''), '/book/') !== false && strpos((string) ($book_chip['href'] ?? ''), '#brb-cal') === false, 'Book opens the booking page');
+    brb_t(is_array($book_chip) && strpos((string) ($book_chip['href'] ?? ''), '/reserve-the-boardroom-quad-cities/') !== false && strpos((string) ($book_chip['href'] ?? ''), '#brb-cal') === false, 'Book opens the booking page');
     $wedding = brb_chat_reply('Can we have a wedding?');
     brb_t(strpos($wedding, 'Weddings') !== false && strpos($wedding, 'free to attend') !== false && strpos($wedding, 'minimum host age is 25') !== false && strpos($wedding, 'Our team will confirm') === false, 'event types are welcome and the host age is 25 for every booking');
     $unknown = 'I\'m not sure about that one';
@@ -128,7 +128,7 @@ try {
     $truck = brb_chat_rest($truck_req);
     brb_t(is_array($truck) && strpos($truck['reply'], 'place for a food truck') !== false, 'the food truck question is answered by the chat endpoint');
     $reserve = brb_chat_reply('How do I reserve?');
-    brb_t(strpos($reserve, home_url('/book/')) !== false && strpos($reserve, 'approved by the Boardroom') !== false, 'reserve explains the book request and deposit');
+    brb_t(strpos($reserve, brb_book_url()) !== false && strpos($reserve, 'approved by the Boardroom') !== false, 'reserve explains the book request and deposit');
     $photos = brb_chat_reply('Where are the photos?');
     brb_t(strpos($photos, '/gallery/') !== false && strpos($photos, 'tour video') !== false, 'photos point at the gallery and the tour video');
     $insure = brb_chat_reply('Do I need insurance?');
@@ -244,7 +244,7 @@ try {
     unset($_ENV['BRB_STRIPE_SECRET_KEY'], $_SERVER['BRB_STRIPE_SECRET_KEY']);
 
     $book = brb_chat_reply('I want to book a date');
-    brb_t(strpos($book, home_url('/book/')) !== false && strpos($book, 'once the meeting is complete and your deposit is received and approved') !== false, 'booking help points at the book page');
+    brb_t(strpos($book, brb_book_url()) !== false && strpos($book, 'once the meeting is complete and your deposit is received and approved') !== false, 'booking help points at the book page');
     $booked = brb_chat_answer('I want to book a date');
     brb_t(!empty($booked['lead']), 'a booking question asks for follow-up details');
     $tour = brb_chat_reply('Can I tour the space?');
@@ -327,7 +327,7 @@ try {
     brb_t(is_array($lead) && !empty($lead['stored']) && $lead['message'] === 'Thanks so much, someone from our team will get right back to you!', 'a chat lead is saved and thanks the guest');
     $row = !empty($lead['id']) ? brb_tour((int) $lead['id']) : null;
     if ($row) $created_inquiries[] = (int) $row->id;
-    brb_t($row && $row->source === 'chat assistant' && $row->email === 'chat-guest@example.com' && $row->phone === '309-555-0144' && strpos($row->notes, 'Guest asked about December 24.') !== false && strpos($row->notes, 'Birthday') !== false, 'the inquiry stores the source, the note, and the transcript summary');
+    brb_t($row && $row->source === 'chat assistant' && $row->email === 'chat-guest@example.com' && $row->phone === '309-555-0144' && strpos($row->notes, 'Guest asked about December 24.') !== false && strpos($row->notes, 'Event type:') === false && ($row->event_type ?? '') === '', 'the inquiry stores the source and the note without an event type');
     $mail = $GLOBALS['brb_mails'][0] ?? null;
     brb_t(is_array($mail) && $mail['subject'] === 'New contact inquiry' && strpos($mail['message'], 'Source: chat assistant') !== false && strpos($mail['message'], 'No date is held.') !== false && strpos($mail['message'], '309-555-0144') !== false, 'staff are emailed about the chat inquiry');
     $guest_mail = null;
@@ -338,7 +338,7 @@ try {
     $guest_body = is_array($guest_mail) ? (string) ($guest_mail['message'] ?? '') : '';
     brb_t(is_array($guest_mail) && ($guest_mail['to'] ?? '') === 'chat-guest@example.com' && count(array_filter($GLOBALS['brb_mails'], function ($sent_mail) {
         return ($sent_mail['subject'] ?? '') === 'We got your message, The Boardroom';
-    })) === 1 && strpos($guest_headers, 'Reply-To: boardroomqc@gmail.com') !== false && stripos($guest_headers, 'Cc:') === false && stripos($guest_headers, 'Bcc:') === false && strpos($guest_body, "Hi Chat,\n") === 0 && strpos($guest_body, 'Event type: Birthday') !== false && strpos($guest_body, 'Preferred dates: December 24, 2026') !== false && strpos($guest_body, 'Looking at a birthday.') !== false && strpos($guest_body, '309-555-0144') === false && strpos($guest_body, '2212') === false && stripos($guest_body, 'airbnb') === false && strpos($guest_body, 'Rental Checklist') === false && strpos($guest_body, '/rental-checklist/') === false && strpos($guest_body, 'Want to check open dates or book?') !== false, 'the chat guest gets one confirmation without the phone or the staff copy list');
+    })) === 1 && strpos($guest_headers, 'Reply-To: boardroomqc@gmail.com') !== false && stripos($guest_headers, 'Cc:') === false && stripos($guest_headers, 'Bcc:') === false && strpos($guest_body, "Hi Chat,\n") === 0 && strpos($guest_body, 'Event type:') === false && strpos($guest_body, 'Preferred dates: December 24, 2026') !== false && strpos($guest_body, 'Looking at a birthday.') !== false && strpos($guest_body, '309-555-0144') === false && strpos($guest_body, '2212') === false && stripos($guest_body, 'airbnb') === false && strpos($guest_body, 'Rental Checklist') === false && strpos($guest_body, '/rental-checklist/') === false && strpos($guest_body, brb_book_url()) !== false, 'the chat guest gets one confirmation without the phone or the staff copy list');
     $before_retry = count($GLOBALS['brb_mails']);
     brb_t($row && brb_send_inquiry_guest_ack($row) === false && count($GLOBALS['brb_mails']) === $before_retry, 'the chat confirmation is not sent twice');
 

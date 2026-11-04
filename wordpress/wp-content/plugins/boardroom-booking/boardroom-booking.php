@@ -2,11 +2,46 @@
 /**
  * Plugin Name: Boardroom Booking
  * Description: Self-hosted direct booking for The Boardroom — full-day blocks, availability calendar, agreed prices, approval before payment, blackout dates, and emails.
- * Version: 2.5.40
+ * Version: 2.5.41
  * Author: Mad Productions
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.5.40');
+define('BRB_VER', '2.5.41');
+define('BRB_BOOK_SLUG', 'reserve-the-boardroom-quad-cities');
+function brb_book_url() {
+    return home_url('/' . BRB_BOOK_SLUG . '/');
+}
+function brb_request_path() {
+    $path = trim((string) parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH), '/');
+    $home = trim((string) parse_url(home_url('/'), PHP_URL_PATH), '/');
+    if ($home !== '' && ($path === $home || strpos($path, $home . '/') === 0)) {
+        $path = trim(substr($path, strlen($home)), '/');
+    }
+    return $path;
+}
+function brb_legacy_book_target() {
+    if (brb_request_path() !== 'book') return '';
+    $target = brb_book_url();
+    $query = (string) ($_SERVER['QUERY_STRING'] ?? '');
+    if ($query !== '') $target .= '?' . $query;
+    return $target;
+}
+function brb_legacy_book_redirect() {
+    if (is_admin()) return;
+    $target = brb_legacy_book_target();
+    if ($target === '') return;
+    wp_safe_redirect($target, 301);
+    exit;
+}
+function brb_migrate_book_slug() {
+    $page = get_page_by_path('book');
+    if (!$page || $page->post_name === BRB_BOOK_SLUG) return;
+    wp_update_post([
+        'ID' => (int) $page->ID,
+        'post_name' => BRB_BOOK_SLUG,
+    ]);
+    clean_post_cache((int) $page->ID);
+}
 define('BRB_VENUE_ADDRESS', '2220 37th Street, Moline, IL 61265');
 define('BRB_CHECK_ADDRESS', '2212 37th Street, Moline, IL 61265');
 define('BRB_MAPS_URL', 'https://maps.app.goo.gl/nVqUsGTcy48nPzc18');
@@ -461,7 +496,7 @@ function brb_how_booking_works_steps() {
     ];
 }
 function brb_how_booking_works_html() {
-    $html = '<section class="brb-how"><h2>Reserve Your Date</h2><ol>';
+    $html = '<section class="brb-how"><h2>Pick a Date</h2><ol>';
     foreach (brb_how_booking_works_steps() as $step) $html .= '<li>' . esc_html($step) . '</li>';
     $html .= '</ol></section>';
     return $html;
@@ -701,20 +736,17 @@ function brb_screening_lines($b) {
 function brb_collect_screening($post, $required = true, $start = null) {
     unset($start);
     $free = sanitize_key($post['free_admission'] ?? '');
-    $alcohol = sanitize_key($post['alcohol'] ?? '');
     $about = sanitize_textarea_field($post['event_about'] ?? '');
     if ($required) {
         if ($free !== '1') return new WP_Error('free_admission', 'Please confirm that the event is free to attend.');
-        if (!in_array($alcohol, ['yes', 'no'], true)) return new WP_Error('alcohol', 'Please say whether alcohol will be served.');
         if ($about === '') return new WP_Error('event_about', 'Please tell us about your event.');
     } else {
         if ($free !== '1') $free = '';
-        if (!in_array($alcohol, ['yes', 'no'], true)) $alcohol = '';
     }
     return [
         'public_event' => '',
         'free_admission' => $free === '1' ? '1' : '',
-        'alcohol' => $alcohol,
+        'alcohol' => '',
         'end_time' => '',
         'host_age' => '',
         'event_about' => $about,
@@ -962,10 +994,10 @@ function brb_migrate_prices() {
 function brb_faq_markup() {
     $html = <<<'HTML'
 <h2>Booking and dates</h2>
-<details><summary>How do I book?</summary><p>We'd love to host you. Pick your date on the <a href="/book/">Book</a> page. The price shows right on the calendar. Send a request. Nothing is charged yet. Once it's approved, we'll email you a payment link. Your date is reserved once your deposit is received and approved by the Boardroom. A request does not hold the date. Bookings need at least 48 hours' notice.</p></details>
+<details><summary>How do I book?</summary><p>We'd love to host you. Pick your date on the <a href="/reserve-the-boardroom-quad-cities/">Book</a> page. The price shows right on the calendar. Send a request. Nothing is charged yet. Once it's approved, we'll email you a payment link. Your date is reserved once your deposit is received and approved by the Boardroom. A request does not hold the date. Bookings need at least 48 hours' notice.</p></details>
 <details><summary>How booking works</summary><p>HOW_STEPS</p></details>
 <details><summary>Are overnight stays allowed?</summary><p>No overnight stays. The Boardroom is an event space only.</p></details>
-<details><summary>What dates are open?</summary><p>Use the calendar on the <a href="/book/">Book</a> page, or ask us about a date. We'll tell you if it looks open.</p></details>
+<details><summary>What dates are open?</summary><p>Use the calendar on the <a href="/reserve-the-boardroom-quad-cities/">Book</a> page, or ask us about a date. We'll tell you if it looks open.</p></details>
 
 <h2>Pricing and payment</h2>
 <details><summary>How much does it cost?</summary><p>FAQ_PRICE</p></details>
@@ -1107,7 +1139,7 @@ function brb_refresh_faq() {
     $old_pay = 'Bring a check in person within those 48 hours.';
     $new_pay = 'Mail or drop off checks payable to Mad Productions at The Boardroom, ' . BRB_VENUE_ADDRESS . '.';
     $next = str_replace('online processing fee', 'card processing fee', str_replace($old_pay, $new_pay, $c));
-    $book = '<details><summary>How do I book and pay?</summary><p>Request a date on the <a href="/book/">Book</a> page. Bookings are subject to approval, and the owner may decline any request. No payment is due until the request is approved. A request does not hold the date. Your date is reserved once your deposit is received. The deposit (50% of the agreed total) holds the date. It is refundable if the Owner receives written cancellation 60 or more days before the event, less any non-refundable processing charges (including the 3% card processing fee) and costs already incurred. It is not refundable if cancellation is received less than 60 days before the event. Pay by check or in person, or online by card with a 3% processing fee. Mail or drop off checks payable to Mad Productions at The Boardroom, ' . BRB_VENUE_ADDRESS . '. Bookings need at least 48 hours\' notice. Until we confirm your price, your confirmation says price to be confirmed. The card processing fee is non-refundable.</p></details>';
+    $book = '<details><summary>How do I book and pay?</summary><p>Request a date on the <a href="/reserve-the-boardroom-quad-cities/">Book</a> page. Bookings are subject to approval, and the owner may decline any request. No payment is due until the request is approved. A request does not hold the date. Your date is reserved once your deposit is received. The deposit (50% of the agreed total) holds the date. It is refundable if the Owner receives written cancellation 60 or more days before the event, less any non-refundable processing charges (including the 3% card processing fee) and costs already incurred. It is not refundable if cancellation is received less than 60 days before the event. Pay by check or in person, or online by card with a 3% processing fee. Mail or drop off checks payable to Mad Productions at The Boardroom, ' . BRB_VENUE_ADDRESS . '. Bookings need at least 48 hours\' notice. Until we confirm your price, your confirmation says price to be confirmed. The card processing fee is non-refundable.</p></details>';
     if (strpos($next, 'holds the date for 48 hours') !== false || strpos($next, 'held for 48 hours') !== false || strpos($next, 'Saving a date on this website holds it') !== false || strpos($next, 'non-refundable [VERIFY with attorney]') !== false || strpos($next, 'is non-refundable and holds the date') !== false) {
         $replaced = preg_replace('/<details><summary>How do I book and pay\?<\/summary>.*?<\/details>/is', $book, $next, 1);
         if (is_string($replaced)) $next = $replaced;
@@ -1228,12 +1260,14 @@ function brb_maybe_upgrade() {
     brb_ensure_tour_on_contact();
     brb_import_named_blackouts();
     brb_refresh_checklist_copy();
+    brb_migrate_book_slug();
     wp_clear_scheduled_hook('brb_cron_expire');
     update_option('brb_version', BRB_VER);
 }
 // init, not plugins_loaded: legal pages call wp_insert_post, which needs rewrite
 // and WP_POST_REVISIONS. Those are not ready when plugins_loaded fires.
 add_action('init', 'brb_maybe_upgrade', 1);
+add_action('template_redirect', 'brb_legacy_book_redirect', 0);
 add_action('template_redirect', 'brb_legacy_legal_redirect');
 register_activation_hook(__FILE__, 'brb_maybe_upgrade');
 register_deactivation_hook(__FILE__, function () {
@@ -1246,6 +1280,7 @@ add_action('init', function () {
     if (!wp_next_scheduled('brb_cron_checklist')) {
         wp_schedule_event(time() + HOUR_IN_SECONDS, 'daily', 'brb_cron_checklist');
     }
+    brb_migrate_book_slug();
 }, 20);
 add_action('brb_cron_expire', 'brb_expire_holds');
 
@@ -1543,7 +1578,7 @@ function brb_faq_price_html() {
     $sun = $base ? (brb_rate_number($base['sun_full'] ?? '') ?? brb_rate_number($base['weekday_full'] ?? '')) : null;
     $mon = $base ? (brb_rate_number($base['mon_thu_full'] ?? '') ?? brb_rate_number($base['weekday_full'] ?? '')) : null;
     $fri = $base ? (brb_rate_number($base['fri_sat_full'] ?? '') ?? brb_rate_number($base['weekend_full'] ?? '')) : null;
-    $link = '<a href="' . esc_url(home_url('/book/')) . '">booking calendar</a>';
+    $link = '<a href="' . esc_url(brb_book_url()) . '">booking calendar</a>';
     if ($sun === null || $mon === null || $fri === null) {
         return 'Most events run $600 to about $2,000, and most come to about $1,200. The price for your date shows on the ' . $link . '. If a date has no rate yet, the page says price to be confirmed.';
     }
@@ -1749,7 +1784,7 @@ function brb_send_addon_prompts() {
         $until->format('Y-m-d H:i:s')
     ));
     foreach ((array) $rows as $b) {
-        $link = add_query_arg('br_addon', $b->token, home_url('/book/'));
+        $link = add_query_arg('br_addon', $b->token, brb_book_url());
         $body = brb_guest_hello_line() . "\n\nYour event is coming up. If the day before is open, you can add a setup day for " . brb_money(brb_addon_price()) . ". If the day after is open, you can add a takedown day for the same amount. This includes Sunday.\n\n" . $link . "\n";
         brb_mail($b->email, 'Setup or takedown day for ' . brb_ref($b), $body, brb_guest_reply_to());
         $wpdb->update(brb_table(), ['addon_prompted' => 1], ['id' => (int) $b->id]);
@@ -2068,7 +2103,7 @@ function brb_send_test_email() {
     return $sent;
 }
 function brb_guest_link($b) {
-    return add_query_arg('br_token', $b->token, home_url('/book/'));
+    return add_query_arg('br_token', $b->token, brb_book_url());
 }
 function brb_send_request_emails($b) {
     $o = brb_opt();
@@ -2300,8 +2335,6 @@ function brb_process_public_booking($post) {
     $name = sanitize_text_field($post['name'] ?? '');
     $email = sanitize_email($post['email'] ?? '');
     if (!$name || !is_email($email)) return new WP_Error('contact', 'Name and a valid email are required.');
-    $event_type = sanitize_key($post['event_type'] ?? '');
-    if (!isset(brb_event_types()[$event_type])) return new WP_Error('event_type', 'Please choose an event type.');
     $phone = sanitize_text_field($post['phone'] ?? '');
     if ($phone === '' || strlen($phone) > 50) return new WP_Error('phone', 'Please enter a phone number.');
     if ((string) ($post['waiver'] ?? '') !== '1') return new WP_Error('waiver', 'Please confirm the assumption of risk.');
@@ -2313,7 +2346,7 @@ function brb_process_public_booking($post) {
         'email' => $email,
         'phone' => $phone,
         'notes' => $screen['event_about'],
-        'event_type' => $event_type,
+        'event_type' => '',
         'public_event' => $screen['public_event'],
         'free_admission' => $screen['free_admission'],
         'waiver_ack' => ((string) ($post['waiver'] ?? '') === '1') ? '1' : '',
@@ -2326,7 +2359,7 @@ function brb_process_public_booking($post) {
 add_action('admin_post_nopriv_brb_book', 'brb_handle_book');
 add_action('admin_post_brb_book', 'brb_handle_book');
 function brb_handle_book() {
-    $back = wp_get_referer() ?: home_url('/book/');
+    $back = wp_get_referer() ?: brb_book_url();
     if (!wp_verify_nonce($_POST['_brb'] ?? '', 'brb_book')) wp_die('Session expired, please try again.');
     $fail = function ($m) use ($back) {
         wp_safe_redirect(add_query_arg('br_err', rawurlencode($m), $back));
@@ -2334,7 +2367,7 @@ function brb_handle_book() {
     };
     $result = brb_process_public_booking(wp_unslash($_POST));
     if (is_wp_error($result) || !$result) $fail(is_wp_error($result) ? $result->get_error_message() : 'Could not save the booking. Please try again.');
-    wp_safe_redirect(add_query_arg('br_token', $result->token, home_url('/book/')));
+    wp_safe_redirect(add_query_arg('br_token', $result->token, brb_book_url()));
     exit;
 }
 
@@ -2628,7 +2661,7 @@ function brb_calendar_markup($link_to_book = false) {
     $notice = brb_notice_hours();
     $extra = '';
     if ($link_to_book) {
-        $extra = ' data-book="' . esc_url(home_url('/book/')) . '" data-lazy="1"';
+        $extra = ' data-book="' . esc_url(brb_book_url()) . '" data-lazy="1"';
     }
     $html = '<div id="brb-cal" class="brb-cal" aria-live="polite" data-api="' . esc_url(rest_url('brb/v1/availability')) . '" data-nonce="' . esc_attr(wp_create_nonce('wp_rest')) . '" data-notice="' . (int) $notice . '" data-mode="' . esc_attr($o['mode']) . '"' . $extra . '>Loading calendar…</div>';
     $html .= '<p class="brb-legend"><span class="free"></span>Available <span class="partial"></span>Partly booked <span class="booked"></span>Unavailable <span class="soon"></span>Inside ' . (int) $notice . 'h notice</p>';
@@ -2692,7 +2725,7 @@ function brb_handle_addon() {
     if (!$b) wp_die('Booking not found.');
     if (!empty($_POST['setup'])) brb_apply_addon($b->id, 'setup');
     if (!empty($_POST['takedown'])) brb_apply_addon($b->id, 'takedown');
-    wp_safe_redirect(add_query_arg('br_token', $b->token, home_url('/book/')));
+    wp_safe_redirect(add_query_arg('br_token', $b->token, brb_book_url()));
     exit;
 }
 function brb_view_select() {
@@ -2748,13 +2781,14 @@ function brb_view_quote() {
         <h3>Your date</h3>
         <p><strong><?php echo esc_html($when); ?></strong><br>Estimated Guests: <?php echo (int) $r['guests']; ?></p>
         <?php if (!empty($q['price_set'])): ?>
-        <p><strong>Your price: <?php echo esc_html(brb_whole_money($q['total'])); ?></strong></p>
+        <p><strong>Rental Price*: <?php echo esc_html(brb_whole_money($q['total'])); ?></strong></p>
+        <p class="brb-small">*plus deposit</p>
         <?php else: ?>
         <p><strong>price to be confirmed</strong></p>
         <?php endif; ?>
         <p><?php echo esc_html(brb_no_overnight_line()); ?></p>
         <?php echo brb_book_policy_html(); ?>
-        <a href="<?php echo esc_url(strtok($_SERVER['REQUEST_URI'] ?? home_url('/book/'), '?')); ?>">← Change date</a>
+        <a href="<?php echo esc_url(strtok($_SERVER['REQUEST_URI'] ?? brb_book_url(), '?')); ?>">← Change date</a>
       </div>
       <form class="brb-card brb-guest" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
         <h3>Guest details</h3>
@@ -2765,20 +2799,7 @@ function brb_view_quote() {
         <div class="brb-field"><label>Full name<span class="brb-req">*</span><input name="name" required autocomplete="name"></label></div>
         <div class="brb-field"><label>Email<span class="brb-req">*</span><input type="email" name="email" required autocomplete="email"></label></div>
         <div class="brb-field"><label>Phone<span class="brb-req">*</span><input type="tel" name="phone" required autocomplete="tel" maxlength="50"></label></div>
-        <div class="brb-field"><label>Event type<span class="brb-req">*</span><select name="event_type" required>
-          <option value="">Choose one</option>
-          <?php foreach (brb_event_types() as $key => $label): ?>
-          <option value="<?php echo esc_attr($key); ?>"><?php echo esc_html($label); ?></option>
-          <?php endforeach; ?>
-        </select></label></div>
         <div class="brb-field"><label class="brb-check"><input type="checkbox" name="free_admission" value="1" required><span class="brb-check-copy"><strong>Free to attend</strong><span class="brb-callout"><?php echo esc_html(brb_free_admission_rule()); ?></span></span></label></div>
-        <div class="brb-field"><label>Will alcohol be served?<span class="brb-req">*</span>
-          <select name="alcohol" required>
-            <option value="">Choose one</option>
-            <option value="yes">Yes</option>
-            <option value="no">No</option>
-          </select>
-        </label></div>
         <div class="brb-field"><label>Tell us about your event<span class="brb-req">*</span><textarea name="event_about" rows="4" required></textarea></label></div>
         <p class="brb-callout"><?php echo esc_html(brb_approval_line()); ?> <?php echo esc_html(brb_request_open_line()); ?></p>
         <div class="brb-field"><label class="brb-check"><input type="checkbox" name="waiver" value="1" required><span class="brb-check-copy"><strong>Assumption of risk</strong><span class="brb-callout">I and my guests assume all risk. The Boardroom is not responsible for injury, loss, or equipment issues, such as the ice maker or wifi, that affect an event.</span></span></label></div>
