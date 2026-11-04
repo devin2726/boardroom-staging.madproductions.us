@@ -471,7 +471,7 @@ function brb_chat_intents($text) {
     return $hits;
 }
 function brb_chat_chips($intent) {
-    $book = home_url('/book/');
+    $book = brb_book_url();
     $catalog = [
         ['label' => 'Check dates', 'href' => $book . '#brb-cal'],
         ['label' => 'How much', 'question' => 'How much does it cost?'],
@@ -750,7 +750,7 @@ function brb_chat_suggestion_bits($rows) {
         $label = $dt->format('l, M j');
         $money = $row['price'] === null ? '' : ' (' . brb_whole_money($row['price']) . ')';
         $note = !empty($row['partial']) ? ' (not fully open)' : '';
-        $url = home_url('/book/?date=' . $row['date']);
+        $url = add_query_arg('date', $row['date'], brb_book_url());
         $bits[] = $label . $money . $note . ' ' . $url;
         $chips[] = ['label' => $dt->format('D M j') . ($row['price'] === null ? '' : ' ' . brb_whole_money($row['price'])), 'href' => $url];
     }
@@ -758,7 +758,7 @@ function brb_chat_suggestion_bits($rows) {
 }
 function brb_chat_date_search_reply($text) {
     $rows = brb_chat_date_suggestions($text);
-    $calendar = home_url('/book/#brb-cal');
+    $calendar = brb_book_url() . '#brb-cal';
     if (!$rows) {
         $none = preg_match('/\bpartly[\s-]?booked\b|\bpartially booked\b/', strtolower((string) $text))
             ? 'I don\'t see a partly booked day in that window.'
@@ -787,7 +787,7 @@ function brb_chat_join_bits($items) {
 }
 function brb_chat_availability_text($parsed) {
     if (!empty($parsed['too_long'])) return 'I can check up to 14 days at a time. Try a shorter range?';
-    $ask = 'Tell me a date, like next Saturday or Dec 12, and I\'ll check it. Here\'s our calendar, with each date\'s price: ' . home_url('/book/#brb-cal');
+    $ask = 'Tell me a date, like next Saturday or Dec 12, and I\'ll check it. Here\'s our calendar, with each date\'s price: ' . brb_book_url() . '#brb-cal';
     if (empty($parsed['dates']) && !empty($parsed['invalid'])) return 'I couldn\'t find that date. ' . $ask;
     if (empty($parsed['dates'])) return $ask;
     $lines = [];
@@ -1107,7 +1107,7 @@ function brb_chat_payment_text($include_checks = false) {
 }
 
 function brb_chat_book_text() {
-    $core = 'Submit a request on the Book page: ' . home_url('/book/') . '. Your date is reserved once the meeting is complete and your deposit is received and approved by the Boardroom.';
+    $core = 'Submit a request on the Book page: ' . brb_book_url() . '. Your date is reserved once the meeting is complete and your deposit is received and approved by the Boardroom.';
     if (brb_chat_detail()) return $core . ' ' . brb_guest_review_line();
     return $core . ' Want more details?';
 }
@@ -1353,10 +1353,6 @@ function brb_chat_save_lead($input) {
     if (trim((string) ($input['event_date'] ?? '')) !== '' && $event_date === '') {
         return new WP_Error('date', 'Please use a real event date, or leave it blank.');
     }
-    $event_type = sanitize_key((string) ($input['event_type'] ?? ''));
-    if ($event_type !== '' && !isset(brb_event_types()[$event_type])) {
-        return new WP_Error('event_type', 'Please choose an event type from the list, or leave it blank.');
-    }
     $note = sanitize_textarea_field((string) ($input['note'] ?? ''));
     $transcript = brb_chat_transcript_from_input($input);
     if (strlen($note) > 1000) $note = substr($note, 0, 1000);
@@ -1370,12 +1366,11 @@ function brb_chat_save_lead($input) {
 
     $parts = [];
     if ($note !== '') $parts[] = $note;
-    if ($event_type !== '') $parts[] = 'Event type: ' . brb_event_type_label($event_type);
     if ($event_date !== '') $parts[] = 'Event date: ' . $event_date;
     if ($transcript !== '') $parts[] = "Chat summary:\n" . $transcript;
     $notes = implode("\n\n", $parts);
     if (strlen($notes) > 4000) $notes = substr($notes, 0, 4000);
-    $topic = ($event_type !== '') ? 'event' : 'question';
+    $topic = 'question';
     if (sanitize_key((string) ($input['topic'] ?? '')) === 'tour') $topic = 'tour';
 
     global $wpdb;
@@ -1395,7 +1390,7 @@ function brb_chat_save_lead($input) {
     $row = brb_tour((int) $wpdb->insert_id);
     if ($row) {
         brb_report_stamp_inquiry((int) $row->id, [
-            'event_type' => $event_type,
+            'event_type' => '',
             'party_size' => $input['guests'] ?? '',
         ]);
         brb_event_hit('chat_lead');
@@ -1555,11 +1550,6 @@ function brb_chat_markup($mode = 'float', $details_target = '') {
     echo '<label>Email*<input type="email" name="email" maxlength="190" autocomplete="email" required></label>';
     echo '<label>Phone (optional)<input name="phone" maxlength="50" autocomplete="tel"></label>';
     echo '<label>Event date<input type="date" name="event_date"></label>';
-    echo '<label>Event type<select name="event_type"><option value="">Choose one</option>';
-    foreach (brb_event_types() as $value => $label) {
-        echo '<option value="' . esc_attr($value) . '">' . esc_html($label) . '</option>';
-    }
-    echo '</select></label>';
     echo '<label>Guests (80)<input type="number" name="guests" min="1" max="200"></label>';
     echo '<label>Short note<textarea name="note" rows="3" maxlength="1000"></textarea></label>';
     echo '<label class="brb-chat-consent"><input type="checkbox" name="consent" value="1" required> A team member will reply using this info</label>';

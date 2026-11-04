@@ -70,7 +70,7 @@ function brb_pay_link($b) {
     return add_query_arg([
         'br_pay' => $b->token,
         'br_sig' => brb_pay_signature($b->token),
-    ], home_url('/book/'));
+    ], brb_book_url());
 }
 function brb_pay_link_checklist() {
     return [
@@ -112,7 +112,7 @@ function brb_stripe_create_session($b) {
     if ($base_cents <= 0) return new WP_Error('amount', 'There is no balance to pay online.');
     $percent = brb_card_fee_percent();
     $fee_cents = brb_card_fee_cents($base_cents, $percent);
-    $success = add_query_arg(['br_token' => $b->token, 'card' => 'pending'], home_url('/book/'));
+    $success = add_query_arg(['br_token' => $b->token, 'card' => 'pending'], brb_book_url());
     $success .= '&session_id={CHECKOUT_SESSION_ID}';
     $body = [
         'mode' => 'payment',
@@ -173,7 +173,7 @@ function brb_handle_stripe_checkout() {
     $sig = sanitize_text_field(wp_unslash($_POST['br_sig'] ?? ''));
     $agreed = !empty($_POST['card_fee_agree']);
     $result = brb_stripe_begin_checkout($token, $sig, $agreed);
-    $back = add_query_arg(['br_pay' => $token, 'br_sig' => $sig], home_url('/book/'));
+    $back = add_query_arg(['br_pay' => $token, 'br_sig' => $sig], brb_book_url());
     if (is_wp_error($result)) {
         wp_safe_redirect(add_query_arg('br_err', rawurlencode($result->get_error_message()), $back));
         exit;

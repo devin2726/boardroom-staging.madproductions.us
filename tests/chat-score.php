@@ -29,10 +29,10 @@ function brb_chat_topic_spec($topic) {
         'nye' => ['dynamic' => 'nye', 'money' => 'date', 'dates' => true],
         'invalid_date' => ['facts' => ["couldn't find that date"], 'money' => 'none', 'dates' => false],
         'december' => ['facts' => ['December'], 'money' => 'none', 'dates' => true],
-        'book' => ['facts' => ['/book/', 'approved by the Boardroom'], 'lead' => true, 'money' => 'none'],
+        'book' => ['facts' => ['/reserve-the-boardroom-quad-cities/', 'approved by the Boardroom'], 'lead' => true, 'money' => 'none'],
         'notice' => ['facts' => ['48', "hours", 'notice'], 'money' => 'none', 'forbid' => ['guaranteed']],
         'hold' => ['facts' => ['A request does not hold the date', 'deposit is received and approved'], 'money' => 'none', 'forbid' => ['$10']],
-        'reserve' => ['facts' => ['/book/', 'approved by the Boardroom'], 'lead' => true, 'money' => 'none'],
+        'reserve' => ['facts' => ['/reserve-the-boardroom-quad-cities/', 'approved by the Boardroom'], 'lead' => true, 'money' => 'none'],
         'response_time' => ['facts' => ['Contact form'], 'lead' => true, 'money' => 'none', 'forbid' => ['within 24', '24-hour', 'same-day reply']],
         'weekday_ok' => ['facts' => ['10:00 AM', '11:30 PM'], 'money' => 'none'],
         'multi_day' => ['facts' => ['14 days'], 'money' => 'none'],
@@ -226,7 +226,7 @@ function brb_chat_score_dynamic($spec, $question, $reply, &$missing, &$bad) {
 
 function brb_chat_score_audit($spec, $question, $reply, &$bad) {
     $allowed = brb_chat_allowed_money($spec, $question);
-    if (preg_match_all('/\/book\/\?date=(\d{4}-\d{2}-\d{2})/', $reply, $links)) {
+    if (preg_match_all('/\/reserve-the-boardroom-quad-cities\/\?date=(\d{4}-\d{2}-\d{2})/', $reply, $links)) {
         foreach ($links[1] as $ymd) {
             $amount = function_exists('brb_rate_for_date') ? brb_rate_for_date($ymd, 'full') : null;
             if ($amount !== null) $allowed[brb_whole_money($amount)] = true;

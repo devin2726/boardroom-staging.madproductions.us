@@ -45,7 +45,7 @@ add_filter('pre_wp_mail', function ($short, $atts) {
 $GLOBALS['brb_mails'] = [];
 
 try {
-    brb_t(get_option('brb_version') === '2.5.40', 'plugin storage version is 2.5.40');
+    brb_t(get_option('brb_version') === '2.5.41', 'plugin storage version is 2.5.41');
     $cc_before = (string) brb_opt('inquiry_cc');
     delete_option('brb_inquiry_cc_seeded');
     $cc_settings = get_option('brb_settings');
@@ -342,9 +342,13 @@ try {
         'guests' => 4,
         'name' => 'Flow Test',
         'email' => 'flow-test@example.com',
+        'phone' => '555-0100',
         'policy' => '1', 'waiver' => '1',
+        'free_admission' => '1',
+        'event_about' => 'A family dinner.',
     ]);
-    brb_t(is_wp_error($missing_type) && $missing_type->get_error_code() === 'event_type', 'a public save requires an event type');
+    brb_t(!is_wp_error($missing_type) && $missing_type && ($missing_type->event_type ?? '') === '' && ($missing_type->alcohol ?? '') === '', 'a public save does not require an event type or alcohol');
+    if ($missing_type && !is_wp_error($missing_type)) $created_ids[] = (int) $missing_type->id;
     $half_ok = brb_process_public_booking([
         'date' => '2030-06-12',
         'type' => 'half',
@@ -387,7 +391,7 @@ try {
     brb_t(!is_wp_error($b) && $b && $b->status === 'review', 'a request is pending review and does not hold the date');
     if ($b && !is_wp_error($b)) {
         $created_ids[] = (int) $b->id;
-        brb_t($b->public_event === '' && ($b->free_admission ?? '') === '1' && $b->alcohol === 'yes' && $b->end_time === '' && $b->host_age === '' && strpos((string) $b->event_about, 'private dinner') !== false, 'free admission and alcohol are stored, and the removed questions are not');
+        brb_t($b->public_event === '' && ($b->free_admission ?? '') === '1' && ($b->event_type ?? '') === '' && ($b->alcohol ?? '') === '' && $b->end_time === '' && $b->host_age === '' && strpos((string) $b->event_about, 'private dinner') !== false, 'free admission is stored, and event type, alcohol, and the removed questions are not');
         if ((int) $b->price_set === 1) {
             brb_t((float) $b->total > 0 && brb_balance_due_display($b) !== 'Price to be confirmed', 'a calendar price is saved and the balance due date is shown');
         } else {
@@ -448,8 +452,8 @@ try {
             $body = $guest_mail['message'];
             brb_t(strpos($body, 'held for 48 hours') === false && strpos($body, 'Your date is held until') === false, 'request email does not describe a 48 hour hold');
             brb_t(strpos($body, 'Thank you for contacting The Boardroom!') === 0 && strpos($body, 'email you a payment link') !== false && strpos($body, 'once your deposit is received and approved') !== false && strpos($body, 'email a price') === false && strpos($body, 'meet every renter in person') === false, 'request email opens with thanks and the review steps');
-            brb_t(strpos($body, 'Event type: Wedding') !== false, 'request email names the event type');
-            brb_t(strpos($body, 'Private, invitation-only') === false && strpos($body, 'Host age bracket') === false && strpos($body, 'Planned end time') === false && strpos($body, 'Estimated Guests:') !== false && strpos($body, 'Free admission acknowledged: Yes') !== false && strpos($body, 'Alcohol served: Yes') !== false && strpos($body, 'A private dinner for family.') !== false && strpos($body, '11:30 PM') !== false && strpos($body, 'no tickets') !== false, 'request email includes the remaining screening answers and the house rules');
+            brb_t(strpos($body, 'Event type:') === false && strpos($body, 'Alcohol served:') === false, 'request email leaves out event type and alcohol');
+            brb_t(strpos($body, 'Private, invitation-only') === false && strpos($body, 'Host age bracket') === false && strpos($body, 'Planned end time') === false && strpos($body, 'Estimated Guests:') !== false && strpos($body, 'Free admission acknowledged: Yes') !== false && strpos($body, 'A private dinner for family.') !== false && strpos($body, '11:30 PM') !== false && strpos($body, 'no tickets') !== false, 'request email includes the remaining screening answers and the house rules');
             brb_t(strpos($body, '[VERIFY] Test instructions.') === false && strpos($body, 'payable to [VERIFY] Test Payee') === false, 'request email does not include payment instructions');
             brb_t(strpos($body, 'Extra instructions for bringing the check') === false, 'the default extra-instructions placeholder is not in the request email');
             if ((int) $b->price_set === 1) {
@@ -466,7 +470,7 @@ try {
             } else {
                 brb_t((int) $b->price_set === 0 && (float) $b->total == 0.0, 'a public request does not invent a total when the date has no rate');
             }
-            brb_t($b->event_type === 'wedding', 'the event type is stored with the booking');
+            brb_t(($b->event_type ?? '') === '', 'a new public booking does not store an event type');
             brb_t($b->phone === '555-0100', 'a public save stores the guest phone number');
         }
         brb_t($admin_mail && strpos($admin_mail['message'], 'pending review') !== false && strpos($admin_mail['message'], 'The date is not held.') !== false && strpos($admin_mail['message'], 'A private dinner for family.') !== false, 'staff email shows the screening answers and that the date is not held');
@@ -481,7 +485,7 @@ try {
         $html = do_shortcode('[boardroom_booking]');
         brb_t(strpos($html, 'held for 48 hours') === false && strpos($html, 'Your date is held until') === false, 'confirmation page does not describe a 48 hour hold');
         brb_t(strpos($html, 'Your request is in.') !== false && strpos($html, 'Nothing is charged yet') !== false && strpos($html, 'email you a payment link') !== false && strpos($html, 'email a price') === false && strpos($html, 'How booking works') === false, 'confirmation page thanks the guest and says nothing is charged yet');
-        brb_t(strpos($html, 'Wedding') !== false, 'confirmation page shows the event type');
+        brb_t(strpos($html, 'Wedding') === false && strpos($html, 'Alcohol served') === false, 'confirmation page leaves out event type and alcohol for a new booking');
         brb_t(strpos($html, '[VERIFY] Test instructions.') === false && strpos($html, 'Extra instructions for bringing the check') === false, 'confirmation hides payment instructions until the request is approved');
         brb_t(strpos($html, 'Pending review') !== false, 'confirmation page says the request is pending review');
         brb_t(strpos($html, 'No overnight stays. The Boardroom is an event space only.') !== false && strpos($html, 'Estimated Guests:') !== false, 'confirmation states the no-overnight rule and estimated guests');
@@ -596,7 +600,13 @@ try {
             $admin_html = ob_get_clean();
             brb_t(strpos($admin_html, 'Paid in full') !== false, 'admin detail shows paid in full');
             brb_t(strpos($admin_html, '1001') !== false && strpos($admin_html, '1002') !== false, 'admin detail lists both checks');
-            brb_t(strpos($admin_html, 'Event type') !== false && strpos($admin_html, 'Wedding') !== false, 'admin detail shows the event type');
+            brb_t(strpos($admin_html, 'Event type') === false && strpos($admin_html, 'Alcohol served') === false, 'admin detail hides event type and alcohol when a new booking has none');
+            global $wpdb;
+            $wpdb->update(brb_table(), ['event_type' => 'wedding', 'alcohol' => 'yes'], ['id' => (int) $b->id]);
+            ob_start();
+            brb_admin_detail((int) $b->id);
+            $saved_admin = ob_get_clean();
+            brb_t(strpos($saved_admin, 'Event type') !== false && strpos($saved_admin, 'Wedding') !== false && strpos($saved_admin, 'Alcohol served') !== false && strpos($saved_admin, '>Yes<') !== false, 'admin detail still shows a saved event type and alcohol answer');
             brb_t(strpos($admin_html, 'Payments recorded') !== false && strpos($admin_html, '>Check<') !== false, 'payments list shows the check method');
             brb_t(strpos($admin_html, 'Delete booking') === false, 'a paid booking has no delete action');
             foreach ($banned as $w) brb_t(stripos($admin_html, $w) === false, "admin detail has no $w");
@@ -768,7 +778,7 @@ try {
     $home_tour_at = strpos($home_src, 'br_tour_video_html');
     brb_t(is_string($home_src) && $home_cal_at !== false && $home_tour_at !== false && $home_cal_at < $home_tour_at && strpos($home_src, 'Check Your Date') !== false && strpos($home_src, "Pick a date to see your price. Nothing's charged until we approve.") === false && strpos($home_src, 'See full booking details') !== false, 'the homepage calendar sits under the hero and above the tour');
     $home_cal = brb_home_calendar_html();
-    brb_t(strpos($home_cal, 'Loading calendar') !== false && strpos($home_cal, 'Available') !== false && strpos($home_cal, 'Partly booked') !== false && strpos($home_cal, 'Unavailable') !== false && strpos($home_cal, 'Inside ' . (int) brb_notice_hours() . 'h notice') !== false && strpos($home_cal, 'data-lazy="1"') !== false && strpos($home_cal, 'data-book="' . esc_url(home_url('/book/')) . '"') !== false, 'the homepage calendar reuses the book legend and links a date to /book/');
+    brb_t(strpos($home_cal, 'Loading calendar') !== false && strpos($home_cal, 'Available') !== false && strpos($home_cal, 'Partly booked') !== false && strpos($home_cal, 'Unavailable') !== false && strpos($home_cal, 'Inside ' . (int) brb_notice_hours() . 'h notice') !== false && strpos($home_cal, 'data-lazy="1"') !== false && strpos($home_cal, 'data-book="' . esc_url(brb_book_url()) . '"') !== false, 'the homepage calendar reuses the book legend and links a date to /book/');
     $cal_js = file_get_contents(dirname((new ReflectionFunction('brb_view_select'))->getFileName()) . '/assets/brb.js');
     brb_t(is_string($cal_js) && strpos($cal_js, "credentials: 'omit'") !== false && strpos($cal_js, 'X-WP-Nonce') === false && strpos($cal_js, 'no-store') !== false, 'the calendar request omits the login cookie and does not send a nonce that only matches that cookie');
     $prev_user = get_current_user_id();
@@ -983,15 +993,15 @@ try {
     brb_t(strpos($quote_html, 'I agree to the') !== false && strpos($quote_html, '>Terms<') !== false && strpos($quote_html, '>Rental Agreement<') !== false && strpos($quote_html, '>Privacy Policy<') !== false && strpos($quote_html, home_url('/terms/')) !== false && strpos($quote_html, home_url('/rental-agreement/')) !== false && strpos($quote_html, home_url('/privacy/')) !== false, 'review page links the terms, rental agreement, and privacy policy');
     brb_t(strpos($quote_html, 'No overnight stays. The Boardroom is an event space only.') !== false && strpos($quote_html, 'Estimated Guests:') !== false, 'review step states the no-overnight rule and estimated guests');
     brb_t(stripos($quote_html, 'check-in') === false && stripos($quote_html, 'check-out') === false && stripos($quote_html, 'per night') === false && stripos($quote_html, 'per-night') === false && stripos($quote_html, 'guests staying') === false && strpos($quote_html, '[VERIFY] latest end time') === false, 'review step uses event wording');
-    brb_t(strpos($quote_html, 'name="event_type"') !== false && strpos($quote_html, 'Wedding') !== false && strpos($quote_html, 'Birthday') !== false && strpos($quote_html, 'Corporate') !== false && strpos($quote_html, 'Fundraiser') !== false && strpos($quote_html, 'Other') !== false, 'review page asks for an event type');
-    brb_t(strpos($quote_html, 'name="private_event"') === false && strpos($quote_html, 'name="end_time"') === false && strpos($quote_html, 'name="host_age"') === false && strpos($quote_html, 'name="days"') === false && strpos($quote_html, 'name="free_admission"') !== false && strpos($quote_html, 'name="alcohol"') !== false && strpos($quote_html, 'Will alcohol be served?') !== false && strpos($quote_html, 'liquor license') === false && strpos($quote_html, 'Tell us about your event') !== false && strpos($quote_html, 'Estimated Guests:') !== false, 'review page keeps free-to-attend, alcohol, and estimated guests, and drops the removed questions');
+    brb_t(strpos($quote_html, 'name="event_type"') === false && strpos($quote_html, 'name="alcohol"') === false && strpos($quote_html, 'Will alcohol be served?') === false, 'review page does not ask for an event type or alcohol');
+    brb_t(strpos($quote_html, 'name="private_event"') === false && strpos($quote_html, 'name="end_time"') === false && strpos($quote_html, 'name="host_age"') === false && strpos($quote_html, 'name="days"') === false && strpos($quote_html, 'name="free_admission"') !== false && strpos($quote_html, 'liquor license') === false && strpos($quote_html, 'Tell us about your event') !== false && strpos($quote_html, 'Estimated Guests:') !== false && strpos($quote_html, 'Rental Price*:') !== false && strpos($quote_html, '*plus deposit') !== false, 'review page keeps free-to-attend and estimated guests, and labels the rental price');
     brb_t(brb_host_age_label('under_21') === 'Under 21' && brb_host_age_label('age_21_24') === '21 to 24' && brb_host_age_label('under_25') === 'Under 25' && !isset(brb_host_ages()['age_21_24']), 'older host-age answers still display and new bookings use 25');
     brb_t(strpos($quote_html, '60 or more days before the event') !== false && strpos($quote_html, 'less than 60 days out') !== false && strpos($quote_html, 'subject to approval') !== false && strpos($quote_html, '<h3>Pricing</h3>') !== false && strpos($quote_html, '<h3>Payment</h3>') !== false && strpos($quote_html, '<h3>Cancellation</h3>') !== false, 'review page states approval and the book pricing, payment, and cancellation sections');
     brb_t(strpos($quote_html, '[VERIFY] Test instructions.') === false && strpos($quote_html, 'Extra instructions for bringing the check') === false && strpos($quote_html, '[VERIFY: attorney review]') === false, 'review page hides payment instructions and the attorney note');
     brb_t(stripos($quote_html, 'cash') === false, 'the public review step stays check-only');
     $later_rate = brb_rate_for_date($later, 'full');
     if ($later_rate !== null) {
-        brb_t(strpos($quote_html, 'Your price: ' . brb_whole_money($later_rate)) !== false, 'review shows the calendar price for the date');
+        brb_t(strpos($quote_html, 'Rental Price*: ' . brb_whole_money($later_rate)) !== false && strpos($quote_html, '*plus deposit') !== false, 'review shows the calendar price for the date');
     } else {
         brb_t(strpos($quote_html, 'Full days start at $600, and most events come to about $1,200. We confirm your final price by email.') !== false, 'review page shows the book pricing paragraph');
         brb_t(stripos($quote_html, 'price to be confirmed') !== false, 'review page says price to be confirmed');
@@ -1011,7 +1021,7 @@ try {
     $priced = brb_quote(brb_build_range(['date' => $later, 'type' => 'day', 'days' => 1, 'guests' => 4]));
     brb_t(!empty($priced['price_set']) && (float) $priced['total'] === 900.0, 'a saved calendar rate becomes the quote total');
     $priced_html = do_shortcode('[boardroom_booking]');
-    brb_t(strpos($priced_html, 'Your price: $900') !== false, 'review shows the date price when a rate is saved');
+    brb_t(strpos($priced_html, 'Rental Price*: $900') !== false && strpos($priced_html, '*plus deposit') !== false, 'review shows the date price when a rate is saved');
     update_option('brb_settings', $rate_saved);
     brb_t(brb_rate_for_date('2026-11-23', 'full') === 850.0, 'a Monday in the default season is 850');
     brb_t(brb_rate_for_date('2026-11-25', 'full') === 1500.0, 'November 25 uses its date rate');
@@ -1071,7 +1081,7 @@ try {
         'policy' => '1', 'waiver' => '1',
         'event_type' => 'birthday',
     ] + brb_screen());
-    brb_t(!is_wp_error($cash_b) && $cash_b && $cash_b->event_type === 'birthday', 'a birthday booking stores its event type');
+    brb_t(!is_wp_error($cash_b) && $cash_b && ($cash_b->event_type ?? '') === '', 'a new booking does not require an event type');
     if ($cash_b && !is_wp_error($cash_b)) {
         $created_ids[] = (int) $cash_b->id;
         $priced_cash = brb_set_agreed_price($cash_b->id, 800);
@@ -1086,7 +1096,7 @@ try {
             if (stripos($m['to'], 'flow-test@example.com') !== false) $cash_mail = $m;
         }
         brb_t($cash_mail && strpos($cash_mail['message'], 'We recorded cash for') !== false && strpos($cash_mail['message'], '9999') === false, 'the guest receipt says cash and omits a check number');
-        brb_t($cash_mail && strpos($cash_mail['message'], 'Event type: Birthday') !== false, 'the cash receipt names the event type');
+        brb_t($cash_mail && strpos($cash_mail['message'], 'Event type:') === false, 'the cash receipt leaves out an event type');
         brb_t($cash_mail && strpos($cash_mail['message'], 'Thank you for contacting The Boardroom!') === 0 && strpos($cash_mail['message'], 'Amount: ' . brb_money(400)) !== false && strpos($cash_mail['message'], 'Date: ' . brb_now()->format('F j, Y')) !== false && strpos($cash_mail['message'], 'Method: Cash') !== false && strpos($cash_mail['message'], 'Booking reference: ' . brb_ref($cash_b)) !== false && strpos($cash_mail['message'], 'Event date:') !== false && strpos($cash_mail['message'], 'Balance remaining:') !== false && stripos($cash_mail['message'], 'sales tax') === false, 'the cash receipt lists the payment and does not mention sales tax');
         $staff_receipt = null;
         foreach ($GLOBALS['brb_mails'] as $m) {

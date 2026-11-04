@@ -166,8 +166,7 @@ add_action('admin_post_brb_manual', function () {
         if ($take) brb_admin_back(0, 'Enter the agreed price before recording a check.', 'brb-new');
         $q = brb_quote($r);
     }
-    $event_type = sanitize_key($post['event_type'] ?? '');
-    if (!isset(brb_event_types()[$event_type])) $event_type = '';
+    $event_type = '';
     $screen = brb_collect_screening($post, false);
     if (is_wp_error($screen)) $screen = ['public_event' => '', 'free_admission' => '', 'alcohol' => '', 'end_time' => '', 'host_age' => '', 'event_about' => ''];
     $about = $screen['event_about'] !== '' ? $screen['event_about'] : sanitize_textarea_field($post['notes'] ?? '');
@@ -302,11 +301,13 @@ function brb_admin_detail($id) {
     $rows = [
         'When' => brb_when($b),
         'Estimated Guests' => (string) (int) $b->guests,
-        'Event type' => brb_event_type_label($b->event_type ?? '') ?: '—',
         'Free admission' => (($b->free_admission ?? '') === '1') ? 'Acknowledged' : '—',
-        'Alcohol served' => brb_yes_no_label($b->alcohol ?? '') ?: '—',
         'About the event' => ($b->event_about ?? '') !== '' ? $b->event_about : '—',
     ];
+    $saved_type = brb_event_type_label($b->event_type ?? '');
+    if ($saved_type !== '') $rows['Event type'] = $saved_type;
+    $saved_alcohol = brb_yes_no_label($b->alcohol ?? '');
+    if ($saved_alcohol !== '') $rows['Alcohol served'] = $saved_alcohol;
     if (($b->public_event ?? '') === 'no') $rows['Private, invitation-only'] = 'Yes';
     elseif (($b->public_event ?? '') === 'yes') $rows['Private, invitation-only'] = 'No, it is open to the public';
     if (trim((string) ($b->end_time ?? '')) !== '') $rows['Planned end time'] = brb_end_time_label($b->end_time);
@@ -501,11 +502,6 @@ function brb_admin_new() {
     echo '<tr><th><label for="date">Date</label></th><td><input type="date" name="date" id="date" required value="' . esc_attr(brb_now()->modify('+3 days')->format('Y-m-d')) . '"></td></tr>';
     echo '<tr><th>Type</th><td>Full day, 10:00 AM to 11:30 PM<input type="hidden" name="type" value="day"></td></tr>';
     echo '<tr><th><label for="guests">Estimated Guests</label></th><td><input type="number" name="guests" id="guests" min="1" max="' . (int) $o['max_guests'] . '" value="10"></td></tr>';
-    echo '<tr><th><label for="event_type">Event type</label></th><td><select name="event_type" id="event_type"><option value="">Not specified</option>';
-    foreach (brb_event_types() as $key => $label) {
-        printf('<option value="%s">%s</option>', esc_attr($key), esc_html($label));
-    }
-    echo '</select></td></tr>';
     echo '<tr><th><label for="name">Name</label></th><td><input name="name" id="name" class="regular-text" required></td></tr>';
     echo '<tr><th><label for="email">Email</label></th><td><input type="email" name="email" id="email" class="regular-text" required></td></tr>';
     echo '<tr><th><label for="phone">Phone</label></th><td><input name="phone" id="phone" class="regular-text"></td></tr>';

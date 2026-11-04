@@ -173,7 +173,7 @@ function brb_tour_submit($input) {
     if ($row) {
         brb_report_stamp_inquiry((int) $row->id, [
             'source' => $topic === 'tour' ? 'tour request' : 'contact form',
-            'event_type' => $input['event_type'] ?? '',
+            'event_type' => '',
             'party_size' => $input['party_size'] ?? '',
         ]);
         if ($topic === 'tour') brb_event_hit('tour_request');
@@ -239,7 +239,7 @@ function brb_inquiry_guest_ack_body($row) {
     $body = "Hi {$first},\n\n"
         . "Thanks for reaching out to The Boardroom! We got your message and will call or email you shortly.\n";
     if ($lines) $body .= "\nHere's what you sent us:\n" . implode("\n", $lines) . "\n";
-    $body .= "\nWant to check open dates or book? Visit " . home_url('/book/') . "\n\n"
+    $body .= "\nWant to check open dates or book? Visit " . brb_book_url() . "\n\n"
         . "See you soon,\n"
         . "The Boardroom\n"
         . BRB_VENUE_ADDRESS . "\n";
@@ -337,13 +337,6 @@ function brb_tour_form() {
     echo '<label class="hp">Company<input name="company" tabindex="-1" autocomplete="off"></label>';
     echo '<label>Name*<input name="name" required maxlength="190" autocomplete="name"></label>';
     echo '<label>Email*<input type="email" name="email" required maxlength="190" autocomplete="email"></label>';
-    echo '<label>Event type<select name="event_type"><option value="">Choose one</option>';
-    if (function_exists('brb_event_types')) {
-        foreach (brb_event_types() as $value => $label) {
-            echo '<option value="' . esc_attr($value) . '">' . esc_html($label) . '</option>';
-        }
-    }
-    echo '</select></label>';
     echo '<label>Preferred Dates<input type="date" name="preferred"></label>';
     echo '<label>Guests<input type="number" name="party_size" min="1" max="200"></label>';
     echo '<label>Message*<textarea name="message" rows="5" maxlength="4000" required></textarea></label>';

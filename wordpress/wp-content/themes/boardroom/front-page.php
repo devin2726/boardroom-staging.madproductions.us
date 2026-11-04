@@ -1,4 +1,4 @@
-<?php get_header(); $p = br_photos(); $book = home_url('/book/'); ?>
+<?php get_header(); $p = br_photos(); $book = brb_book_url(); ?>
 <section class="hero" aria-label="Photos of The Boardroom">
   <?php foreach ($p as $i => $f) printf('<div class="slide%s">%s</div>', $i ? '' : ' on', br_picture($f, br_photo_alt($f))); ?>
   <div class="cap"><h1>Welcome to The Boardroom</h1><p class="hero-sub">Moline's one-of-a-kind party venue <br>in the heart of the Quad&nbsp;Cities</p></div>
