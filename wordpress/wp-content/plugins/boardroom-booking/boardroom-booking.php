@@ -461,7 +461,7 @@ function brb_how_booking_works_steps() {
     ];
 }
 function brb_how_booking_works_html() {
-    $html = '<section class="brb-how"><h2>Reserve Your Date</h2><ol>';
+    $html = '<section class="brb-how"><h2>Pick a Date</h2><ol>';
     foreach (brb_how_booking_works_steps() as $step) $html .= '<li>' . esc_html($step) . '</li>';
     $html .= '</ol></section>';
     return $html;
