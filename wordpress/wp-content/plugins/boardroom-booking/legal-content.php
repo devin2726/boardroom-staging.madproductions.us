@@ -233,6 +233,8 @@ NOW, THEREFORE, in consideration of the mutual promises and covenants stated her
 
 21. Entire Agreement; Authority to Sign. This Agreement, together with any invoice, booking confirmation, written addendum, or written rules provided by Owner, constitutes the entire agreement between the Parties regarding the rental and use of the Venue. The person signing for Renter represents that he or she has authority to bind Renter and accepts personal responsibility if such authority does not exist.
 
+22. Recording Notice. The Boardroom is monitored by video and audio recording. By renting the space, Renter consents to being recorded and agrees to inform all guests, vendors and attendees that they may be recorded.
+
 IN WITNESS WHEREOF, the Parties acknowledge that they have read, understand, and agree to be bound by this Agreement as of the date(s) signed below.
 
 THE RENTER
