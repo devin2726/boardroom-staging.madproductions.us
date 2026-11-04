@@ -766,7 +766,7 @@ try {
     $home_src = file_get_contents(get_stylesheet_directory() . '/front-page.php');
     $home_cal_at = strpos($home_src, 'id="check-your-date"');
     $home_tour_at = strpos($home_src, 'br_tour_video_html');
-    brb_t(is_string($home_src) && $home_cal_at !== false && $home_tour_at !== false && $home_cal_at < $home_tour_at && strpos($home_src, 'Check Your Date') !== false && strpos($home_src, "Prices show on the calendar. Nothing's charged until we approve.") !== false && strpos($home_src, 'See full booking details') !== false, 'the homepage calendar sits under the hero and above the tour');
+    brb_t(is_string($home_src) && $home_cal_at !== false && $home_tour_at !== false && $home_cal_at < $home_tour_at && strpos($home_src, 'Check Your Date') !== false && strpos($home_src, "Pick a date to see your price. Nothing's charged until we approve.") !== false && strpos($home_src, 'See full booking details') !== false, 'the homepage calendar sits under the hero and above the tour');
     $home_cal = brb_home_calendar_html();
     brb_t(strpos($home_cal, 'Loading calendar') !== false && strpos($home_cal, 'Available') !== false && strpos($home_cal, 'Partly booked') !== false && strpos($home_cal, 'Unavailable') !== false && strpos($home_cal, 'Inside ' . (int) brb_notice_hours() . 'h notice') !== false && strpos($home_cal, 'data-lazy="1"') !== false && strpos($home_cal, 'data-book="' . esc_url(home_url('/book/')) . '"') !== false, 'the homepage calendar reuses the book legend and links a date to /book/');
     $cal_js = file_get_contents(dirname((new ReflectionFunction('brb_view_select'))->getFileName()) . '/assets/brb.js');

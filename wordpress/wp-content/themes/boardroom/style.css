@@ -1,7 +1,7 @@
 /*
 Theme Name: The Boardroom
 Description: Lightweight theme replicating the look of boardroomqc.com (dark + gold, EB Garamond, full-width hero slider). Pairs with the Boardroom Booking plugin.
-Version: 1.2.36
+Version: 1.2.37
 Author: Mad Productions
 Text Domain: boardroom
 */
@@ -63,6 +63,7 @@ body.legal-page{overflow-x:hidden}
 @media(max-width:700px){
 .hero .arrow{top:auto;bottom:78px;transform:none}
 .hero h1{max-width:12em;padding:0 12px}
+.hero .hero-sub br{display:none}
 .hero-facts{font-size:13px;letter-spacing:.045em;padding:12px 14px;line-height:1.7}
 .hero-facts .facts-break{display:block;flex-basis:100%;height:0}
 .hero-facts .facts-break+span:before{content:none;margin:0}
