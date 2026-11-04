@@ -37,6 +37,7 @@
 .brb-chat-head{display:flex;align-items:center;gap:12px;background:#141414;color:#fff;padding:12px 14px 14px;flex:0 0 auto}
 .brb-chat-id{flex:1;min-width:0}
 .brb-chat-id h2,.brb-chat-lockup h2{color:#fff;font-size:28px}
+.brb-chat-title-mobile{display:none}
 .brb-chat-id p,.brb-chat-lockup p{margin:2px 0 0;color:#e7e0d4;font-size:14px}
 .brb-chat-close{width:34px;height:34px;border-radius:50%;border:0;background:#2a2a2a;color:#fff;font-size:22px;line-height:1;cursor:pointer;flex:0 0 auto}
 .brb-chat-close:hover,.brb-chat-close:focus{background:#3a3a3a}
@@ -106,6 +107,15 @@ body.admin-bar .brb-chat-panel{max-height:calc(100dvh - 136px - env(safe-area-in
 .brb-chat-q{flex:0 0 auto;width:auto;min-width:220px}
 .brb-chat-side-foot{margin-top:18px}
 .brb-chat-inline .brb-chat-log{flex-basis:50vh;height:50vh;min-height:50vh;max-height:50vh}
+}
+@media(max-width:800px){
+.brb-chat-title-desk,.brb-chat-role{display:none}
+.brb-chat-popular,.brb-chat-popular-label{display:none}
+.brb-chat-side-foot{display:none}
+.brb-chat-starters{display:none}
+.brb-chat:not(.brb-chat-inline) .brb-chat-lead-toggle,.brb-chat:not(.brb-chat-inline) .brb-chat-lead{display:none}
+.brb-chat-title-mobile{display:inline}
+.brb-chat-lockup h2,.brb-chat-id h2{font-size:26px;line-height:1.15}
 }
 @media(max-width:600px){
 .brb-chat-panel{left:8px;right:8px;width:auto;max-height:calc(100dvh - 96px - env(safe-area-inset-bottom))}
