@@ -294,7 +294,18 @@ try {
     $header = file_get_contents(get_stylesheet_directory() . '/header.php');
     brb_t(is_string($header) && strpos($header, 'Weekends book up early. Check your date below.') !== false && strpos($header, "is_front_page() ? '#check-your-date' : home_url('/#check-your-date')") !== false && strpos($header, 'Book Now') === false && stripos($header, 'tour') === false && stripos($header, 'tel:') === false, 'the header banner points at the date calendar and has no tour or phone link');
     $home = file_get_contents(get_stylesheet_directory() . '/front-page.php');
-    brb_t(is_string($home) && strpos($home, 'br_contact_form') === false && strpos($home, 'name="phone"') === false && strpos($home, 'br_tour_video_html') !== false && strpos($home, "br_ask_walter_card(home_url('/contact/'))") !== false && strpos($home, 'Book Now') === false && strpos($home, 'href="#check-your-date"') !== false && strpos($home, 'Check dates') !== false && strpos($home, "Moline's one-of-a-kind party venue <br>in the heart of the Quad&nbsp;Cities") !== false && strpos($home, 'Up to 80 guests') !== false && strpos($home, '8 AM – 11:30 PM') !== false && strpos($home, 'From $850') !== false && strpos($home, "Pick a date to see your price. Nothing's charged until we approve.") !== false && strpos($home, 'hero-facts') < strpos($home, 'id="check-your-date"'), 'the homepage hero scrolls to the calendar and the facts strip sits above it');
+    brb_t(is_string($home) && strpos($home, 'br_contact_form') === false && strpos($home, 'name="phone"') === false && strpos($home, 'br_tour_video_html') !== false && strpos($home, "br_ask_walter_card(home_url('/contact/'))") !== false && strpos($home, 'Book Now') === false && strpos($home, 'href="#check-your-date"') !== false && strpos($home, 'Check dates') !== false && strpos($home, "Moline's one-of-a-kind party venue <br>in the heart of the Quad&nbsp;Cities") !== false && strpos($home, "Pick a date to see your price. Nothing's charged until we approve.") !== false && strpos($home, 'hero-facts') < strpos($home, 'id="check-your-date"'), 'the homepage hero scrolls to the calendar and the facts strip sits above it');
+    $facts_at = strpos($home, 'class="hero-facts"');
+    $facts = $facts_at === false ? '' : substr($home, $facts_at, strpos($home, '</p>', $facts_at) - $facts_at);
+    $facts_order = ['Serving&nbsp;Kitchen', 'Up&nbsp;to&nbsp;80&nbsp;Guests', 'Game&nbsp;Room', '80&#8209;Inch&nbsp;TV', 'Ample&nbsp;Parking'];
+    $facts_ok = $facts !== '';
+    $facts_cursor = 0;
+    foreach ($facts_order as $facts_item) {
+        $facts_pos = strpos($facts, $facts_item);
+        $facts_ok = $facts_ok && $facts_pos !== false && $facts_pos >= $facts_cursor;
+        if ($facts_pos !== false) $facts_cursor = $facts_pos;
+    }
+    brb_t($facts_ok && strpos($facts, 'BYOB') === false && strpos($facts, 'Free parking') === false && strpos($facts, '8 AM') === false && strpos($facts, 'From $850') === false, 'the homepage facts strip lists the venue features in order');
     $amenities = br_amenities_html();
     foreach (['Private main entrance', 'Free parking on premises', 'Space for 40 to 50 cars', 'Wifi', 'TV', 'Sound system (Sonos, Aux, Bluetooth)', 'Pool table', 'Board games', 'Refrigerator (large)', 'Freezer', 'Mini fridge', 'Microwave', 'Dishwasher', 'Coffee maker (drip and pour-over)', 'Hot water kettle', 'Blender', 'Wine glasses', 'Smoke alarm', 'Carbon monoxide alarm', 'Fire extinguisher', 'First aid kit'] as $item) {
         brb_t(strpos($amenities, $item) !== false, 'amenities include ' . $item);
