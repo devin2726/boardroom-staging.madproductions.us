@@ -36,7 +36,7 @@ function brb_chat_reply($text, $history = []) {
 }
 
 try {
-    brb_t(get_option('brb_version') === '2.5.46', 'plugin storage version is 2.5.46');
+    brb_t(get_option('brb_version') === '2.5.47', 'plugin storage version is 2.5.47');
     $cols = $wpdb->get_col('SHOW COLUMNS FROM ' . brb_tour_table(), 0);
     brb_t(in_array('source', $cols, true), 'inquiries can store a source');
     brb_t((string) brb_opt('quote_prices') === '1', 'price estimates are on by default');
@@ -421,6 +421,8 @@ try {
     brb_t(count($chip_labels) >= 2 && count($chip_labels) <= 3 && in_array('Check dates', $chip_labels, true) && in_array('Deposit', $chip_labels, true) && in_array('BYOB', $chip_labels, true), 'a price answer offers check dates, deposit, and BYOB');
     brb_t(strpos($js, 'brb-chat-chip') !== false && strpos($js, 'Suggested questions') !== false && strpos($js, "b.type = 'button'") !== false, 'suggestion chips are real buttons');
     brb_t(strpos($css, '.brb-chat-chip{background:#f7f3ea;color:#3a342c') !== false && strpos($css, 'min-height:44px') !== false, 'suggestion chips are cream pills with a large tap target');
+    $inline_card = brb_chat_markup('home', home_url('/contact/'));
+    brb_t(strpos($inline_card, 'Ask Walter, the Boardroom\'s butler') !== false && strpos($inline_card, 'Popular questions') !== false && strpos($inline_card, 'Prefer a person?') !== false && strpos($inline_card, 'Leave your details') !== false && strpos($inline_card, 'Walter is online') !== false && strpos($inline_card, 'Start over') !== false && strpos($widget, 'Ask Walter, the Boardroom\'s butler') !== false && strpos($widget, 'brb-chat-title-desk">Walter') !== false && strpos($widget, 'brb-chat-starters') !== false && strpos($widget, 'Leave your details') !== false && strpos($css, '@media(max-width:800px)') !== false && strpos($css, '.brb-chat-popular,.brb-chat-popular-label{display:none}') !== false && strpos($css, '.brb-chat-side-foot{display:none}') !== false && strpos($css, '.brb-chat-starters{display:none}') !== false && strpos($css, '.brb-chat:not(.brb-chat-inline) .brb-chat-lead-toggle') !== false && strpos($css, '.brb-chat-title-mobile{display:inline}') !== false && strpos($css, '.brb-chat-title-mobile{display:none}') !== false, 'phones hide popular questions and leave-your-details, and title the card Ask Walter, the Boardroom\'s butler');
     require __DIR__ . '/chat-score.php';
     $corpus = brb_chat_score_corpus();
     foreach ($corpus['groups'] as $group_name => $group_stats) {

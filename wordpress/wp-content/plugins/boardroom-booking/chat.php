@@ -1508,7 +1508,7 @@ function brb_chat_markup($mode = 'float', $details_target = '') {
     if ($inline) {
         echo '<div class="brb-chat-side">';
         echo '<header class="brb-chat-lockup">' . brb_walter_stage('head');
-        echo '<div><h2 id="brb-chat-title" class="brb-chat-hello">Ask Walter</h2><p>The Boardroom\'s butler</p></div></header>';
+        echo '<div><h2 id="brb-chat-title" class="brb-chat-hello"><span class="brb-chat-title-desk">Ask Walter</span><span class="brb-chat-title-mobile">Ask Walter, the Boardroom\'s butler</span></h2><p class="brb-chat-role">The Boardroom\'s butler</p></div></header>';
         echo '<p class="brb-chat-popular-label">Popular questions</p><div class="brb-chat-popular">';
         foreach (['Is my date available?', 'How many guests fit?'] as $question) {
             echo '<button type="button" class="brb-chat-q" data-question="' . esc_attr($question) . '"><span>' . esc_html($question) . '</span>' . brb_chat_chevron() . '</button>';
@@ -1529,7 +1529,7 @@ function brb_chat_markup($mode = 'float', $details_target = '') {
     } else {
         echo '<div class="brb-chat-grab" aria-hidden="true"><span></span></div>';
         echo '<header class="brb-chat-head">' . brb_walter_stage('head');
-        echo '<div class="brb-chat-id"><h2 id="brb-chat-title">Walter</h2><p>The Boardroom\'s butler</p></div>';
+        echo '<div class="brb-chat-id"><h2 id="brb-chat-title"><span class="brb-chat-title-desk">Walter</span><span class="brb-chat-title-mobile">Ask Walter, the Boardroom\'s butler</span></h2><p class="brb-chat-role">The Boardroom\'s butler</p></div>';
         echo '<span class="brb-typing" hidden aria-hidden="true"><i></i><i></i><i></i></span>';
         echo '<button type="button" class="brb-chat-close" aria-label="Close chat"><span aria-hidden="true">&times;</span></button></header>';
     }
