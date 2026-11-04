@@ -45,7 +45,7 @@ add_filter('pre_wp_mail', function ($short, $atts) {
 $GLOBALS['brb_mails'] = [];
 
 try {
-    brb_t(get_option('brb_version') === '2.5.44', 'plugin storage version is 2.5.44');
+    brb_t(get_option('brb_version') === '2.5.45', 'plugin storage version is 2.5.45');
     $cc_before = (string) brb_opt('inquiry_cc');
     delete_option('brb_inquiry_cc_seeded');
     $cc_settings = get_option('brb_settings');
@@ -884,6 +884,8 @@ try {
     brb_t(strpos($privacy_html, 'Mail or drop off checks payable to Mad Productions at The Boardroom, 2220 37th Street, Moline, IL 61265.') !== false && strpos($privacy_html, '2212') === false, 'privacy tells guests to bring checks to The Boardroom');
     brb_t(strpos($agreement_html, '2220 37th Street, Moline, Illinois 61265') !== false && strpos($agreement_html, '2220 37th Street, Moline, IL 61265') !== false, 'signed agreement body keeps 2220 37th Street');
     brb_t(strpos($agreement_html, 'Staff cannot set the room up') !== false && strpos($agreement_html, 'The minimum host age is 25 for every booking') !== false && strpos($agreement_html, 'no later than one week before the event') !== false && strpos($agreement_html, 'Balloons are allowed') !== false && strpos($agreement_html, 'wall tape') !== false, 'the rental agreement states setup, host age, balance, balloons, and wall tape');
+    brb_t(strpos($privacy_html, 'event type') === false && strpos($privacy_html, 'whether alcohol will be served') === false && strpos($privacy_html, 'confirmation that the event is free to attend') !== false && strpos($privacy_html, 'event date and time') !== false, 'privacy no longer says the booking form asks for event type or alcohol');
+    brb_t(strpos($agreement_html, 'Except in December, when Owner') === false && strpos($agreement_html, 'Renter may bring and put up Renter') !== false && strpos($agreement_html, 'Glitter and confetti are not allowed') !== false && strpos($agreement_html, 'birdseed') === false && strpos($agreement_html, 'loose sequins') === false && strpos($agreement_html, 'confetti cannons') === false && strpos($terms_html, 'You may bring and put up your own decorations') !== false && strpos($terms_html, 'confetti cannons') === false && strpos($faq_html, 'You may bring and put up your own decorations') !== false && strpos($faq_html, 'Glitter and confetti aren') !== false, 'decorations copy lets renters decorate and bans only glitter and confetti');
     $recording = 'The Venue may use audio and video recording, including security cameras in common areas and exterior areas. Cameras are not used in restrooms.';
     $agreement_src = brb_agreement_html();
     brb_t(strpos($agreement_src, '22. Recording Notice. ' . $recording) !== false && strpos($agreement_html, '22. Recording Notice. ' . $recording) !== false && strpos($agreement_src, 'consent to that recording') !== false && strpos($agreement_html, 'consent to that recording') !== false && strpos($agreement_src, '21. Entire Agreement; Authority to Sign.') < strpos($agreement_src, '22. Recording Notice.') && strpos($agreement_src, '22. Recording Notice.') < strpos($agreement_src, 'IN WITNESS WHEREOF') && strpos($terms_html, '22. Recording') !== false && strpos($terms_html, 'Cameras are not used in restrooms.') !== false && strpos($terms_html, '21. The whole agreement') < strpos($terms_html, '22. Recording'), 'the rental agreement and the terms page both state the recording notice after section 21');
