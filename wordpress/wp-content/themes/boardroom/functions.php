@@ -3,7 +3,7 @@ add_action('after_setup_theme', function () {
     add_theme_support('title-tag'); add_theme_support('post-thumbnails'); add_theme_support('custom-logo');
     register_nav_menus(['primary' => 'Primary', 'footer' => 'Footer']);
 });
-function br_ver() { return '1.2.41'; }
+function br_ver() { return '1.2.42'; }
 add_action('wp_enqueue_scripts', function () {
     wp_enqueue_style('boardroom', get_stylesheet_uri(), [], br_ver());
     wp_enqueue_script('boardroom', get_template_directory_uri() . '/assets/site.js', [], br_ver(), true);

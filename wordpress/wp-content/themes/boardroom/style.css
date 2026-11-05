@@ -1,7 +1,7 @@
 /*
 Theme Name: The Boardroom
 Description: Lightweight theme replicating the look of boardroomqc.com (dark + gold, EB Garamond, full-width hero slider). Pairs with the Boardroom Booking plugin.
-Version: 1.2.41
+Version: 1.2.42
 Author: Mad Productions
 Text Domain: boardroom
 */
@@ -106,13 +106,6 @@ body.admin-bar #check-your-date{scroll-margin-top:166px}
 .amenity-groups li{position:relative;padding:5px 0 5px 20px;color:var(--ink);font-family:'EB Garamond',Georgia,'Times New Roman',serif;font-size:21px;break-inside:avoid}
 .amenity-groups li:before{content:"";position:absolute;left:0;top:.72em;width:8px;height:8px;border-radius:50%;background:var(--gold)}
 .amenity-safety{margin:28px 0 0;text-align:center;color:#666;font-size:19px;font-family:'EB Garamond',Georgia,'Times New Roman',serif}
-.good-to-know{margin-top:28px;background:#161616;border:2px solid var(--gold);padding:28px 28px 32px}
-.good-to-know h3{font-family:'EB Garamond',Georgia,'Times New Roman',serif;color:#fff;letter-spacing:.06em;text-transform:uppercase;text-align:center;margin:0 0 8px;font-size:clamp(28px,3vw,40px)}
-.good-to-know h3:after{content:"";display:block;width:60px;height:3px;background:var(--gold);margin:14px auto 0}
-.good-to-know ul{list-style:none;margin:18px auto 0;padding:0;max-width:46em}
-.good-to-know li{position:relative;padding:6px 0 6px 22px;color:#fff;font-family:'EB Garamond',Georgia,'Times New Roman',serif;font-size:22px;line-height:1.45}
-.good-to-know li:before{content:"";position:absolute;left:0;top:.72em;width:8px;height:8px;border-radius:50%;background:var(--gold)}
-.good-to-know a{color:var(--gold)}
 @media(max-width:800px){.amenity-groups{grid-template-columns:1fr;gap:18px}.amenity-kitchen ul{columns:1}}
 body.book-dated .page-hero,body.book-dated .brb-how{display:none}
 body.book-status .page-hero,body.book-status .brb-how,body.book-status .brb-steps{display:none}

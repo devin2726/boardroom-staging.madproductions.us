@@ -506,17 +506,9 @@ function brb_how_booking_works_steps() {
 }
 function brb_how_booking_works_html() {
     $steps = brb_reserve_explainer_steps();
-    $notes = [
-        ['Hours', 'A full day runs from 10:00 AM to 11:30 PM. Everyone must be out by 11:30 PM. This is firm, with no exceptions. Overnight stays are not permitted. Book at least 48 hours ahead.'],
-        ['Price', 'From $600; most events are about $1,200.'],
-        ['Payment', 'Card or check. Card payments add a 3% processing fee, and that fee is non-refundable.'],
-        ['Cancellation', 'Written notice is required. If written cancellation is received 60 or more days before the event, that deposit is refundable, less any non-refundable processing charges (including the 3% card processing fee) and costs already incurred. If cancellation is received less than 60 days before the event, the deposit is not refundable.'],
-    ];
     $html = '<section class="brb-how"><h2>Pick a Date</h2><ol>';
     foreach ($steps as $step) $html .= '<li>' . esc_html($step) . '</li>';
-    $html .= '</ol><h3>Good to know</h3><ul>';
-    foreach ($notes as $note) $html .= '<li><strong>' . esc_html($note[0]) . ':</strong> ' . esc_html($note[1]) . '</li>';
-    $html .= '</ul><p class="brb-how-guests"><strong>Guests:</strong> Up to 80. Open houses can go over.</p></section>';
+    $html .= '</ol></section>';
     return $html;
 }
 function brb_book_policy_html() {
