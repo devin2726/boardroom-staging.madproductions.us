@@ -156,6 +156,8 @@ function brb_tour_submit($input) {
     if ($preferred === false) return new WP_Error('preferred', 'Please choose a preferred date.');
     if (trim($notes) === '') return new WP_Error('message', 'Please enter a message.');
     if (strlen($notes) > 4000) $notes = substr($notes, 0, 4000);
+    $blocked = brb_chat_safety_text_error($notes);
+    if ($blocked) return $blocked;
 
     global $wpdb;
     $t = brb_tour_table();
@@ -320,6 +322,11 @@ function brb_tour_message($code) {
         'soon' => 'Please wait a moment and try the form again.',
         'hour' => 'Please wait a little while and try again.',
     ];
+    if ($code === 'prohibited' && function_exists('brb_chat_safety_refusal')) return brb_chat_safety_refusal();
+    if ($code === 'care' && function_exists('brb_chat_safety_catalog')) {
+        $replies = brb_chat_safety_catalog()['self-harm']['replies'] ?? [];
+        if (!empty($replies[0])) return $replies[0];
+    }
     return $messages[$code] ?? '';
 }
 

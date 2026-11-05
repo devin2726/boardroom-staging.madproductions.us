@@ -66,6 +66,7 @@
 .brb-chat:not(.brb-chat-inline) .brb-chat-lead-toggle{display:block;margin:8px 2px 0;padding:0;background:transparent;border:0;color:#996f1d;font-weight:700;cursor:pointer}
 .brb-chat-lead{display:flex;flex-direction:column;gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid #e6dccb}
 .brb-chat-lead[hidden]{display:none!important}
+.brb-chat.brb-chat-hold .brb-chat-lead-toggle,.brb-chat.brb-chat-hold .brb-chat-lead{display:none!important}
 .brb-chat-lead label{font-weight:600;font-size:16px;color:#161616}
 .brb-chat-lead input,.brb-chat-lead select,.brb-chat-lead textarea{font:inherit;font-size:16px;color:#161616;border:1px solid #e6dccb;border-radius:12px;padding:8px 10px;width:100%;box-sizing:border-box;background:#fff}
 .brb-chat-lead-actions{display:flex;gap:8px;margin:4px 0 0}

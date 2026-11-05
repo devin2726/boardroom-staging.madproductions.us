@@ -36,7 +36,7 @@ function brb_chat_reply($text, $history = []) {
 }
 
 try {
-    brb_t(get_option('brb_version') === '2.5.48', 'plugin storage version is 2.5.48');
+    brb_t(get_option('brb_version') === '2.5.49', 'plugin storage version is 2.5.49');
     $cols = $wpdb->get_col('SHOW COLUMNS FROM ' . brb_tour_table(), 0);
     brb_t(in_array('source', $cols, true), 'inquiries can store a source');
     brb_t((string) brb_opt('quote_prices') === '1', 'price estimates are on by default');
@@ -422,19 +422,13 @@ try {
     brb_t(strpos($js, 'brb-chat-chip') !== false && strpos($js, 'Suggested questions') !== false && strpos($js, "b.type = 'button'") !== false, 'suggestion chips are real buttons');
     brb_t(strpos($css, '.brb-chat-chip{background:#f7f3ea;color:#3a342c') !== false && strpos($css, 'min-height:44px') !== false, 'suggestion chips are cream pills with a large tap target');
     $safety_catalog = brb_chat_safety_catalog();
-    $safety_sexual = [
-        "I'm afraid that isn't acceptable at the Boardroom, and it's not something I can help with. I'm happy to help you plan a great event, though. Shall we check a date?",
-        "That's not the kind of event the Boardroom hosts. If you're planning a party, a shower or a celebration, I'd be glad to help.",
-        "Let's keep things respectful, please. I'm here to help with bookings, pricing and venue questions.",
-    ];
-    $safety_violent = [
-        "That's not acceptable at the Boardroom, and I can't help with it. Weapons, fighting and threats aren't allowed at the venue.",
-        "I'm sorry, I can't discuss that. If anyone is in danger, please call 911. Otherwise, I'm glad to help with your event.",
-    ];
+    $safety_refusal = brb_chat_safety_refusal_replies();
+    $safety_sexual = $safety_refusal;
+    $safety_violent = $safety_refusal;
     $safety_harassment = "I'd like to keep this conversation respectful. If you have a question about the venue, I'm happy to help.";
     $safety_care = "I'm really sorry you're feeling this way. You don't have to go through it alone. Please call or text 988 to talk with someone right now. If you're in immediate danger, call 911.";
-    $safety_end = "I'm going to end our chat here. If you'd like help planning an event at the Boardroom, you're welcome to start over anytime.";
-    brb_t($safety_catalog['sexual']['replies'] === $safety_sexual && $safety_catalog['violent']['replies'] === $safety_violent && $safety_catalog['harassment']['replies'] === [$safety_harassment] && $safety_catalog['self-harm']['replies'] === [$safety_care] && brb_chat_safety_end_reply() === $safety_end, 'safety replies use the approved wording');
+    $safety_end = "I'm going to end our chat here.";
+    brb_t($safety_catalog['sexual']['replies'] === $safety_sexual && $safety_catalog['violent']['replies'] === $safety_violent && $safety_catalog['illegal']['replies'] === $safety_refusal && $safety_catalog['harassment']['replies'] === [$safety_harassment] && $safety_catalog['self-harm']['replies'] === [$safety_care] && brb_chat_safety_end_reply() === $safety_end && $safety_refusal[0] === "We only host normal private parties and events, and we can't help with that.", 'safety replies use the approved wording');
     foreach (['strip show', 'hire strippers', 'have sex in the venue', 'film an adult video', 'nude party', 'naked photo shoot', 'private rooms for hooking up', 'bring escorts', 'are you single', 'what are you wearing', 'topless guests', 'swingers night', 'send me something sexy', 'sex toy party'] as $flagged) {
         $hit = brb_chat_answer($flagged);
         brb_t(!empty($hit['blocked']) && ($hit['category'] ?? '') === 'sexual' && $hit['reply'] === $safety_sexual[0] && empty($hit['closed']), 'flags sexual: ' . $flagged);
@@ -497,9 +491,199 @@ try {
     $blocked_row = $wpdb->get_row('SELECT question FROM ' . brb_chatlog_table() . ' ORDER BY id DESC LIMIT 1');
     brb_t(is_array($blocked_rest) && !empty($blocked_rest['blocked']) && $blocked_row && $blocked_row->question === '[message blocked]' && $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM ' . brb_chatlog_table() . ' WHERE question LIKE %s', '%strip show%')) == 0, 'a flagged chat is stored as [message blocked]');
     $js_guard = file_get_contents(dirname((new ReflectionFunction('brb_chat_markup'))->getFileName()) . '/assets/chat.js');
-    brb_t(is_string($js_guard) && strpos($js_guard, "data.blocked ? '[message blocked]'") !== false && strpos($js_guard, 'setChatClosed') !== false && strpos($js_guard, 'if (data.closed) setChatClosed(true)') !== false && strpos($js_guard, 'input.disabled') !== false, 'desktop and mobile share the blocked placeholder and the closed input');
+    brb_t(is_string($js_guard) && strpos($js_guard, "data.blocked ? '[message blocked]'") !== false && strpos($js_guard, 'setChatClosed') !== false && strpos($js_guard, 'if (data.closed) setChatClosed(true)') !== false && strpos($js_guard, 'input.disabled') !== false && strpos($js_guard, 'brb-chat-hold') !== false && strpos($js_guard, 'setHold(!!data.blocked)') !== false, 'desktop and mobile share the blocked placeholder and the closed input');
+    $css_guard = file_get_contents(dirname((new ReflectionFunction('brb_chat_markup'))->getFileName()) . '/assets/chat.css');
+    brb_t(is_string($css_guard) && strpos($css_guard, '.brb-chat.brb-chat-hold .brb-chat-lead-toggle,.brb-chat.brb-chat-hold .brb-chat-lead{display:none!important}') !== false, 'a blocked chat hides the lead form');
+    $firm = function ($hit) use ($safety_refusal) {
+        $reply = (string) ($hit['reply'] ?? '');
+        foreach (['team', 'Contact form', 'email', 'follow up', 'follow-up', 'glad to help', 'Leave your details', brb_book_url(), '$', 'pricing', 'book a'] as $needle) {
+            if (stripos($reply, $needle) !== false) return false;
+        }
+        return !empty($hit['blocked']) && empty($hit['lead']) && empty($hit['suggestions']) && in_array($reply, $safety_refusal, true);
+    };
+    $cases = [
+        'violent' => [
+            'I want to sacrifice someone',
+            'I want to sacrifice a goat',
+            'animal sacrifice at the party',
+            'we are going to torture a guest',
+            'assault someone during the event',
+            'kidnap the host',
+            'this is a terrorism themed attack',
+            'I am killing someone',
+        ],
+        'sexual' => [
+            'hire a prostitute',
+            'we want a happy ending',
+            'this is a sex party',
+            'fetish play in the back room',
+            'sex with a minor',
+            'non-consensual sex at the party',
+            'incest roleplay',
+            'bestiality show',
+        ],
+        'illegal' => [
+            'we will sell cocaine at the party',
+            'an illegal gambling event',
+            'money laundering party',
+        ],
+        'self-harm' => [
+            'I want to sacrifice myself',
+        ],
+    ];
+    foreach ($cases as $category => $messages) {
+        foreach ($messages as $flagged) {
+            $hit = brb_chat_answer($flagged);
+            if ($category === 'self-harm') {
+                brb_t(!empty($hit['blocked']) && ($hit['category'] ?? '') === 'self-harm' && $hit['reply'] === $safety_care && empty($hit['lead']) && empty($hit['suggestions']) && stripos($hit['reply'], 'team') === false, 'self-harm stays gentle and does not offer the team: ' . $flagged);
+            } else {
+                brb_t($firm($hit) && ($hit['category'] ?? '') === $category, 'firm refusal for ' . $category . ': ' . $flagged);
+            }
+        }
+    }
+    $sacrifice = brb_chat_answer('I want to sacrifice someone');
+    brb_t($firm($sacrifice) && ($sacrifice['category'] ?? '') === 'violent', 'sacrifice someone is a firm violent refusal with no lead');
+    $mixed = brb_chat_answer('I want to sacrifice someone at my birthday party');
+    brb_t($firm($mixed) && ($mixed['category'] ?? '') === 'violent', 'a prohibited ask mixed with a birthday is still refused');
+    $pivot = brb_chat_answer('Actually, can we book a birthday party?', [
+        ['role' => 'user', 'text' => '[message blocked]', 'flag' => 'violent'],
+        ['role' => 'assistant', 'text' => $sacrifice['reply']],
+    ]);
+    brb_t(empty($pivot['blocked']) && stripos($pivot['reply'], 'birthday') !== false && stripos($pivot['reply'], "we can't help with that") === false, 'a clear pivot to a birthday is answered normally');
+    foreach ([
+        'Can we book a bachelor party?',
+        'Can we have a bachelorette party?',
+        'kids birthday party',
+        'murder mystery party',
+        'murder-mystery dinner',
+        'This will be a killer party',
+        'Can we shoot photos in the room?',
+        'same-sex wedding reception',
+        'is it legal for me to serve alcohol to minors',
+        'holiday party in December',
+        'corporate meeting',
+        'graduation party',
+        'baby shower',
+    ] as $safe) {
+        $hit = brb_chat_answer($safe);
+        brb_t(empty($hit['blocked']) && ($hit['category'] ?? '') === '' && !in_array($hit['reply'], $safety_refusal, true) && $hit['reply'] !== $safety_care, 'allowed event is not refused: ' . $safe);
+    }
+    $mystery = brb_chat_answer('Can we host a murder-mystery dinner?');
+    brb_t(empty($mystery['blocked']) && stripos($mystery['reply'], 'murder mystery party is welcome') !== false, 'a murder-mystery dinner is welcomed as a normal private event');
+    $holiday = brb_chat_answer('holiday party in December');
+    brb_t(empty($holiday['blocked']) && stripos($holiday['reply'], 'welcome') !== false && stripos($holiday['reply'], 'team would be glad') === false, 'a holiday party keeps the normal event welcome');
+    $minor_legal = brb_chat_answer('is it legal for me to serve alcohol to minors');
+    brb_t(empty($minor_legal['blocked']) && $minor_legal['intent'] === 'legal', 'an alcohol-and-minors legal question stays a legal refusal');
+
+    $mail_before = count($GLOBALS['brb_mails']);
+    $lead_block = brb_chat_save_lead([
+        'name' => 'Blocked Lead',
+        'email' => 'sacrifice-lead@example.com',
+        'phone' => '309-555-0199',
+        'event_date' => '2026-12-24',
+        'note' => 'I want to sacrifice someone',
+        'consent' => '1',
+    ]);
+    $lead_rows = (int) $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM ' . brb_tour_table() . ' WHERE email=%s', 'sacrifice-lead@example.com'));
+    brb_t(is_wp_error($lead_block) && $lead_block->get_error_code() === 'prohibited' && $lead_block->get_error_message() === brb_chat_safety_refusal() && $lead_rows === 0 && count($GLOBALS['brb_mails']) === $mail_before, 'a chat lead about sacrifice is not stored and no email is sent');
+    $thread_block = brb_chat_save_lead([
+        'name' => 'Blocked Thread',
+        'email' => 'sacrifice-thread@example.com',
+        'note' => 'Please have the team call me',
+        'consent' => '1',
+        'turns' => [
+            ['role' => 'user', 'text' => '[message blocked]'],
+            ['role' => 'assistant', 'text' => brb_chat_safety_refusal()],
+        ],
+    ]);
+    $thread_rows = (int) $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM ' . brb_tour_table() . ' WHERE email=%s', 'sacrifice-thread@example.com'));
+    brb_t(is_wp_error($thread_block) && $thread_block->get_error_code() === 'prohibited' && $thread_rows === 0 && count($GLOBALS['brb_mails']) === $mail_before, 'a blocked chat thread does not become a lead without a real event');
+    $raw_turn = brb_chat_save_lead([
+        'name' => 'Raw Turn',
+        'email' => 'sacrifice-turn@example.com',
+        'note' => 'Birthday party',
+        'consent' => '1',
+        'turns' => [
+            ['role' => 'user', 'text' => 'I want to sacrifice someone'],
+        ],
+    ]);
+    $turn_rows = (int) $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM ' . brb_tour_table() . ' WHERE email=%s', 'sacrifice-turn@example.com'));
+    brb_t(is_wp_error($raw_turn) && $turn_rows === 0 && count($GLOBALS['brb_mails']) === $mail_before, 'a raw prohibited turn blocks the lead even if the note says birthday');
+    delete_transient(brb_tour_rate_key());
+    $contact_block = brb_tour_submit([
+        'name' => 'Blocked Contact',
+        'email' => 'sacrifice-contact@example.com',
+        'message' => 'I want to sacrifice someone',
+    ]);
+    $contact_rows = (int) $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM ' . brb_tour_table() . ' WHERE email=%s', 'sacrifice-contact@example.com'));
+    brb_t(is_wp_error($contact_block) && $contact_block->get_error_code() === 'prohibited' && brb_tour_message('prohibited') === brb_chat_safety_refusal() && $contact_rows === 0 && count($GLOBALS['brb_mails']) === $mail_before, 'the contact form does not store or email a sacrifice message');
+    $book_block = brb_process_public_booking([
+        'date' => brb_now()->modify('+30 days')->format('Y-m-d'),
+        'type' => 'day',
+        'days' => 1,
+        'guests' => 20,
+        'name' => 'Blocked Book',
+        'email' => 'sacrifice-book@example.com',
+        'phone' => '555-0199',
+        'policy' => '1',
+        'waiver' => '1',
+        'free_admission' => '1',
+        'event_about' => 'I want to sacrifice someone',
+        'notes' => 'I want to sacrifice someone',
+    ]);
+    $book_rows = (int) $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM ' . brb_table() . ' WHERE email=%s', 'sacrifice-book@example.com'));
+    brb_t(is_wp_error($book_block) && $book_block->get_error_code() === 'prohibited' && $book_rows === 0 && count($GLOBALS['brb_mails']) === $mail_before, 'Book Now notes about sacrifice do not create a booking or an email');
+    $care_lead = brb_chat_save_lead([
+        'name' => 'Care Lead',
+        'email' => 'care-lead@example.com',
+        'note' => 'I want to kill myself',
+        'consent' => '1',
+    ]);
+    $care_rows = (int) $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM ' . brb_tour_table() . ' WHERE email=%s', 'care-lead@example.com'));
+    brb_t(is_wp_error($care_lead) && $care_lead->get_error_code() === 'care' && $care_lead->get_error_message() === $safety_care && $care_rows === 0 && count($GLOBALS['brb_mails']) === $mail_before, 'a self-harm lead is not stored and gets the care reply');
+    delete_transient(brb_tour_rate_key());
+    $pivot_lead = brb_chat_save_lead([
+        'name' => 'Pivot Lead',
+        'email' => 'pivot-lead@example.com',
+        'note' => 'We actually want a birthday party.',
+        'consent' => '1',
+        'turns' => [
+            ['role' => 'user', 'text' => '[message blocked]'],
+            ['role' => 'assistant', 'text' => brb_chat_safety_refusal()],
+            ['role' => 'user', 'text' => 'Can we book a birthday party?'],
+        ],
+    ]);
+    brb_t(is_array($pivot_lead) && !empty($pivot_lead['stored']), 'a blocked thread can still leave details after a clear birthday pivot');
+    if (!empty($pivot_lead['id'])) $created_inquiries[] = (int) $pivot_lead['id'];
+    $ok_book = brb_process_public_booking([
+        'date' => brb_now()->modify('+31 days')->format('Y-m-d'),
+        'type' => 'day',
+        'days' => 1,
+        'guests' => 20,
+        'name' => 'Birthday Book',
+        'email' => 'birthday-book@example.com',
+        'phone' => '555-0198',
+        'policy' => '1',
+        'waiver' => '1',
+        'free_admission' => '1',
+        'event_about' => 'A birthday party for my sister.',
+    ]);
+    brb_t(!is_wp_error($ok_book) && $ok_book && strpos((string) $ok_book->event_about, 'birthday') !== false, 'a normal birthday Book Now note is still saved');
+    if ($ok_book && !is_wp_error($ok_book)) $created_bookings[] = (int) $ok_book->id;
     $inline_card = brb_chat_markup('home', home_url('/contact/'));
     brb_t(strpos($inline_card, 'Ask Walter, the Boardroom\'s butler') !== false && strpos($inline_card, 'Popular questions') !== false && strpos($inline_card, 'Prefer a person?') !== false && strpos($inline_card, 'Leave your details') !== false && strpos($inline_card, 'Walter is online') !== false && strpos($inline_card, 'Start over') !== false && strpos($widget, 'Ask Walter, the Boardroom\'s butler') !== false && strpos($widget, 'brb-chat-title-desk">Walter') !== false && strpos($widget, 'brb-chat-starters') !== false && strpos($widget, 'Leave your details') !== false && strpos($css, '@media(max-width:800px)') !== false && strpos($css, '.brb-chat-popular,.brb-chat-popular-label{display:none}') !== false && strpos($css, '.brb-chat-side-foot{display:none}') !== false && strpos($css, '.brb-chat-starters{display:none}') !== false && strpos($css, '.brb-chat:not(.brb-chat-inline) .brb-chat-lead-toggle') !== false && strpos($css, '.brb-chat-title-mobile{display:inline}') !== false && strpos($css, '.brb-chat-title-mobile{display:none}') !== false, 'phones hide popular questions and leave-your-details, and title the card Ask Walter, the Boardroom\'s butler');
+    $december_q = brb_chat_answer('which dates are open in December');
+    $december_links = [];
+    preg_match_all('/\?date=(\d{4}-\d{2}-\d{2})/', $december_q['reply'], $december_links);
+    $december_months_ok = !empty($december_links[1]);
+    foreach ($december_links[1] as $ymd) {
+        if (substr($ymd, 5, 2) !== '12' && stripos($december_q['reply'], 'outside that period') === false) $december_months_ok = false;
+    }
+    brb_t(stripos($december_q['reply'], 'December') !== false && $december_months_ok && (stripos($december_q['reply'], 'November') === false || stripos($december_q['reply'], 'outside that period') !== false), 'December availability stays in December unless a different month is labeled as outside that period');
+    $twelve = brb_chat_answer('can we have 1200 people');
+    brb_t(strpos($twelve['reply'], '1,200') !== false && strpos($twelve['reply'], '80 guests') !== false && stripos($twelve['reply'], 'more than') !== false && stripos($twelve['reply'], "I'm not sure") === false && empty($twelve['lead']), '1,200 people is over the 80-guest capacity and is not handed to the team');
+    $fifty = brb_chat_answer('Can 50 people fit?');
+    brb_t(strpos($fifty['reply'], '50 guests fits') !== false && strpos($fifty['reply'], '80 guests') !== false && strpos($fifty['reply'], brb_book_url()) !== false, '50 people is within capacity and points to booking');
     require __DIR__ . '/chat-score.php';
     $corpus = brb_chat_score_corpus();
     foreach ($corpus['groups'] as $group_name => $group_stats) {
@@ -519,6 +703,11 @@ try {
     $wpdb->query($wpdb->prepare('DELETE FROM ' . brb_tour_table() . ' WHERE email=%s', 'chat-guest@example.com'));
     $wpdb->query($wpdb->prepare('DELETE FROM ' . brb_tour_table() . ' WHERE email=%s', 'chat-spam@example.com'));
     $wpdb->query($wpdb->prepare('DELETE FROM ' . brb_tour_table() . ' WHERE email=%s', 'chat-noconsent@example.com'));
+    foreach (['sacrifice-lead@example.com', 'sacrifice-thread@example.com', 'sacrifice-turn@example.com', 'sacrifice-contact@example.com', 'care-lead@example.com', 'pivot-lead@example.com'] as $blocked_email) {
+        $wpdb->query($wpdb->prepare('DELETE FROM ' . brb_tour_table() . ' WHERE email=%s', $blocked_email));
+    }
+    $wpdb->query($wpdb->prepare('DELETE FROM ' . brb_table() . ' WHERE email=%s', 'sacrifice-book@example.com'));
+    $wpdb->query($wpdb->prepare('DELETE FROM ' . brb_table() . ' WHERE email=%s', 'birthday-book@example.com'));
     if ($snapshot !== false && $snapshot !== null) update_option('brb_settings', $snapshot);
     delete_transient(brb_chat_rate_key('chat'));
     putenv('BRB_STRIPE_SECRET_KEY');

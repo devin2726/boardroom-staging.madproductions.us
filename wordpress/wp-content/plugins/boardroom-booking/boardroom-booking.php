@@ -2,11 +2,11 @@
 /**
  * Plugin Name: Boardroom Booking
  * Description: Self-hosted direct booking for The Boardroom — full-day blocks, availability calendar, agreed prices, approval before payment, blackout dates, and emails.
- * Version: 2.5.48
+ * Version: 2.5.49
  * Author: Mad Productions
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.5.48');
+define('BRB_VER', '2.5.49');
 function brb_reserve_explainer_steps() {
     return [
         'Pick a date. Prices are on the calendar.',
@@ -208,6 +208,12 @@ function brb_map_embed() {
 function brb_contact_stored_markup() {
     return '';
 }
+function brb_public_guest_cap() {
+    return 80;
+}
+function brb_parking_car_span() {
+    return '40 to 50';
+}
 function brb_place_schema() {
     $data = [
         '@context' => 'https://schema.org',
@@ -229,7 +235,7 @@ function brb_place_schema() {
         'hasMap' => BRB_MAPS_URL,
         'url' => home_url('/'),
         'priceRange' => '$600-$2000',
-        'maximumAttendeeCapacity' => 80,
+        'maximumAttendeeCapacity' => brb_public_guest_cap(),
         'sameAs' => [BRB_MAPS_URL],
     ];
     if ((is_front_page() || is_home()) && function_exists('br_review_aggregate_schema')) {
@@ -2351,6 +2357,9 @@ function brb_process_public_booking($post) {
     if ((string) ($post['waiver'] ?? '') !== '1') return new WP_Error('waiver', 'Please confirm the assumption of risk.');
     $screen = brb_collect_screening($post, true, is_wp_error($r) ? null : $r['s']);
     if (is_wp_error($screen)) return $screen;
+    $about = $screen['event_about'] . "\n" . (string) ($post['notes'] ?? '');
+    $blocked = brb_chat_safety_text_error($about);
+    if ($blocked) return $blocked;
     $q = brb_quote($r);
     return brb_insert_booking($r, $q, [
         'name' => $name,
