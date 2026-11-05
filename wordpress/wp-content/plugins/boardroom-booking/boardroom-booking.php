@@ -511,11 +511,14 @@ function brb_how_booking_works_steps() {
     ];
 }
 function brb_how_booking_works_html() {
-    $steps = brb_reserve_explainer_steps();
-    $html = '<section class="brb-how"><h2>Pick a Date</h2><ol>';
-    foreach ($steps as $step) $html .= '<li>' . esc_html($step) . '</li>';
-    $html .= '</ol></section>';
-    return $html;
+    $facts = function_exists('br_facts_strip') ? br_facts_strip([
+        'Prices on the Calendar',
+        'No Charge to Request',
+        '50% Holds Your Date',
+        '$250 Refundable Damage Deposit',
+        'Balance Due 1 Week Before',
+    ], 0) : '';
+    return '<section class="brb-how"><h2>Pick a Date</h2>' . $facts . '</section>';
 }
 function brb_book_policy_html() {
     $sections = [

@@ -31,8 +31,6 @@
 .brb-calgrid .d.past,.brb-calgrid .d.soon{color:#aaa;background:#f3f3f3;cursor:not-allowed}.brb-calgrid .d.sel{background:var(--k);color:#fff}
 .brb-legend{font-size:16px;color:#333}.brb-legend span{display:inline-block;width:12px;height:12px;border:1px solid #ccc;margin:0 4px 0 10px;vertical-align:middle}.brb-legend .partial{background:#f3e2bf}.brb-legend .booked{background:#ddd}.brb-legend .soon{background:#f3f3f3}
 .brb-how{max-width:40rem;margin:0 auto 28px}
-.brb-how ol{margin:0 0 16px;padding-left:1.25em}
-.brb-how li{margin:0 0 8px}
 .brb-book-policy h3{font-family:"EB Garamond",Georgia,"Times New Roman",serif;font-size:28px;letter-spacing:.04em;text-align:left;text-transform:none;margin:18px 0 6px;line-height:1.2}
 .brb-book-policy h3:after{display:none}
 .brb-book-policy p{margin:0 0 8px}
