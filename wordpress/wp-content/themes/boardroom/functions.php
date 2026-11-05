@@ -3,18 +3,22 @@ add_action('after_setup_theme', function () {
     add_theme_support('title-tag'); add_theme_support('post-thumbnails'); add_theme_support('custom-logo');
     register_nav_menus(['primary' => 'Primary', 'footer' => 'Footer']);
 });
+function br_ver() { return '1.2.41'; }
 add_action('wp_enqueue_scripts', function () {
-    wp_enqueue_style('boardroom', get_stylesheet_uri(), [], '1.2.40');
-    wp_enqueue_script('boardroom', get_template_directory_uri() . '/assets/site.js', [], '1.2.40', true);
+    wp_enqueue_style('boardroom', get_stylesheet_uri(), [], br_ver());
+    wp_enqueue_script('boardroom', get_template_directory_uri() . '/assets/site.js', [], br_ver(), true);
 });
 function br_img($f) { return get_template_directory_uri() . '/assets/img/' . $f; }
+function br_img_ver($f) { return br_img($f) . '?v=' . br_ver(); }
 function br_logo($place) {
     $sizes = [
-        'header' => [110, 64, 'boardroom-logo-header.png', 'boardroom-logo-header-2x.png'],
-        'footer' => [193, 112, 'boardroom-logo-footer.png', 'boardroom-logo-footer-2x.png'],
+        'header' => [98, 100, 'boardroom-logo-header.png', 'boardroom-logo-header-2x.png'],
+        'footer' => [161, 164, 'boardroom-logo-footer.png', 'boardroom-logo-footer-2x.png'],
     ];
     [$w, $h, $one, $two] = $sizes[$place];
-    return '<img src="' . esc_url(br_img($one)) . '" srcset="' . esc_url(br_img($one)) . ' 1x, ' . esc_url(br_img($two)) . ' 2x" width="' . (int) $w . '" height="' . (int) $h . '" alt="The Boardroom QC">';
+    $one_url = br_img_ver($one);
+    $two_url = br_img_ver($two);
+    return '<img src="' . esc_url($one_url) . '" srcset="' . esc_url($one_url) . ' 1x, ' . esc_url($two_url) . ' 2x" width="' . (int) $w . '" height="' . (int) $h . '" alt="The Boardroom QC">';
 }
 function br_photos() { return ['IMG_0223.jpeg', 'IMG_0231.jpeg', 'PXL_20220912_160615354.jpg', 'PXL_20220912_160655168.jpg', 'PXL_20220912_161645069.jpg']; }
 function br_gallery() {
@@ -167,7 +171,22 @@ function br_tour_video_html($below = '') {
     $html .= '</div></section>';
     return $html;
 }
-add_action('wp_head', function () { echo '<link rel="icon" href="' . esc_url(br_img('boardroom-siteicon-512.png')) . '">'; });
+function br_icon_links() {
+    $icons = [
+        ['rel' => 'icon', 'sizes' => '16x16', 'file' => 'boardroom-siteicon-16.png'],
+        ['rel' => 'icon', 'sizes' => '32x32', 'file' => 'boardroom-siteicon-32.png'],
+        ['rel' => 'icon', 'sizes' => '48x48', 'file' => 'boardroom-siteicon-48.png'],
+        ['rel' => 'icon', 'sizes' => '64x64', 'file' => 'boardroom-siteicon-64.png'],
+        ['rel' => 'icon', 'sizes' => '192x192', 'file' => 'boardroom-siteicon-192.png'],
+        ['rel' => 'icon', 'sizes' => '512x512', 'file' => 'boardroom-siteicon-512.png'],
+        ['rel' => 'apple-touch-icon', 'sizes' => '180x180', 'file' => 'boardroom-siteicon-180.png'],
+    ];
+    foreach ($icons as $icon) {
+        echo '<link rel="' . esc_attr($icon['rel']) . '" sizes="' . esc_attr($icon['sizes']) . '" href="' . esc_url(br_img_ver($icon['file'])) . '">' . "\n";
+    }
+}
+add_action('wp_head', 'br_icon_links');
+add_action('login_head', 'br_icon_links');
 function br_book_shortcuts_html() {
     $items = [
         ['href' => home_url('/rental-checklist/'), 'label' => 'Rental checklist', 'sub' => 'What to do before and after', 'icon' => 'M8 3h8v3H8zM6 5h12v16H6zM9 12l2 2 4-4'],
