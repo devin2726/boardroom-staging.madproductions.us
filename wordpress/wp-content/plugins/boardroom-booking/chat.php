@@ -864,7 +864,10 @@ function brb_chat_specific_text($text) {
     if (preg_match('/\b(?:bachelorettes?|bachelor part(?:y|ies)|bridal part(?:y|ies)|hens? part(?:y|ies)|hen\'s part(?:y|ies)|stag part(?:y|ies))\b/', $t)) {
         $bits[] = brb_chat_party_line();
     }
-    if (preg_match('/wedding|shower|graduation|\bgrad\b|birthday|funeral|celebration of life|\bteens?\b|\bteenagers?\b|corporate|business meeting|\bmeeting\b/', $t)) {
+    if (preg_match('/\bmurder[\s-]*mystery\b/', $t)) {
+        $bits[] = 'Yes. A murder mystery party is welcome, the same as any other private event, when it is free to attend and finished by 11:30 PM.';
+    }
+    if (preg_match('/wedding|shower|graduation|\bgrad\b|birthday|funeral|celebration of life|\bteens?\b|\bteenagers?\b|corporate|business meeting|\bmeeting\b|\bholiday\b/', $t)) {
         $bits[] = brb_chat_detail()
             ? 'We\'d love to host you. Weddings, showers, graduations, kids birthdays, funerals, business meetings, and teen events are welcome when the event is free to attend, within capacity, and finished by 11:30 PM. The minimum host age is 25 for every booking.'
             : 'Weddings, showers, graduations, kids birthdays, funerals, business meetings, and teen events are welcome when free to attend. The minimum host age is 25. Want more details?';
@@ -1188,7 +1191,19 @@ function brb_chat_only_about($message, $pattern) {
     return $n > 0;
 }
 function brb_chat_safety_end_reply() {
-    return "I'm going to end our chat here. If you'd like help planning an event at the Boardroom, you're welcome to start over anytime.";
+    return "I'm going to end our chat here.";
+}
+
+function brb_chat_safety_refusal() {
+    return "We only host normal private parties and events, and we can't help with that.";
+}
+
+function brb_chat_safety_refusal_replies() {
+    return [
+        brb_chat_safety_refusal(),
+        "That isn't something we can help with. We only host normal private parties and events.",
+        "We can't help with that. The Boardroom only hosts normal private parties and events.",
+    ];
 }
 
 // One list for Walter's safety guard. Patterns use word boundaries. Edit here only.
@@ -1210,6 +1225,7 @@ function brb_chat_safety_catalog() {
                 '/\bhurt myself\b/i',
                 '/\bharm myself\b/i',
                 '/\bkill myself\b/i',
+                '/\bsacrifice myself\b/i',
                 '/\bwant to die\b/i',
                 '/\bdon\'?t want to be here anymore\b/i',
                 '/\bdo not want to be here anymore\b/i',
@@ -1221,11 +1237,7 @@ function brb_chat_safety_catalog() {
         ],
         'sexual' => [
             'strike' => true,
-            'replies' => [
-                "I'm afraid that isn't acceptable at the Boardroom, and it's not something I can help with. I'm happy to help you plan a great event, though. Shall we check a date?",
-                "That's not the kind of event the Boardroom hosts. If you're planning a party, a shower or a celebration, I'd be glad to help.",
-                "Let's keep things respectful, please. I'm here to help with bookings, pricing and venue questions.",
-            ],
+            'replies' => brb_chat_safety_refusal_replies(),
             'patterns' => [
                 '/\bstrip\s*shows?\b/i',
                 '/\bstrippers?\b/i',
@@ -1253,14 +1265,28 @@ function brb_chat_safety_catalog() {
                 '/\b(?:penis|vagina|dick|cock|pussy|boobs|tits)\b/i',
                 '/\b(?:blowjob|handjob|orgasm|nsfw|onlyfans|orgy|hooker|fetish)\b/i',
                 '/\blap dance\b/i',
+                '/\bprostitut(?:e|es|ion)\b/i',
+                '/\bhappy endings?\b/i',
+                '/(?<!same |same-)\bsex part(?:y|ies)\b/i',
+                '/\bnon[-\s]?consensual\b/i',
+                '/\brap(?:e|es|ed|ing|ist)\b/i',
+                '/\bmolest(?:s|ed|ing|ation|er)?\b/i',
+                '/\bincest(?:uous)?\b/i',
+                '/\bbestiality\b/i',
+                '/\bzoophil(?:ia|e|ic)?\b/i',
+                '/\bsex with (?:a |an |the |my )?(?:dog|cat|animal|horse|pet|goat|pig)\b/i',
+                '/\bsex with (?:a |an |the |my )?(?:child|children|kid|kids|minor|minors|underage|preteen|toddler)\b/i',
+                '/\b(?:child|children|kid|kids|minor|minors|underage|preteen|toddler)\b.{0,48}\b(?:sex|nude|naked|porn|prostitut|stripper|fetish|rape|molest)/i',
+                '/\b(?:nudes?|naked|porn(?:ography)?|prostitut\w*|rap(?:e|es|ed|ing|ist)|molest\w*|pedophil\w*|stripper)\b.{0,48}\b(?:child|children|kid|kids|minor|minors|underage|preteen|toddler)\b/i',
+                '/\bpedophil(?:e|es|ia|ic)?\b/i',
+                '/\bchild\s*porn/i',
+                '/\bunderage\s+(?:sex|porn|nude|naked|prostitut)/i',
+                '/\b(?:solicit(?:ing)? sex|escort service)\b/i',
             ],
         ],
         'violent' => [
             'strike' => true,
-            'replies' => [
-                "That's not acceptable at the Boardroom, and I can't help with it. Weapons, fighting and threats aren't allowed at the venue.",
-                "I'm sorry, I can't discuss that. If anyone is in danger, please call 911. Otherwise, I'm glad to help with your event.",
-            ],
+            'replies' => brb_chat_safety_refusal_replies(),
             'patterns' => [
                 '/\bguns?\b/i',
                 '/\bknives\b/i',
@@ -1272,9 +1298,20 @@ function brb_chat_safety_catalog() {
                 '/\bbombs?\b/i',
                 '/\bhurt (?:a |the )?(?:guest|guests|someone|people|person|him|her|them)\b/i',
                 '/\bgoing to hurt\b/i',
-                '/\b(?:kill|murder) (?:a |the )?(?:guest|guests|someone|people|person|him|her|them|you)\b/i',
-                '/\bkill\b/i',
-                '/\bmurder\b/i',
+                '/\b(?:kill|murder)(?:ed|ing|s|er|ers)? (?:a |the )?(?:guest|guests|someone|people|person|him|her|them|you)\b/i',
+                '/\bkill(?:ed|ing|s)?\b/i',
+                '/\bmurder(?:ed|ing|s|er|ers)?\b/i',
+                '/\bsacrific(?:e|es|ed|ing|ial)\b/i',
+                '/\btortur(?:e|es|ed|ing)\b/i',
+                '/\bassault(?:s|ed|ing)?\b/i',
+                '/\bkidnap(?:ped|ping|s)?\b/i',
+                '/\babduct(?:ed|ing|ion|s)?\b/i',
+                '/\bterroris(?:t|ts|m)\b/i',
+                '/\bterror attacks?\b/i',
+                '/\bhostages?\b/i',
+                '/\bmass shootings?\b/i',
+                '/\bstrangl(?:e|es|ed|ing)\b/i',
+                '/\b(?:beat(?:ing|s)?|stab(?:bed|bing|s)?)\s+(?:up\s+)?(?:a |the )?(?:guest|guests|someone|somebody|people|person|him|her|them)\b/i',
                 '/\bfight night\b/i',
                 '/\breal fighting\b/i',
                 '/\bstart a fire\b/i',
@@ -1286,6 +1323,23 @@ function brb_chat_safety_catalog() {
                 '/\breal weapons\b/i',
                 '/\btrash the (?:place|venue|room|building|boardroom)\b/i',
                 '/\bshoot (?:you|him|her|them|someone|people|a guest|guests|up the)\b/i',
+            ],
+        ],
+        'illegal' => [
+            'strike' => true,
+            'replies' => brb_chat_safety_refusal_replies(),
+            'patterns' => [
+                '/\b(?:sell|selling|deal|dealing|distribute|distributing)\s+(?:drugs|cocaine|heroin|meth|fentanyl|crack|pills|weed|marijuana|cannabis)\b/i',
+                '/\b(?:cocaine|heroin|fentanyl|crack cocaine)\b/i',
+                '/\bmeth\b/i',
+                '/\bdrug deals?\b/i',
+                '/\b(?:illegal|unlawful)\s+(?:event|party|rave|casino|gambling|fight|fights|activity|activities|business)\b/i',
+                '/\b(?:human|sex|child)\s+traffick/i',
+                '/\bmoney launder/i',
+                '/\bcounterfeit(?:ing|ed|s)?\b/i',
+                '/\bstolen (?:goods|property|car|cars|items|merchandise)\b/i',
+                '/\bfraudulent (?:event|party|scheme)\b/i',
+                '/\b(?:smuggl(?:e|ing|ed)|traffick(?:ing)?)\s+(?:drugs|guns|weapons|people)\b/i',
             ],
         ],
         'harassment' => [
@@ -1312,12 +1366,15 @@ function brb_chat_safety_sexual_text($text) {
 }
 
 function brb_chat_safety_violent_text($text) {
-    $text = preg_replace('/\bmurder mystery\b/i', ' ', (string) $text);
+    $text = preg_replace('/\bmurder[\s-]*mysteries\b/i', ' ', (string) $text);
+    $text = preg_replace('/\bmurder[\s-]*mystery\b/i', ' ', $text);
+    $text = preg_replace('/\bwhodunits?\b/i', ' ', $text);
+    $text = preg_replace('/\bdressed to kill\b/i', ' ', $text);
     $text = preg_replace('/\bkill(?:ing)? time\b/i', ' ', $text);
-    $text = preg_replace('/\b(?:shoot(?:ing)? (?:some |a few |the )?photos|photo ?shoots?|photoshoots?)\b/i', ' ', $text);
+    $text = preg_replace('/\b(?:shoot(?:ing)? (?:some |a few |the )?(?:photos|pictures|videos)|photo ?shoots?|video ?shoots?|photoshoots?)\b/i', ' ', $text);
     $text = preg_replace('/\b(?:party|photo|bath|glitter|confetti|smoke) bombs?\b/i', ' ', $text);
     $text = preg_replace('/\b(?:fire ?pit|firepit|candles?)\b/i', ' ', $text);
-    if (preg_match('/\b(?:nerf|laser tag)\b/i', $text) && !preg_match('/\breal (?:guns?|weapons?|knives|knife)\b/i', $text)) {
+    if (preg_match('/\b(?:nerf|laser tag|water guns?|squirt guns?|toy guns?)\b/i', $text) && !preg_match('/\breal (?:guns?|weapons?|knives|knife)\b/i', $text)) {
         $text = preg_replace('/\b(?:guns?|weapons?|knives|knife|shoot(?:ing)?|rifles?|pistols?|firearms?)\b/i', ' ', $text);
     }
     return $text;
@@ -1328,7 +1385,7 @@ function brb_chat_safety_category($message) {
     if ($text === '' || $text === '[message blocked]' || $text === '[care noted]') return '';
     $text = str_replace(["\u{2019}", "\u{2018}"], "'", $text);
     $catalog = brb_chat_safety_catalog();
-    foreach (['self-harm', 'sexual', 'violent', 'harassment'] as $key) {
+    foreach (['self-harm', 'sexual', 'violent', 'illegal', 'harassment'] as $key) {
         if ($key === 'sexual') $scan = brb_chat_safety_sexual_text($text);
         elseif ($key === 'violent') $scan = brb_chat_safety_violent_text($text);
         else $scan = $text;
@@ -1341,7 +1398,7 @@ function brb_chat_safety_category($message) {
 
 function brb_chat_safety_counts($history) {
     $strikes = 0;
-    $by = ['sexual' => 0, 'violent' => 0, 'harassment' => 0, 'self-harm' => 0];
+    $by = ['sexual' => 0, 'violent' => 0, 'illegal' => 0, 'harassment' => 0, 'self-harm' => 0];
     foreach ((array) $history as $turn) {
         if (!is_array($turn) || ($turn['role'] ?? '') !== 'user') continue;
         $flag = (string) ($turn['flag'] ?? '');
@@ -1396,8 +1453,64 @@ function brb_chat_safety_response($message, $history) {
     return $out;
 }
 
+function brb_chat_safety_prohibited_category($text) {
+    $category = brb_chat_safety_category($text);
+    if (in_array($category, ['self-harm', 'sexual', 'violent', 'illegal'], true)) return $category;
+    return '';
+}
+
+function brb_chat_safety_legitimate_event($text) {
+    if (brb_chat_safety_prohibited_category($text) !== '') return false;
+    return (bool) preg_match('/\b(?:birthdays?|bachelorettes?|bachelor part(?:y|ies)|weddings?|showers?|graduations?|\bgrad\b|corporate|holidays?|christmas|reunions?|anniversar(?:y|ies)|retirements?|meetings?|funerals?|celebration of life|murder[\s-]*mysteries|murder[\s-]*mystery|receptions?|parties|party)\b/i', (string) $text);
+}
+
+function brb_chat_safety_texts_from_input($input) {
+    if (!is_array($input)) return [(string) $input];
+    $texts = [];
+    foreach (['note', 'message', 'notes', 'transcript', 'event_about'] as $key) {
+        if (isset($input[$key]) && is_scalar($input[$key])) $texts[] = (string) $input[$key];
+    }
+    if (!empty($input['turns']) && is_array($input['turns'])) {
+        foreach ($input['turns'] as $turn) {
+            if (is_array($turn)) $texts[] = (string) ($turn['text'] ?? '');
+        }
+    }
+    return $texts;
+}
+
+function brb_chat_safety_routing_category($input, $hold_blocked_thread = false) {
+    $texts = brb_chat_safety_texts_from_input($input);
+    foreach ($texts as $text) {
+        $category = brb_chat_safety_prohibited_category($text);
+        if ($category !== '') return $category;
+    }
+    if (!$hold_blocked_thread) return '';
+    $saw_block = false;
+    $pivot = false;
+    foreach ($texts as $text) {
+        if (stripos($text, '[message blocked]') !== false) $saw_block = true;
+        if (brb_chat_safety_legitimate_event($text)) $pivot = true;
+    }
+    if ($saw_block && !$pivot) return 'blocked';
+    return '';
+}
+
+function brb_chat_safety_routing_error($category) {
+    if ($category === '' || $category === null) return null;
+    if ($category === 'self-harm') {
+        $replies = brb_chat_safety_catalog()['self-harm']['replies'];
+        return new WP_Error('care', $replies[0]);
+    }
+    return new WP_Error('prohibited', brb_chat_safety_refusal());
+}
+
+function brb_chat_safety_text_error($text) {
+    return brb_chat_safety_routing_error(brb_chat_safety_prohibited_category($text));
+}
+
 function brb_chat_answer($message, $history = [], $detail = null) {
     $message = trim((string) $message);
+    // Pre-check. This runs before intents, the unknown-reply fallback, and any lead flag.
     $safety = brb_chat_safety_response($message, $history);
     if ($safety) return $safety;
     $history = brb_chat_safety_scrub_history($history);
@@ -1576,6 +1689,8 @@ function brb_chat_save_lead($input) {
     if (strlen($note) > 1000) $note = substr($note, 0, 1000);
     if (strlen($transcript) > 2000) $transcript = substr($transcript, 0, 2000);
     $consent = (string) ($input['consent'] ?? '');
+    $blocked = brb_chat_safety_routing_error(brb_chat_safety_routing_category($input, true));
+    if ($blocked) return $blocked;
     if ($name === '' || strlen($name) > 190 || $raw_email === '') return new WP_Error('missing', 'Please enter your name and email.');
     if (!is_email($email)) return new WP_Error('email', 'Please enter a valid email.');
     if (strlen($phone) > 50) return new WP_Error('phone', 'Please shorten the phone number.');
@@ -1640,8 +1755,14 @@ function brb_chat_send_notice($row) {
 function brb_chat_rest($req) {
     try {
         $history = $req->get_param('history');
+        $history = is_array($history) ? $history : [];
         $message = (string) $req->get_param('message');
-        $answer = brb_chat_answer($message, is_array($history) ? $history : []);
+        $answer = brb_chat_answer($message, $history);
+        // Post-check, before the reply is logged or returned. There is no model call.
+        if (is_array($answer) && empty($answer['blocked'])) {
+            $safety = brb_chat_safety_response($message, $history);
+            if ($safety) $answer = $safety;
+        }
         if (is_array($answer)) brb_chat_log_question(!empty($answer['blocked']) ? '[message blocked]' : $message, $answer['intent'] ?? '');
         return $answer;
     } catch (Throwable $e) {

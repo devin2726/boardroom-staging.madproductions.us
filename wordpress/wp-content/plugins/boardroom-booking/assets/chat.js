@@ -229,6 +229,7 @@
   });
   if (closeBtn) closeBtn.addEventListener('click', closePanel);
   leadToggle.addEventListener('click', function () {
+    if (root.classList.contains('brb-chat-hold')) return;
     var formSelector = leadToggle.getAttribute('data-brb-scroll-form');
     if (leadToggle.tagName === 'A' && !formSelector) return;
     if (formSelector) {
@@ -250,6 +251,11 @@
     else hideLead();
   });
   if (leadCancel) leadCancel.addEventListener('click', hideLead);
+  function setHold(on) {
+    if (on) root.classList.add('brb-chat-hold');
+    else root.classList.remove('brb-chat-hold');
+    if (on && lead && !lead.hidden) hideLead();
+  }
   panel.addEventListener('keydown', function (e) {
     if (!launch) return;
     if (e.key === 'Escape') {
@@ -365,6 +371,7 @@
       turns.push({ role: 'assistant', text: data.reply });
       history.push({ role: 'user', text: stored, flag: data.blocked ? (data.category || '') : '' });
       history.push({ role: 'assistant', text: data.reply });
+      setHold(!!data.blocked);
       if (data.closed) setChatClosed(true);
       if (history.length > 16) history = history.slice(-16);
     }).catch(function () {
@@ -396,6 +403,7 @@
       turns = [];
       input.value = '';
       setChatClosed(false);
+      setHold(false);
       if (lead && !lead.hidden) hideLead();
       log.innerHTML = '';
       addMsg('bot', root.getAttribute('data-opening') || '');
