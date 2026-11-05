@@ -1,7 +1,7 @@
 /*
 Theme Name: The Boardroom
 Description: Lightweight theme replicating the look of boardroomqc.com (dark + gold, EB Garamond, full-width hero slider). Pairs with the Boardroom Booking plugin.
-Version: 1.2.40
+Version: 1.2.41
 Author: Mad Productions
 Text Domain: boardroom
 */
@@ -24,17 +24,17 @@ a{color:var(--gold-d)}img{max-width:100%;display:block}
 .site-header{background:var(--ink);position:sticky;top:0;z-index:400}
 body.admin-bar .site-header{top:32px}
 @media(max-width:782px){body.admin-bar .site-header{top:46px}}
-.site-header .wrap{display:flex;align-items:center;justify-content:space-between;min-height:84px;gap:16px;position:relative}
+.site-header .wrap{display:flex;align-items:center;justify-content:space-between;min-height:118px;gap:16px;position:relative;padding-top:6px;padding-bottom:6px}
 .brand{color:#fff;text-decoration:none;display:flex;align-items:center}
 .brand img,.footer-brand img{display:block;background:transparent;border:0;border-radius:0}
-.brand img{width:110px;height:64px}
+.brand img{width:auto;height:100px;max-height:100px;object-fit:contain}
 .footer-brand{display:flex;justify-content:center;margin:0 auto 12px;background:transparent}
-.footer-brand img{width:193px;height:112px}
+.footer-brand img{width:auto;height:164px;max-height:164px;object-fit:contain}
 .nav{position:relative;z-index:2}
 .nav ul{list-style:none;margin:0;padding:0;display:flex;gap:22px}.nav a{color:#fff;text-decoration:none;text-transform:uppercase;letter-spacing:.08em;font-size:20px;display:inline-block;padding:12px 2px}
 .nav a:hover,.nav .current-menu-item a{color:var(--gold)}
 .menu-toggle{display:none;background:none;border:1px solid #fff;color:#fff;padding:8px 12px;font-size:18px;position:relative;z-index:3}
-@media(max-width:800px){.brand img{width:97px;height:56px}.footer-brand img{width:166px;height:96px}.menu-toggle{display:block}.nav{display:none;position:absolute;top:100%;left:0;right:0;background:var(--ink);z-index:5}.nav.open{display:block}.nav ul{flex-direction:column;gap:0}.nav a{display:block;padding:16px 24px;border-top:1px solid #333;font-size:18px}}
+@media(max-width:800px){.site-header .wrap{min-height:96px;padding-top:4px;padding-bottom:4px}.brand img{width:auto;height:76px;max-height:76px;object-fit:contain}.footer-brand img{width:auto;height:132px;max-height:132px;object-fit:contain}.menu-toggle{display:block}.nav{display:none;position:absolute;top:100%;left:0;right:0;background:var(--ink);z-index:5}.nav.open{display:block}.nav ul{flex-direction:column;gap:0}.nav a{display:block;padding:16px 24px;border-top:1px solid #333;font-size:18px}}
 .btn{display:inline-block;background:var(--gold);color:#fff!important;padding:16px 36px;text-decoration:none;text-transform:uppercase;letter-spacing:.12em;font-weight:700;border:0;cursor:pointer;font-size:20px}
 .btn:hover{background:var(--gold-d)}.btn.ghost{background:transparent;border:2px solid #fff}
 /* hero slider */
@@ -43,6 +43,9 @@ body.admin-bar .site-header{top:32px}
 .hero .slide.on{opacity:1}.hero:after{content:"";position:absolute;inset:0;background:rgba(0,0,0,.45)}
 .hero .cap{position:absolute;inset:0;z-index:2;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px}
 .hero h1{color:#fff;font-size:clamp(40px,7vw,76px);margin:0 0 12px}
+.hero h1.hero-logo{margin:0 0 14px;padding:0 64px;max-width:none;font-size:0;line-height:0;letter-spacing:0;text-transform:none;color:transparent}
+.hero h1.hero-logo img{display:block;width:auto;height:360px;max-width:min(380px,calc(100vw - 160px));margin:0 auto;object-fit:contain;background:transparent;filter:drop-shadow(0 10px 28px rgba(0,0,0,.55)) drop-shadow(0 2px 8px rgba(0,0,0,.45))}
+.hero .cap{padding:28px 24px 72px}
 .hero .hero-sub{margin:0 0 26px;max-width:40em;color:#fff;text-align:center;font-family:'EB Garamond',Georgia,'Times New Roman',serif;font-size:clamp(16px,2.8vw,30px);font-weight:500;line-height:1.35;text-shadow:0 2px 14px rgba(0,0,0,.65)}
 .hero-facts{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;margin:0;padding:16px 18px;text-align:center;text-transform:uppercase;letter-spacing:.14em;font-family:'EB Garamond',Georgia,'Times New Roman',serif;font-size:16px;font-weight:600;line-height:1.7;color:var(--ink);background:#fff;overflow-x:clip}
 .hero-facts span{white-space:nowrap}
@@ -61,17 +64,22 @@ body.admin-bar .site-header{top:32px}
 .legal-page,.legal-page .content,.legal-page p,.legal-page .wrap{overflow-wrap:anywhere;max-width:100%}
 body.legal-page{overflow-x:hidden}
 @media(max-width:700px){
+.hero{height:calc(100vh - 177px)}
 .hero .arrow{top:auto;bottom:78px;transform:none}
 .hero h1{max-width:12em;padding:0 12px}
+.hero h1.hero-logo{padding:0 16px}
+.hero h1.hero-logo img{height:auto;width:240px;max-width:min(240px,72vw);max-height:260px}
+.hero .cap{padding:24px 16px 96px}
 .hero-facts{font-size:13px;letter-spacing:.045em;padding:12px 14px;line-height:1.7}
 .hero-facts .facts-break{display:block;flex-basis:100%;height:0}
 .hero-facts .facts-break+span:before{content:none;margin:0}
 .brb{padding-bottom:104px}
 }
 section.block{padding:80px 0}section.alt{background:var(--bg2)}section.dark{background:var(--ink);color:#ddd}section.dark h2{color:#fff}
-#check-your-date{overflow-x:clip;scroll-margin-top:100px}
-body.admin-bar #check-your-date{scroll-margin-top:132px}
-@media(max-width:782px){body.admin-bar #check-your-date{scroll-margin-top:146px}}
+#check-your-date{overflow-x:clip;scroll-margin-top:134px}
+body.admin-bar #check-your-date{scroll-margin-top:166px}
+@media(max-width:800px){#check-your-date{scroll-margin-top:112px}}
+@media(max-width:782px){body.admin-bar #check-your-date{scroll-margin-top:158px}}
 #check-your-date .brb-home-cal{max-width:720px;margin:0 auto}
 #check-your-date .home-cal-more{text-align:center;margin:20px 0 0}
 #check-your-date .home-cal-more a{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:0 8px}
@@ -109,9 +117,10 @@ body.admin-bar #check-your-date{scroll-margin-top:132px}
 body.book-dated .page-hero,body.book-dated .brb-how{display:none}
 body.book-status .page-hero,body.book-status .brb-how,body.book-status .brb-steps{display:none}
 .book-shortcuts{margin-top:36px}
-#brb-your-date{scroll-margin-top:96px}
-body.admin-bar #brb-your-date{scroll-margin-top:128px}
-@media(max-width:782px){body.admin-bar #brb-your-date{scroll-margin-top:142px}}
+#brb-your-date{scroll-margin-top:130px}
+body.admin-bar #brb-your-date{scroll-margin-top:162px}
+@media(max-width:800px){#brb-your-date{scroll-margin-top:108px}}
+@media(max-width:782px){body.admin-bar #brb-your-date{scroll-margin-top:154px}}
 body.book-page .page-hero h1{font-family:'EB Garamond',Georgia,'Times New Roman',serif;font-weight:500;font-size:clamp(44px,6.5vw,76px);letter-spacing:.02em;text-transform:none;color:#fff;background:none;text-shadow:0 2px 18px rgba(0,0,0,.75);z-index:1}
 .book-shortcuts{display:block;max-width:720px;margin:0 auto 28px}
 .book-shortcut{display:flex;align-items:center;gap:16px;min-height:96px;padding:20px 22px;background:#161616;color:#fff!important;text-decoration:none;border:2px solid var(--gold);font-family:'EB Garamond',Georgia,'Times New Roman',serif}
@@ -187,7 +196,7 @@ body.contact-page .content{padding:28px 0 56px}
 .footer-top{flex-direction:column;gap:18px}
 .footer-id{flex-basis:auto;width:100%}
 .footer-map{height:240px}
-.footer-brand img{width:166px;height:96px}
+.footer-brand img{width:auto;height:132px;max-height:132px;object-fit:contain}
 }
 .legal-links{margin-top:8px}.legal-page .content h2{text-align:left;font-size:clamp(22px,3vw,32px);margin:36px 0 12px}.legal-page .content h2:after{margin:10px 0 0}.legal-page .content h3{margin:28px 0 8px}.legal-page .updated{color:#777;font-size:16px}.legal-page .rules{background:var(--bg2);border-left:4px solid var(--gold);padding:8px 20px 16px;margin:8px 0 24px}.legal-page .rules li{margin:6px 0}.legal-page .content p{font-variant-numeric:lining-nums}
 @media print{.announce,.site-header,.site-footer,.noprint,.menu-toggle{display:none!important}.page-hero{padding:24px 0}.page-hero:before{display:none}.page-hero h1{color:#000}.legal-page .content{max-width:none}}
