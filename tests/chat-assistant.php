@@ -672,6 +672,18 @@ try {
     if ($ok_book && !is_wp_error($ok_book)) $created_bookings[] = (int) $ok_book->id;
     $inline_card = brb_chat_markup('home', home_url('/contact/'));
     brb_t(strpos($inline_card, 'Ask Walter, the Boardroom\'s butler') !== false && strpos($inline_card, 'Popular questions') !== false && strpos($inline_card, 'Prefer a person?') !== false && strpos($inline_card, 'Leave your details') !== false && strpos($inline_card, 'Walter is online') !== false && strpos($inline_card, 'Start over') !== false && strpos($widget, 'Ask Walter, the Boardroom\'s butler') !== false && strpos($widget, 'brb-chat-title-desk">Walter') !== false && strpos($widget, 'brb-chat-starters') !== false && strpos($widget, 'Leave your details') !== false && strpos($css, '@media(max-width:800px)') !== false && strpos($css, '.brb-chat-popular,.brb-chat-popular-label{display:none}') !== false && strpos($css, '.brb-chat-side-foot{display:none}') !== false && strpos($css, '.brb-chat-starters{display:none}') !== false && strpos($css, '.brb-chat:not(.brb-chat-inline) .brb-chat-lead-toggle') !== false && strpos($css, '.brb-chat-title-mobile{display:inline}') !== false && strpos($css, '.brb-chat-title-mobile{display:none}') !== false, 'phones hide popular questions and leave-your-details, and title the card Ask Walter, the Boardroom\'s butler');
+    $december_q = brb_chat_answer('which dates are open in December');
+    $december_links = [];
+    preg_match_all('/\?date=(\d{4}-\d{2}-\d{2})/', $december_q['reply'], $december_links);
+    $december_months_ok = !empty($december_links[1]);
+    foreach ($december_links[1] as $ymd) {
+        if (substr($ymd, 5, 2) !== '12' && stripos($december_q['reply'], 'outside that period') === false) $december_months_ok = false;
+    }
+    brb_t(stripos($december_q['reply'], 'December') !== false && $december_months_ok && (stripos($december_q['reply'], 'November') === false || stripos($december_q['reply'], 'outside that period') !== false), 'December availability stays in December unless a different month is labeled as outside that period');
+    $twelve = brb_chat_answer('can we have 1200 people');
+    brb_t(strpos($twelve['reply'], '1,200') !== false && strpos($twelve['reply'], '80 guests') !== false && stripos($twelve['reply'], 'more than') !== false && stripos($twelve['reply'], "I'm not sure") === false && empty($twelve['lead']), '1,200 people is over the 80-guest capacity and is not handed to the team');
+    $fifty = brb_chat_answer('Can 50 people fit?');
+    brb_t(strpos($fifty['reply'], '50 guests fits') !== false && strpos($fifty['reply'], '80 guests') !== false && strpos($fifty['reply'], brb_book_url()) !== false, '50 people is within capacity and points to booking');
     require __DIR__ . '/chat-score.php';
     $corpus = brb_chat_score_corpus();
     foreach ($corpus['groups'] as $group_name => $group_stats) {

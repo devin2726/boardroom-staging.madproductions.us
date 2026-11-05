@@ -63,6 +63,17 @@ function brb_chat_topic_spec($topic) {
         'overnight' => ['facts' => ['No overnight stays'], 'money' => 'none', 'forbid' => ['check-in', 'check-out', 'per night']],
         'decorate_night' => ['facts' => ['8:00 AM', 'Christmas decorations are up in December'], 'money' => 'addon'],
         'capacity' => ['facts' => ['80 guests', 'Graduation parties'], 'money' => 'none'],
+        'capacity_over' => ['facts' => ['80 guests', 'more than', 'Graduation parties'], 'lead' => false, 'money' => 'none'],
+        'capacity_ok' => ['facts' => ['80 guests', 'fits', 'Graduation parties', '/reserve-the-boardroom-quad-cities/'], 'money' => 'none'],
+        'capacity_min' => ['facts' => ["isn't a minimum", '80 guests', 'Graduation parties'], 'money' => 'none'],
+        'capacity_seat' => ['facts' => ["doesn't list a separate seated", '80 guests', 'Graduation parties'], 'money' => 'none'],
+        'parking_over' => ['facts' => ['Free parking on premises', '40 to 50', 'more than the lot'], 'money' => 'none'],
+        'mystery' => ['facts' => ['murder mystery party is welcome', 'free to attend', '11:30 PM'], 'money' => 'none'],
+        'party' => ['facts' => ['bachelor party', '10:00 AM', '11:30 PM', '80 guests', '/reserve-the-boardroom-quad-cities/'], 'money' => 'none', 'forbid' => ['$']],
+        'events_any' => ['facts' => ['free to attend', 'minimum host age is 25', 'Want more details?'], 'money' => 'none'],
+        'month_window' => ['dynamic' => 'period', 'money' => 'none', 'dates' => true, 'lead' => false],
+        'safety' => ['facts' => ['We only host normal private parties'], 'lead' => false, 'money' => 'none', 'forbid' => ['team would', 'Contact form', 'book a date']],
+        'safety_care' => ['facts' => ['988'], 'lead' => false, 'money' => 'none', 'forbid' => ['team would']],
         'events_bday' => ['facts' => ['kids birthdays', 'free to attend', 'minimum host age is 25'], 'money' => 'none'],
         'events_wedding' => ['facts' => ['Weddings', 'free to attend', 'minimum host age is 25'], 'money' => 'none'],
         'events_shower' => ['facts' => ['showers', 'free to attend', 'minimum host age is 25'], 'money' => 'none'],
@@ -183,7 +194,33 @@ function brb_chat_dates_for_score($question) {
     return $parsed;
 }
 
+function brb_chat_score_period($question, $reply, &$missing, &$bad) {
+    $window = brb_chat_search_window($question);
+    if (empty($window['explicit']) || $window['label'] === '') {
+        $missing[] = 'explicit period';
+        return;
+    }
+    if (stripos($reply, $window['label']) === false) $missing[] = $window['label'];
+    $outside = stripos($reply, 'outside that period') !== false;
+    $none = stripos($reply, 'Nothing is open') !== false;
+    if ($outside && !$none) $missing[] = 'Nothing is open';
+    if (!preg_match_all('/\?date=(\d{4}-\d{2}-\d{2})/', $reply, $links) || !$links[1]) {
+        if (!$none) $missing[] = 'an open date in the period';
+        return;
+    }
+    $start = $window['start']->format('Y-m-d');
+    $end = $window['end']->format('Y-m-d');
+    foreach ($links[1] as $ymd) {
+        $in = ($ymd >= $start && $ymd <= $end);
+        if (!$in && !$outside) $bad[] = 'date outside period ' . $ymd;
+    }
+}
+
 function brb_chat_score_dynamic($spec, $question, $reply, &$missing, &$bad) {
+    if ($spec['dynamic'] === 'period') {
+        brb_chat_score_period($question, $reply, $missing, $bad);
+        return;
+    }
     if ($spec['dynamic'] === 'nye') {
         $now = brb_now()->setTime(0, 0);
         $year = (int) $now->format('Y');

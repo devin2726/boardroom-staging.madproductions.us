@@ -208,6 +208,12 @@ function brb_map_embed() {
 function brb_contact_stored_markup() {
     return '';
 }
+function brb_public_guest_cap() {
+    return 80;
+}
+function brb_parking_car_span() {
+    return '40 to 50';
+}
 function brb_place_schema() {
     $data = [
         '@context' => 'https://schema.org',
@@ -229,7 +235,7 @@ function brb_place_schema() {
         'hasMap' => BRB_MAPS_URL,
         'url' => home_url('/'),
         'priceRange' => '$600-$2000',
-        'maximumAttendeeCapacity' => 80,
+        'maximumAttendeeCapacity' => brb_public_guest_cap(),
         'sameAs' => [BRB_MAPS_URL],
     ];
     if ((is_front_page() || is_home()) && function_exists('br_review_aggregate_schema')) {

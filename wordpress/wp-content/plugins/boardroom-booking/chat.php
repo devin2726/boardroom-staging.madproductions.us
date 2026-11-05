@@ -192,6 +192,16 @@ function brb_chat_extra_dates($text) {
         $ymd = $now->modify('+1 day')->format('Y-m-d');
         $found[] = ['date' => $ymd, 'pos' => $m[0][1], 'end' => $m[0][1] + strlen($m[0][0])];
     }
+    $week_words = ['a' => 1, 'an' => 1, 'one' => 1, 'two' => 2, 'three' => 3, 'four' => 4, 'five' => 5, 'six' => 6];
+    if (preg_match('/\b(?:in|after)\s+(\d{1,2}|a|an|one|two|three|four|five|six)\s+weeks?\b/i', $text, $m, PREG_OFFSET_CAPTURE)) {
+        $raw = strtolower($m[1][0]);
+        $n = is_numeric($raw) ? (int) $raw : ($week_words[$raw] ?? 0);
+        if ($n > 0) $found[] = ['date' => $now->modify('+' . ($n * 7) . ' days')->format('Y-m-d'), 'pos' => $m[0][1], 'end' => $m[0][1] + strlen($m[0][0])];
+    }
+    if (preg_match('/\b(?:in|after)\s+(\d{1,3})\s+days?\b/i', $text, $m, PREG_OFFSET_CAPTURE)) {
+        $n = (int) $m[1][0];
+        if ($n > 0 && $n <= 366) $found[] = ['date' => $now->modify('+' . $n . ' days')->format('Y-m-d'), 'pos' => $m[0][1], 'end' => $m[0][1] + strlen($m[0][0])];
+    }
     if (preg_match_all('/\b(?:the\s+)?(\d{1,2})(?:st|nd|rd|th)?\s+of\s+next\s+month\b/i', $text, $m, PREG_OFFSET_CAPTURE)) {
         $next = $now->modify('first day of next month');
         foreach ($m[0] as $i => $full) {
@@ -342,6 +352,7 @@ function brb_chat_lexicon() {
         'notice', 'reschedule', 'balance', 'receipt', 'invoice', 'cleaning', 'security', 'damage',
         'walkthrough', 'capacity', 'children', 'birthday', 'corporate', 'meeting', 'band', 'music',
         'tables', 'chairs', 'setup', 'decorations', 'tape', 'photos', 'gallery', 'video', 'contact',
+        'car', 'cars', 'sets', 'setting',
         'phone', 'email', 'person', 'human', 'rules', 'cleanup', 'trash', 'pets', 'cameras', 'noise',
         'contract', 'signed', 'payment', 'check', 'card', 'price', 'estimate', 'quote', 'reserve',
         'booking', 'available', 'holiday', 'half', 'june', 'deposit', 'refundable', 'weather',
@@ -674,6 +685,89 @@ function brb_chat_day_sentence($ymd) {
     return $open;
 }
 
+function brb_chat_weekday_filter($text) {
+    $t = strtolower((string) $text);
+    $days = [];
+    foreach (brb_chat_weekdays() as $name => $n) {
+        if (preg_match('/\b' . $name . 's?\b/', $t)) $days[] = $n;
+    }
+    if (preg_match('/\bweekdays?\b/', $t)) $days = array_values(array_unique(array_merge($days, [1, 2, 3, 4, 5])));
+    if (preg_match('/\bweekends?\b/', $t) && !preg_match('/\b(?:this|next)\s+weekend\b/', $t)) {
+        $days = array_values(array_unique(array_merge($days, [0, 6])));
+    }
+    return $days;
+}
+function brb_chat_weekend_range($which) {
+    $now = brb_now()->setTime(0, 0);
+    $dow = (int) $now->format('w');
+    if ($dow === 6) $sat = $now;
+    elseif ($dow === 0) $sat = $now->modify('-1 day');
+    else $sat = $now->modify('+' . (6 - $dow) . ' days');
+    if ($which === 'next') $sat = $sat->modify('+7 days');
+    if ($which === 'this' && $dow === 0) return [$now, $now];
+    return [$sat, $sat->modify('+1 day')];
+}
+function brb_chat_month_bounds($month, $year) {
+    $start = new DateTimeImmutable(sprintf('%04d-%02d-01', $year, $month), brb_tz());
+    return [$start, $start->modify('last day of this month')];
+}
+function brb_chat_period($text) {
+    $t = strtolower((string) $text);
+    $now = brb_now()->setTime(0, 0);
+    $months = brb_chat_months();
+    $days = brb_chat_weekday_filter($t);
+    $start = null;
+    $end = null;
+    $label = '';
+    if (preg_match('/\b(this|next)\s+weekend\b/', $t, $m)) {
+        list($start, $end) = brb_chat_weekend_range($m[1]);
+        $label = ($m[1] === 'next' ? 'Next weekend' : 'This weekend') . ' (' . $start->format('F j, Y') . ($start->format('Y-m-d') === $end->format('Y-m-d') ? '' : ' through ' . $end->format('F j, Y')) . ')';
+        $days = [];
+    } elseif (preg_match('/\b(this|next)\s+month\b/', $t, $m)) {
+        if ($m[1] === 'this') {
+            $start = $now->modify('first day of this month');
+            $end = $now->modify('last day of this month');
+        } else {
+            $start = $now->modify('first day of next month');
+            $end = $start->modify('last day of this month');
+        }
+        $label = $start->format('F Y');
+    } else {
+        $month = 0;
+        $year = 0;
+        if (preg_match('/\b(january|february|march|april|june|july|august|september|october|november|december)\b(?:\s+(20\d{2}))?/', $t, $m)) {
+            $month = $months[$m[1]] ?? 0;
+            $year = ($m[2] ?? '') !== '' ? (int) $m[2] : 0;
+        } elseif (preg_match('/\b(?:in|for|during|of)\s+(jan|feb|mar|apr|jun|jul|aug|sept|sep|oct|nov|dec|may)\b(?:\s+(20\d{2}))?/', $t, $m)) {
+            $month = $months[$m[1]] ?? 0;
+            $year = ($m[2] ?? '') !== '' ? (int) $m[2] : 0;
+        } elseif (preg_match('/\bmay\s+(20\d{2})\b/', $t, $m)) {
+            $month = 5;
+            $year = (int) $m[1];
+        }
+        if ($month) {
+            if (!$year) {
+                $year = (int) $now->format('Y');
+                if ($month < (int) $now->format('n')) $year++;
+            }
+            list($start, $end) = brb_chat_month_bounds($month, $year);
+            $label = $start->format('F Y');
+        } elseif (preg_match('/\b(20\d{2})\b/', $t, $m) && preg_match('/\b(date|dates|open|available|availability)\b/', $t)) {
+            $year = (int) $m[1];
+            $start = new DateTimeImmutable(sprintf('%04d-01-01', $year), brb_tz());
+            $end = new DateTimeImmutable(sprintf('%04d-12-31', $year), brb_tz());
+            $label = (string) $year;
+        }
+    }
+    if (!$start || !$end) return null;
+    return [
+        'start' => $start,
+        'end' => $end,
+        'days' => $days,
+        'label' => $label,
+        'explicit' => true,
+    ];
+}
 function brb_chat_wants_date_search($text) {
     $t = strtolower((string) $text);
     if (brb_chat_invalid_date($text)) return false;
@@ -681,35 +775,31 @@ function brb_chat_wants_date_search($text) {
     if (!empty($dates['dates']) || !empty($dates['too_long'])) return false;
     if (preg_match('/\b(hours|what time|office hours|half[- ]?day)\b/', $t) && !preg_match('/\b(saturday|sunday|monday|tuesday|wednesday|thursday|friday|weekend|weekday|available date)\b/', $t)) return false;
     if (preg_match('/\bopen on\b/', $t) && !preg_match('/\b(first|next|earliest|available date|dates)\b/', $t)) return false;
+    if (preg_match('/\bbook\b/', $t) && !preg_match('/\b(open|available|availability)\b/', $t)) return false;
+    $period = brb_chat_period($text);
+    if ($period && preg_match('/\b(open|available|availability|dates?|weekend|weekends|weekday|weekdays|saturday|saturdays|sunday|sundays|monday|mondays|tuesday|tuesdays|wednesday|wednesdays|thursday|thursdays|friday|fridays)\b/', $t)) return true;
+    if ($period && preg_match('/^(this|next)\s+(weekend|month)\b/', trim($t, " \t\n\r?.!"))) return true;
     if (!preg_match('/\b(available|availability|open|cheapest|earliest|soonest)\b|\bfirst\s+available\b|\bweekday dates\b|\bany weekday\b|\bpartly[\s-]?booked\b|\bpartially booked\b/', $t)) return false;
-    return (bool) preg_match('/\b(date|dates|day|days|saturday|sunday|monday|tuesday|wednesday|thursday|friday|weekend|weekday)\b|\b(this|next)\s+month\b|\bin\s+(january|february|march|april|may|june|july|august|september|october|november|december)\b/', $t);
+    return (bool) preg_match('/\b(date|dates|day|days|saturday|sunday|monday|tuesday|wednesday|thursday|friday|weekend|weekday)\b|\b(this|next)\s+month\b|\bin\s+(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sept|sep|oct|nov|dec)\b/', $t);
 }
 function brb_chat_search_window($text) {
     $t = strtolower((string) $text);
     $now = brb_now()->setTime(0, 0);
-    $start = $now;
-    $end = $now->modify('+6 months');
-    if (preg_match('/\bthis month\b/', $t)) {
-        $start = $now->modify('first day of this month');
-        $end = $now->modify('last day of this month');
-    } elseif (preg_match('/\bnext month\b/', $t)) {
-        $start = $now->modify('first day of next month');
-        $end = $start->modify('last day of this month');
-    } elseif (preg_match('/\bin\s+(january|february|march|april|may|june|july|august|september|october|november|december)\b/', $t, $m)) {
-        $months = brb_chat_months();
-        $month = $months[$m[1]] ?? 0;
-        $year = (int) $now->format('Y');
-        if ($month < (int) $now->format('n')) $year++;
-        $start = new DateTimeImmutable(sprintf('%04d-%02d-01', $year, $month), brb_tz());
-        $end = $start->modify('last day of this month');
+    $period = brb_chat_period($text);
+    if ($period) {
+        $start = $period['start'];
+        $end = $period['end'];
+        $days = $period['days'];
+        $explicit = true;
+        $label = $period['label'];
+    } else {
+        $start = $now;
+        $end = $now->modify('+6 months');
+        $days = brb_chat_weekday_filter($t);
+        $explicit = false;
+        $label = '';
     }
-    $days = [];
-    foreach (brb_chat_weekdays() as $name => $n) {
-        if (preg_match('/\b' . $name . 's?\b/', $t)) $days[] = $n;
-    }
-    if (preg_match('/\bweekends?\b/', $t)) $days = array_values(array_unique(array_merge($days, [0, 6])));
-    if (preg_match('/\bweekdays?\b/', $t)) $days = array_values(array_unique(array_merge($days, [1, 2, 3, 4, 5])));
-    $limit = (preg_match('/\b(cheapest|month|weekday dates|any weekday|partly)\b/', $t)) ? 5 : 3;
+    $limit = (preg_match('/\b(cheapest|month|weekday dates|any weekday|partly)\b/', $t) || $explicit) ? 5 : 3;
     return [
         'start' => $start,
         'end' => $end,
@@ -717,12 +807,16 @@ function brb_chat_search_window($text) {
         'cheapest' => (bool) preg_match('/\bcheapest\b|\blowest price\b/', $t),
         'partial' => (bool) preg_match('/\bpartly[\s-]?booked\b|\bpartially booked\b/', $t),
         'limit' => $limit,
+        'explicit' => $explicit,
+        'label' => $label,
     ];
 }
 function brb_chat_date_suggestions($text) {
     $window = brb_chat_search_window($text);
     $found = [];
-    for ($d = $window['start']; $d <= $window['end']; $d = $d->modify('+1 day')) {
+    $scan_end = $window['end'];
+    if ($scan_end > $window['start']->modify('+400 days')) $scan_end = $window['start']->modify('+400 days');
+    for ($d = $window['start']; $d <= $scan_end; $d = $d->modify('+1 day')) {
         $ymd = $d->format('Y-m-d');
         if ($window['days'] && !in_array((int) $d->format('w'), $window['days'], true)) continue;
         $status = brb_chat_date_status($ymd);
@@ -731,7 +825,7 @@ function brb_chat_date_suggestions($text) {
         } elseif ($status !== 'open') continue;
         $price = function_exists('brb_rate_for_date') ? brb_rate_for_date($ymd, 'full') : null;
         $found[] = ['date' => $ymd, 'price' => $price, 'partial' => $status === 'partial', 'sort' => $price === null ? 999999 : (float) $price];
-        if (!$window['cheapest'] && count($found) >= $window['limit']) break;
+        if (empty($window['explicit']) && !$window['cheapest'] && count($found) >= $window['limit']) break;
     }
     if ($window['cheapest']) {
         usort($found, function ($a, $b) {
@@ -742,12 +836,38 @@ function brb_chat_date_suggestions($text) {
     }
     return $found;
 }
+function brb_chat_nearest_open($window, $limit = 3) {
+    $now = brb_now()->setTime(0, 0);
+    $start = $window['start'];
+    $end = $window['end'];
+    $days = $window['days'];
+    $scored = [];
+    for ($i = 1; $i <= 160; $i++) {
+        foreach ([-1, 1] as $dir) {
+            $cand = ($dir < 0) ? $start->modify('-' . $i . ' days') : $end->modify('+' . $i . ' days');
+            if ($cand < $now) continue;
+            if ($cand >= $start && $cand <= $end) continue;
+            if ($days && !in_array((int) $cand->format('w'), $days, true)) continue;
+            $ymd = $cand->format('Y-m-d');
+            if (brb_chat_date_status($ymd) !== 'open') continue;
+            $scored[$ymd] = $i;
+        }
+    }
+    asort($scored);
+    $out = [];
+    foreach ($scored as $ymd => $distance) {
+        $price = function_exists('brb_rate_for_date') ? brb_rate_for_date($ymd, 'full') : null;
+        $out[] = ['date' => $ymd, 'price' => $price, 'partial' => false, 'sort' => $price === null ? 999999 : (float) $price];
+        if (count($out) >= $limit) break;
+    }
+    return $out;
+}
 function brb_chat_suggestion_bits($rows) {
     $bits = [];
     $chips = [];
     foreach ($rows as $row) {
         $dt = new DateTimeImmutable($row['date'] . ' 12:00:00', brb_tz());
-        $label = $dt->format('l, M j');
+        $label = brb_chat_date_label($row['date']);
         $money = $row['price'] === null ? '' : ' (' . brb_whole_money($row['price']) . ')';
         $note = !empty($row['partial']) ? ' (not fully open)' : '';
         $url = add_query_arg('date', $row['date'], brb_book_url());
@@ -757,25 +877,43 @@ function brb_chat_suggestion_bits($rows) {
     return [$bits, $chips];
 }
 function brb_chat_date_search_reply($text) {
+    $window = brb_chat_search_window($text);
     $rows = brb_chat_date_suggestions($text);
     $calendar = brb_book_url() . '#brb-cal';
+    $t = strtolower((string) $text);
     if (!$rows) {
-        $none = preg_match('/\bpartly[\s-]?booked\b|\bpartially booked\b/', strtolower((string) $text))
+        if (!empty($window['explicit']) && $window['label'] !== '') {
+            $line = 'Nothing is open in ' . $window['label'] . '.';
+            $nearest = brb_chat_nearest_open($window);
+            if ($nearest) {
+                list($near_bits) = brb_chat_suggestion_bits($nearest);
+                $line .= ' The nearest open dates are outside that period: ' . brb_chat_join_bits($near_bits) . '.';
+            } else {
+                $line .= ' Here\'s our calendar, with each date\'s price: ' . $calendar;
+            }
+            return $line;
+        }
+        $none = preg_match('/\bpartly[\s-]?booked\b|\bpartially booked\b/', $t)
             ? 'I don\'t see a partly booked day in that window.'
             : 'I don\'t see an open date in that window.';
         return $none . ' Here\'s our calendar, with each date\'s price: ' . $calendar;
     }
-    list($bits) = brb_chat_suggestion_bits($rows);
-    $t = strtolower((string) $text);
+    $shown = $rows;
+    if (!empty($window['explicit']) && empty($window['cheapest'])) $shown = array_slice($rows, 0, max(1, (int) $window['limit']));
+    list($bits) = brb_chat_suggestion_bits($shown);
+    if (!empty($window['explicit']) && $window['label'] !== '') {
+        $n = count($rows);
+        $word = $n === 1 ? 'date' : 'dates';
+        $intro = $window['label'] . ' has ' . $n . ' open ' . $word . '. ';
+        $intro .= ($n > count($shown)) ? 'Here are the first ones: ' : 'They are ';
+        return $intro . brb_chat_join_bits($bits) . '. Want to book one?';
+    }
     if (preg_match('/\bpartly[\s-]?booked\b|\bpartially booked\b/', $t)) $intro = 'Part of the day is taken on ';
     elseif (preg_match('/\bcheapest\b|\blowest price\b/', $t)) $intro = 'The lowest priced open dates I see are ';
     elseif (preg_match('/\bsaturdays?\b/', $t) && !preg_match('/\b(monday|tuesday|wednesday|thursday|friday|sunday|weekend|weekday)/', $t)) $intro = 'The next open Saturdays are ';
     elseif (preg_match('/\bfridays?\b/', $t) && !preg_match('/\b(monday|tuesday|wednesday|thursday|saturday|sunday|weekend|weekday)/', $t)) $intro = 'The next open Fridays are ';
     elseif (preg_match('/\bweekends?\b/', $t)) $intro = 'The next open weekend dates are ';
     elseif (preg_match('/\bweekdays?\b/', $t)) $intro = 'The next open weekdays are ';
-    elseif (preg_match('/\bin\s+(january|february|march|april|may|june|july|august|september|october|november|december)\b/', $t, $named)) $intro = 'Open dates in ' . ucfirst($named[1]) . ' are ';
-    elseif (preg_match('/\bthis month\b/', $t)) $intro = 'Open dates this month are ';
-    elseif (preg_match('/\bnext month\b/', $t)) $intro = 'Open dates next month are ';
     else $intro = 'The next open dates are ';
     return $intro . brb_chat_join_bits($bits) . '. Want to book one?';
 }
@@ -947,7 +1085,7 @@ function brb_chat_specific_text($text) {
     }
     if (preg_match('/\btax\b|sales tax/', $t)) $bits[] = 'Sales tax is included in the price.';
     if (preg_match('/wheelchair|accessible|accessib|\bada\b|handicap/', $t)) $bits[] = 'Yes. The space is handicapped accessible.';
-    if (preg_match('/\bnoise\b|quiet|outdoors/', $t)) $bits[] = 'Nothing is outdoors, and the space is quiet after 11:30 PM.';
+    if (preg_match('/\bnoise\b|\bloud\b|quiet|outdoors/', $t)) $bits[] = 'Nothing is outdoors, and the space is quiet after 11:30 PM.';
     if (preg_match('/\bcameras?\b|no staff/', $t)) $bits[] = 'There are security cameras on site. No staff are in the area, and a representative can be reached if something arises.';
     if (preg_match('/cooler/', $t)) $bits[] = 'Yes. There is a cooler and an ice machine.';
     if (preg_match('/force majeure|hurricane|snowstorm|power outage|flat tire|bad weather/', $t)) {
@@ -1014,15 +1152,21 @@ function brb_chat_specific_text($text) {
     if (preg_match('/decorat/', $t)) {
         $bits[] = 'You may bring and put up your own decorations. The room doesn\'t come decorated, though Christmas decorations are up in December. Glitter, confetti, confetti cannons, rice, birdseed, and loose sequins aren\'t allowed.';
     }
-    if (preg_match('/confetti/', $t)) $bits[] = 'Confetti is not allowed.';
+    if (preg_match('/confetti/', $t)) $bits[] = 'Confetti is not allowed. Balloons are fine. Glitter is not allowed.';
     if (preg_match('/\bglitter\b/', $t) && !preg_match('/balloon/', $t)) $bits[] = 'Glitter is not allowed.';
-    if (preg_match('/get in|set it up|set the room|set up|set-?up|setup|tear ?down|put away/', $t)) {
+    if (preg_match('/get in|set it up|set the room|sets? up|setting up|set-?up|setup|tear ?down|put away/', $t)) {
         $bits[] = brb_chat_detail()
             ? 'No. Guests set up and put everything away. Our staff can\'t set the room for you. Staff cannot set the room up. Setup can begin at 8:00 AM.'
             : 'No. Guests set up. Staff cannot set the room up. Setup can begin at 8:00 AM. Want more details?';
     }
-    if (preg_match('/\bparking\b|\bpark\b/', $t)) {
-        $bits[] = 'Yes. Free parking on premises, with space for 40 to 50 cars.';
+    if (preg_match('/\b(\d{1,4})\s*cars\b/', $t, $car_n)) {
+        $cars = (int) $car_n[1];
+        $span = function_exists('brb_parking_car_span') ? brb_parking_car_span() : '40 to 50';
+        if ($cars > 50) $bits[] = number_format($cars) . ' cars is more than the lot holds. Free parking on premises, with space for ' . $span . ' cars.';
+        else $bits[] = 'Yes. ' . number_format($cars) . ' cars fits. Free parking on premises, with space for ' . $span . ' cars.';
+    } elseif (preg_match('/\bparking\b|\bpark\b/', $t)) {
+        $span = function_exists('brb_parking_car_span') ? brb_parking_car_span() : '40 to 50';
+        $bits[] = 'Yes. Free parking on premises, with space for ' . $span . ' cars.';
     }
     if (preg_match('/music|sound system|sonos|\bvolume\b|speaker/', $t)) {
         $bits[] = 'The room has a sound system (Sonos, Aux, and Bluetooth).';
@@ -1036,8 +1180,26 @@ function brb_chat_specific_text($text) {
     if (preg_match('/\bpets?\b|service animal|\bdogs?\b|\bcats?\b/', $t)) {
         $bits[] = 'Service animals only. No pets.';
     }
-    if (preg_match('/capacity|how many (people|guests)|80 people|75 people|how many can|\b80\b|\b75\b|how many fit/', $t)) {
-        $bits[] = '80 guests. Graduation parties or open houses can go over, since guests come and go.';
+    $guest_count = brb_chat_guest_count($t);
+    $cap = function_exists('brb_public_guest_cap') ? brb_public_guest_cap() : 80;
+    if ($guest_count !== null) {
+        $shown = number_format($guest_count);
+        if ($guest_count > $cap) {
+            $bits[] = $shown . ' is more than The Boardroom holds. The venue holds ' . $cap . ' guests. Graduation parties or open houses can go over, since guests come and go. Any other count over ' . $cap . ' needs our approval in writing.';
+        } else {
+            $bits[] = 'Yes. ' . $shown . ' guests fits. The venue holds ' . $cap . ' guests. Graduation parties or open houses can go over, since guests come and go. Check a date and reserve here: ' . brb_book_url();
+        }
+    } elseif (preg_match('/capacity|how many (people|guests)|80 people|75 people|how many can|\b80\b|\b75\b|how many fit/', $t)) {
+        $bits[] = $cap . ' guests. Graduation parties or open houses can go over, since guests come and go.';
+    }
+    if (preg_match('/\bminimum (?:guest|guests|number|headcount|people|party)\b|\bhow few guests\b|\bsmallest (?:party|group)\b|\bno minimum\b/', $t)) {
+        $bits[] = 'There isn\'t a minimum guest count. The venue holds ' . $cap . ' guests. Graduation parties or open houses can go over, since guests come and go.';
+    }
+    if (preg_match('/\bseated\b|\bstanding room\b|\bstanding capacity\b|\bsit[- ]down capacity\b/', $t)) {
+        $bits[] = 'The published capacity is ' . $cap . ' guests. Graduation parties or open houses can go over, since guests come and go. The site doesn\'t list a separate seated or standing limit.';
+    }
+    if (preg_match('/\bkids?\b|\bchildren\b|\bchild\b/', $t) && !preg_match('/birthday|\bbday\b/', $t)) {
+        $bits[] = 'Kids are welcome, including kids birthdays, when the event is free to attend. The minimum host age is 25.';
     }
     $paid = preg_match('/ticket|cover charge|charge a cover|concert|paid admission|door fee|fundrais|merchandise|charge admission|paid event/', $t);
     $band = preg_match('/\bband\b|live music|\bdj\b/', $t);
@@ -1180,6 +1342,16 @@ function brb_chat_lead_flag($intents, $history) {
     return $n >= 4;
 }
 
+function brb_chat_guest_count($text) {
+    $t = strtolower((string) $text);
+    if (preg_match('/\b(\d{1,3}(?:,\d{3})+|\d{1,5})\s*(?:\+\s*)?(?:people|persons|person|guests|guest|ppl|attendees|heads)\b/', $t, $m)) {
+        return (int) str_replace(',', '', $m[1]);
+    }
+    if (preg_match('/\b(?:party|group|headcount|crowd)\s+of\s+(\d{1,3}(?:,\d{3})+|\d{1,5})\b/', $t, $m)) {
+        return (int) str_replace(',', '', $m[1]);
+    }
+    return null;
+}
 function brb_chat_only_about($message, $pattern) {
     $parts = preg_split('/\?|\band\b|&/i', strtolower((string) $message));
     $n = 0;
