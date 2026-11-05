@@ -3,11 +3,21 @@ add_action('after_setup_theme', function () {
     add_theme_support('title-tag'); add_theme_support('post-thumbnails'); add_theme_support('custom-logo');
     register_nav_menus(['primary' => 'Primary', 'footer' => 'Footer']);
 });
-function br_ver() { return '1.2.42'; }
+function br_ver() { return '1.2.43'; }
 add_action('wp_enqueue_scripts', function () {
     wp_enqueue_style('boardroom', get_stylesheet_uri(), [], br_ver());
     wp_enqueue_script('boardroom', get_template_directory_uri() . '/assets/site.js', [], br_ver(), true);
 });
+function br_facts_strip($items, $break_after = 0) {
+    $html = '<p class="hero-facts">';
+    foreach (array_values($items) as $i => $item) {
+        if ($break_after && $i === (int) $break_after) $html .= '<span class="facts-break" aria-hidden="true"></span>';
+        $text = str_replace(['-', ' '], ['&#8209;', '&nbsp;'], esc_html($item));
+        $html .= '<span>' . $text . '</span>';
+    }
+    $html .= '</p>';
+    return $html;
+}
 function br_img($f) { return get_template_directory_uri() . '/assets/img/' . $f; }
 function br_img_ver($f) { return br_img($f) . '?v=' . br_ver(); }
 function br_logo($place) {

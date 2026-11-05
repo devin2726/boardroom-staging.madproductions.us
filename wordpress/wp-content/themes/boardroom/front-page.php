@@ -4,7 +4,7 @@
   <div class="cap"><h1 class="hero-logo"><img src="<?php echo esc_url(br_img_ver('boardroom-logo-hero.png')); ?>" srcset="<?php echo esc_url(br_img_ver('boardroom-logo-hero.png')); ?> 1x, <?php echo esc_url(br_img_ver('boardroom-logo-hero-2x.png')); ?> 2x" width="354" height="360" alt="The Boardroom – Private Event Center" decoding="async"></h1><p class="hero-sub">Moline's one-of-a-kind party venue</p><a class="btn" href="<?php echo esc_url($book); ?>">Reserve Now</a></div>
   <button class="arrow prev" aria-label="Previous">‹</button><button class="arrow next" aria-label="Next">›</button><div class="dots"></div>
 </section>
-<p class="hero-facts"><span>Serving&nbsp;Kitchen</span><span>Up&nbsp;to&nbsp;80&nbsp;Guests</span><span class="facts-break" aria-hidden="true"></span><span>Game&nbsp;Room</span><span>80&#8209;Inch&nbsp;TV</span><span>Ample&nbsp;Parking</span></p>
+<?php echo br_facts_strip(['Serving Kitchen', 'Up to 80 Guests', 'Game Room', '80-Inch TV', 'Ample Parking'], 2); ?>
 <section class="block" id="check-your-date"><div class="wrap">
 <h2>Check Your Date</h2>
 <?php if (function_exists('brb_home_calendar_html')) echo brb_home_calendar_html(); ?>
