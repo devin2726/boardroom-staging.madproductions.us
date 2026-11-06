@@ -40,7 +40,8 @@ function brb_admin_back($id, $note, $page = 'brb') {
 }
 function brb_admin_note() {
     if (empty($_GET['brb_note'])) return;
-    echo '<div class="notice notice-info"><p>' . esc_html(wp_unslash($_GET['brb_note'])) . '</p></div>';
+    $class = empty($_GET['brb_note_ok']) ? 'notice-info' : 'notice-success';
+    echo '<div class="notice ' . esc_attr($class) . '"><p>' . esc_html(wp_unslash($_GET['brb_note'])) . '</p></div>';
 }
 
 add_action('admin_post_brb_price', function () {
@@ -140,6 +141,36 @@ add_action('admin_post_brb_delete', function () {
     if (is_wp_error($res)) brb_admin_back($id, $res->get_error_message());
     brb_admin_back(0, 'Cancelled booking deleted.');
 });
+function brb_admin_list_url($status = '') {
+    $url = admin_url('admin.php?page=brb');
+    $allowed = ['review', 'approved', 'deposit_paid', 'paid', 'declined', 'cancelled', 'expired', 'held'];
+    if (in_array($status, $allowed, true)) $url = add_query_arg('status', $status, $url);
+    return $url;
+}
+function brb_admin_bulk_redirect($status, $note, $ok = false) {
+    $url = brb_admin_list_url($status);
+    if ($note !== '') $url = add_query_arg('brb_note', $note, $url);
+    if ($ok) $url = add_query_arg('brb_note_ok', '1', $url);
+    wp_safe_redirect($url);
+    exit;
+}
+add_action('admin_post_brb_bulk_delete', function () {
+    brb_admin_gate('brb_bulk_delete');
+    $status = sanitize_key(wp_unslash($_POST['status'] ?? ''));
+    $bulk = sanitize_key(wp_unslash($_POST['bulk_action'] ?? ''));
+    $raw = wp_unslash($_POST['booking_ids'] ?? []);
+    if (!is_array($raw)) $raw = [];
+    $ids = [];
+    foreach ($raw as $id) {
+        $id = (int) $id;
+        if ($id > 0) $ids[$id] = $id;
+    }
+    if ($bulk !== 'delete' || !$ids) {
+        brb_admin_bulk_redirect($status, 'No bookings selected.');
+    }
+    $n = brb_bulk_delete_bookings(array_values($ids));
+    brb_admin_bulk_redirect($status, $n . ' bookings deleted.', true);
+});
 add_action('admin_post_brb_test_email', function () {
     brb_admin_gate('brb_test_email');
     $res = brb_send_test_email();
@@ -220,14 +251,31 @@ function brb_admin_list() {
     foreach ($filters as $k => $l) {
         printf('<a class="button%s" href="%s">%s</a> ', $f === $k ? ' button-primary' : '', esc_url(admin_url('admin.php?page=brb&status=' . $k)), esc_html($l));
     }
-    echo '</p><table class="widefat"><thead><tr><th>#</th><th>When</th><th>Guest</th><th>Source</th><th>Total</th><th>Paid</th><th>Balance</th><th>Status</th><th>Reserved</th><th></th></tr></thead><tbody>';
-    if (!$rows) echo '<tr><td colspan="10">No bookings yet.</td></tr>';
+    echo '</p><form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" id="brb-bulk">';
+    echo '<input type="hidden" name="action" value="brb_bulk_delete">';
+    echo '<input type="hidden" name="status" value="' . esc_attr($f) . '">';
+    echo '<input type="hidden" name="bulk_action" value="">';
+    wp_nonce_field('brb_bulk_delete');
+    $nav = function ($which) {
+        echo '<div class="tablenav ' . esc_attr($which) . '"><div class="alignleft actions bulkactions">';
+        echo '<label for="brb-bulk-action-' . esc_attr($which) . '" class="screen-reader-text">Select bulk action</label>';
+        echo '<select id="brb-bulk-action-' . esc_attr($which) . '" class="brb-bulk-action">';
+        echo '<option value="">Bulk actions</option><option value="delete">Delete selected</option></select> ';
+        echo '<button type="submit" class="button action brb-bulk-apply" disabled>Apply</button>';
+        echo '</div></div>';
+    };
+    $nav('top');
+    $head = '<tr><td class="manage-column column-cb check-column"><input type="checkbox" class="brb-select-all" aria-label="Select all bookings"></td><th>#</th><th>When</th><th>Guest</th><th>Source</th><th>Total</th><th>Paid</th><th>Balance</th><th>Status</th><th>Reserved</th><th></th></tr>';
+    echo '<table class="widefat"><thead>' . $head . '</thead><tbody>';
+    if (!$rows) echo '<tr><td colspan="11">No bookings yet.</td></tr>';
     foreach ($rows as $b) {
         $set = brb_price_is_set($b);
         $balance = $set ? max(0, round((float) $b->total - (float) $b->amount_paid, 2)) : 0;
         $until = in_array($b->status, ['deposit_paid', 'paid', 'confirmed'], true) ? 'Yes' : 'No';
         printf(
-            '<tr><td>%s</td><td>%s</td><td>%s<br><small>%s %s</small></td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td><span class="brb-badge %s">%s</span></td><td>%s</td><td><a class="button button-small" href="%s">Open</a></td></tr>',
+            '<tr><th scope="row" class="check-column"><input type="checkbox" class="brb-row-check" name="booking_ids[]" value="%d" aria-label="%s"></th><td>%s</td><td>%s</td><td>%s<br><small>%s %s</small></td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td><span class="brb-badge %s">%s</span></td><td>%s</td><td><a class="button button-small" href="%s">Open</a></td></tr>',
+            (int) $b->id,
+            esc_attr('Select ' . brb_ref($b)),
             esc_html(brb_ref($b)),
             esc_html(brb_when($b)),
             esc_html($b->name),
@@ -243,7 +291,49 @@ function brb_admin_list() {
             esc_url(admin_url('admin.php?page=brb&booking=' . (int) $b->id))
         );
     }
-    echo '</tbody></table></div>';
+    echo '</tbody><tfoot>' . $head . '</tfoot></table>';
+    $nav('bottom');
+    echo '</form><script>
+(function(){
+  var form = document.getElementById("brb-bulk");
+  if (!form) return;
+  var rows = function(){ return form.querySelectorAll(".brb-row-check"); };
+  var alls = form.querySelectorAll(".brb-select-all");
+  var applies = form.querySelectorAll(".brb-bulk-apply");
+  var chosen = "";
+  function count(){ return form.querySelectorAll(".brb-row-check:checked").length; }
+  function sync(){
+    var n = count(), total = rows().length;
+    alls.forEach(function(box){ box.checked = total > 0 && n === total; box.indeterminate = n > 0 && n < total; });
+    applies.forEach(function(btn){ btn.disabled = n === 0; });
+  }
+  alls.forEach(function(box){
+    box.addEventListener("change", function(){
+      rows().forEach(function(row){ row.checked = box.checked; });
+      sync();
+    });
+  });
+  rows().forEach(function(row){ row.addEventListener("change", sync); });
+  applies.forEach(function(btn){
+    btn.addEventListener("click", function(){
+      var nav = btn.closest(".tablenav");
+      var select = nav ? nav.querySelector(".brb-bulk-action") : null;
+      chosen = select ? select.value : "";
+    });
+  });
+  form.addEventListener("submit", function(e){
+    var n = count();
+    form.querySelector("[name=bulk_action]").value = chosen;
+    if (chosen !== "delete" || !n) {
+      e.preventDefault();
+      window.alert(n ? "Choose Delete selected, then Apply." : "No bookings selected.");
+      return;
+    }
+    if (!window.confirm(n + " bookings will be permanently deleted.")) e.preventDefault();
+  });
+  sync();
+})();
+</script></div>';
 }
 function brb_admin_card_payment($b) {
     $link = brb_pay_link($b);

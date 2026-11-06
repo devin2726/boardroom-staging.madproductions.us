@@ -2,11 +2,11 @@
 /**
  * Plugin Name: Boardroom Booking
  * Description: Self-hosted direct booking for The Boardroom — full-day blocks, availability calendar, agreed prices, approval before payment, blackout dates, and emails.
- * Version: 2.5.49
+ * Version: 2.5.50
  * Author: Mad Productions
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.5.49');
+define('BRB_VER', '2.5.50');
 function brb_reserve_explainer_steps() {
     return [
         'Pick a date. Prices are on the calendar.',
@@ -2563,16 +2563,32 @@ function brb_cancel_booking($booking_id) {
     brb_send_cancel_email($b);
     return $b;
 }
-function brb_delete_booking($booking_id) {
+function brb_purge_booking($booking_id) {
     global $wpdb;
+    $id = (int) $booking_id;
+    if ($id <= 0 || !brb_booking($id)) return false;
+    $wpdb->delete(brb_pay_table(), ['booking_id' => $id], ['%d']);
+    $wpdb->delete(brb_line_table(), ['booking_id' => $id], ['%d']);
+    $ok = $wpdb->delete(brb_table(), ['id' => $id], ['%d']);
+    return $ok !== false && (int) $ok > 0;
+}
+function brb_delete_booking($booking_id) {
     $b = brb_booking($booking_id);
     if (!$b) return new WP_Error('missing', 'Booking not found.');
     if ($b->status !== 'cancelled') return new WP_Error('status', 'Only a cancelled booking can be deleted.');
-    $wpdb->delete(brb_pay_table(), ['booking_id' => (int) $b->id], ['%d']);
-    $wpdb->delete(brb_line_table(), ['booking_id' => (int) $b->id], ['%d']);
-    $ok = $wpdb->delete(brb_table(), ['id' => (int) $b->id], ['%d']);
-    if (!$ok) return new WP_Error('db', 'Could not delete that booking.');
+    if (!brb_purge_booking($b->id)) return new WP_Error('db', 'Could not delete that booking.');
     return true;
+}
+function brb_bulk_delete_bookings($ids) {
+    $seen = [];
+    $n = 0;
+    foreach ((array) $ids as $id) {
+        $id = (int) $id;
+        if ($id <= 0 || isset($seen[$id])) continue;
+        $seen[$id] = true;
+        if (brb_purge_booking($id)) $n++;
+    }
+    return $n;
 }
 
 /* ---------- REST ---------- */
