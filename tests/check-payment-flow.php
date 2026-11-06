@@ -45,7 +45,7 @@ add_filter('pre_wp_mail', function ($short, $atts) {
 $GLOBALS['brb_mails'] = [];
 
 try {
-    brb_t(get_option('brb_version') === '2.5.48', 'plugin storage version is 2.5.48');
+    brb_t(get_option('brb_version') === '2.5.50', 'plugin storage version is 2.5.50');
     $cc_before = (string) brb_opt('inquiry_cc');
     delete_option('brb_inquiry_cc_seeded');
     $cc_settings = get_option('brb_settings');
@@ -1162,6 +1162,67 @@ try {
         }
         $removed = brb_delete_booking($del->id);
         brb_t($removed === true && !brb_booking($del->id) && brb_payments($del->id) === [], 'deleting a cancelled booking removes it and its payment rows');
+    }
+
+    $bulk_day = brb_now()->modify('+40 days')->format('Y-m-d');
+    $keep_day = brb_now()->modify('+41 days')->format('Y-m-d');
+    $bulk_a = brb_process_public_booking([
+        'date' => $bulk_day,
+        'type' => 'day',
+        'days' => 1,
+        'guests' => 6,
+        'name' => 'Bulk Delete A',
+        'email' => 'flow-test@example.com',
+        'policy' => '1', 'waiver' => '1',
+    ] + brb_screen());
+    $bulk_b = brb_process_public_booking([
+        'date' => $keep_day,
+        'type' => 'day',
+        'days' => 1,
+        'guests' => 6,
+        'name' => 'Bulk Keep',
+        'email' => 'flow-test@example.com',
+        'policy' => '1', 'waiver' => '1',
+    ] + brb_screen());
+    brb_t(!is_wp_error($bulk_a) && !is_wp_error($bulk_b) && $bulk_a && $bulk_b, 'bulk delete fixtures can be created');
+    if ($bulk_a && !is_wp_error($bulk_a) && $bulk_b && !is_wp_error($bulk_b)) {
+        $created_ids[] = (int) $bulk_a->id;
+        $created_ids[] = (int) $bulk_b->id;
+        brb_set_agreed_price($bulk_a->id, 800);
+        $bulk_paid = brb_record_payment($bulk_a->id, 800, '5555', brb_now()->format('Y-m-d'), 'Bulk deposit', true);
+        $bulk_a = brb_booking($bulk_a->id);
+        $blocks = $bulk_a && in_array($bulk_a->status, ['deposit_paid', 'paid'], true);
+        $start = $bulk_a ? new DateTimeImmutable($bulk_a->start_dt, brb_tz()) : null;
+        $end = $bulk_a ? new DateTimeImmutable($bulk_a->end_dt, brb_tz()) : null;
+        brb_t($blocks && $start && $end && !brb_is_free($start, $end), 'a paid bulk-delete booking blocks its date');
+        brb_t(brb_lines($bulk_a->id) !== [] && brb_payments($bulk_a->id) !== [], 'the paid booking has line items and a payment row');
+        $_GET['status'] = 'paid';
+        ob_start();
+        brb_admin_list();
+        $paid_list = ob_get_clean();
+        unset($_GET['status']);
+        ob_start();
+        brb_admin_list();
+        $all_list = ob_get_clean();
+        brb_t(substr_count($all_list, 'brb-select-all') === 2 && strpos($all_list, 'name="booking_ids[]"') !== false && strpos($all_list, 'Delete selected') !== false && strpos($all_list, 'value="' . (int) $bulk_a->id . '"') !== false && strpos($all_list, 'value="brb_bulk_delete"') !== false && strpos($paid_list, 'name="status" value="paid"') !== false, 'the bookings list has select-all, row checkboxes, and keeps the status filter');
+        $mail_before = count($GLOBALS['brb_mails']);
+        $removed_n = brb_bulk_delete_bookings([(string) $bulk_a->id, 0, 'nope', $bulk_a->id]);
+        brb_t($removed_n === 1 && !brb_booking($bulk_a->id) && brb_payments($bulk_a->id) === [] && brb_lines($bulk_a->id) === [] && brb_booking($bulk_b->id) && count($GLOBALS['brb_mails']) === $mail_before, 'bulk delete removes only the selected booking, its payments and line items, and sends no email');
+        brb_t($start && $end && brb_is_free($start, $end), 'deleting the booking frees its calendar date');
+        $still_open = brb_process_public_booking([
+            'date' => brb_now()->modify('+42 days')->format('Y-m-d'),
+            'type' => 'day',
+            'days' => 1,
+            'guests' => 4,
+            'name' => 'Still Open',
+            'email' => 'flow-test@example.com',
+            'policy' => '1', 'waiver' => '1',
+        ] + brb_screen());
+        if ($still_open && !is_wp_error($still_open)) {
+            $created_ids[] = (int) $still_open->id;
+            $open_denied = brb_delete_booking($still_open->id);
+            brb_t(is_wp_error($open_denied), 'the single-row delete still refuses a booking that is not cancelled');
+        }
     }
 
     $smtp_keys = ['BRB_SMTP_HOST', 'BRB_SMTP_PORT', 'BRB_SMTP_USER', 'BRB_SMTP_PASS', 'BRB_SMTP_FROM', 'BRB_SMTP_FROM_NAME'];
