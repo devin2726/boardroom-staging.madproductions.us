@@ -341,7 +341,7 @@ try {
     brb_t(is_string($book_tpl) && strpos($book_tpl, "br_ask_walter_card(home_url('/contact/'))") !== false && strpos($book_tpl, 'br_ask_walter_card') < strpos($book_tpl, 'the_content'), 'FAQ opens with the shared Walter card');
     $reviews = br_reviews_html();
     brb_t(strpos($home, 'br_reviews_html') !== false && strpos($home, 'br_reviews_html') < strpos($home, 'block dark cta'), 'guest reviews sit before the reservation call to action');
-    brb_t(strpos($reviews, 'What our guests say') !== false && strpos($reviews, '5.0 ★ from 29 guest reviews') !== false && strpos($reviews, 'Read more reviews') === false && substr_count($reviews, 'class="t-set"') === 2 && strpos($reviews, 'aria-hidden="true"') !== false && substr_count($reviews, 'class="t-card"') === 24, 'the reviews section is a marquee of every review with a hidden copy');
+    brb_t(strpos($reviews, 'What our guests say') !== false && strpos($reviews, '5.0 ★ from 30 guest reviews') !== false && strpos($reviews, 'Read more reviews') === false && substr_count($reviews, 'class="t-set"') === 2 && strpos($reviews, 'aria-hidden="true"') !== false && substr_count($reviews, 'class="t-card"') === 26, 'the reviews section is a marquee of every review with a hidden copy');
     brb_t(strpos($reviews, 'Dixon N.') !== false && strpos($reviews, 'Nothing else like it in the QC.') !== false && strpos($reviews, 'Cresencia') !== false && strpos($reviews, 'grandma') !== false, 'featured and later reviews are all in the marquee');
     brb_t(stripos($reviews, 'airbnb') === false && strpos($reviews, 'Google') === false && strpos($reviews, 'tel:') === false && strpos($reviews, 'name="phone"') === false, 'guest reviews do not name a source or a phone number');
     $rotator = br_review_rotator_html();

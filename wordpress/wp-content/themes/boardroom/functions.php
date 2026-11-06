@@ -3,7 +3,7 @@ add_action('after_setup_theme', function () {
     add_theme_support('title-tag'); add_theme_support('post-thumbnails'); add_theme_support('custom-logo');
     register_nav_menus(['primary' => 'Primary', 'footer' => 'Footer']);
 });
-function br_ver() { return '1.2.44'; }
+function br_ver() { return '1.2.45'; }
 add_action('wp_enqueue_scripts', function () {
     wp_enqueue_style('boardroom', get_stylesheet_uri(), [], br_ver());
     wp_enqueue_script('boardroom', get_template_directory_uri() . '/assets/site.js', [], br_ver(), true);
@@ -111,6 +111,7 @@ function br_review_aggregate_schema() {
 }
 function br_guest_reviews() {
     return [
+        ['name' => 'Andrew', 'when' => 'October 2026', 'text' => 'We used the boardroom for a leadership retreat, great setting and creative space!', 'featured' => true],
         ['name' => 'Amy', 'when' => 'February 2026', 'text' => 'The Boardroom is simply fantastic. The vibe is great for all types of events - chill & reserved or funky & fun.', 'featured' => true],
         ['name' => 'Dixon N.', 'when' => '2026', 'text' => 'This place is awesome. Old timey decorations and band posters are a sight to see. I was blown away by their atmosphere. Nothing else like it in the QC.', 'featured' => true],
         ['name' => 'Abbey', 'when' => 'June 2024', 'text' => 'Absolutely perfect for our graduation party. The artistic styling of the place was fantastic and unique. The system for music was easy to use and sounded great. Chris was so easy to work with and provided additional details for lighting/decor for a super cool party ambiance. I would highly recommend to anyone planning an event who wants a space you absolutely won\'t find anywhere else!', 'featured' => true],
@@ -142,7 +143,7 @@ function br_reviews_html() {
     foreach (br_guest_reviews() as $review) $cards .= br_review_marquee_card($review);
     $html = '<section class="block" id="guest-reviews"><div class="wrap">';
     $html .= '<header class="t-head"><h2>What our guests say</h2>';
-    $html .= '<p class="review-badge">5.0 ★ from 29 guest reviews</p></header>';
+    $html .= '<p class="review-badge">5.0 ★ from 30 guest reviews</p></header>';
     $html .= '<div class="t-marquee"><div class="t-track">';
     $html .= '<div class="t-set">' . $cards . '</div>';
     $html .= '<div class="t-set" aria-hidden="true" inert>' . $cards . '</div>';
