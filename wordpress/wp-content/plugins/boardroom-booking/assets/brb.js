@@ -73,6 +73,7 @@
       var k = key(d);
       var info = data[k] || {};
       var s = info.status || 'free';
+      if (s === 'partial') s = 'booked';
       var off = (s === 'past' || s === 'booked' || s === 'blackout' || s === 'soon');
       var price = info.price ? '<span class="brb-dayprice">' + info.price + '</span>' : '';
       h += '<button type="button" class="d ' + s + (date && date.value === k ? ' sel' : '') + '" data-k="' + k + '"' + (off ? ' disabled' : '') + '><span class="brb-daynum">' + d.getDate() + '</span>' + price + '</button>';
@@ -121,6 +122,18 @@
     form.addEventListener('submit', function (e) {
       if (!refreshNotice()) e.preventDefault();
     });
+    var guests = form.querySelector('input[name="guests"]');
+    var guestNote = document.getElementById('brb-guest-note');
+    function refreshGuests() {
+      if (!guests || !guestNote) return;
+      var n = parseInt(guests.value, 10);
+      guestNote.hidden = !(n > 80);
+    }
+    if (guests) {
+      guests.addEventListener('input', refreshGuests);
+      guests.addEventListener('change', refreshGuests);
+      refreshGuests();
+    }
   }
   if (cal.getAttribute('data-lazy') === '1' && 'IntersectionObserver' in window) {
     var seen = false;

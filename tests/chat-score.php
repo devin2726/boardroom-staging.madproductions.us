@@ -29,19 +29,19 @@ function brb_chat_topic_spec($topic) {
         'nye' => ['dynamic' => 'nye', 'money' => 'date', 'dates' => true],
         'invalid_date' => ['facts' => ["couldn't find that date"], 'money' => 'none', 'dates' => false],
         'december' => ['facts' => ['December'], 'money' => 'none', 'dates' => true],
-        'book' => ['facts' => ['/reserve-the-boardroom-quad-cities/', 'approved by the Boardroom'], 'lead' => true, 'money' => 'none'],
+        'book' => ['facts' => ['/reserve-the-boardroom-quad-cities/', 'deposit is received and approved'], 'lead' => true, 'money' => 'none'],
         'notice' => ['facts' => ['48', "hours", 'notice'], 'money' => 'none', 'forbid' => ['guaranteed']],
-        'hold' => ['facts' => ['A request does not hold the date', 'deposit is received and approved'], 'money' => 'none', 'forbid' => ['$10']],
-        'reserve' => ['facts' => ['/reserve-the-boardroom-quad-cities/', 'approved by the Boardroom'], 'lead' => true, 'money' => 'none'],
+        'hold' => ['facts' => ['A request doesn\'t hold the date', 'deposit is received and approved'], 'money' => 'none', 'forbid' => ['$10']],
+        'reserve' => ['facts' => ['/reserve-the-boardroom-quad-cities/', 'deposit is received and approved'], 'lead' => true, 'money' => 'none'],
         'response_time' => ['facts' => ['Contact form'], 'lead' => true, 'money' => 'none', 'forbid' => ['within 24', '24-hour', 'same-day reply']],
         'weekday_ok' => ['facts' => ['10:00 AM', '11:30 PM'], 'money' => 'none'],
         'multi_day' => ['facts' => ['14 days'], 'money' => 'none'],
         'tour' => ['facts' => ['/contact/', 'boardroomqc@gmail.com', 'does not hold'], 'lead' => true, 'money' => 'none'],
         'photos' => ['facts' => ['/gallery/', 'tour video'], 'money' => 'none'],
         'change_date' => ['facts' => ['60 or more days before the event', 'Contact form'], 'lead' => true, 'money' => 'none', 'forbid' => ['free of charge', 'no charge to change']],
-        'price_general' => ['facts' => ['Tell me a date', 'an estimate for that date'], 'money' => 'none'],
-        'price_why' => ['facts' => ['depends on date'], 'money' => 'none'],
-        'discount' => ['facts' => ['depends on date', 'Contact form'], 'lead' => true, 'money' => 'none', 'forbid' => ['% off', 'percent off', '10%']],
+        'price_general' => ['facts' => ['Tell me a date', 'calendar price', 'Sunday to Thursday from $850'], 'money' => 'faq'],
+        'price_why' => ['facts' => ['calendar price', 'in writing'], 'money' => 'none'],
+        'discount' => ['facts' => ['can\'t apply or confirm discount codes', 'calendar rate'], 'lead' => true, 'money' => 'none', 'forbid' => ['% off', 'percent off', '10%']],
         'nonprofit' => ['facts' => ['nonprofit or military discounts'], 'lead' => true, 'money' => 'none'],
         'deposit' => ['facts' => ['50% of the agreed total'], 'money' => 'none', 'forbid' => ['not a binding commitment']],
         'deposit_when' => ['facts' => ['50% of the agreed total', '1 day', 'signing'], 'money' => 'none'],
@@ -61,10 +61,10 @@ function brb_chat_topic_spec($topic) {
         'setup_time' => ['facts' => ['No. Guests set up', '8:00 AM'], 'money' => 'none', 'forbid' => ['one hour before', 'half day']],
         'end_time' => ['facts' => ['11:30 PM'], 'money' => 'none', 'forbid' => ['midnight', 'permit']],
         'overnight' => ['facts' => ['No overnight stays'], 'money' => 'none', 'forbid' => ['check-in', 'check-out', 'per night']],
-        'decorate_night' => ['facts' => ['8:00 AM', 'Christmas decorations are up in December'], 'money' => 'addon'],
+        'decorate_night' => ['facts' => ['8:00 AM', 'one full day', 'Christmas decorations are up in December'], 'money' => 'none', 'forbid' => ['$500', 'add-on']],
         'capacity' => ['facts' => ['80 guests', 'Graduation parties'], 'money' => 'none'],
         'capacity_over' => ['facts' => ['80 guests', 'more than', 'Graduation parties'], 'lead' => false, 'money' => 'none'],
-        'capacity_ok' => ['facts' => ['80 guests', 'fits', 'Graduation parties', '/reserve-the-boardroom-quad-cities/'], 'money' => 'none'],
+        'capacity_ok' => ['facts' => ['80 guests', 'fits', '/reserve-the-boardroom-quad-cities/'], 'money' => 'none', 'forbid' => ['Graduation parties']],
         'capacity_min' => ['facts' => ["isn't a minimum", '80 guests', 'Graduation parties'], 'money' => 'none'],
         'capacity_seat' => ['facts' => ["doesn't list a separate seated", '80 guests', 'Graduation parties'], 'money' => 'none'],
         'parking_over' => ['facts' => ['Free parking on premises', '40 to 50', 'more than the lot'], 'money' => 'none'],
@@ -86,7 +86,7 @@ function brb_chat_topic_spec($topic) {
         'band' => ['facts' => ['band or live music', 'not charging'], 'money' => 'none'],
         'fundraiser' => ['facts' => ['no tickets', 'no door fees'], 'money' => 'none'],
         'market' => ['facts' => ['free to attend', 'no merchandise sales', 'no ticket sales'], 'money' => 'none'],
-        'food' => ['facts_i' => ['own food', 'warmers', 'stovetop', 'any caterer', 'does not provide catering'], 'money' => 'none'],
+        'food' => ['facts_i' => ['own food', 'warmers', 'stovetop', 'any caterer', 'doesn\'t provide catering'], 'money' => 'none'],
         'kitchen' => ['facts' => ['stovetop'], 'any' => [["can't be used", 'not permitted', 'may not be used', 'No cooking']], 'money' => 'none'],
         'fridge' => ['facts' => ['refrigerator', 'ice machine'], 'money' => 'none'],
         'alcohol' => ['facts' => ['BYOB', 'Want more details?'], 'money' => 'none', 'phone' => 'never', 'forbid' => ['liquor license', 'Liquor-Licensing']],
@@ -95,7 +95,7 @@ function brb_chat_topic_spec($topic) {
         'plates' => ['facts' => ['bring your own plates'], 'money' => 'none'],
         'tables' => ['facts' => ['Tables and chairs', 'not set up', 'Staff cannot set the room up'], 'money' => 'none'],
         'setup_help' => ['facts' => ['No. Guests set up', 'Staff cannot set the room up'], 'money' => 'none', 'forbid' => ['extra fee']],
-        'setup_cost' => ['facts' => ['8:00 AM'], 'money' => 'addon', 'forbid' => ['extra fee', 'one hour before', 'half day']],
+        'setup_cost' => ['facts' => ['8:00 AM'], 'money' => 'none', 'forbid' => ['extra fee', 'one hour before', 'half day', '$500', 'add-on']],
         'decor' => ['facts' => ['Christmas decorations are up in December'], 'money' => 'none'],
         'tape' => ['facts' => ['Wall tape is not allowed'], 'money' => 'none'],
         'confetti' => ['facts' => ['Balloons are fine', 'Glitter is not allowed', 'Confetti is not allowed'], 'money' => 'none'],
@@ -118,7 +118,7 @@ function brb_chat_topic_spec($topic) {
         'pets' => ['facts' => ['Service animals only', 'No pets'], 'money' => 'none'],
         'cameras' => ['facts' => ['security cameras'], 'money' => 'none'],
         'noise' => ['facts' => ['quiet after 11:30 PM'], 'money' => 'none'],
-        'insurance' => ['facts' => ['own home or renters policy', 'assume the risk'], 'money' => 'none'],
+        'insurance' => ['facts' => ['renters insurance', 'proof', 'event liability', 'liquor liability', '7 days before'], 'money' => 'none'],
         'agreement' => ['facts' => ['rental agreement', '/terms/'], 'money' => 'none'],
         'onsite' => ['facts' => ['No one is on site', 'connected offices', 'contract is signed'], 'money' => 'none'],
         'damage' => ['facts' => ['damage deposit covers cleaning and damage', 'may be charged', 'Terms'], 'money' => 'damage'],
@@ -152,6 +152,7 @@ function brb_chat_topic_spec($topic) {
         $merged['facts_i'] = array_values(array_unique($merged['facts_i']));
         $merged['forbid'] = array_values(array_unique($merged['forbid']));
         if (in_array('date', $moneys, true)) $merged['money'] = 'date';
+        elseif (in_array('faq', $moneys, true)) $merged['money'] = 'faq';
         elseif (in_array('addon', $moneys, true)) $merged['money'] = 'addon';
         elseif (in_array('damage', $moneys, true)) $merged['money'] = 'damage';
         $merged['phone'] = in_array('clerk', $phones, true) ? 'clerk' : 'never';
@@ -169,6 +170,9 @@ function brb_chat_allowed_money($spec, $question) {
             $allowed['$250'] = true;
         }
         if ($spec['money'] === 'addon') $allowed[brb_whole_money(brb_addon_price())] = true;
+    }
+    if ($spec['money'] === 'faq') {
+        foreach (['$850', '$1,200', '$1,400', '$2,000'] as $pub) $allowed[$pub] = true;
     }
     if ($spec['money'] === 'date' && brb_quote_prices_enabled()) {
         $parsed = brb_chat_dates_for_score($question);
@@ -255,7 +259,7 @@ function brb_chat_score_dynamic($spec, $question, $reply, &$missing, &$bad) {
         if ($status === 'notice' && strpos($reply, '$') !== false) $bad[] = 'price inside the notice window';
     }
     if ($open && brb_quote_prices_enabled()) {
-        if (strpos($reply, 'an estimate for that date') === false) $missing[] = 'an estimate for that date';
+        if (strpos($reply, 'That\'s the calendar price for that date') === false && strpos($reply, 'an estimate for that date') === false) $missing[] = 'calendar price';
         if (substr_count($reply, 'not a binding commitment') !== 1) $bad[] = 'binding sentence count';
     }
     if ($open && !brb_quote_prices_enabled() && strpos($reply, 'will confirm pricing') === false) $missing[] = 'will confirm pricing';

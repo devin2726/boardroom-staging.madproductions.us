@@ -33,7 +33,7 @@ $created = [];
 $snapshot = get_option('brb_settings');
 
 try {
-    brb_t(get_option('brb_version') === '2.5.50', 'plugin storage version is 2.5.50');
+    brb_t(get_option('brb_version') === '2.5.52', 'plugin storage version is 2.5.52');
     brb_t($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', brb_tour_table())) === brb_tour_table(), 'inquiry table still exists');
     $cols = $wpdb->get_col('SHOW COLUMNS FROM ' . brb_tour_table(), 0);
     brb_t(in_array('phone', $cols, true) && in_array('topic', $cols, true) && in_array('preferred', $cols, true), 'topic and preferred were added and phone was kept');
@@ -315,14 +315,14 @@ try {
     }
     brb_t($facts_ok && $home_ok && strpos($facts, 'BYOB') === false && strpos($facts, 'Free parking') === false && strpos($facts, '8 AM') === false && strpos($facts, 'From $850') === false, 'the homepage facts strip lists the venue features in order');
     $amenities = br_amenities_html();
-    foreach (['Private main entrance', 'Free parking on premises', 'Space for 40 to 50 cars', 'Wifi', 'TV', 'Sound system (Sonos, Aux, Bluetooth)', 'Pool table', 'Board games', 'Refrigerator (large)', 'Freezer', 'Mini fridge', 'Microwave', 'Dishwasher', 'Coffee maker (drip and pour-over)', 'Hot water kettle', 'Blender', 'Wine glasses', 'Smoke alarm', 'Carbon monoxide alarm', 'Fire extinguisher', 'First aid kit'] as $item) {
+    foreach (['Private main entrance', 'Free parking on premises', 'Space for 40 to 50 cars', 'Wifi', 'TV', 'Sound system (Sonos, Aux, Bluetooth)', 'Pool table', 'Board games', 'Refrigerator (large)', 'Freezer', 'Mini fridge', 'Microwave', 'Food warmers', 'Dishwasher', 'Coffee maker (drip and pour-over)', 'Hot water kettle', 'Blender', 'Wine glasses', 'Smoke alarm', 'Carbon monoxide alarm', 'Fire extinguisher', 'First aid kit'] as $item) {
         brb_t(strpos($amenities, $item) !== false, 'amenities include ' . $item);
     }
     foreach (['Air conditioning', 'Heating', 'Free street parking', 'Dining table', 'Comfort and utilities', 'Furnishings', 'The room comes not set up'] as $gone) {
         brb_t(strpos($amenities, $gone) === false, 'amenities leave out ' . $gone);
     }
     brb_t(substr_count($amenities, '<section class="amenity-group') === 3, 'amenities are three groups');
-    brb_t(substr_count($amenities, 'Serving and storage only, no cooking or stovetop use.') === 1 && strpos($amenities, 'Kitchen area is for serving and storage. Cooking and stovetop use are not permitted.') === false, 'the kitchen card has one serving-and-storage line');
+    brb_t(substr_count($amenities, 'Microwave, blender and food warmers are yours to use. The stovetops and oven can&#039;t be used.') === 1 && strpos($amenities, 'Serving and storage only, no cooking or stovetop use.') === false, 'the kitchen card states what guests can use');
     $gallery_tpl = file_get_contents(get_stylesheet_directory() . '/page-gallery.php');
     $book_tpl = file_get_contents(get_stylesheet_directory() . '/page.php');
     brb_t(strpos($amenities, 'The room comes not set up.') === false && strpos($home, 'The room comes not set up.') === false && strpos($gallery_tpl, 'The room comes not set up.') === false && strpos($book_tpl, 'The room comes not set up.') === false, 'the not-set-up note is not a standalone block on the home, gallery, or book page');
