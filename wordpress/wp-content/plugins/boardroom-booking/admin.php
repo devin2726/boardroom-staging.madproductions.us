@@ -913,7 +913,6 @@ function brb_admin_settings() {
             ['deposit_pct', 'Deposit percent', 'number', null, 'Used when the choice above is percent. Default 50.'],
             ['deposit_fixed', 'Fixed deposit amount ($)', 'text', null, 'Used when the choice above is a fixed dollar amount. Cannot exceed the total.'],
             ['balance_due_days', 'Balance due note', 'number', null, 'Guests are told the balance is due no later than one week before the event. A past date is shown as due now. Until a price is set, the guest sees price to be confirmed.'],
-            ['addon_price', 'Setup or takedown day ($)', 'number', null, 'Added when that day is open. Default 500. The same price applies on Sunday.'],
             ['damage_deposit_amount', 'Damage deposit amount ($)', 'number', null, 'Flat refundable damage deposit added to new bookings. Default 250. Changing this does not change bookings that already have a damage deposit line. Use 0 if a new booking should not include one.'],
             ['venue_address', 'Venue address', 'text', null, 'The event space. Shown in the footer, on Contact, and in Terms and Privacy. Default is 2220 37th Street, Moline, IL 61265. This is not where checks go.'],
             ['payee', 'Check payable to', 'text', null, 'The name guests write on the payee line. Default is Mad Productions.'],

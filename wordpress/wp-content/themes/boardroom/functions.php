@@ -62,8 +62,8 @@ function br_amenity_groups() {
         [
             'title' => 'Kitchen area',
             'icon' => 'M6 10h12l-1 8H7l-1-8zM9 10V7M12 10V5M15 10V7',
-            'lead' => 'Serving and storage only, no cooking or stovetop use.',
-            'items' => ['Refrigerator (large)', 'Freezer', 'Mini fridge', 'Microwave', 'Dishwasher', 'Coffee maker (drip and pour-over)', 'Hot water kettle', 'Blender', 'Wine glasses'],
+            'lead' => 'Microwave, blender and food warmers are yours to use. The stovetops and oven can\'t be used.',
+            'items' => ['Refrigerator (large)', 'Freezer', 'Mini fridge', 'Microwave', 'Food warmers', 'Dishwasher', 'Coffee maker (drip and pour-over)', 'Hot water kettle', 'Blender', 'Wine glasses'],
         ],
         [
             'title' => 'Safety',
@@ -280,6 +280,13 @@ function br_rename_reserve_menu() {
     }
 }
 add_action('init', 'br_rename_reserve_menu', 30);
+add_action('template_redirect', function () {
+    // FAQ and Terms share header.php with every other page. A full-page cache
+    // was still serving an older banner and a "Book" nav item for those two URLs.
+    if (!function_exists('is_page') || !is_page(['faq', 'terms'])) return;
+    if (!defined('DONOTCACHEPAGE')) define('DONOTCACHEPAGE', true);
+    nocache_headers();
+}, 0);
 function br_menu_title($item) {
     return strtolower(trim(wp_strip_all_tags((string) $item->title)));
 }
@@ -415,7 +422,7 @@ function br_gallery_alt($file) {
 function br_seo_pages() {
     $place = 'Party & Event Venue in Moline, IL (Quad Cities)';
     return [
-        'home' => ['title' => 'The Boardroom | ' . $place, 'description' => 'The Boardroom is a party and event venue in Moline, IL, in the Quad Cities. Most events run $600 to about $2,000. Request a date and we email your price.'],
+        'home' => ['title' => 'The Boardroom | ' . $place, 'description' => 'The Boardroom is a party and event venue in Moline, IL, in the Quad Cities. Most events run $600 to about $2,000. Prices show on the calendar; nothing is charged until we approve your request.'],
         'reserve-the-boardroom-quad-cities' => ['title' => 'Book The Boardroom | ' . $place, 'description' => 'Request a date at The Boardroom in Moline. The price shows on the calendar. Nothing is charged until we approve the booking and email a payment link. Pay 50% plus the $250 damage deposit.'],
         'faq' => ['title' => 'FAQ | The Boardroom, ' . $place, 'description' => 'Answers about booking, hours, food, BYOB, capacity, and cancellation at The Boardroom in Moline, IL.'],
         'terms' => ['title' => 'Rental Terms | The Boardroom, ' . $place, 'description' => 'Plain-language rental terms for The Boardroom in Moline, IL. The signed rental agreement controls if they differ.'],
