@@ -2,11 +2,11 @@
 /**
  * Plugin Name: Boardroom Booking
  * Description: Self-hosted direct booking for The Boardroom — full-day blocks, availability calendar, agreed prices, approval before payment, blackout dates, and emails.
- * Version: 2.5.52
+ * Version: 2.5.53
  * Author: Mad Productions
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.5.52');
+define('BRB_VER', '2.5.53');
 function brb_reserve_explainer_steps() {
     return [
         'Pick a date. Prices are on the calendar.',
@@ -2312,14 +2312,38 @@ function brb_column_ready() {
     return (bool) $found;
 }
 
+function brb_recent_same_day_booking($email, DateTimeInterface $start) {
+    global $wpdb;
+    $email = strtolower(sanitize_email((string) $email));
+    if ($email === '' || !is_email($email)) return null;
+    $day = $start->format('Y-m-d');
+    try {
+        $next = (new DateTimeImmutable($day . ' 00:00:00', brb_tz()))->modify('+1 day')->format('Y-m-d H:i:s');
+    } catch (Exception $e) {
+        return null;
+    }
+    $cutoff = gmdate('Y-m-d H:i:s', time() - 600);
+    return $wpdb->get_row($wpdb->prepare(
+        'SELECT * FROM ' . brb_table() . " WHERE LOWER(email)=%s AND start_dt >= %s AND start_dt < %s AND created >= %s AND status NOT IN ('cancelled','declined') ORDER BY id DESC LIMIT 1",
+        $email,
+        $day . ' 00:00:00',
+        $next,
+        $cutoff
+    ));
+}
 function brb_insert_booking($r, $q, $guest, $source = 'online', $notify = true) {
     global $wpdb;
     $source = in_array($source, ['online', 'phone', 'walk-in'], true) ? $source : 'online';
     $locked = $wpdb->get_var("SELECT GET_LOCK('brb_book', 10)");
     if ((string) $locked !== '1') return new WP_Error('lock', 'Please try again in a moment.');
     $result = null;
+    $duplicate = false;
     try {
-        if (!brb_is_free($r['s'], $r['e'])) {
+        $existing = brb_recent_same_day_booking($guest['email'] ?? '', $r['s']);
+        if ($existing) {
+            $result = $existing;
+            $duplicate = true;
+        } elseif (!brb_is_free($r['s'], $r['e'])) {
             $result = new WP_Error('busy', 'Sorry, that time was just booked or is unavailable. Please pick another.');
         } else {
             $token = wp_generate_password(32, false);
@@ -2361,6 +2385,7 @@ function brb_insert_booking($r, $q, $guest, $source = 'online', $notify = true) 
     } finally {
         $wpdb->query("SELECT RELEASE_LOCK('brb_book')");
     }
+    if ($duplicate) return $result;
     if ($result && !is_wp_error($result)) {
         brb_ensure_damage_line($result->id);
         if (!empty($q['price_set']) && (float) $q['total'] > 0.009) brb_ensure_rental_line($result->id, $q['total']);

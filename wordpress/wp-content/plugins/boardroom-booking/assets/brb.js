@@ -120,7 +120,24 @@
   });
   if (form) {
     form.addEventListener('submit', function (e) {
-      if (!refreshNotice()) e.preventDefault();
+      if (form.getAttribute('data-sending') === '1') { e.preventDefault(); return; }
+      if (!refreshNotice()) { e.preventDefault(); return; }
+      form.setAttribute('data-sending', '1');
+      var btn = form.querySelector('.brb-btn');
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Sending…';
+      }
+    });
+    window.addEventListener('pageshow', function (ev) {
+      if (!ev.persisted) return;
+      form.removeAttribute('data-sending');
+      var btn = form.querySelector('.brb-btn');
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = 'Continue';
+      }
+      refreshNotice();
     });
     var guests = form.querySelector('input[name="guests"]');
     var guestNote = document.getElementById('brb-guest-note');
@@ -167,7 +184,26 @@
     var submit = document.querySelector('form input[name="action"][value="brb_book"]');
     if (!submit || !submit.form) return;
     trackBooking('booking_step_review');
-    submit.form.addEventListener('submit', function () { trackBooking('booking_step_submit'); });
+    var bookForm = submit.form;
+    bookForm.addEventListener('submit', function (e) {
+      if (bookForm.getAttribute('data-sending') === '1') { e.preventDefault(); return; }
+      bookForm.setAttribute('data-sending', '1');
+      var btn = bookForm.querySelector('.brb-btn');
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Sending…';
+      }
+      trackBooking('booking_step_submit');
+    });
+    window.addEventListener('pageshow', function (ev) {
+      if (!ev.persisted || !bookForm) return;
+      bookForm.removeAttribute('data-sending');
+      var btn = bookForm.querySelector('.brb-btn');
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = 'Submit request';
+      }
+    });
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', trackSteps);
   else trackSteps();

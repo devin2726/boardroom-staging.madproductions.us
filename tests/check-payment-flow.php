@@ -45,7 +45,7 @@ add_filter('pre_wp_mail', function ($short, $atts) {
 $GLOBALS['brb_mails'] = [];
 
 try {
-    brb_t(get_option('brb_version') === '2.5.52', 'plugin storage version is 2.5.52');
+    brb_t(get_option('brb_version') === '2.5.53', 'plugin storage version is 2.5.53');
     $cc_before = (string) brb_opt('inquiry_cc');
     delete_option('brb_inquiry_cc_seeded');
     $cc_settings = get_option('brb_settings');
@@ -1327,6 +1327,67 @@ try {
     brb_t(is_wp_error($failed) && strpos($failed->get_error_message(), 'SMTP Error: Could not authenticate') !== false, 'a failed test email shows the PHPMailer error');
     brb_t(is_wp_error($failed) && strpos($failed->get_error_message(), '[redacted]') !== false && strpos($failed->get_error_message(), $secret) === false, 'a failed test email does not include the password');
     $smtp_clear();
+
+    $dup_day = brb_now()->modify('+55 days')->format('Y-m-d');
+    $other_day = brb_now()->modify('+56 days')->format('Y-m-d');
+    $dup_post = [
+        'type' => 'day',
+        'days' => 1,
+        'guests' => 4,
+        'name' => 'Duplicate Guest',
+        'email' => 'Flow-Test@example.com',
+        'phone' => '555-0199',
+        'policy' => '1',
+        'waiver' => '1',
+        'free_admission' => '1',
+        'event_about' => 'A private dinner for family.',
+    ];
+    $GLOBALS['brb_mails'] = [];
+    $first_dup = brb_process_public_booking($dup_post + ['date' => $dup_day]);
+    $mails_after_first = count($GLOBALS['brb_mails']);
+    $rows_after_first = (int) $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM ' . brb_table() . ' WHERE LOWER(email)=%s AND start_dt >= %s AND start_dt < %s', 'flow-test@example.com', $dup_day . ' 00:00:00', $dup_day . ' 23:59:59'));
+    $second_dup = brb_process_public_booking($dup_post + ['date' => $dup_day]);
+    $rows_after_second = (int) $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM ' . brb_table() . ' WHERE LOWER(email)=%s AND start_dt >= %s AND start_dt < %s', 'flow-test@example.com', $dup_day . ' 00:00:00', $dup_day . ' 23:59:59'));
+    brb_t(!is_wp_error($first_dup) && $first_dup && !is_wp_error($second_dup) && $second_dup && (int) $first_dup->id === (int) $second_dup->id && $rows_after_first === 1 && $rows_after_second === 1 && count($GLOBALS['brb_mails']) === $mails_after_first, 'a second Book Now within 10 minutes reuses the booking and sends no more email');
+    $third_dup = brb_process_public_booking($dup_post + ['date' => $other_day]);
+    brb_t(!is_wp_error($third_dup) && $third_dup && (int) $third_dup->id !== (int) $first_dup->id, 'the same guest can book a different date');
+    if ($first_dup && !is_wp_error($first_dup)) $created_ids[] = (int) $first_dup->id;
+    if ($third_dup && !is_wp_error($third_dup)) $created_ids[] = (int) $third_dup->id;
+
+    $block_day = brb_now()->modify('+60 days')->format('Y-m-d');
+    $block_month = substr($block_day, 0, 7);
+    brb_t(brb_public_date_is_open($block_day), 'the day to block starts open');
+    $_GET = ['page' => 'brb-cal', 'm' => $block_month];
+    ob_start();
+    brb_admin_cal();
+    $open_cal = ob_get_clean();
+    brb_t(strpos($open_cal, 'name="date" value="' . $block_day . '"') !== false && strpos($open_cal, 'value="brb_block_day"') !== false && strpos($open_cal, '>Block<') !== false && strpos($open_cal, '_wpnonce') !== false, 'an open future day has a nonce-protected Block button');
+    $blocked = brb_block_day($block_day);
+    brb_t(!is_wp_error($blocked) && $blocked && $blocked->hold_type === 'blocked' && $blocked->name === 'Blocked' && substr($blocked->start_dt, 11, 5) === '00:00' && substr($blocked->end_dt, 11, 5) === '23:59', 'Block creates a full-day hold named Blocked');
+    brb_t(!brb_public_date_is_open($block_day), 'a blocked day cannot be booked');
+    $block_req = new WP_REST_Request('GET', '/brb/v1/availability');
+    $block_req->set_param('month', $block_month);
+    $block_feed = brb_rest_availability($block_req)->get_data();
+    brb_t(($block_feed['days'][$block_day]['status'] ?? '') === 'booked', 'the availability API marks a blocked day unavailable');
+    ob_start();
+    brb_admin_cal();
+    $blocked_cal = ob_get_clean();
+    brb_t(strpos($blocked_cal, 'value="' . (int) $blocked->id . '"') !== false && strpos($blocked_cal, '>Unblock<') !== false && strpos($blocked_cal, 'Unblock this day?') !== false && strpos($blocked_cal, 'name="date" value="' . $block_day . '"') === false, 'a blocked day shows Unblock instead of Block');
+    $unblocked = brb_unblock_day($blocked->id);
+    brb_t($unblocked === true && !brb_hold($blocked->id) && brb_public_date_is_open($block_day), 'Unblock removes that hold and the day is open again');
+    $reserved = brb_save_hold([
+        'name' => 'Paid elsewhere',
+        'hold_type' => 'reserved',
+        'start_date' => $block_day,
+        'start_time' => '10:00',
+        'end_date' => $block_day,
+        'end_time' => '12:00',
+    ]);
+    $kept_reserved = brb_unblock_day($reserved && !is_wp_error($reserved) ? $reserved->id : 0);
+    brb_t(is_wp_error($kept_reserved) && $reserved && !is_wp_error($reserved) && brb_hold($reserved->id), 'Unblock does not delete a reserved hold');
+    if ($reserved && !is_wp_error($reserved)) brb_delete_hold($reserved->id);
+    $past_block = brb_block_day(brb_now()->modify('-2 days')->format('Y-m-d'));
+    brb_t(is_wp_error($past_block), 'a past day cannot be blocked from the calendar');
 } finally {
     if ($created_ids) {
         $in = implode(',', array_map('intval', $created_ids));
