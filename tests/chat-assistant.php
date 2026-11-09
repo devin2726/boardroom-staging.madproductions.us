@@ -36,7 +36,7 @@ function brb_chat_reply($text, $history = []) {
 }
 
 try {
-    brb_t(get_option('brb_version') === '2.5.51', 'plugin storage version is 2.5.51');
+    brb_t(get_option('brb_version') === '2.5.52', 'plugin storage version is 2.5.52');
     $cols = $wpdb->get_col('SHOW COLUMNS FROM ' . brb_tour_table(), 0);
     brb_t(in_array('source', $cols, true), 'inquiries can store a source');
     brb_t((string) brb_opt('quote_prices') === '1', 'price estimates are on by default');
@@ -218,7 +218,7 @@ try {
     brb_t(strpos($price, '$1,500') !== false && strpos($price, '$750') !== false && strpos($price, 'That\'s the calendar price for that date. We confirm the final price in writing.') !== false && strpos($price, 'headcount and features') === false, 'a priced date includes the calendar price and the 50 percent deposit');
     brb_t(substr_count($price, 'not a binding commitment') === 1 && strpos($price, '2212') === false, 'a price answer has one binding sentence and no check address');
     $list = brb_chat_reply('What are your prices?');
-    brb_t(strpos($list, 'Tell me a date and I\'ll show its calendar price.') !== false && strpos($list, 'Sunday to Thursday from $600') !== false && strpos($list, 'tape') === false && strpos($list, 'Wall tape') === false, 'a general price question uses the FAQ floor and asks for a date');
+    brb_t(strpos($list, 'Tell me a date and I\'ll show its calendar price.') !== false && strpos($list, 'Sunday to Thursday from $850') !== false && strpos($list, '$600') === false && strpos($list, 'tape') === false && strpos($list, 'Wall tape') === false, 'a general price question uses the FAQ floor and asks for a date');
 
     $saved = brb_opt();
     $saved['quote_prices'] = '0';
@@ -406,7 +406,7 @@ try {
     brb_t(is_string($css) && strpos($css, 'EB Garamond') !== false && strpos($css, '#c4912e') !== false && strpos($css, 'position:fixed') !== false && strpos($css, 'brb-chat-scroll') !== false && strpos($css, 'min-height:0') !== false && strpos($css, '100dvh') !== false, 'the chat panel scrolls inside the viewport');
     brb_t(is_string($js) && strpos($js, 'credentials: \'omit\'') !== false && strpos($js, '503') !== false && strpos($js, 'Please try that once more in a moment. You can also use the Contact form.') !== false && stripos($js, 'openai') === false && stripos($js, 'googleapis') === false && stripos($js, $other) === false, 'the chat script stays on this site, retries a temporary failure, and does not call an outside model');
     $public_price = brb_price_sentence();
-    brb_t(strpos($public_price, '$850') === false && strpos($public_price, '$1,400') === false && strpos($public_price, '$1,500') === false, 'the public price sentence does not list the assistant rates');
+    brb_t(strpos($public_price, '$850') !== false && strpos($public_price, '$1,400') === false && strpos($public_price, '$1,500') === false, 'the public price sentence uses the $850 floor and does not list the weekend rates');
 
     $privacy = get_page_by_path('privacy');
     $privacy_html = $privacy ? (string) $privacy->post_content : '';
@@ -685,7 +685,7 @@ try {
     $fifty = brb_chat_answer('Can 50 people fit?');
     brb_t(strpos($fifty['reply'], '50 guests fits') !== false && strpos($fifty['reply'], '80 guests') !== false && strpos($fifty['reply'], brb_book_url()) !== false, '50 people is within capacity and points to booking');
     $nodate = brb_chat_reply('How much would it cost for my event? I have not picked a date, time, headcount, or event type yet.');
-    brb_t(strpos($nodate, 'Sunday to Thursday from $600') !== false && strpos($nodate, 'Tell me a date and I\'ll show its calendar price.') !== false && strpos($nodate, 'Wall tape') === false && strpos($nodate, 'Balloons') === false && strpos($nodate, 'meeting is complete') === false && strpos($nodate, 'headcount and features') === false, 'a pricing question with no date and the words event type stays on price');
+    brb_t(strpos($nodate, 'Sunday to Thursday from $850') !== false && strpos($nodate, '$600') === false && strpos($nodate, 'Tell me a date and I\'ll show its calendar price.') !== false && strpos($nodate, 'Wall tape') === false && strpos($nodate, 'Balloons') === false && strpos($nodate, 'meeting is complete') === false && strpos($nodate, 'headcount and features') === false, 'a pricing question with no date and the words event type stays on price');
     $multi = brb_chat_reply('Friday, November 20, 2026, 6 to 9 pm, 12 guests. Rates, capacity, amenities, availability?');
     brb_t(strpos($multi, 'Friday, November 20, 2026') !== false && strpos($multi, '$1,400') !== false && strpos($multi, 'That\'s the calendar price for that date') !== false && strpos($multi, '12 guests fits') !== false && strpos($multi, '80 guests') !== false && strpos($multi, 'Graduation parties') === false && strpos($multi, '80-inch TV') !== false && strpos($multi, 'pinball') !== false && strpos($multi, 'microwave') !== false && strpos($multi, 'looks open') !== false && strpos($multi, '6 to 9 pm fits') !== false && strpos($multi, 'meeting is complete') === false && strpos($multi, 'headcount and features') === false && substr_count($multi, 'That\'s the calendar price for that date') === 1, 'a multi-part Friday question answers rate, capacity, amenities, the time range, and availability');
     $sat = brb_chat_reply('Saturday, November 21, 2026, 7-10 pm, 12 guests.');

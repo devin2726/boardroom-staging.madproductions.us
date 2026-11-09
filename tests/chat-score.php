@@ -39,7 +39,7 @@ function brb_chat_topic_spec($topic) {
         'tour' => ['facts' => ['/contact/', 'boardroomqc@gmail.com', 'does not hold'], 'lead' => true, 'money' => 'none'],
         'photos' => ['facts' => ['/gallery/', 'tour video'], 'money' => 'none'],
         'change_date' => ['facts' => ['60 or more days before the event', 'Contact form'], 'lead' => true, 'money' => 'none', 'forbid' => ['free of charge', 'no charge to change']],
-        'price_general' => ['facts' => ['Tell me a date', 'calendar price', 'Sunday to Thursday from $600'], 'money' => 'faq'],
+        'price_general' => ['facts' => ['Tell me a date', 'calendar price', 'Sunday to Thursday from $850'], 'money' => 'faq'],
         'price_why' => ['facts' => ['calendar price', 'in writing'], 'money' => 'none'],
         'discount' => ['facts' => ['can\'t apply or confirm discount codes', 'calendar rate'], 'lead' => true, 'money' => 'none', 'forbid' => ['% off', 'percent off', '10%']],
         'nonprofit' => ['facts' => ['nonprofit or military discounts'], 'lead' => true, 'money' => 'none'],
@@ -172,7 +172,7 @@ function brb_chat_allowed_money($spec, $question) {
         if ($spec['money'] === 'addon') $allowed[brb_whole_money(brb_addon_price())] = true;
     }
     if ($spec['money'] === 'faq') {
-        foreach (['$600', '$1,200', '$1,400', '$2,000'] as $pub) $allowed[$pub] = true;
+        foreach (['$850', '$1,200', '$1,400', '$2,000'] as $pub) $allowed[$pub] = true;
     }
     if ($spec['money'] === 'date' && brb_quote_prices_enabled()) {
         $parsed = brb_chat_dates_for_score($question);

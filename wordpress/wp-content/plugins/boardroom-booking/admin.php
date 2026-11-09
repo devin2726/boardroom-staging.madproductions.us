@@ -894,7 +894,7 @@ function brb_admin_settings() {
     if (trim((string) ($o['checklist'] ?? '')) === '') $o['checklist'] = brb_checklist_default();
     $groups = [
         'Pricing shown to guests' => [
-            ['starting_price', 'Starting price ($ per day)', 'text', null, 'Guests see “from” this amount per day. Default 600. Whole dollars are shown without cents.'],
+            ['starting_price', 'Starting price ($ per day)', 'text', null, 'Guests see “from” this amount per day. Default 850. Whole dollars are shown without cents.'],
             ['typical_price', 'Typical price text', 'text', null, 'Shown in parentheses after the starting price. Default: most events around $1,200.'],
         ],
         'Hours and capacity' => [

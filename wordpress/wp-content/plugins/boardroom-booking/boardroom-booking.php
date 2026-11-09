@@ -2,11 +2,11 @@
 /**
  * Plugin Name: Boardroom Booking
  * Description: Self-hosted direct booking for The Boardroom — full-day blocks, availability calendar, agreed prices, approval before payment, blackout dates, and emails.
- * Version: 2.5.51
+ * Version: 2.5.52
  * Author: Mad Productions
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.5.51');
+define('BRB_VER', '2.5.52');
 function brb_reserve_explainer_steps() {
     return [
         'Pick a date. Prices are on the calendar.',
@@ -119,7 +119,7 @@ function brb_defaults() {
         'mode' => 'day',
         'day_rate' => '500',
         'hourly_rate' => '75',
-        'starting_price' => '600',
+        'starting_price' => '850',
         'typical_price' => 'most events around $1,200',
         'min_hours' => '2',
         'open_hour' => '10',
@@ -234,7 +234,7 @@ function brb_place_schema() {
         ],
         'hasMap' => BRB_MAPS_URL,
         'url' => home_url('/'),
-        'priceRange' => '$600-$2000',
+        'priceRange' => '$850-$2000',
         'maximumAttendeeCapacity' => brb_public_guest_cap(),
         'sameAs' => [BRB_MAPS_URL],
     ];
@@ -458,7 +458,7 @@ function brb_terms_review_line() {
     return 'All bookings are subject to review and approval by the Boardroom. Approval is based on the event details provided, availability, and our house rules.';
 }
 function brb_price_range_sentence() {
-    return 'Most events run $600 to about $2,000, typically about $1,200. Your exact price is confirmed by email.';
+    return 'Most events run $850 to about $2,000, typically about $1,200. Your exact price is confirmed by email.';
 }
 function brb_damage_card_refund_line() {
     return 'If you paid the damage deposit by card, it is refunded through Stripe, less the card processing fee, after the event once the space is checked.';
@@ -522,7 +522,7 @@ function brb_how_booking_works_html() {
 }
 function brb_book_policy_html() {
     $sections = [
-        ['Pricing', 'Full days start at $600, and most events come to about $1,200. We confirm your final price by email.'],
+        ['Pricing', 'Full days start at $850, and most events come to about $1,200. We confirm your final price by email.'],
         ['Payment', 'To hold your date, pay 50% of the rental plus a $250 refundable damage deposit. Card payments add a 3% fee. The damage deposit is refunded after the event, once the space is checked.'],
         ['Cancellation', 'If you cancel in writing 60 or more days before the event, your 50% payment is refunded, less the 3% card fee and any costs already incurred. Cancellations made less than 60 days out are not refunded.'],
     ];
@@ -1022,6 +1022,8 @@ function brb_migrate_settings() {
     if (!isset($stored['calendar_rates']) || brb_calendar_rates_are_empty($stored['calendar_rates'])) {
         $merged['calendar_rates'] = wp_json_encode(brb_default_calendar_rates());
     }
+    $start = trim((string) ($stored['starting_price'] ?? ''));
+    if ($start === '' || $start === '600' || $start === '600.00') $merged['starting_price'] = '850';
     if (!isset($stored['rate_sun_thu']) || !is_numeric($stored['rate_sun_thu']) || (float) $stored['rate_sun_thu'] <= 0) $merged['rate_sun_thu'] = '850';
     if (!isset($stored['rate_fri_sat']) || !is_numeric($stored['rate_fri_sat']) || (float) $stored['rate_fri_sat'] <= 0) $merged['rate_fri_sat'] = '1400';
     $ranges = json_decode((string) ($stored['rate_ranges'] ?? ''), true);
@@ -1639,12 +1641,12 @@ function brb_faq_price_html() {
     $fri = $base ? (brb_rate_number($base['fri_sat_full'] ?? '') ?? brb_rate_number($base['weekend_full'] ?? '')) : null;
     $link = '<a href="' . esc_url(brb_book_url()) . '">booking calendar</a>';
     if ($sun === null || $mon === null || $fri === null) {
-        return 'Most events run $600 to about $2,000, and most come to about $1,200. The price for your date shows on the ' . $link . '. If a date has no rate yet, the page says price to be confirmed.';
+        return 'Most events run $850 to about $2,000, and most come to about $1,200. The price for your date shows on the ' . $link . '. If a date has no rate yet, the page says price to be confirmed.';
     }
-    // Owner decision A: the published floor is $600. The calendar rate table is not changed here.
-    $text = 'Sunday to Thursday from $600, Friday and Saturday ' . brb_whole_money($fri);
+    // Published floor matches the calendar rate table. The table itself is not edited here.
+    $text = 'Sunday to Thursday from $850, Friday and Saturday ' . brb_whole_money($fri);
     if (brb_calendar_has_higher_rate(max($sun, $mon, $fri))) $text .= ', with a few holiday dates priced higher';
-    $text .= '. Most events run about $1,200, and the full range is $600 to about $2,000. The price for your date is on the ' . $link . '.';
+    $text .= '. Most events run about $1,200, and the full range is $850 to about $2,000. The price for your date is on the ' . $link . '.';
     return $text;
 }
 function brb_calendar_rates_from_post($post) {
