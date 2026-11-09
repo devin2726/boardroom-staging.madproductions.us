@@ -64,8 +64,8 @@ try {
     brb_t(strpos(brb_faq_markup(), 'contiveros8@gmail.com') === false && strpos(brb_hours_line(), 'contiveros8@gmail.com') === false, 'the inquiry copy address is not in public copy');
     $cc_settings['inquiry_cc'] = $cc_before;
     update_option('brb_settings', $cc_settings);
-    $example = brb_first_payment_parts(1200);
-    brb_t($example['deposit'] === 600.0 && $example['damage'] === 250.0 && $example['base'] === 850.0 && abs($example['card'] - 875.50) < 0.001, 'a $1,200 rental first card payment is 600 + 250 plus 3 percent');
+    $example = brb_first_payment_parts(1400);
+    brb_t($example['deposit'] === 700.0 && $example['damage'] === 250.0 && $example['base'] === 950.0 && abs($example['card'] - 978.50) < 0.001, 'a $1,400 rental first card payment is 700 + 250 plus 3 percent');
     brb_t(brb_latest_start_hour() === 21, 'the latest shorter-block start is 9:00 PM');
     $saved_settings = brb_opt();
     $bo = $saved_settings;
@@ -510,14 +510,14 @@ try {
         }
 
         $GLOBALS['brb_mails'] = [];
-        $priced = brb_set_agreed_price($b->id, 1200);
+        $priced = brb_set_agreed_price($b->id, 1400);
         brb_t(!is_wp_error($priced) && $priced && (int) $priced->price_set === 1, 'staff can set the agreed price');
-        brb_t($priced && abs((float) $priced->total - 1200) < 0.01 && abs((float) $priced->deposit_due - 600) < 0.01, 'deposit is half of the agreed price');
+        brb_t($priced && abs((float) $priced->total - 1400) < 0.01 && abs((float) $priced->deposit_due - 700) < 0.01, 'deposit is half of the agreed price');
         $price_mail = null;
         foreach ($GLOBALS['brb_mails'] as $m) {
             if (stripos($m['to'], 'flow-test@example.com') !== false && stripos($m['subject'], 'price is confirmed') !== false) $price_mail = $m;
         }
-        brb_t($price_mail && strpos($price_mail['message'], '$1,200.00') !== false && strpos($price_mail['message'], '$600.00') !== false && strpos($price_mail['message'], 'Payment instructions are sent when the request is approved.') !== false, 'price email states the agreed price and waits for approval');
+        brb_t($price_mail && strpos($price_mail['message'], '$1,400.00') !== false && strpos($price_mail['message'], '$700.00') !== false && strpos($price_mail['message'], '$600.00') === false && strpos($price_mail['message'], 'Payment instructions are sent when the request is approved.') !== false, 'price email states the agreed price and waits for approval');
         $GLOBALS['brb_mails'] = [];
         $wpdb->update(brb_table(), ['walkthrough_done' => 1], ['id' => (int) $priced->id]);
         $approved = brb_approve_booking($priced->id);
@@ -532,7 +532,7 @@ try {
         brb_t($approve_mail && strpos($approve_mail['message'], 'Write booking reference ' . brb_ref($priced) . ' on the memo line.') !== false && strpos($approve_mail['message'], '[VERIFY] Test instructions.') !== false, 'the approval email includes the memo line and custom instructions');
         brb_t($approve_mail && strpos($approve_mail['message'], '60 or more days before the event') !== false && strpos($approve_mail['message'], 'less than 60 days before the event') !== false && strpos($approve_mail['message'], 'Refunds are issued manually.') !== false && strpos($approve_mail['message'], '[VERIFY: attorney review]') === false, 'the approval email states the 60-day deposit rule and has no attorney note');
         brb_t($approve_mail && strpos($approve_mail['message'], 'Your request is approved.') !== false && strpos($approve_mail['message'], 'Rental checklist') !== false && strpos($approve_mail['message'], '/rental-checklist/') !== false && strpos($approve_mail['message'], 'Renters insurance covering your event is required.') !== false && strpos($approve_mail['message'], 'Optional setup or takedown') === false && strpos($approve_mail['message'], 'one-day liquor license') === false && strpos($approve_mail['message'], 'fee $50') === false, 'the approval email includes the updated rental checklist');
-        brb_t($approve_mail && strpos($approve_mail['message'], 'a check for $850.00') !== false && strpos($approve_mail['message'], 'That amount is the $600.00 deposit plus the $250.00 refundable damage deposit.') !== false && strpos($approve_mail['message'], 'the remaining balance of $600.00') !== false, 'the approval email asks for the deposit plus the unpaid damage deposit, then the rental remainder');
+        brb_t($approve_mail && strpos($approve_mail['message'], 'a check for $950.00') !== false && strpos($approve_mail['message'], 'That amount is the $700.00 deposit plus the $250.00 refundable damage deposit.') !== false && strpos($approve_mail['message'], 'the remaining balance of $700.00') !== false && strpos($approve_mail['message'], '$600') === false, 'the approval email asks for the deposit plus the unpaid damage deposit, then the rental remainder');
         $sample = clone $approved;
         $sample->total = 1000;
         $sample->deposit_due = 500;
@@ -563,13 +563,13 @@ try {
         $rental_line = brb_find_line_kind($after->id, 'rental');
         $damage_row = brb_find_line_kind($after->id, 'damage_deposit');
         $coverage = brb_line_coverage($after);
-        brb_t($rental_line && ($coverage[(int) $rental_line->id]['paid'] ?? null) !== null && brb_line_state_text($coverage[(int) $rental_line->id]['paid'], $coverage[(int) $rental_line->id]['amount']) === 'partially paid, $600.00 of $1,200.00', 'a half-paid rental line is partially paid');
+        brb_t($rental_line && ($coverage[(int) $rental_line->id]['paid'] ?? null) !== null && brb_line_state_text($coverage[(int) $rental_line->id]['paid'], $coverage[(int) $rental_line->id]['amount']) === 'partially paid, $700.00 of $1,400.00', 'a half-paid rental line is partially paid');
         brb_t($damage_row && brb_line_state_text($coverage[(int) $damage_row->id]['paid'], $coverage[(int) $damage_row->id]['amount']) === 'unpaid', 'an unpaid damage deposit line stays unpaid');
         if ($user) {
             ob_start();
             brb_admin_detail((int) $after->id);
             $partial_admin = ob_get_clean();
-            brb_t(strpos($partial_admin, 'partially paid, $600.00 of $1,200.00') !== false && strpos($partial_admin, 'Rental <em>(paid)</em>') === false, 'the rental line shows the partial payment instead of paid in full');
+            brb_t(strpos($partial_admin, 'partially paid, $700.00 of $1,400.00') !== false && strpos($partial_admin, 'Rental <em>(paid)</em>') === false, 'the rental line shows the partial payment instead of paid in full');
             brb_t(strpos($partial_admin, '(unpaid)') !== false, 'the unpaid damage deposit line is not marked paid');
         }
         $balance_charge = brb_checkout_lines($after);

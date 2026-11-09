@@ -1770,8 +1770,20 @@ function brb_chat_safety_text_error($text) {
     return brb_chat_safety_routing_error(brb_chat_safety_prohibited_category($text));
 }
 
+function brb_chat_joke_request($text) {
+    $t = strtolower((string) $text);
+    return (bool) preg_match('/\bjokes?\b|knock[\s-]?knock|\bprank\b|make me laugh/', $t);
+}
+function brb_chat_joke_reply() {
+    return 'I\'ll leave the jokes to your DJ. What date are you thinking about?';
+}
 function brb_chat_answer($message, $history = [], $detail = null) {
     $message = trim((string) $message);
+    $safety_kind = brb_chat_safety_category($message);
+    $serious = in_array($safety_kind, ['self-harm', 'sexual', 'violent', 'illegal'], true);
+    if (!$serious && brb_chat_joke_request($message) && brb_chat_sensitive($message) === '' && !preg_match('/\b(password|credential|api key|system prompt|hidden instruction|admin username)\b/i', $message)) {
+        return brb_chat_finish(brb_chat_joke_reply(), false, 'topic');
+    }
     // Pre-check. This runs before intents, the unknown-reply fallback, and any lead flag.
     $safety = brb_chat_safety_response($message, $history);
     if ($safety) return $safety;

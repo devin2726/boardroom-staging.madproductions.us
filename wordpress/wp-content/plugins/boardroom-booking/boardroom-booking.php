@@ -466,7 +466,7 @@ function brb_damage_card_refund_line() {
 function brb_damage_public_line() {
     return 'The refundable damage deposit is a flat $250. It is charged with the booking deposit and mainly covers cleaning. A dumpster is on site. It is refunded through Stripe, less the card processing fee, after the event once the space is checked.';
 }
-function brb_first_payment_parts($rental = 1200.0) {
+function brb_first_payment_parts($rental = 1400.0) {
     $rental = round((float) $rental, 2);
     $deposit = brb_deposit_due_amount($rental);
     $damage = round((float) brb_opt('damage_deposit_amount'), 2);
@@ -485,7 +485,7 @@ function brb_first_payment_parts($rental = 1200.0) {
     ];
 }
 function brb_first_payment_sentence() {
-    $ex = brb_first_payment_parts(1200);
+    $ex = brb_first_payment_parts(1400);
     return 'Your first payment is 50% of the rental plus the ' . brb_whole_money($ex['damage']) . ' refundable damage deposit; card payments add a 3% fee. For example, on a ' . brb_whole_money($ex['rental']) . ' rental the first card payment is ' . brb_whole_money($ex['deposit']) . ' + ' . brb_whole_money($ex['damage']) . ' = ' . brb_whole_money($ex['base']) . ', plus a 3% fee of ' . brb_money($ex['fee']) . ', for ' . brb_money($ex['card']) . '.';
 }
 function brb_deposit_bullets() {
