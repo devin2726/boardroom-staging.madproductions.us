@@ -2,11 +2,11 @@
 /**
  * Plugin Name: Boardroom Booking
  * Description: Self-hosted direct booking for The Boardroom — full-day blocks, availability calendar, agreed prices, approval before payment, blackout dates, and emails.
- * Version: 2.5.53
+ * Version: 2.5.54
  * Author: Mad Productions
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.5.53');
+define('BRB_VER', '2.5.54');
 function brb_reserve_explainer_steps() {
     return [
         'Pick a date. Prices are on the calendar.',
@@ -1991,6 +1991,34 @@ function brb_mail_from_name() {
 function brb_guest_reply_to() {
     $set = sanitize_email((string) brb_opt('mail_reply_to'));
     return is_email($set) ? $set : brb_mail_from_address();
+}
+function brb_gmail_authuser() {
+    $email = function_exists('brb_guest_reply_to') ? sanitize_email((string) brb_guest_reply_to()) : '';
+    return is_email($email) ? $email : 'boardroomqc@gmail.com';
+}
+function brb_guest_email_subject($booking) {
+    $date = '';
+    if (!empty($booking->start_dt)) {
+        try {
+            $date = (new DateTimeImmutable($booking->start_dt, brb_tz()))->format('D M j, Y');
+        } catch (Exception $e) {
+            $date = '';
+        }
+    }
+    return 'The Boardroom – ' . brb_ref($booking) . ' – ' . $date;
+}
+function brb_guest_email_body($booking) {
+    $name = trim((string) ($booking->name ?? ''));
+    $parts = $name === '' ? [] : preg_split('/\s+/', $name);
+    $first = $parts[0] ?? '';
+    return "Hi {$first},\n\n\n\n- Devin\nThe Boardroom\n";
+}
+function brb_gmail_compose_url($booking) {
+    return 'https://mail.google.com/mail/?authuser=' . rawurlencode(brb_gmail_authuser())
+        . '&view=cm&fs=1'
+        . '&to=' . rawurlencode((string) ($booking->email ?? ''))
+        . '&su=' . rawurlencode(brb_guest_email_subject($booking))
+        . '&body=' . rawurlencode(brb_guest_email_body($booking));
 }
 function brb_inquiry_cc_list() {
     return brb_parse_email_list(brb_opt('inquiry_cc'))['valid'];

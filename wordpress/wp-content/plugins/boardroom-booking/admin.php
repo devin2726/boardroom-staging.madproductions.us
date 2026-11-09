@@ -27,6 +27,12 @@ add_action('admin_notices', function () {
     echo '<div class="notice notice-warning"><p><strong>Boardroom Booking:</strong> Fill in ' . esc_html(implode(', ', $missing)) . ' under <a href="' . esc_url(admin_url('admin.php?page=brb-settings')) . '">Booking Settings</a>. Guests see the [VERIFY] placeholders until you replace them.</p></div>';
 });
 
+function brb_email_customer_anchor($booking, $text, $class = '') {
+    if (!current_user_can('manage_options') || !is_email((string) ($booking->email ?? ''))) return '';
+    $class_attr = $class !== '' ? ' class="' . esc_attr($class) . '"' : '';
+    // esc_attr keeps the encoded line breaks. esc_url strips %0A and would flatten the message.
+    return '<a' . $class_attr . ' href="' . esc_attr(brb_gmail_compose_url($booking)) . '" target="_blank" rel="noopener">' . esc_html($text) . '</a>';
+}
 function brb_admin_gate($action) {
     if (!current_user_can('manage_options')) wp_die('Sorry, you are not allowed to do that.');
     check_admin_referer($action);
@@ -272,6 +278,8 @@ function brb_admin_list() {
         $set = brb_price_is_set($b);
         $balance = $set ? max(0, round((float) $b->total - (float) $b->amount_paid, 2)) : 0;
         $until = in_array($b->status, ['deposit_paid', 'paid', 'confirmed'], true) ? 'Yes' : 'No';
+        $guest_email = brb_email_customer_anchor($b, (string) $b->email);
+        if ($guest_email === '') $guest_email = esc_html($b->email);
         printf(
             '<tr><th scope="row" class="check-column"><input type="checkbox" class="brb-row-check" name="booking_ids[]" value="%d" aria-label="%s"></th><td>%s</td><td>%s</td><td>%s<br><small>%s %s</small></td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td><span class="brb-badge %s">%s</span></td><td>%s</td><td><a class="button button-small" href="%s">Open</a></td></tr>',
             (int) $b->id,
@@ -279,7 +287,7 @@ function brb_admin_list() {
             esc_html(brb_ref($b)),
             esc_html(brb_when($b)),
             esc_html($b->name),
-            esc_html($b->email),
+            $guest_email,
             esc_html($b->phone),
             esc_html(brb_source_label($b->source)),
             esc_html($set ? brb_money($b->total) : 'Price to be confirmed'),
@@ -426,7 +434,12 @@ function brb_admin_detail($id) {
     $rows['Takedown day'] = !empty($b->takedown_addon) ? 'Added' : 'No';
     $rows['Date reserved'] = in_array($b->status, ['deposit_paid', 'paid', 'confirmed'], true) ? 'Yes, a deposit has been received' : 'No, not until the deposit is received';
     foreach ($rows as $label => $val) {
-        echo '<tr><th style="width:280px">' . esc_html($label) . '</th><td>' . nl2br(esc_html((string) $val)) . '</td></tr>';
+        echo '<tr><th style="width:280px">' . esc_html($label) . '</th><td>' . nl2br(esc_html((string) $val));
+        if ($label === 'Email') {
+            $mail_link = brb_email_customer_anchor($b, 'Email customer', 'button');
+            if ($mail_link !== '') echo ' ' . $mail_link;
+        }
+        echo '</td></tr>';
     }
     echo '</tbody></table>';
     if (empty($b->walkthrough_done)) {

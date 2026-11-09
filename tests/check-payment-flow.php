@@ -45,7 +45,7 @@ add_filter('pre_wp_mail', function ($short, $atts) {
 $GLOBALS['brb_mails'] = [];
 
 try {
-    brb_t(get_option('brb_version') === '2.5.53', 'plugin storage version is 2.5.53');
+    brb_t(get_option('brb_version') === '2.5.54', 'plugin storage version is 2.5.54');
     $cc_before = (string) brb_opt('inquiry_cc');
     delete_option('brb_inquiry_cc_seeded');
     $cc_settings = get_option('brb_settings');
@@ -1470,6 +1470,70 @@ try {
         }
     }
     unset($_GET['hold'], $_GET['blackout']);
+
+    $gmail_booking = brb_process_public_booking([
+        'date' => '2026-12-12',
+        'type' => 'day',
+        'days' => 1,
+        'guests' => 8,
+        'name' => 'Casey Nguyen',
+        'email' => 'casey.nguyen@example.com',
+        'phone' => '555-0142',
+        'policy' => '1',
+        'waiver' => '1',
+    ] + brb_screen());
+    brb_t(!is_wp_error($gmail_booking) && $gmail_booking, 'a booking can be created for the email customer link');
+    if ($gmail_booking && !is_wp_error($gmail_booking)) {
+        $created_ids[] = (int) $gmail_booking->id;
+        $gmail_subject = 'The Boardroom – ' . brb_ref($gmail_booking) . ' – Sat Dec 12, 2026';
+        $gmail_body = "Hi Casey,\n\n\n\n- Devin\nThe Boardroom\n";
+        $gmail_auth = brb_gmail_authuser();
+        brb_t(brb_guest_email_subject($gmail_booking) === $gmail_subject && strpos($gmail_subject, brb_ref($gmail_booking)) !== false, 'the Gmail subject helper includes the booking ref and event date');
+        brb_t(brb_guest_email_body($gmail_booking) === $gmail_body, 'the Gmail body greets the guest by first name and is signed Devin');
+        $gmail_url = 'https://mail.google.com/mail/?authuser=' . rawurlencode($gmail_auth)
+            . '&view=cm&fs=1&to=' . rawurlencode('casey.nguyen@example.com')
+            . '&su=' . rawurlencode($gmail_subject)
+            . '&body=' . rawurlencode($gmail_body);
+        brb_t(brb_gmail_compose_url($gmail_booking) === $gmail_url, 'the Gmail compose URL raw-encodes authuser, to, subject, and body');
+        $mails_before_link = count($GLOBALS['brb_mails']);
+        ob_start();
+        brb_admin_detail((int) $gmail_booking->id);
+        $gmail_detail = ob_get_clean();
+        ob_start();
+        brb_admin_list();
+        $gmail_list = ob_get_clean();
+        $encoded_to = 'to=' . rawurlencode('casey.nguyen@example.com');
+        $encoded_su = 'su=' . rawurlencode($gmail_subject);
+        $encoded_auth = 'authuser=' . rawurlencode($gmail_auth);
+        brb_t(strpos($gmail_detail, 'Email customer') !== false && strpos($gmail_detail, 'target="_blank"') !== false && strpos($gmail_detail, 'rel="noopener"') !== false && strpos($gmail_detail, 'https://mail.google.com/mail/') !== false && strpos($gmail_detail, $encoded_to) !== false && strpos($gmail_detail, $encoded_su) !== false && strpos($gmail_detail, $encoded_auth) !== false && strpos($gmail_detail, 'body=' . rawurlencode($gmail_body)) !== false && count($GLOBALS['brb_mails']) === $mails_before_link, 'the booking page shows an Email customer link with the encoded Gmail values and sends nothing');
+        brb_t(strpos($gmail_list, '>' . esc_html('casey.nguyen@example.com') . '</a>') !== false && strpos($gmail_list, $encoded_to) !== false && strpos($gmail_list, $encoded_su) !== false && strpos($gmail_list, $encoded_auth) !== false && strpos($gmail_list, 'target="_blank"') !== false && strpos($gmail_list, 'rel="noopener"') !== false, 'the bookings list links the guest email to the same Gmail compose URL');
+        $reply_saved = get_option('brb_settings');
+        $reply_opt = brb_opt();
+        $reply_opt['mail_reply_to'] = 'replies@boardroomqc.example';
+        update_option('brb_settings', $reply_opt);
+        brb_t(brb_gmail_authuser() === 'replies@boardroomqc.example', 'authuser uses the guest reply-to address');
+        ob_start();
+        brb_admin_detail((int) $gmail_booking->id);
+        $reply_html = ob_get_clean();
+        brb_t(strpos($reply_html, 'authuser=' . rawurlencode('replies@boardroomqc.example')) !== false, 'the Email customer link uses the reply-to address as authuser');
+        $reply_opt['mail_reply_to'] = 'not-an-email';
+        $reply_opt['mail_from'] = '';
+        update_option('brb_settings', $reply_opt);
+        putenv('BRB_SMTP_FROM');
+        unset($_ENV['BRB_SMTP_FROM'], $_SERVER['BRB_SMTP_FROM']);
+        brb_t(brb_gmail_authuser() === 'boardroomqc@gmail.com', 'authuser falls back to boardroomqc@gmail.com');
+        update_option('brb_settings', $reply_saved);
+        $gmail_user = get_current_user_id();
+        wp_set_current_user(0);
+        ob_start();
+        brb_admin_detail((int) $gmail_booking->id);
+        $hidden_detail = ob_get_clean();
+        ob_start();
+        brb_admin_list();
+        $hidden_list = ob_get_clean();
+        wp_set_current_user($gmail_user);
+        brb_t(strpos($hidden_detail, 'Email customer') === false && strpos($hidden_detail, 'mail.google.com') === false && strpos($hidden_list, 'mail.google.com') === false && strpos($hidden_list, 'casey.nguyen@example.com') !== false, 'the email customer link is only shown to administrators');
+    }
 } finally {
     if ($created_ids) {
         $in = implode(',', array_map('intval', $created_ids));
