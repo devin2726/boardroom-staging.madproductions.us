@@ -139,7 +139,7 @@ add_action('admin_post_brb_delete', function () {
     $id = (int) ($_POST['booking'] ?? 0);
     $res = brb_delete_booking($id);
     if (is_wp_error($res)) brb_admin_back($id, $res->get_error_message());
-    brb_admin_back(0, 'Cancelled booking deleted.');
+    brb_admin_back(0, 'Booking deleted.');
 });
 function brb_admin_list_url($status = '') {
     $url = admin_url('admin.php?page=brb');
@@ -547,11 +547,9 @@ function brb_admin_detail($id) {
         wp_nonce_field('brb_cancel');
         echo '<button class="button">Cancel booking</button></form>';
     }
-    if ($b->status === 'cancelled') {
-        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" onsubmit="return confirm(\'Delete this cancelled booking and its payment records? This cannot be undone.\');"><input type="hidden" name="action" value="brb_delete"><input type="hidden" name="booking" value="' . (int) $b->id . '">';
-        wp_nonce_field('brb_delete');
-        echo '<button class="button">Delete booking</button></form>';
-    }
+    echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" onsubmit="return confirm(\'Delete this booking and its payment records? This cannot be undone.\');"><input type="hidden" name="action" value="brb_delete"><input type="hidden" name="booking" value="' . (int) $b->id . '">';
+    wp_nonce_field('brb_delete');
+    echo '<button class="button button-link-delete">Delete booking</button></form>';
     echo '</div>';
 
     $pays = brb_payments($b->id);
@@ -756,6 +754,21 @@ function brb_unblock_day($id) {
     if (!$hold || ($hold->hold_type ?? '') !== 'blocked') return new WP_Error('missing', 'That block was not found.');
     return brb_delete_hold((int) $hold->id);
 }
+function brb_reopen_date($hold_id = 0, $blackout = '') {
+    $did = false;
+    $hold_id = (int) $hold_id;
+    if ($hold_id && brb_hold($hold_id)) {
+        $res = brb_delete_hold($hold_id);
+        if (is_wp_error($res)) return $res;
+        $did = true;
+    }
+    $blackout = sanitize_text_field((string) $blackout);
+    if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $blackout) && in_array($blackout, brb_blackouts(), true)) {
+        brb_drop_blackout_date($blackout);
+        $did = true;
+    }
+    return $did ? 'reopened' : 'noop';
+}
 function brb_admin_day_block_control($ymd, $holds, $month, $show_closed) {
     $hold = brb_blocked_hold_for_day($ymd, $holds);
     $html = '<form method="post" class="brb-day-block" action="' . esc_url(admin_url('admin-post.php')) . '"';
@@ -818,20 +831,28 @@ function brb_admin_cal_editor($m, $view, $show_closed) {
     if ($blackout) echo '<input type="hidden" name="blackout" value="' . esc_attr($blackout) . '">';
     wp_nonce_field('brb_hold');
     echo '<p><label>Name<br><input name="name" class="regular-text" value="' . esc_attr($name) . '" required placeholder="Guest or reason"></label></p>';
-    echo '<p><label>Type<br><select name="hold_type">';
+    echo '<p><label>Type<br><select name="hold_type" id="brb-hold-type">';
     foreach (brb_hold_types() as $key => $label) {
         echo '<option value="' . esc_attr($key) . '"' . selected($type, $key, false) . '>' . esc_html($label) . '</option>';
     }
+    echo '<option value="open"' . selected($type, 'open', false) . '>Open</option>';
     echo '</select></label></p>';
     echo '<p><label>Starts<br><input type="date" name="start_date" value="' . esc_attr($start_date) . '" required> <input type="time" name="start_time" value="' . esc_attr($start_time) . '"></label></p>';
     echo '<p><label>Ends<br><input type="date" name="end_date" value="' . esc_attr($end_date) . '" required> <input type="time" name="end_time" value="' . esc_attr($end_time) . '"></label></p>';
     echo '<p><label>Notes<br><textarea name="notes" rows="2" class="large-text">' . esc_textarea($notes) . '</textarea></label></p>';
     echo '<p><button class="button button-primary">Save hold</button></p></form>';
+    echo '<script>(function(){var type=document.getElementById("brb-hold-type"),name=document.querySelector(".brb-cal-editor input[name=name]");if(!type||!name)return;function sync(){name.required=type.value!=="open";}type.addEventListener("change",sync);sync();})();</script>';
     if ($hold) {
-        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
+        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" onsubmit="return confirm(\'Delete this hold? This cannot be undone.\');">';
         echo '<input type="hidden" name="action" value="brb_hold_delete"><input type="hidden" name="id" value="' . (int) $hold->id . '"><input type="hidden" name="m" value="' . esc_attr($m) . '">';
         wp_nonce_field('brb_hold_delete');
-        echo '<p><button class="button">Delete hold</button></p></form>';
+        echo '<p><button class="button button-link-delete">Delete</button></p></form>';
+    }
+    if ($blackout) {
+        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" onsubmit="return confirm(\'Delete this blocked date? It can be booked again.\');">';
+        echo '<input type="hidden" name="action" value="brb_hold_delete"><input type="hidden" name="blackout" value="' . esc_attr($blackout) . '"><input type="hidden" name="m" value="' . esc_attr($m) . '">';
+        wp_nonce_field('brb_hold_delete');
+        echo '<p><button class="button button-link-delete">Delete</button></p></form>';
     }
     echo '</div>';
 }
@@ -876,6 +897,12 @@ function brb_cal_redirect($m, $note = '') {
 add_action('admin_post_brb_hold', function () {
     brb_admin_gate('brb_hold');
     $m = (isset($_POST['m']) && preg_match('/^\d{4}-\d{2}$/', $_POST['m'])) ? $_POST['m'] : brb_now()->format('Y-m');
+    if (sanitize_key(wp_unslash($_POST['hold_type'] ?? '')) === 'open') {
+        $blackout = isset($_POST['blackout']) ? sanitize_text_field(wp_unslash($_POST['blackout'])) : '';
+        $opened = brb_reopen_date((int) ($_POST['id'] ?? 0), $blackout);
+        if (is_wp_error($opened)) brb_cal_redirect($m, $opened->get_error_message());
+        brb_cal_redirect($m, $opened === 'reopened' ? 'Date reopened.' : '');
+    }
     $saved = brb_save_hold([
         'id' => (int) ($_POST['id'] ?? 0),
         'name' => wp_unslash($_POST['name'] ?? ''),
@@ -908,6 +935,11 @@ add_action('admin_post_brb_unblock_day', function () {
 add_action('admin_post_brb_hold_delete', function () {
     brb_admin_gate('brb_hold_delete');
     $m = (isset($_POST['m']) && preg_match('/^\d{4}-\d{2}$/', $_POST['m'])) ? $_POST['m'] : brb_now()->format('Y-m');
+    $blackout = isset($_POST['blackout']) ? sanitize_text_field(wp_unslash($_POST['blackout'])) : '';
+    if (!(int) ($_POST['id'] ?? 0) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $blackout)) {
+        brb_drop_blackout_date($blackout);
+        brb_cal_redirect($m, 'Blocked date deleted.');
+    }
     $res = brb_delete_hold((int) ($_POST['id'] ?? 0));
     if (is_wp_error($res)) brb_cal_redirect($m, $res->get_error_message());
     brb_cal_redirect($m, 'Hold deleted.');

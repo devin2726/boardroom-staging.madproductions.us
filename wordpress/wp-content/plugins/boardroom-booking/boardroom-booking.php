@@ -2626,7 +2626,6 @@ function brb_purge_booking($booking_id) {
 function brb_delete_booking($booking_id) {
     $b = brb_booking($booking_id);
     if (!$b) return new WP_Error('missing', 'Booking not found.');
-    if ($b->status !== 'cancelled') return new WP_Error('status', 'Only a cancelled booking can be deleted.');
     if (!brb_purge_booking($b->id)) return new WP_Error('db', 'Could not delete that booking.');
     return true;
 }

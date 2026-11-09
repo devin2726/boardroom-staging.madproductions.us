@@ -608,7 +608,7 @@ try {
             $saved_admin = ob_get_clean();
             brb_t(strpos($saved_admin, 'Event type') !== false && strpos($saved_admin, 'Wedding') !== false && strpos($saved_admin, 'Alcohol served') !== false && strpos($saved_admin, '>Yes<') !== false, 'admin detail still shows a saved event type and alcohol answer');
             brb_t(strpos($admin_html, 'Payments recorded') !== false && strpos($admin_html, '>Check<') !== false, 'payments list shows the check method');
-            brb_t(strpos($admin_html, 'Delete booking') === false, 'a paid booking has no delete action');
+            brb_t(strpos($admin_html, 'Delete booking') !== false && strpos($admin_html, 'value="brb_delete"') !== false && strpos($admin_html, 'This cannot be undone') !== false && strpos($admin_html, '_wpnonce') !== false, 'a paid booking can be deleted from its page');
             foreach ($banned as $w) brb_t(stripos($admin_html, $w) === false, "admin detail has no $w");
             ob_start();
             brb_admin_settings();
@@ -1119,7 +1119,7 @@ try {
             ob_start();
             brb_admin_detail((int) $cash_b->id);
             $cash_admin = ob_get_clean();
-            brb_t(strpos($cash_admin, 'Record payment') !== false && strpos($cash_admin, 'name="method"') !== false && strpos($cash_admin, '>Cash<') !== false && strpos($cash_admin, 'Delete booking') === false, 'staff can record cash and cannot delete an open booking');
+            brb_t(strpos($cash_admin, 'Record payment') !== false && strpos($cash_admin, 'name="method"') !== false && strpos($cash_admin, '>Cash<') !== false && strpos($cash_admin, 'Delete booking') !== false && strpos($cash_admin, 'value="brb_delete"') !== false, 'staff can record cash and delete an open booking from its page');
             brb_t(strpos($cash_admin, 'name="check_number" id="check_number" class="regular-text"') !== false && strpos($cash_admin, 'name="check_number" id="check_number" class="regular-text" required') === false, 'the check number field is present and not required');
         }
         $_GET = ['br_token' => $cash_after && !is_wp_error($cash_after) ? $cash_after->token : ''];
@@ -1144,24 +1144,15 @@ try {
         $priced_del = brb_set_agreed_price($del->id, 500);
         $paid_del = brb_record_payment($del->id, 100, '4242', brb_now()->format('Y-m-d'), 'Partial', true);
         brb_t(!is_wp_error($priced_del) && !is_wp_error($paid_del), 'the delete test booking has a payment row');
-        $denied = brb_delete_booking($del->id);
-        brb_t(is_wp_error($denied) && $denied->get_error_code() === 'status', 'a booking that is not cancelled cannot be deleted');
         if ($user) {
             ob_start();
             brb_admin_detail((int) $del->id);
             $open_html = ob_get_clean();
-            brb_t(strpos($open_html, 'Delete booking') === false, 'delete stays off the page until the booking is cancelled');
+            brb_t(strpos($open_html, 'Delete booking') !== false && strpos($open_html, 'value="brb_delete"') !== false && strpos($open_html, 'This cannot be undone') !== false && strpos($open_html, '_wpnonce') !== false && strpos($open_html, 'Cancel booking') !== false, 'delete is on the booking page next to cancel, before the booking is cancelled');
         }
-        $cancelled = brb_cancel_booking($del->id);
-        brb_t(!is_wp_error($cancelled) && $cancelled->status === 'cancelled', 'staff can cancel before deleting');
-        if ($user) {
-            ob_start();
-            brb_admin_detail((int) $del->id);
-            $cancelled_html = ob_get_clean();
-            brb_t(strpos($cancelled_html, 'Delete booking') !== false && strpos($cancelled_html, 'value="brb_delete"') !== false && strpos($cancelled_html, 'This cannot be undone') !== false && strpos($cancelled_html, '_wpnonce') !== false, 'a cancelled booking offers a confirmed delete');
-        }
+        $delete_mails = count($GLOBALS['brb_mails']);
         $removed = brb_delete_booking($del->id);
-        brb_t($removed === true && !brb_booking($del->id) && brb_payments($del->id) === [], 'deleting a cancelled booking removes it and its payment rows');
+        brb_t($removed === true && !brb_booking($del->id) && brb_payments($del->id) === [] && count($GLOBALS['brb_mails']) === $delete_mails, 'deleting from the booking page removes it and its payments and sends no email');
     }
 
     $bulk_day = brb_now()->modify('+40 days')->format('Y-m-d');
@@ -1220,8 +1211,9 @@ try {
         ] + brb_screen());
         if ($still_open && !is_wp_error($still_open)) {
             $created_ids[] = (int) $still_open->id;
-            $open_denied = brb_delete_booking($still_open->id);
-            brb_t(is_wp_error($open_denied), 'the single-row delete still refuses a booking that is not cancelled');
+            $open_mails = count($GLOBALS['brb_mails']);
+            $open_removed = brb_delete_booking($still_open->id);
+            brb_t($open_removed === true && !brb_booking($still_open->id) && count($GLOBALS['brb_mails']) === $open_mails, 'delete from the booking page works while the request is still open and sends no email');
         }
     }
 
@@ -1388,6 +1380,96 @@ try {
     if ($reserved && !is_wp_error($reserved)) brb_delete_hold($reserved->id);
     $past_block = brb_block_day(brb_now()->modify('-2 days')->format('Y-m-d'));
     brb_t(is_wp_error($past_block), 'a past day cannot be blocked from the calendar');
+
+    $reopen_day = brb_now()->modify('+75 days')->format('Y-m-d');
+    $reopen_hold = brb_save_hold([
+        'name' => 'Reserved guest',
+        'hold_type' => 'reserved',
+        'start_date' => $reopen_day,
+        'start_time' => '00:00',
+        'end_date' => $reopen_day,
+        'end_time' => '23:59',
+    ]);
+    brb_t(!is_wp_error($reopen_hold) && $reopen_hold && !brb_public_date_is_open($reopen_day), 'a reserved hold keeps the date from being booked');
+    $_GET = ['page' => 'brb-cal', 'm' => substr($reopen_day, 0, 7), 'hold' => (int) $reopen_hold->id];
+    ob_start();
+    brb_admin_cal_editor(substr($reopen_day, 0, 7), 'month', false);
+    $hold_editor = ob_get_clean();
+    brb_t(strpos($hold_editor, '>Open<') !== false && strpos($hold_editor, 'value="open"') !== false && strpos($hold_editor, '>Delete<') !== false && strpos($hold_editor, 'Delete this hold? This cannot be undone.') !== false && strpos($hold_editor, 'value="brb_hold_delete"') !== false && strpos($hold_editor, '_wpnonce') !== false, 'the hold editor offers Open and a confirmed Delete');
+    $reopened = brb_reopen_date($reopen_hold->id, '');
+    brb_t($reopened === 'reopened' && !brb_hold($reopen_hold->id) && brb_public_date_is_open($reopen_day), 'Open deletes the hold and the date can be booked again');
+    $holds_before = (int) $wpdb->get_var('SELECT COUNT(*) FROM ' . brb_hold_table());
+    brb_t(brb_reopen_date(0, '') === 'noop' && (int) $wpdb->get_var('SELECT COUNT(*) FROM ' . brb_hold_table()) === $holds_before, 'Open on a new hold does nothing');
+    $blackout_day = brb_now()->modify('+76 days')->format('Y-m-d');
+    $blackout_settings = brb_opt();
+    $blackout_settings['blackouts'] = trim($blackout_settings['blackouts'] . "\n" . $blackout_day);
+    update_option('brb_settings', $blackout_settings);
+    brb_t(in_array($blackout_day, brb_blackouts(), true) && !brb_public_date_is_open($blackout_day), 'a settings blackout blocks the date');
+    $_GET = ['page' => 'brb-cal', 'm' => substr($blackout_day, 0, 7), 'blackout' => $blackout_day];
+    ob_start();
+    brb_admin_cal_editor(substr($blackout_day, 0, 7), 'month', false);
+    $blackout_editor = ob_get_clean();
+    brb_t(strpos($blackout_editor, '>Open<') !== false && strpos($blackout_editor, '>Delete<') !== false && strpos($blackout_editor, 'name="blackout" value="' . $blackout_day . '"') !== false && strpos($blackout_editor, 'Delete this blocked date?') !== false, 'a blackout editor offers Open and Delete');
+    brb_t(brb_reopen_date(0, $blackout_day) === 'reopened' && !in_array($blackout_day, brb_blackouts(), true) && brb_public_date_is_open($blackout_day), 'Open drops the blackout and the date can be booked again');
+    $delete_day = brb_now()->modify('+77 days')->format('Y-m-d');
+    $blocked_hold = brb_save_hold([
+        'name' => 'Blocked',
+        'hold_type' => 'blocked',
+        'start_date' => $delete_day,
+        'start_time' => '00:00',
+        'end_date' => $delete_day,
+        'end_time' => '23:59',
+    ]);
+    $_GET = ['page' => 'brb-cal', 'm' => substr($delete_day, 0, 7), 'hold' => (int) $blocked_hold->id];
+    ob_start();
+    brb_admin_cal_editor(substr($delete_day, 0, 7), 'month', false);
+    $blocked_editor = ob_get_clean();
+    brb_t(!is_wp_error($blocked_hold) && $blocked_hold && strpos($blocked_editor, '>Delete<') !== false && strpos($blocked_editor, 'value="brb_hold_delete"') !== false && strpos($blocked_editor, 'Delete this hold? This cannot be undone.') !== false, 'the hold editor offers Delete for a blocked day');
+    brb_t(brb_delete_hold($blocked_hold->id) === true && !brb_hold($blocked_hold->id) && brb_public_date_is_open($delete_day), 'Delete from the hold editor removes a blocked hold and the date can be booked again');
+    $reserved_day = brb_now()->modify('+78 days')->format('Y-m-d');
+    $reserved_hold = brb_save_hold([
+        'name' => 'Reserved guest',
+        'hold_type' => 'reserved',
+        'start_date' => $reserved_day,
+        'start_time' => '12:00',
+        'end_date' => $reserved_day,
+        'end_time' => '16:00',
+    ]);
+    brb_t(!is_wp_error($reserved_hold) && $reserved_hold && brb_delete_hold($reserved_hold->id) === true && !brb_hold($reserved_hold->id) && brb_public_date_is_open($reserved_day), 'Delete from the hold editor removes a reserved hold');
+    $drop_day = brb_now()->modify('+79 days')->format('Y-m-d');
+    $drop_settings = brb_opt();
+    $drop_settings['blackouts'] = trim($drop_settings['blackouts'] . "\n" . $drop_day);
+    update_option('brb_settings', $drop_settings);
+    brb_t(in_array($drop_day, brb_blackouts(), true), 'a blackout date is stored before Delete');
+    brb_drop_blackout_date($drop_day);
+    brb_t(!in_array($drop_day, brb_blackouts(), true) && brb_public_date_is_open($drop_day), 'Delete from a blackout editor drops that date');
+    if ($user) {
+        $status_booking = brb_process_public_booking([
+            'date' => brb_now()->modify('+80 days')->format('Y-m-d'),
+            'type' => 'day',
+            'days' => 1,
+            'guests' => 4,
+            'name' => 'Status Delete',
+            'email' => 'flow-test@example.com',
+            'phone' => '555-0199',
+            'policy' => '1',
+            'waiver' => '1',
+            'free_admission' => '1',
+            'event_about' => 'A private dinner for family.',
+        ]);
+        brb_t(!is_wp_error($status_booking) && $status_booking, 'a booking can be created to check delete on every status');
+        if ($status_booking && !is_wp_error($status_booking)) {
+            $created_ids[] = (int) $status_booking->id;
+            foreach (['review', 'approved', 'deposit_paid', 'paid', 'declined', 'cancelled', 'expired', 'held'] as $status) {
+                $wpdb->update(brb_table(), ['status' => $status], ['id' => (int) $status_booking->id]);
+                ob_start();
+                brb_admin_detail((int) $status_booking->id);
+                $status_html = ob_get_clean();
+                brb_t(strpos($status_html, 'Delete booking') !== false && strpos($status_html, 'value="brb_delete"') !== false && strpos($status_html, 'This cannot be undone') !== false, 'delete shows on the booking page for status ' . $status);
+            }
+        }
+    }
+    unset($_GET['hold'], $_GET['blackout']);
 } finally {
     if ($created_ids) {
         $in = implode(',', array_map('intval', $created_ids));
