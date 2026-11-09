@@ -44,6 +44,7 @@
 .brb-cal-legend li{display:flex;align-items:center;gap:6px}
 .brb-cal-legend .brb-chip{width:14px;height:14px;min-height:14px;padding:0;display:inline-block}
 .brb-admincal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;max-width:1200px}.brb-admincal>div{background:#fff;border:1px solid #ddd;min-height:118px;padding:4px;vertical-align:top}.brb-admincal .h{min-height:auto;font-weight:700;text-align:center}.brb-admincal .e{background:transparent;border:0}.brb-admincal .today{box-shadow:inset 0 0 0 2px #c4912e}
+.brb-day-block{margin:4px 0}.brb-day-block .button{min-height:22px;line-height:20px;padding:0 6px;font-size:11px}
 .brb-chip{display:block;margin:3px 0;padding:3px 5px;border-radius:4px;text-decoration:none;color:#161616;background:#eee;font-size:12px;line-height:1.25}
 .brb-chip strong{display:block;font-size:12px}
 .brb-chip-paid{background:#1f7a4d;color:#fff}.brb-chip-deposit{background:#1d5c99;color:#fff}.brb-chip-approved{background:#f3e2bf;color:#161616}.brb-chip-review{background:#fff3cd;color:#161616}.brb-chip-reserved{background:#c4912e;color:#161616}.brb-chip-hold{background:#fff;color:#161616;box-shadow:inset 0 0 0 1px #c4912e}.brb-chip-blocked{background:#161616;color:#fff}.brb-chip-closed{background:#e2e3e5;color:#333}
