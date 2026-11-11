@@ -83,6 +83,45 @@ function brb_install_report_tables() {
     return true;
 }
 
+function brb_report_occupied_days($start, $end) {
+    global $wpdb;
+    $days = [];
+    $book = brb_table();
+    $start_dt = $start . ' 00:00:00';
+    $end_dt = $end . ' 23:59:59';
+    $rows = $wpdb->get_results($wpdb->prepare(
+        "SELECT start_dt, end_dt FROM $book WHERE status IN ('approved','held','deposit_paid','paid','confirmed') AND start_dt < %s AND end_dt > %s",
+        $end_dt,
+        $start_dt
+    ));
+    $holds = $wpdb->get_results($wpdb->prepare(
+        'SELECT start_dt, end_dt FROM ' . brb_hold_table() . ' WHERE start_dt < %s AND end_dt > %s',
+        $end_dt,
+        $start_dt
+    ));
+    $add = function ($start_at, $end_at) use (&$days, $start, $end) {
+        try {
+            $cursor = new DateTimeImmutable(substr((string) $start_at, 0, 10), brb_tz());
+            $last = new DateTimeImmutable(substr((string) $end_at, 0, 10), brb_tz());
+        } catch (Exception $e) {
+            return;
+        }
+        if (substr((string) $end_at, 11, 5) === '00:00') $last = $last->modify('-1 day');
+        $limit = new DateTimeImmutable($end, brb_tz());
+        if ($cursor->format('Y-m-d') < $start) $cursor = new DateTimeImmutable($start, brb_tz());
+        for ($i = 0; $cursor <= $last && $cursor <= $limit && $i < 400; $i++) {
+            $k = $cursor->format('Y-m-d');
+            if ($k >= $start && $k <= $end) $days[$k] = true;
+            $cursor = $cursor->modify('+1 day');
+        }
+    };
+    foreach ((array) $rows as $row) $add($row->start_dt, $row->end_dt);
+    foreach ((array) $holds as $row) $add($row->start_dt, $row->end_dt);
+    foreach (brb_blackouts() as $ymd) {
+        if ($ymd >= $start && $ymd <= $end) $days[$ymd] = true;
+    }
+    return count($days);
+}
 function brb_report_rate($num, $den) {
     $num = (float) $num;
     $den = (float) $den;
@@ -612,36 +651,23 @@ function brb_report_build($start, $end) {
         $email = strtolower(trim((string) $row->email));
         if ($email === '') continue;
         $match = $wpdb->get_row($wpdb->prepare(
-            "SELECT created, status FROM $book WHERE email = %s AND created >= %s ORDER BY created ASC LIMIT 1",
+            "SELECT created, status FROM $book WHERE LOWER(email) = %s AND created >= %s ORDER BY created ASC LIMIT 1",
             $email,
             $row->created
         ));
         if (!$match) continue;
-        $inquiry_to_book[] = max(0, (strtotime((string) $match->created) - strtotime((string) $row->created)) / DAY_IN_SECONDS);
+        try {
+            $inquiry_at = new DateTimeImmutable((string) $row->created, new DateTimeZone('UTC'));
+            $booked_at = new DateTimeImmutable((string) $match->created, new DateTimeZone('UTC'));
+        } catch (Exception $e) {
+            continue;
+        }
+        $inquiry_to_book[] = max(0, ($booked_at->getTimestamp() - $inquiry_at->getTimestamp()) / DAY_IN_SECONDS);
         $st = (string) $match->status;
         if (in_array($st, ['approved', 'held', 'deposit_paid', 'paid', 'confirmed'], true)) $channels[$channel]['approved']++;
         if (in_array($st, ['deposit_paid', 'paid', 'confirmed'], true)) $channels[$channel]['deposit']++;
         if (in_array($st, ['paid', 'confirmed'], true)) $channels[$channel]['paid']++;
     }
-    $booking_inquiries = (int) $wpdb->get_var($wpdb->prepare(
-        "SELECT COUNT(*) FROM $book WHERE source = 'online' AND created >= %s AND created <= %s",
-        $start_dt,
-        $end_dt
-    ));
-    if (!isset($channels['booking form'])) $channels['booking form'] = ['inquiries' => 0, 'approved' => 0, 'deposit' => 0, 'paid' => 0];
-    $channels['booking form']['inquiries'] += $booking_inquiries;
-    $online_later = $wpdb->get_results($wpdb->prepare(
-        "SELECT status FROM $book WHERE source = 'online' AND created >= %s AND created <= %s",
-        $start_dt,
-        $end_dt
-    ));
-    foreach ((array) $online_later as $b) {
-        $st = (string) $b->status;
-        if (in_array($st, ['approved', 'held', 'deposit_paid', 'paid', 'confirmed'], true)) $channels['booking form']['approved']++;
-        if (in_array($st, ['deposit_paid', 'paid', 'confirmed'], true)) $channels['booking form']['deposit']++;
-        if (in_array($st, ['paid', 'confirmed'], true)) $channels['booking form']['paid']++;
-    }
-
     $visits = (int) $wpdb->get_var($wpdb->prepare(
         "SELECT COALESCE(SUM(views),0) FROM " . brb_views_table() . " WHERE view_day >= %s AND view_day <= %s",
         $start,
@@ -681,7 +707,8 @@ function brb_report_build($start, $end) {
     foreach ($step_pairs as $pair) {
         $from = $hits[$pair[1]] ?? 0;
         $to = $hits[$pair[2]] ?? 0;
-        $steps[] = ['label' => $pair[0], 'from' => $from, 'to' => $to, 'rate' => brb_report_rate($to, $from)];
+        $rate = brb_report_rate(min($to, $from), $from);
+        $steps[] = ['label' => $pair[0], 'from' => $from, 'to' => $to, 'rate' => $rate];
     }
 
     $daily = $wpdb->get_results($wpdb->prepare(
@@ -712,11 +739,7 @@ function brb_report_build($start, $end) {
     ));
 
     $span_days = max(1, (int) ((strtotime($end) - strtotime($start)) / DAY_IN_SECONDS) + 1);
-    $busy_days = (int) $wpdb->get_var($wpdb->prepare(
-        "SELECT COUNT(DISTINCT DATE(start_dt)) FROM $book WHERE status IN ('approved','held','deposit_paid','paid','confirmed') AND start_dt < %s AND end_dt > %s",
-        $end_dt,
-        $start_dt
-    ));
+    $busy_days = brb_report_occupied_days($start, $end);
     $hold_days = (int) $wpdb->get_var($wpdb->prepare(
         "SELECT COUNT(*) FROM " . brb_hold_table() . " WHERE start_dt < %s AND end_dt > %s",
         $end_dt,
@@ -971,7 +994,11 @@ function brb_admin_reports() {
     echo '<div><em>Average value</em><strong>' . ($b['avg_value'] === null ? '—' : esc_html(brb_money($b['avg_value']))) . '</strong></div>';
     echo '<div><em>Average party</em><strong>' . ($b['avg_party'] === null ? '—' : esc_html((string) $b['avg_party'])) . '</strong></div>';
     echo '<div><em>Days from request to event</em><strong>' . ($b['lead_days'] === null ? '—' : esc_html((string) $b['lead_days'])) . '</strong></div>';
-    echo '<div><em>Days from inquiry to booking</em><strong>' . ($b['inquiry_to_book_days'] === null ? '—' : esc_html((string) $b['inquiry_to_book_days'])) . '</strong></div>';
+    $inquiry_gap = $b['inquiry_to_book_days'];
+    if ($inquiry_gap === null) $inquiry_gap_label = '—';
+    elseif ((float) $inquiry_gap < 1) $inquiry_gap_label = ((float) $inquiry_gap <= 0) ? 'Same day' : 'Under 1 day';
+    else $inquiry_gap_label = (string) $inquiry_gap;
+    echo '<div><em>Days from inquiry to booking</em><strong>' . esc_html($inquiry_gap_label) . '</strong></div>';
     echo '<div><em>Cancellation rate</em><strong>' . ($b['cancel_rate'] === null ? '—' : esc_html($b['cancel_rate'] . '%')) . '</strong></div>';
     echo '<div><em>Repeat guests</em><strong>' . (int) $b['repeat'] . '</strong></div>';
     echo '<div><em>Occupancy</em><strong>' . ($b['occupancy'] === null ? '—' : esc_html($b['occupancy'] . '%')) . '</strong></div>';
@@ -993,7 +1020,7 @@ function brb_admin_reports() {
     echo '<h3>Upcoming</h3><table class="widefat"><thead><tr><th>When</th><th>Name</th><th>Status</th><th>Guests</th></tr></thead><tbody>';
     if (!$b['upcoming']) echo '<tr><td colspan="4">Nothing upcoming.</td></tr>';
     foreach ($b['upcoming'] as $row) {
-        echo '<tr><td>' . esc_html(brb_format_utc_mysql($row->start_dt)) . '</td><td><a href="' . esc_url(admin_url('admin.php?page=brb&booking=' . (int) $row->id)) . '">' . esc_html($row->name) . '</a></td><td>' . esc_html(brb_status_label($row->status)) . '</td><td>' . (int) $row->guests . '</td></tr>';
+        echo '<tr><td>' . esc_html(brb_format_local_mysql($row->start_dt)) . '</td><td><a href="' . esc_url(admin_url('admin.php?page=brb&booking=' . (int) $row->id)) . '">' . esc_html($row->name) . '</a></td><td>' . esc_html(brb_status_label($row->status)) . '</td><td>' . (int) $row->guests . '</td></tr>';
     }
     echo '</tbody></table></section>';
 

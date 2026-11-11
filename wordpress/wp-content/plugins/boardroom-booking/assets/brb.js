@@ -15,12 +15,39 @@
   var noticeEl = document.getElementById('brb-notice');
   var form = document.getElementById('brb-form');
   var startSel = document.getElementById('brb-start');
-  var cur = new Date();
-  cur.setDate(1);
+  function chicagoParts(date) {
+    var parts = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(date);
+    var map = {};
+    parts.forEach(function (p) { map[p.type] = p.value; });
+    return { y: +map.year, m: +map.month, d: +map.day };
+  }
+  var nowChi = chicagoParts(new Date());
+  var cur = { y: nowChi.y, m: nowChi.m };
   var data = {};
 
   function pad(n) { return (n < 10 ? '0' : '') + n; }
-  function key(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+  function ymd(y, m, d) { return y + '-' + pad(m) + '-' + pad(d); }
+  function daysInMonth(y, m) { return new Date(Date.UTC(y, m, 0)).getUTCDate(); }
+  function weekdayChicago(y, m, d) {
+    var dt = new Date(Date.UTC(y, m - 1, d, 18, 0, 0));
+    var name = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', weekday: 'short' }).format(dt);
+    return { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }[name] || 0;
+  }
+  function longChicago(y, m, d) {
+    var dt = new Date(Date.UTC(y, m - 1, d, 18, 0, 0));
+    return new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }).format(dt);
+  }
+  function monthTitle(y, m) {
+    var dt = new Date(Date.UTC(y, m - 1, 1, 18, 0, 0));
+    return new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', month: 'long', year: 'numeric' }).format(dt);
+  }
+  function shiftMonth(n) {
+    var m = cur.m + n;
+    var y = cur.y;
+    while (m < 1) { m += 12; y--; }
+    while (m > 12) { m -= 12; y++; }
+    cur = { y: y, m: m };
+  }
   function dayInfo() {
     if (!date || !date.value) return null;
     return data[date.value] || null;
@@ -36,7 +63,7 @@
         msg = 'A full day on this date starts inside the ' + BRB.noticeHours + '-hour minimum notice. Choose a later date.';
         block = true;
       }
-      if (info.status === 'soon' || info.status === 'booked' || info.status === 'blackout' || info.status === 'past') {
+      if (info.status === 'soon' || info.status === 'booked' || info.status === 'blocked' || info.status === 'blackout' || info.status === 'past') {
         block = true;
         if (!msg) msg = 'That date is not available.';
       }
@@ -64,20 +91,28 @@
     else busyEl.textContent = '';
   }
   function fmt(h) { var a = h % 24 < 12 ? 'am' : 'pm', x = h % 12 || 12; return x + a; }
+  function statusLabel(s) {
+    if (s === 'booked') return 'Booked';
+    if (s === 'blocked' || s === 'blackout') return 'Blocked';
+    if (s === 'soon') return 'Inside the minimum notice';
+    if (s === 'past') return 'Past';
+    return 'Available';
+  }
   function render() {
-    var h = '<div class="brb-calhead"><button type="button" data-n="-1" aria-label="Previous month">‹</button><strong>' + cur.toLocaleString(undefined, { month: 'long', year: 'numeric' }) + '</strong><button type="button" data-n="1" aria-label="Next month">›</button></div><div class="brb-calgrid">';
+    var h = '<div class="brb-calhead"><button type="button" data-n="-1" aria-label="Previous month">‹</button><strong>' + monthTitle(cur.y, cur.m) + '</strong><button type="button" data-n="1" aria-label="Next month">›</button></div><div class="brb-calgrid">';
     'SMTWTFS'.split('').forEach(function (c) { h += '<span class="dow">' + c + '</span>'; });
-    for (var i = 0; i < cur.getDay(); i++) h += '<span></span>';
-    var d = new Date(cur);
-    while (d.getMonth() === cur.getMonth()) {
-      var k = key(d);
+    var lead = weekdayChicago(cur.y, cur.m, 1);
+    for (var i = 0; i < lead; i++) h += '<span></span>';
+    var last = daysInMonth(cur.y, cur.m);
+    for (var dayNum = 1; dayNum <= last; dayNum++) {
+      var k = ymd(cur.y, cur.m, dayNum);
       var info = data[k] || {};
       var s = info.status || 'free';
       if (s === 'partial') s = 'booked';
-      var off = (s === 'past' || s === 'booked' || s === 'blackout' || s === 'soon');
+      var off = (s === 'past' || s === 'booked' || s === 'blocked' || s === 'blackout' || s === 'soon');
       var price = info.price ? '<span class="brb-dayprice">' + info.price + '</span>' : '';
-      h += '<button type="button" class="d ' + s + (date && date.value === k ? ' sel' : '') + '" data-k="' + k + '"' + (off ? ' disabled' : '') + '><span class="brb-daynum">' + d.getDate() + '</span>' + price + '</button>';
-      d.setDate(d.getDate() + 1);
+      var label = longChicago(cur.y, cur.m, dayNum) + (info.price ? ', ' + info.price : ', price to be confirmed') + ', ' + statusLabel(s);
+      h += '<button type="button" class="d ' + s + (date && date.value === k ? ' sel' : '') + '" data-k="' + k + '" aria-label="' + label.replace(/"/g, '&quot;') + '"' + (off ? ' disabled' : '') + '><span class="brb-daynum">' + dayNum + '</span>' + price + '</button>';
     }
     cal.innerHTML = h + '</div>';
   }
@@ -85,7 +120,7 @@
     // A logged-in page nonce is tied to that user. Sending it without the
     // login cookie makes WordPress reject the request. This feed is public,
     // so omit the cookie and do not send the nonce.
-    fetch(cfg.api + '?month=' + cur.getFullYear() + '-' + pad(cur.getMonth() + 1), {
+    fetch(cfg.api + '?month=' + cur.y + '-' + pad(cur.m), {
       credentials: 'omit',
       cache: 'no-store',
       headers: { 'Accept': 'application/json' }
@@ -105,7 +140,7 @@
   cal.addEventListener('click', function (e) {
     var b = e.target.closest('button');
     if (!b) return;
-    if (b.dataset.n) { cur.setMonth(cur.getMonth() + (+b.dataset.n)); load(); return; }
+    if (b.dataset.n) { shiftMonth(+b.dataset.n); load(); return; }
     if (b.disabled) return;
     var dest = cal.getAttribute('data-book');
     if (dest) {

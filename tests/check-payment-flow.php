@@ -45,7 +45,7 @@ add_filter('pre_wp_mail', function ($short, $atts) {
 $GLOBALS['brb_mails'] = [];
 
 try {
-    brb_t(get_option('brb_version') === '2.5.54', 'plugin storage version is 2.5.54');
+    brb_t(get_option('brb_version') === '2.5.56', 'plugin storage version is 2.5.56');
     $cc_before = (string) brb_opt('inquiry_cc');
     delete_option('brb_inquiry_cc_seeded');
     $cc_settings = get_option('brb_settings');
@@ -252,6 +252,13 @@ try {
     $_GET = $saved_get;
     brb_t(strpos($cal_html, 'Calendar Guest') !== false && strpos($cal_html, 'Paid in full') !== false && strpos($cal_html, 'page=brb') !== false && strpos($cal_html, 'booking=') !== false, 'the admin calendar shows the guest and links to the booking');
     brb_t(strpos($cal_html, 'Private rehearsal') !== false && strpos($cal_html, 'brb-chip-hold') !== false && strpos($cal_html, '>Today<') !== false, 'the admin calendar shows the named hold and a Today button');
+    brb_t(strpos($cal_html, 'Unpaid hold') === false, 'hold notes stay out of the calendar tooltips');
+    $_GET = ['page' => 'brb-cal', 'm' => '2030-06', 'hold' => (int) $hold->id, 'date' => '2030-06-20'];
+    ob_start();
+    brb_admin_cal();
+    $hold_notes_html = ob_get_clean();
+    $_GET = $saved_get;
+    brb_t($hold && !is_wp_error($hold) && strpos($hold_notes_html, 'Unpaid hold') !== false && strpos($hold_notes_html, 'Internal label (no guest phone or Airbnb name)') !== false && strpos($hold_notes_html, 'Don\'t enter guest phone numbers, emails, or Airbnb guest names here.') !== false, 'hold notes and the no-PII warning show on the edit screen');
     brb_t(strpos($jan_html, '<strong>Blocked</strong>') !== false, 'a bare blackout is shown as Blocked');
     if ($hold && !is_wp_error($hold)) brb_delete_hold($hold->id);
 
@@ -283,7 +290,7 @@ try {
     ob_end_clean();
     brb_t((string) brb_opt('day_rate') === '500', 'saving the form keeps the stored day rate');
     brb_t((string) brb_opt('hourly_rate') === '75' && (string) brb_opt('cleaning_fee') === '100' && (string) brb_opt('tax_rate') === '7', 'saving the form keeps hourly, cleaning, and tax figures');
-    brb_t(brb_price_sentence() === 'Pricing from $600 per day (most events around $1,200), final price confirmed based on date, guest count and features.', 'public price sentence uses the starting and typical text');
+    brb_t(brb_price_sentence() === 'Pricing from $600 per day, final price confirmed based on date, guest count and features.' && strpos(brb_price_sentence(), 'around $1,200') === false && strpos(brb_price_sentence(), '$2,000') === false, 'the public price sentence uses the starting price and leaves out the typical-price phrase');
 
     $_POST = brb_opt();
     $_POST['brb_save'] = '1';
@@ -522,7 +529,12 @@ try {
         $wpdb->update(brb_table(), ['walkthrough_done' => 1], ['id' => (int) $priced->id]);
         $approved = brb_approve_booking($priced->id);
         brb_t(!is_wp_error($approved) && $approved && $approved->status === 'approved', 'staff can approve a pending request');
-        brb_t($approved && brb_is_free($range_s, $range_e, (int) $approved->id), 'an approved unpaid request still does not block the date');
+        brb_t($approved && brb_is_free($range_s, $range_e, (int) $approved->id) && !brb_is_free($range_s, $range_e), 'an approved request blocks the date for everyone else');
+        $again_post = $post;
+        $again_post['email'] = 'other-guest@example.com';
+        $again_post['name'] = 'Other Guest';
+        $second_after_approve = brb_process_public_booking($again_post);
+        brb_t(is_wp_error($second_after_approve) && $second_after_approve->get_error_code() === 'busy', 'a new request is refused once the date is approved');
         $approve_mail = null;
         foreach ($GLOBALS['brb_mails'] as $m) {
             if (stripos($m['to'], 'flow-test@example.com') !== false && stripos($m['subject'], 'approved') !== false) $approve_mail = $m;
@@ -616,7 +628,7 @@ try {
             brb_t(strpos($settings_html, 'Minimum notice') !== false && strpos($settings_html, 'Hold length') === false, 'settings keep the notice rule and do not offer a hold length');
             brb_t(strpos($admin_html, '[VERIFY: attorney review]') === false && strpos($settings_html, '[VERIFY: attorney review]') === false && strpos($admin_html, '[ATTORNEY REVIEW]') === false && strpos($settings_html, 'name="pay_hours"') === false && strpos($settings_html, 'In-person hours') === false, 'attorney review markers and the in-person hours setting are gone');
             brb_t(strpos($settings_html, '11:30 PM') !== false && strpos($settings_html, '[VERIFY] latest end time') === false, 'settings state the 11:30 PM departure rule');
-            brb_t(strpos($settings_html, 'Starting price') !== false && strpos($settings_html, 'Typical price text') !== false, 'settings show starting and typical price');
+            brb_t(strpos($settings_html, 'Starting price') !== false && strpos($settings_html, 'Typical price text') === false && strpos($settings_html, 'name="typical_price"') === false, 'settings show the starting price and do not show the typical-price phrase');
             brb_t(strpos($settings_html, 'Full-day rate') === false && strpos($settings_html, '$75') === false && strpos($settings_html, 'name="checklist"') !== false, 'settings do not show the old public rates and include the checklist');
             brb_t(strpos($settings_html, 'name="damage_deposit_amount"') !== false && strpos($settings_html, 'Damage deposit amount') !== false, 'settings include the damage deposit amount');
             foreach ($banned as $w) brb_t(stripos($settings_html, $w) === false, "settings HTML has no $w");
@@ -743,7 +755,7 @@ try {
     $data = $res->get_data();
     $today = brb_now()->format('Y-m-d');
     brb_t(isset($data['days'][$today]) && empty($data['days'][$today]['day_ok']), 'today is not a valid full day under the notice rule');
-    brb_t(isset($data['days'][$today]['status']) && in_array($data['days'][$today]['status'], ['soon', 'past', 'booked', 'blackout'], true), 'today is greyed out in the calendar feed');
+    brb_t(isset($data['days'][$today]['status']) && in_array($data['days'][$today]['status'], ['soon', 'past', 'booked', 'blocked', 'blackout'], true), 'today is greyed out in the calendar feed');
     $later = brb_now()->modify('+20 days')->format('Y-m-d');
     $later_month = substr($later, 0, 7);
     if ($later_month !== $month) {
@@ -770,7 +782,7 @@ try {
     update_option('brb_settings', $with_block);
     $_GET = ['date' => $taken];
     $blocked_page = do_shortcode('[boardroom_booking]');
-    brb_t(!brb_public_date_is_open($taken) && strpos($blocked_page, 'Submit request') === false && strpos($blocked_page, 'Continue') !== false && strpos($blocked_page, 'Available') !== false && strpos($blocked_page, 'Partly booked') === false && strpos($blocked_page, 'Unavailable') !== false, 'an unavailable date falls back to the booking calendar');
+    brb_t(!brb_public_date_is_open($taken) && strpos($blocked_page, 'Submit request') === false && strpos($blocked_page, 'Continue') !== false && strpos($blocked_page, 'Available') !== false && strpos($blocked_page, 'Partly booked') === false && strpos($blocked_page, 'Booked') !== false && strpos($blocked_page, 'Blocked') !== false, 'an unavailable date falls back to the booking calendar');
     update_option('brb_settings', $blocked_settings);
     $_GET = $saved_date_get;
     $home_src = file_get_contents(get_stylesheet_directory() . '/front-page.php');
@@ -778,7 +790,7 @@ try {
     $home_tour_at = strpos($home_src, 'br_tour_video_html');
     brb_t(is_string($home_src) && $home_cal_at !== false && $home_tour_at !== false && $home_cal_at < $home_tour_at && strpos($home_src, 'Check Your Date') !== false && strpos($home_src, "Pick a date to see your price. Nothing's charged until we approve.") === false && strpos($home_src, 'See full booking details') !== false, 'the homepage calendar sits under the hero and above the tour');
     $home_cal = brb_home_calendar_html();
-    brb_t(strpos($home_cal, 'Loading calendar') !== false && strpos($home_cal, 'Available') !== false && strpos($home_cal, 'Partly booked') === false && strpos($home_cal, 'Unavailable') !== false && strpos($home_cal, 'Inside ' . (int) brb_notice_hours() . 'h notice') !== false && strpos($home_cal, 'data-lazy="1"') !== false && strpos($home_cal, 'data-book="' . esc_url(brb_book_url()) . '"') !== false, 'the homepage calendar reuses the book legend and links a date to /book/');
+    brb_t(strpos($home_cal, 'Loading calendar') !== false && strpos($home_cal, 'Available') !== false && strpos($home_cal, 'Partly booked') === false && strpos($home_cal, 'Booked') !== false && strpos($home_cal, 'Blocked') !== false && strpos($home_cal, 'Past') !== false && strpos($home_cal, 'Inside ' . (int) brb_notice_hours() . 'h notice') !== false && strpos($home_cal, 'data-lazy="1"') !== false && strpos($home_cal, 'data-book="' . esc_url(brb_book_url()) . '"') !== false, 'the homepage calendar reuses the book legend and links a date to /book/');
     $cal_js = file_get_contents(dirname((new ReflectionFunction('brb_view_select'))->getFileName()) . '/assets/brb.js');
     brb_t(is_string($cal_js) && strpos($cal_js, "credentials: 'omit'") !== false && strpos($cal_js, 'X-WP-Nonce') === false && strpos($cal_js, 'no-store') !== false, 'the calendar request omits the login cookie and does not send a nonce that only matches that cookie');
     $prev_user = get_current_user_id();
@@ -811,7 +823,7 @@ try {
 
     $faq = get_page_by_path('faq');
     $faq_html = $faq ? (string) $faq->post_content : '';
-    brb_t(stripos($faq_html, 'How much does it cost?') !== false && stripos($faq_html, '$850') !== false && stripos($faq_html, '$600') === false && stripos($faq_html, '$1,200') !== false && stripos($faq_html, '$2,000') !== false, 'faq explains the price range');
+    brb_t(stripos($faq_html, 'How much does it cost?') !== false && stripos($faq_html, 'Sunday to Thursday from $850') !== false && stripos($faq_html, '$600') === false && stripos($faq_html, 'about $1,200') === false && stripos($faq_html, 'around $1,200') === false && stripos($faq_html, '$850 to about $2,000') === false, 'faq keeps the day rates and drops the price range');
     brb_t(stripos($faq_html, 'arrives not set up') !== false && stripos($faq_html, 'extra fee') === false && stripos($faq_html, 'Staff cannot set the room up') !== false && stripos($faq_html, '8:00 AM') !== false && stripos($faq_html, 'minimum host age is 25') !== false, 'faq explains setup and seating');
     brb_t(strpos($faq_html, 'Card payments get an emailed receipt') !== false && strpos($faq_html, 'Sales tax is included in the price.') !== false && stripos($faq_html, 'sales tax is added') === false, 'faq offers a receipt and says sales tax is included');
     brb_t(stripos($faq_html, 'Christmas decorations are up in December') !== false, 'faq explains decorations');
@@ -821,7 +833,7 @@ try {
     brb_t(strpos($faq_html, 'online by card with a 3% processing fee') !== false && strpos($faq_html, '60 or more days before the event') !== false && strpos($faq_html, 'less than 60 days before the event') !== false && strpos($faq_html, '[VERIFY with attorney]') === false && strpos($faq_html, '[VERIFY: attorney review]') === false, 'faq states the 60-day deposit rule and has no attorney note');
     brb_t(strpos($faq_html, 'Are overnight stays allowed?') !== false && strpos($faq_html, 'No overnight stays. The Boardroom is an event space only.') !== false && stripos($faq_html, 'check-in') === false && stripos($faq_html, 'check-out') === false && strpos($faq_html, '[VERIFY] latest end time') === false, 'faq states the no-overnight rule without a public end time');
     brb_t(stripos($faq_html, 'How many guests can The Boardroom hold') !== false && stripos($faq_html, '80 guests') !== false && stripos($faq_html, '75 to 80') === false && stripos($faq_html, 'Graduation parties or open houses can go over') !== false, 'faq says 80 guests and keeps the graduation note');
-    brb_t(strpos($faq_html, 'Sunday to Thursday from $850') !== false && strpos($faq_html, 'Friday and Saturday $1,400') !== false && strpos($faq_html, 'holiday dates priced higher') !== false && strpos($faq_html, 'the full range is $850 to about $2,000') !== false, 'faq explains the calendar rates');
+    brb_t(strpos($faq_html, 'Sunday to Thursday from $850') !== false && strpos($faq_html, 'Friday and Saturday $1,400') !== false && strpos($faq_html, 'holiday dates priced higher') !== false && strpos($faq_html, 'the full range is $850 to about $2,000') === false && strpos($faq_html, 'about $1,200') === false, 'faq explains the calendar rates without a price range');
     brb_t(strpos($faq_html, 'You can use the microwave, blender, food warmers and the bar area.') !== false && strpos($faq_html, 'The stovetops and oven can\'t be used.') !== false && strpos($faq_html, 'Do I need to bring plates and utensils?') !== false && strpos($faq_html, 'Do I need insurance?') !== false && strpos($faq_html, 'Can I rent for a few hours?') !== false && strpos($faq_html, 'No wall tape, glitter or confetti.') !== false && strpos($faq_html, 'or by check.') !== false, 'faq matches the kitchen, insurance, rental length, decorations, and deposit rules');
     brb_t(strpos($faq_html, 'https://moline.il.us/244/Liquor-Licensing') === false && strpos($faq_html, 'one-day liquor license') === false && strpos($faq_html, 'The price shows right on the calendar.') !== false && strpos($faq_html, '/rental-checklist/') === false && strpos($faq_html, 'Where is the rental checklist?') === false && strpos($faq_html, 'handicapped accessible') !== false && strpos($faq_html, 'What decorations are allowed?') !== false && strpos($faq_html, 'Venmo') === false && strpos($faq_html, 'A full day runs from 10:00 AM to 11:30 PM.') !== false && strpos($faq_html, 'Half days') === false && strpos($faq_html, 'Setup can begin at 8:00 AM.') !== false, 'faq keeps the calendar price, decorations, and access, without the rental checklist, a liquor license, or half days');
     if ($faq) {
@@ -950,7 +962,7 @@ try {
     ob_start();
     brb_place_schema();
     $schema = ob_get_clean();
-    brb_t(strpos($schema, '41.4913116') !== false && strpos($schema, '-90.4820481') !== false && strpos($schema, '2220 37th Street') !== false && strpos($schema, '2212 37th Street') === false, 'schema geo uses the map coordinates and the venue address');
+    brb_t(strpos($schema, '41.4913116') !== false && strpos($schema, '-90.4820481') !== false && strpos($schema, '2220 37th Street') !== false && strpos($schema, '2212 37th Street') === false && strpos($schema, 'priceRange') === false && strpos($schema, '$850-$2000') === false && strpos($schema, 'FAQPage') === false, 'schema geo uses the map coordinates and the venue address, without a price range');
     brb_t(strpos($privacy_html, 'mailto:boardroomqc@gmail.com') !== false && strpos($privacy_html, '[VERIFY]</span>') === false, 'privacy email is confirmed without a verification marker');
     brb_t(strpos($privacy_html, 'sets no advertising, analytics, or tracking cookies of its own') !== false && strpos($privacy_html, 'embedded Google Maps in the footer and on the Contact page may set cookies from Google') !== false && strpos($privacy_html, "Google's privacy policy applies") !== false && strpos($privacy_html, 'not asked to accept cookies') !== false, 'privacy explains our cookies and the Google map');
     brb_t(strpos($privacy_html, 'does not process payments online') === false && strpos($privacy_html, 'Stripe processes card payments') !== false && strpos($privacy_html, 'Stripe may set cookies on its own checkout page') !== false, 'privacy says Stripe processes cards and may set cookies on its checkout page');
@@ -1353,18 +1365,20 @@ try {
     ob_start();
     brb_admin_cal();
     $open_cal = ob_get_clean();
-    brb_t(strpos($open_cal, 'name="date" value="' . $block_day . '"') !== false && strpos($open_cal, 'value="brb_block_day"') !== false && strpos($open_cal, '>Block<') !== false && strpos($open_cal, '_wpnonce') !== false, 'an open future day has a nonce-protected Block button');
+    brb_t(strpos($open_cal, 'date=' . $block_day) !== false && strpos($open_cal, '>Edit<') !== false && strpos($open_cal, '>Add a hold<') !== false && strpos($open_cal, 'value="brb_block_day"') === false && strpos($open_cal, '>Block<') === false && strpos($open_cal, '>Unblock<') === false, 'an open future day has Edit and Add a hold, and no Block button');
+    brb_t(strpos($open_cal, 'id="brb-hold-form"') === false && strpos($open_cal, 'name="start_date"') === false && strpos($open_cal, 'id="brb-date-editor"') === false, 'the hold form and the date editor stay closed until a date is opened');
+    brb_t(preg_match('/<h2 class="brb-cal-month-title">[^<]+<\\/h2>\\s*<\\/div>\\s*<div class="brb-admincal-scroll"><div class="brb-admincal">/', $open_cal) === 1, 'the month name sits directly above the calendar grid');
     $blocked = brb_block_day($block_day);
     brb_t(!is_wp_error($blocked) && $blocked && $blocked->hold_type === 'blocked' && $blocked->name === 'Blocked' && substr($blocked->start_dt, 11, 5) === '00:00' && substr($blocked->end_dt, 11, 5) === '23:59', 'Block creates a full-day hold named Blocked');
     brb_t(!brb_public_date_is_open($block_day), 'a blocked day cannot be booked');
     $block_req = new WP_REST_Request('GET', '/brb/v1/availability');
     $block_req->set_param('month', $block_month);
     $block_feed = brb_rest_availability($block_req)->get_data();
-    brb_t(($block_feed['days'][$block_day]['status'] ?? '') === 'booked', 'the availability API marks a blocked day unavailable');
+    brb_t(($block_feed['days'][$block_day]['status'] ?? '') === 'blocked', 'the availability API marks a blocked day unavailable');
     ob_start();
     brb_admin_cal();
     $blocked_cal = ob_get_clean();
-    brb_t(strpos($blocked_cal, 'value="' . (int) $blocked->id . '"') !== false && strpos($blocked_cal, '>Unblock<') !== false && strpos($blocked_cal, 'Unblock this day?') !== false && strpos($blocked_cal, 'name="date" value="' . $block_day . '"') === false, 'a blocked day shows Unblock instead of Block');
+    brb_t(strpos($blocked_cal, '>Unblock<') === false && strpos($blocked_cal, '>Edit<') !== false && strpos($blocked_cal, 'brb-chip-blocked') !== false && strpos($blocked_cal, 'name="date" value="' . $block_day . '"') === false, 'a blocked day is opened with Edit instead of an Unblock button');
     $unblocked = brb_unblock_day($blocked->id);
     brb_t($unblocked === true && !brb_hold($blocked->id) && brb_public_date_is_open($block_day), 'Unblock removes that hold and the day is open again');
     $reserved = brb_save_hold([
@@ -1380,6 +1394,138 @@ try {
     if ($reserved && !is_wp_error($reserved)) brb_delete_hold($reserved->id);
     $past_block = brb_block_day(brb_now()->modify('-2 days')->format('Y-m-d'));
     brb_t(is_wp_error($past_block), 'a past day cannot be blocked from the calendar');
+
+    $price_day = brb_now()->modify('+100 days')->format('Y-m-d');
+    $price_month = substr($price_day, 0, 7);
+    $price_before = brb_rate_for_date($price_day, 'full');
+    brb_t(brb_save_date_override($price_day, 1125) === 1125.0 && brb_rate_for_date($price_day, 'full') === 1125.0, 'a per-date price replaces the seasonal rate');
+    $price_range = brb_build_range(['date' => $price_day, 'type' => 'day', 'days' => 1, 'guests' => 8]);
+    $price_quote = is_wp_error($price_range) ? $price_range : brb_quote($price_range);
+    brb_t(!is_wp_error($price_quote) && !empty($price_quote['price_set']) && (float) $price_quote['total'] === 1125.0, 'the quote uses the per-date price');
+    $saved_get = $_GET;
+    $_GET = ['date' => $price_day, 'type' => 'day', 'guests' => 8];
+    ob_start();
+    brb_view_quote();
+    $price_review = ob_get_clean();
+    $_GET = $saved_get;
+    brb_t(strpos($price_review, 'Rental Price: ' . brb_whole_money(1125) . ' (+deposit)') !== false, 'the public review step uses the per-date price');
+    $price_feed_req = new WP_REST_Request('GET', '/brb/v1/availability');
+    $price_feed_req->set_param('month', $price_month);
+    $price_feed = brb_rest_availability($price_feed_req)->get_data();
+    brb_t(($price_feed['days'][$price_day]['price'] ?? '') === brb_whole_money(1125), 'the public calendar feed uses the per-date price');
+    $priced_booking = brb_process_public_booking([
+        'date' => $price_day,
+        'type' => 'day',
+        'days' => 1,
+        'guests' => 8,
+        'name' => 'Rate Check',
+        'email' => 'flow-test@example.com',
+        'phone' => '555-0199',
+        'policy' => '1',
+        'waiver' => '1',
+        'free_admission' => '1',
+        'event_about' => 'A private dinner for family.',
+    ]);
+    brb_t(!is_wp_error($priced_booking) && $priced_booking && (float) $priced_booking->total === 1125.0, 'a public request stores the per-date price');
+    if ($priced_booking && !is_wp_error($priced_booking)) {
+        $created_ids[] = (int) $priced_booking->id;
+        brb_save_date_override($price_day, 1300);
+        $priced_kept = brb_booking($priced_booking->id);
+        brb_t($priced_kept && (float) $priced_kept->total === 1125.0, 'changing the date price does not rewrite an existing booking');
+        $wpdb->update(brb_table(), ['status' => 'paid'], ['id' => (int) $priced_booking->id]);
+        $priced_open = brb_apply_date_editor([
+            'date' => $price_day,
+            'price' => '1300',
+            'status' => 'open',
+            'notes' => 'Staff note',
+        ]);
+        $priced_after = brb_booking($priced_booking->id);
+        $priced_start = new DateTimeImmutable($priced_booking->start_dt, brb_tz());
+        $priced_end = new DateTimeImmutable($priced_booking->end_dt, brb_tz());
+        brb_t(is_string($priced_open) && $priced_after && $priced_after->status === 'paid' && (float) $priced_after->total === 1125.0 && !brb_is_free($priced_start, $priced_end), 'setting the date to open does not change a paid booking');
+        brb_t(brb_date_note($price_day) === 'Staff note' && brb_rate_for_date($price_day, 'full') === 1300.0, 'the date editor saves the note and the price');
+    }
+    $_GET = ['page' => 'brb-cal', 'm' => $price_month, 'date' => $price_day];
+    ob_start();
+    brb_admin_cal();
+    $editor_html = ob_get_clean();
+    $editor_label = (new DateTimeImmutable($price_day, brb_tz()))->format('l, F j, Y');
+    brb_t(strpos($editor_html, $editor_label) !== false && strpos($editor_html, 'name="price"') !== false && strpos($editor_html, 'value="1300"') !== false && strpos($editor_html, 'name="date" value="' . $price_day . '"') !== false, 'the date editor opens on the clicked date with its price');
+    brb_t(strpos($editor_html, 'value="blocked"') !== false && strpos($editor_html, 'id="brb-hold-form"') === false && strpos($editor_html, '>Add a hold<') !== false, 'blocking is a status in the date editor, and Add a hold stays a button');
+    $_GET = ['page' => 'brb-cal', 'm' => $price_month, 'date' => $price_day, 'holdform' => '1'];
+    ob_start();
+    brb_admin_cal();
+    $hold_form_html = ob_get_clean();
+    brb_t(strpos($hold_form_html, 'id="brb-hold-form"') !== false && strpos($hold_form_html, 'name="start_date" value="' . $price_day . '"') !== false && strpos($hold_form_html, 'name="end_date" value="' . $price_day . '"') !== false, 'Add a hold opens the form on the clicked date');
+    brb_t(strpos($hold_form_html, 'name="start_date" value="' . brb_now()->format('Y-m-d') . '"') === false, 'the hold form does not prefill today');
+    $_GET = ['page' => 'brb-cal', 'm' => $price_month, 'holdform' => '1'];
+    ob_start();
+    brb_admin_cal();
+    $blank_hold_html = ob_get_clean();
+    brb_t(strpos($blank_hold_html, 'name="start_date" value=""') !== false && strpos($blank_hold_html, 'name="end_date" value=""') !== false, 'a hold form without a chosen date does not prefill today');
+    $block_edit = brb_now()->modify('+101 days')->format('Y-m-d');
+    $blocked_edit = brb_apply_date_editor([
+        'date' => $block_edit,
+        'price' => '1600',
+        'status' => 'blocked',
+        'name' => 'Closed for maintenance',
+        'notes' => 'Floor work',
+    ]);
+    $blocked_row = is_wp_error($blocked_edit) ? null : brb_primary_same_day_hold($block_edit);
+    brb_t(is_string($blocked_edit) && $blocked_row && $blocked_row->hold_type === 'blocked' && $blocked_row->name === 'Closed for maintenance' && substr($blocked_row->start_dt, 0, 10) === $block_edit && !brb_public_date_is_open($block_edit) && brb_rate_for_date($block_edit, 'full') === 1600.0, 'Blocked in the date editor blocks that date and keeps its price');
+    $reopened_edit = brb_apply_date_editor([
+        'date' => $block_edit,
+        'price' => '1600',
+        'status' => 'open',
+        'notes' => 'Floor work',
+    ]);
+    brb_t(is_string($reopened_edit) && brb_public_date_is_open($block_edit) && brb_date_note($block_edit) === 'Floor work', 'Open removes the block and keeps the note');
+    $hold_day = brb_now()->modify('+102 days')->format('Y-m-d');
+    $held_edit = brb_apply_date_editor([
+        'date' => $hold_day,
+        'price' => '',
+        'status' => 'hold',
+        'name' => 'Family rehearsal',
+        'start_time' => '14:00',
+        'end_time' => '17:00',
+        'notes' => 'Unpaid',
+    ]);
+    $held_row = is_wp_error($held_edit) ? null : brb_primary_same_day_hold($hold_day);
+    brb_t(is_string($held_edit) && $held_row && substr($held_row->start_dt, 0, 10) === $hold_day && substr($held_row->start_dt, 11, 5) === '14:00' && $held_row->hold_type === 'hold' && !brb_public_date_is_open($hold_day), 'a hold saved from the date editor uses that date');
+    $low_day = brb_now()->modify('+103 days')->format('Y-m-d');
+    $low_edit = brb_apply_date_editor([
+        'date' => $low_day,
+        'price' => '700',
+        'status' => 'open',
+        'notes' => '',
+    ]);
+    brb_t(is_string($low_edit) && strpos($low_edit, 'below the usual') !== false && brb_rate_for_date($low_day, 'full') === 700.0 && brb_public_date_is_open($low_day), 'staff can set a date below $850 and the public rate follows it');
+    brb_t(brb_save_date_override($price_day, null) === null && brb_rate_for_date($price_day, 'full') === $price_before, 'clearing the override restores the seasonal rate');
+    $past_edit = brb_apply_date_editor([
+        'date' => brb_now()->modify('-3 days')->format('Y-m-d'),
+        'price' => '',
+        'status' => 'blocked',
+    ]);
+    brb_t(is_wp_error($past_edit), 'the date editor cannot block a past day');
+    brb_save_date_note($low_day, 'Staff note');
+    $note_post = brb_opt();
+    unset($note_post['date_notes']);
+    $_POST = $note_post;
+    $_POST['brb_save'] = '1';
+    unset($_POST['clear_blackouts']);
+    $_REQUEST['_wpnonce'] = wp_create_nonce('brb_settings');
+    $_POST['_wpnonce'] = $_REQUEST['_wpnonce'];
+    ob_start();
+    brb_admin_settings();
+    ob_end_clean();
+    brb_t(brb_date_note($low_day) === 'Staff note', 'saving other settings keeps a date note');
+    brb_t(brb_rate_for_date($low_day, 'full') === 700.0, 'saving other settings keeps the per-date price');
+    ob_start();
+    brb_admin_calendar_rate_fields();
+    $rate_fields = ob_get_clean();
+    brb_t(strpos($rate_fields, 'value="' . $low_day . '"') !== false && strpos($rate_fields, 'value="700"') !== false, 'the settings price table lists the per-date override');
+    if ($held_row) brb_delete_hold($held_row->id);
+    foreach (brb_holds_touching_day($block_edit) as $left_hold) brb_delete_hold($left_hold->id);
 
     $reopen_day = brb_now()->modify('+75 days')->format('Y-m-d');
     $reopen_hold = brb_save_hold([
