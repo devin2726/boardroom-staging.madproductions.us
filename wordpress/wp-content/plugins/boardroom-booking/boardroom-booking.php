@@ -2,11 +2,11 @@
 /**
  * Plugin Name: Boardroom Booking
  * Description: Self-hosted direct booking for The Boardroom — full-day blocks, availability calendar, agreed prices, approval before payment, blackout dates, and emails.
- * Version: 2.5.56
+ * Version: 2.5.57
  * Author: Mad Productions
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.5.56');
+define('BRB_VER', '2.5.57');
 function brb_reserve_explainer_steps() {
     return [
         'Pick a date. Prices are on the calendar.',
@@ -1080,7 +1080,6 @@ function brb_faq_markup() {
 <details><summary>Can I rent for a few hours?</summary><p>Each booking is one full day, 10:00 AM to 11:30 PM, with setup from 8:00 AM. Half-day and hourly rentals aren't offered.</p></details>
 
 <h2>Pricing and payment</h2>
-<details><summary>How much does it cost?</summary><p>FAQ_PRICE</p></details>
 <details><summary>How do I pay?</summary><p>After we approve the request, pay by check or in person, or online by card with a 3% processing fee. Mail or drop off checks payable to Mad Productions at The Boardroom, 2220 37th Street, Moline, IL 61265. We don't keep set hours. We meet on demand and set a time together, by appointment. The deposit (50% of the agreed total) holds the date. The balance is due no later than one week before the event. Sales tax is included in the price. The card processing fee is non-refundable.</p></details>
 <details><summary>Can I get an invoice or a receipt?</summary><p>Yes. Card payments get an emailed receipt, and we can provide an invoice or receipt for any payment on request.</p></details>
 <details><summary>Is sales tax included?</summary><p>Sales tax is included in the price.</p></details>
@@ -1123,11 +1122,7 @@ function brb_faq_markup() {
 <details><summary>Is the space accessible?</summary><p>Yes. The space is handicapped accessible.</p></details>
 <details><summary>If I pay the damage deposit by card, how is it returned?</summary><p>After the event, once the space is checked, it's refunded by your original payment method: through Stripe for card payments (less the card processing fee) or by check.</p></details>
 HTML;
-    return str_replace(
-        ['HOW_STEPS', 'FAQ_PRICE'],
-        [implode(' ', brb_how_booking_works_steps()), brb_faq_price_html()],
-        $html
-    );
+    return str_replace('HOW_STEPS', implode(' ', brb_how_booking_works_steps()), $html);
 }
 
 function brb_patch_faq_drinks() {
@@ -1202,10 +1197,34 @@ function brb_refresh_checklist_copy() {
         update_option('brb_settings', $o);
     }
 }
+function brb_faq_without_cost_question($html) {
+    $asks = [
+        'How much does it ' . 'cost',
+        'What does it ' . 'cost',
+        'How much is the ' . 'rental',
+        'How much to ' . 'rent',
+        'What is the ' . 'price',
+        'What is the rental ' . 'price',
+        'What are your ' . 'prices',
+        'What are your ' . 'rates',
+    ];
+    $pattern = '/<details>\s*<summary>\s*(?:' . implode('|', array_map(function ($q) {
+        return preg_quote($q, '/');
+    }, $asks)) . ')\??\s*<\/summary>.*?<\/details>/is';
+    $next = preg_replace($pattern, '', (string) $html);
+    return is_string($next) ? $next : (string) $html;
+}
 function brb_refresh_faq() {
     $page = get_page_by_path('faq');
     if (!$page) return;
     $c = (string) $page->post_content;
+    $stripped = brb_faq_without_cost_question($c);
+    if ($stripped !== $c) {
+        global $wpdb;
+        $wpdb->update($wpdb->posts, ['post_content' => $stripped], ['ID' => (int) $page->ID]);
+        clean_post_cache((int) $page->ID);
+        $c = $stripped;
+    }
     if (stripos($c, 'How many guests can The Boardroom hold') === false) return;
     if ($c !== brb_faq_markup()) {
         global $wpdb;
@@ -1236,7 +1255,7 @@ function brb_refresh_faq() {
         $next = preg_replace('/<details><summary>[^<]*(check-in|check-out)[^<]*<\/summary>.*?<\/details>/is', '', $next);
     }
     if (strpos($next, 'No overnight stays') === false) $next .= $new_hours;
-    if (stripos($c, 'How much does it cost?') === false || stripos($c, 'Christmas decorations are up in December') === false) {
+    if (stripos($c, 'Christmas decorations are up in December') === false) {
         $next = brb_faq_markup();
     }
     $next = str_replace('<details><summary>When do events have to end?</summary><p>Events must end by midnight, per the City of Moline permit.</p></details>', '', $next);
