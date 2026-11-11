@@ -9,7 +9,7 @@ Contact is one form on `/contact/`: name, email, message, and optional preferred
 ## Guest flow
 
 1. Pick a full day or a shorter block on the calendar. Starts inside the minimum notice (default **48 hours**, America/Chicago) are unavailable.
-2. Review the date. The page shows **Pricing from $600 per day (most events around $1,200), final price confirmed based on date, guest count and features.** The starting amount and the parenthetical text are settings. Until staff set a price, the guest sees **price to be confirmed**. There is no calculated cleaning fee, tax, or total on the website.
+2. Review the date. The page shows **Pricing from $600 per day, final price confirmed based on date, guest count and features.** The starting amount is a setting. Until staff set a price, the guest sees **price to be confirmed**. There is no calculated cleaning fee, tax, or total on the website.
 3. Enter contact details, choose an event type (Wedding, Birthday, Corporate, Fundraiser, or Other), agree to the Terms, the Rental Agreement, and the Privacy Policy, and press **Save this date**.
 4. The date is **held** so nobody else can book it. The confirmation page and the guest email state:
    - that a request does not hold the date, and the date is reserved once the deposit is received
@@ -45,7 +45,7 @@ Bookings → Settings. Anything still marked `[VERIFY]` is shown to guests until
 | Meetings and check drop-off | By appointment | There is no hours setting. Guests are told we meet on demand and set a time together. |
 | Payment instructions | blank | Optional extra text on the review step, confirmation page, and hold email. The old “[VERIFY] Extra instructions for bringing the check.” placeholder is cleared on upgrade and the line stays hidden while this is blank. |
 | Starting price | $600 per day | Shown to guests as “from” this amount. Whole dollars display without cents. |
-| Typical price text | most events around $1,200 | Shown in parentheses. Edit the words here. |
+| Typical price text | stored, not shown | Older saves may still contain this phrase. The site no longer prints it. |
 | Amount that secures the date | Full amount of the agreed price | Or a percent, or a fixed dollar amount. Applied only after staff set the price. |
 | Balance due | 7 days before the event | `[VERIFY]` Used only when the first check is less than the agreed price |
 | Minimum notice (hours) | 48 | Booking must **start** at least this many hours from now. This is the “not inside 48 hours” rule. Change the number here if the rule changes. |

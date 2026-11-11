@@ -602,7 +602,7 @@ function brb_chat_food_line() {
     return $line;
 }
 function brb_chat_no_date_price() {
-    $text = function_exists('brb_faq_price_html') ? trim(wp_strip_all_tags(brb_faq_price_html())) : 'Sunday to Thursday from $850. Most events run about $1,200, and the full range is $850 to about $2,000.';
+    $text = function_exists('brb_faq_price_html') ? trim(wp_strip_all_tags(brb_faq_price_html())) : 'Sunday to Thursday from $850. The price for your date is on the calendar.';
     return $text . ' Tell me a date and I\'ll show its calendar price.';
 }
 function brb_chat_asks_price($text) {

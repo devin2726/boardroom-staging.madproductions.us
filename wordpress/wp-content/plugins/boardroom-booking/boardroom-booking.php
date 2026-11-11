@@ -2,11 +2,11 @@
 /**
  * Plugin Name: Boardroom Booking
  * Description: Self-hosted direct booking for The Boardroom — full-day blocks, availability calendar, agreed prices, approval before payment, blackout dates, and emails.
- * Version: 2.5.54
+ * Version: 2.5.56
  * Author: Mad Productions
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.5.54');
+define('BRB_VER', '2.5.56');
 function brb_reserve_explainer_steps() {
     return [
         'Pick a date. Prices are on the calendar.',
@@ -85,6 +85,23 @@ function brb_format_utc_mysql($mysql) {
         return '';
     }
 }
+function brb_format_local_mysql($mysql) {
+    if (!$mysql) return '';
+    try {
+        $dt = new DateTimeImmutable($mysql, brb_tz());
+        return $dt->format('D, M j, Y g:i A');
+    } catch (Exception $e) {
+        return '';
+    }
+}
+function brb_date_taken_message() {
+    return 'That date is already reserved or booked.';
+}
+function brb_blocking_statuses() {
+    // A request in review does not reserve the date. Approving it, or a paid
+    // deposit, does. Legacy held/confirmed rows are the same as approved/paid.
+    return ['approved', 'held', 'deposit_paid', 'paid', 'confirmed'];
+}
 function brb_dec($n) { return number_format(round((float) $n, 2), 2, '.', ''); }
 function brb_money($n) { return '$' . number_format((float) $n, 2); }
 function brb_whole_money($n) {
@@ -95,11 +112,7 @@ function brb_whole_money($n) {
 function brb_ref($b) { return 'BR-' . (int) $b->id; }
 function brb_price_sentence() {
     $start = brb_whole_money(brb_opt('starting_price'));
-    $typical = trim((string) brb_opt('typical_price'));
-    $sentence = 'Pricing from ' . $start . ' per day';
-    if ($typical !== '') $sentence .= ' (' . $typical . ')';
-    $sentence .= ', final price confirmed based on date, guest count and features.';
-    return $sentence;
+    return 'Pricing from ' . $start . ' per day, final price confirmed based on date, guest count and features.';
 }
 function brb_price_is_set($b) {
     if (is_array($b)) {
@@ -120,7 +133,7 @@ function brb_defaults() {
         'day_rate' => '500',
         'hourly_rate' => '75',
         'starting_price' => '850',
-        'typical_price' => 'most events around $1,200',
+        'typical_price' => '',
         'min_hours' => '2',
         'open_hour' => '10',
         'close_hour' => '23',
@@ -134,6 +147,7 @@ function brb_defaults() {
         'damage_deposit_amount' => '250',
         'max_guests' => '200',
         'calendar_rates' => '',
+        'date_notes' => '',
         'max_days' => '7',
         'min_notice_hours' => '48',
         'hold_hours' => '48',
@@ -234,7 +248,6 @@ function brb_place_schema() {
         ],
         'hasMap' => BRB_MAPS_URL,
         'url' => home_url('/'),
-        'priceRange' => '$850-$2000',
         'maximumAttendeeCapacity' => brb_public_guest_cap(),
         'sameAs' => [BRB_MAPS_URL],
     ];
@@ -312,6 +325,10 @@ function brb_save_hold($input) {
         'notes' => sanitize_textarea_field((string) ($input['notes'] ?? '')),
     ];
     $id = (int) ($input['id'] ?? 0);
+    $exclude = ($id && brb_hold($id)) ? $id : 0;
+    if (brb_range_has_booking($start, $end, 0) || brb_range_hits_hold($start, $end, $exclude)) {
+        return new WP_Error('busy', brb_date_taken_message());
+    }
     if ($id && brb_hold($id)) {
         $wpdb->update(brb_hold_table(), $row, ['id' => $id]);
     } else {
@@ -348,9 +365,13 @@ function brb_drop_blackout_date($ymd) {
     $o['blackouts'] = implode("\n", $left);
     update_option('brb_settings', $o);
 }
-function brb_range_hits_hold($s, $e) {
-    $rows = brb_holds_overlapping($s->format('Y-m-d H:i:s'), $e->format('Y-m-d H:i:s'));
-    return !empty($rows);
+function brb_range_hits_hold($s, $e, $exclude_id = 0) {
+    $exclude_id = (int) $exclude_id;
+    foreach (brb_holds_overlapping($s->format('Y-m-d H:i:s'), $e->format('Y-m-d H:i:s')) as $row) {
+        if ($exclude_id && (int) $row->id === $exclude_id) continue;
+        return true;
+    }
+    return false;
 }
 function brb_notice_hours() { return max(0, (int) brb_opt('min_notice_hours')); }
 function brb_hold_hours() { return max(1, (int) brb_opt('hold_hours')); }
@@ -458,7 +479,7 @@ function brb_terms_review_line() {
     return 'All bookings are subject to review and approval by the Boardroom. Approval is based on the event details provided, availability, and our house rules.';
 }
 function brb_price_range_sentence() {
-    return 'Most events run $850 to about $2,000, typically about $1,200. Your exact price is confirmed by email.';
+    return 'The price for a date is on the calendar. Your exact price is confirmed by email.';
 }
 function brb_damage_card_refund_line() {
     return 'If you paid the damage deposit by card, it is refunded through Stripe, less the card processing fee, after the event once the space is checked.';
@@ -522,7 +543,7 @@ function brb_how_booking_works_html() {
 }
 function brb_book_policy_html() {
     $sections = [
-        ['Pricing', 'Full days start at $850, and most events come to about $1,200. We confirm your final price by email.'],
+        ['Pricing', 'Full days start at $850. The price for a date is on the calendar, and we confirm the final price by email.'],
         ['Payment', 'To hold your date, pay 50% of the rental plus a $250 refundable damage deposit. Card payments add a 3% fee. The damage deposit is refunded after the event, once the space is checked.'],
         ['Cancellation', 'If you cancel in writing 60 or more days before the event, your 50% payment is refunded, less the 3% card fee and any costs already incurred. Cancellations made less than 60 days out are not refunded.'],
     ];
@@ -890,6 +911,7 @@ function brb_install_tables() {
     brb_ensure_column($t, 'host_age', "varchar(20) NOT NULL DEFAULT ''");
     brb_ensure_column($t, 'event_about', 'text');
     brb_ensure_column($t, 'attention', "varchar(255) NOT NULL DEFAULT ''");
+    brb_ensure_column($t, 'audit_log', 'longtext NULL');
     brb_ensure_column($t, 'free_admission', "varchar(3) NOT NULL DEFAULT ''");
     brb_ensure_column($t, 'waiver_ack', "varchar(3) NOT NULL DEFAULT ''");
     brb_ensure_column($t, 'walkthrough_done', 'tinyint(1) NOT NULL DEFAULT 0');
@@ -1024,6 +1046,7 @@ function brb_migrate_settings() {
     }
     $start = trim((string) ($stored['starting_price'] ?? ''));
     if ($start === '' || $start === '600' || $start === '600.00') $merged['starting_price'] = '850';
+    if (trim((string) ($merged['typical_price'] ?? '')) === 'most events around $1,200') $merged['typical_price'] = '';
     if (!isset($stored['rate_sun_thu']) || !is_numeric($stored['rate_sun_thu']) || (float) $stored['rate_sun_thu'] <= 0) $merged['rate_sun_thu'] = '850';
     if (!isset($stored['rate_fri_sat']) || !is_numeric($stored['rate_fri_sat']) || (float) $stored['rate_fri_sat'] <= 0) $merged['rate_fri_sat'] = '1400';
     $ranges = json_decode((string) ($stored['rate_ranges'] ?? ''), true);
@@ -1507,6 +1530,97 @@ function brb_rule_span_days($rule) {
         return 100000;
     }
 }
+function brb_price_floor() {
+    return 850.0;
+}
+function brb_rate_amount_string($amount) {
+    $amount = round((float) $amount, 2);
+    if (abs($amount - round($amount)) < 0.001) return (string) (int) round($amount);
+    return (string) $amount;
+}
+function brb_date_notes_map() {
+    $raw = json_decode((string) brb_opt('date_notes'), true);
+    return is_array($raw) ? $raw : [];
+}
+function brb_date_note($ymd) {
+    $map = brb_date_notes_map();
+    return isset($map[$ymd]) ? (string) $map[$ymd] : '';
+}
+function brb_save_date_note($ymd, $note) {
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $ymd)) return new WP_Error('date', 'Choose a date.');
+    $map = brb_date_notes_map();
+    $note = sanitize_textarea_field((string) $note);
+    if ($note === '') unset($map[$ymd]);
+    else $map[$ymd] = $note;
+    $o = brb_opt();
+    $o['date_notes'] = wp_json_encode($map);
+    update_option('brb_settings', $o);
+    return $note;
+}
+function brb_date_override_row($ymd) {
+    foreach (brb_calendar_rates()['overrides'] as $row) {
+        if (!is_array($row)) continue;
+        if (trim((string) ($row['date'] ?? '')) === $ymd) return $row;
+    }
+    return null;
+}
+function brb_date_override_amount($ymd) {
+    $row = brb_date_override_row($ymd);
+    if (!$row) return null;
+    return brb_rate_number($row['full'] ?? '');
+}
+function brb_save_date_override($ymd, $amount) {
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $ymd)) return new WP_Error('date', 'Choose a date.');
+    if ($amount !== null && trim((string) $amount) !== '') {
+        $amount = brb_rate_number($amount);
+        if ($amount === null) return new WP_Error('price', 'Enter a price above zero, or leave it blank to use the seasonal rate.');
+    } else {
+        $amount = null;
+    }
+    $rates = brb_calendar_rates();
+    $overrides = [];
+    $seen = false;
+    foreach ($rates['overrides'] as $row) {
+        if (!is_array($row)) continue;
+        $date = trim((string) ($row['date'] ?? ''));
+        if ($date === '') continue;
+        if ($date === $ymd) {
+            $seen = true;
+            if ($amount === null) continue;
+            $row['date'] = $ymd;
+            $row['full'] = brb_rate_amount_string($amount);
+            if (!array_key_exists('shorter', $row)) $row['shorter'] = '';
+            $overrides[] = $row;
+            continue;
+        }
+        $overrides[] = $row;
+    }
+    if (!$seen && $amount !== null) {
+        $overrides[] = ['date' => $ymd, 'full' => brb_rate_amount_string($amount), 'shorter' => ''];
+    }
+    $o = brb_opt();
+    $o['calendar_rates'] = wp_json_encode(['rules' => $rates['rules'], 'overrides' => $overrides]);
+    update_option('brb_settings', $o);
+    return $amount;
+}
+function brb_seasonal_rate_for_date($ymd, $block = 'full') {
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $ymd)) return null;
+    $block = ($block === 'shorter') ? 'shorter' : 'full';
+    $matched = [];
+    foreach (brb_calendar_rates()['rules'] as $rule) {
+        if (brb_rate_rule_matches($rule, $ymd)) $matched[] = $rule;
+    }
+    usort($matched, function ($a, $b) {
+        return brb_rule_span_days($a) <=> brb_rule_span_days($b);
+    });
+    foreach ($matched as $rule) {
+        foreach (brb_rate_day_keys($ymd, $block) as $key) {
+            $rate = brb_rate_number($rule[$key] ?? '');
+            if ($rate !== null) return $rate;
+        }
+    }
+    return null;
+}
 function brb_rate_for_date($ymd, $block) {
     if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $ymd)) return null;
     $block = ($block === 'shorter') ? 'shorter' : 'full';
@@ -1641,12 +1755,12 @@ function brb_faq_price_html() {
     $fri = $base ? (brb_rate_number($base['fri_sat_full'] ?? '') ?? brb_rate_number($base['weekend_full'] ?? '')) : null;
     $link = '<a href="' . esc_url(brb_book_url()) . '">booking calendar</a>';
     if ($sun === null || $mon === null || $fri === null) {
-        return 'Most events run $850 to about $2,000, and most come to about $1,200. The price for your date shows on the ' . $link . '. If a date has no rate yet, the page says price to be confirmed.';
+        return 'The price for your date shows on the ' . $link . '. If a date has no rate yet, the page says price to be confirmed.';
     }
-    // Published floor matches the calendar rate table. The table itself is not edited here.
+    // Published day rates match the calendar rate table. The table itself is not edited here.
     $text = 'Sunday to Thursday from $850, Friday and Saturday ' . brb_whole_money($fri);
     if (brb_calendar_has_higher_rate(max($sun, $mon, $fri))) $text .= ', with a few holiday dates priced higher';
-    $text .= '. Most events run about $1,200, and the full range is $850 to about $2,000. The price for your date is on the ' . $link . '.';
+    $text .= '. The price for your date is on the ' . $link . '.';
     return $text;
 }
 function brb_calendar_rates_from_post($post) {
@@ -1776,21 +1890,24 @@ function brb_range_hits_blackout($s, $e) {
     return false;
 }
 function brb_blocking_sql() {
-    return ["status IN ('paid','deposit_paid','confirmed')", []];
+    return ["status IN ('" . implode("','", brb_blocking_statuses()) . "')", []];
 }
 function brb_date_taken($b) {
     $s = new DateTimeImmutable($b->start_dt, brb_tz());
     $e = new DateTimeImmutable($b->end_dt, brb_tz());
     return !brb_is_free($s, $e, (int) $b->id);
 }
-function brb_is_free($s, $e, $exclude_id = 0) {
+function brb_range_has_booking($s, $e, $exclude_id = 0) {
     global $wpdb;
-    if (brb_range_hits_blackout($s, $e) || brb_range_hits_hold($s, $e)) return false;
     list($block, $args) = brb_blocking_sql();
     $sql = "SELECT COUNT(*) FROM " . brb_table() . " WHERE id<>%d AND start_dt < %s AND end_dt > %s AND $block";
     $params = array_merge([(int) $exclude_id, $e->format('Y-m-d H:i:s'), $s->format('Y-m-d H:i:s')], $args);
-    $n = $wpdb->get_var($wpdb->prepare($sql, $params));
-    if ((int) $n !== 0) return false;
+    return (int) $wpdb->get_var($wpdb->prepare($sql, $params)) !== 0;
+}
+function brb_is_free($s, $e, $exclude_id = 0) {
+    global $wpdb;
+    if (brb_range_hits_blackout($s, $e) || brb_range_hits_hold($s, $e)) return false;
+    if (brb_range_has_booking($s, $e, $exclude_id)) return false;
     return !brb_range_hits_addon($s, $e, $exclude_id);
 }
 function brb_range_hits_addon($s, $e, $exclude_id = 0) {
@@ -2372,7 +2489,7 @@ function brb_insert_booking($r, $q, $guest, $source = 'online', $notify = true) 
             $result = $existing;
             $duplicate = true;
         } elseif (!brb_is_free($r['s'], $r['e'])) {
-            $result = new WP_Error('busy', 'Sorry, that time was just booked or is unavailable. Please pick another.');
+            $result = new WP_Error('busy', brb_date_taken_message());
         } else {
             $token = wp_generate_password(32, false);
             $due = brb_dec($q['due']);
@@ -2507,9 +2624,9 @@ function brb_record_payment($booking_id, $amount, $check_number, $received_on, $
     if ((string) $locked !== '1') return new WP_Error('lock', 'Please try again in a moment.');
     $b = brb_booking($b->id);
     $taken = brb_date_taken($b);
-    if ($taken && $method !== 'card') {
+    if ($taken) {
         $wpdb->query("SELECT RELEASE_LOCK('brb_book')");
-        return new WP_Error('busy', 'That date is already reserved by a paid deposit. This payment was not recorded.');
+        return new WP_Error('busy', brb_date_taken_message() . ' This payment was not recorded.');
     }
     $ok = $wpdb->insert(brb_pay_table(), [
         'booking_id' => (int) $b->id,
@@ -2531,11 +2648,7 @@ function brb_record_payment($booking_id, $amount, $check_number, $received_on, $
     $paid = round((float) $b->amount_paid + $split['rental'], 2);
     $damage_paid = round((float) ($b->damage_paid ?? 0) + $split['damage'], 2);
     $fields = ['amount_paid' => brb_dec($paid), 'damage_paid' => brb_dec($damage_paid)];
-    if ($taken && $method === 'card') {
-        $fields['attention'] = 'A card payment arrived after this date was already reserved by another paid deposit. Resolve it manually.';
-    } else {
-        $fields['status'] = ($paid + 0.009 >= (float) $b->total) ? 'paid' : 'deposit_paid';
-    }
+    $fields['status'] = ($paid + 0.009 >= (float) $b->total) ? 'paid' : 'deposit_paid';
     $wpdb->update(brb_table(), $fields, ['id' => (int) $b->id]);
     brb_lock_lines($b->id);
     $wpdb->query("SELECT RELEASE_LOCK('brb_book')");
@@ -2544,12 +2657,7 @@ function brb_record_payment($booking_id, $amount, $check_number, $received_on, $
         $notes = trim($notes . ' Refundable damage deposit ' . brb_money($split['damage']) . '.');
         $wpdb->update(brb_pay_table(), ['notes' => $notes], ['id' => $pay_id]);
     }
-    if ($taken && $method === 'card') {
-        $notice = brb_guest_hello_line() . "\n\nHere is your receipt.\n\n" . brb_receipt_block($b, $amount, 'card', $received_on) . "\n\nWe received your card payment. Staff will follow up about this date.\n";
-        brb_send_receipt_copies($b, 'Your Boardroom receipt for ' . brb_ref($b), 'Card payment needs attention ' . brb_ref($b), $notice . "\n" . $b->attention . "\n");
-    } else {
-        brb_send_payment_email($b, $amount, $check_number, $method);
-    }
+    brb_send_payment_email($b, $amount, $check_number, $method);
     if (!$paid_before && in_array($b->status, ['deposit_paid', 'paid', 'confirmed'], true)) brb_event_hit('deposit_paid');
     return $b;
 }
@@ -2607,13 +2715,73 @@ function brb_extend_hold($booking_id, $hours) {
     unset($booking_id, $hours);
     return new WP_Error('status', 'A request does not hold the date. The date is reserved once the deposit is received.');
 }
+function brb_save_booking_edit($booking_id, $input) {
+    global $wpdb;
+    $b = brb_booking($booking_id);
+    if (!$b) return new WP_Error('missing', 'Booking not found.');
+    $date = sanitize_text_field((string) ($input['date'] ?? ''));
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) return new WP_Error('date', 'Choose a date.');
+    $name = sanitize_text_field((string) ($input['name'] ?? ''));
+    $email = sanitize_email((string) ($input['email'] ?? ''));
+    $phone = sanitize_text_field((string) ($input['phone'] ?? ''));
+    $notes = sanitize_textarea_field((string) ($input['notes'] ?? ''));
+    if ($name === '' || !is_email($email)) return new WP_Error('contact', 'Name and a valid email are required.');
+    try {
+        $day = new DateTimeImmutable($date . ' 00:00:00', brb_tz());
+    } catch (Exception $e) {
+        return new WP_Error('date', 'Choose a date.');
+    }
+    $start = $day->setTime(10, 0);
+    $end = $day->setTime(23, 30);
+    $old_day = substr((string) $b->start_dt, 0, 10);
+    if ($date !== $old_day && !brb_is_free($start, $end, (int) $b->id)) {
+        return new WP_Error('busy', brb_date_taken_message());
+    }
+    $changes = [];
+    if ($date !== $old_day) $changes[] = 'date ' . $old_day . ' → ' . $date;
+    if ($name !== (string) $b->name) $changes[] = 'name changed';
+    if (strtolower($email) !== strtolower((string) $b->email)) $changes[] = 'email changed';
+    if ($phone !== (string) $b->phone) $changes[] = 'phone changed';
+    if ($notes !== (string) $b->notes) $changes[] = 'notes changed';
+    if (!$changes) return $b;
+    $user = wp_get_current_user();
+    $who = ($user && $user->user_login) ? $user->user_login : 'admin';
+    $line = brb_now()->format('Y-m-d g:i A') . ' America/Chicago — ' . $who . ': ' . implode('; ', $changes);
+    $log = trim((string) ($b->audit_log ?? ''));
+    $log = $log === '' ? $line : $log . "\n" . $line;
+    $fields = [
+        'name' => $name,
+        'email' => $email,
+        'phone' => $phone,
+        'notes' => $notes,
+        'audit_log' => $log,
+    ];
+    if ($date !== $old_day) {
+        $fields['start_dt'] = $start->format('Y-m-d H:i:s');
+        $fields['end_dt'] = $end->format('Y-m-d H:i:s');
+        $fields['mode'] = 'day';
+        $fields['balance_due_on'] = brb_balance_due_on($start);
+    }
+    brb_ensure_column(brb_table(), 'audit_log', 'longtext NULL');
+    $wpdb->update(brb_table(), $fields, ['id' => (int) $b->id]);
+    return brb_booking($b->id);
+}
 function brb_approve_booking($booking_id) {
     global $wpdb;
     $b = brb_booking($booking_id);
     if (!$b) return new WP_Error('missing', 'Booking not found.');
     if (!in_array($b->status, ['review', 'pending'], true)) return new WP_Error('status', 'Only a request that is pending review can be approved.');
     if (empty($b->walkthrough_done)) return new WP_Error('walkthrough', 'Mark the in-person walk-through complete before approving. Approval follows the event details, availability, and house rules.');
+    $start = new DateTimeImmutable($b->start_dt, brb_tz());
+    $end = new DateTimeImmutable($b->end_dt, brb_tz());
+    $locked = $wpdb->get_var("SELECT GET_LOCK('brb_book', 10)");
+    if ((string) $locked !== '1') return new WP_Error('lock', 'Please try again in a moment.');
+    if (!brb_is_free($start, $end, (int) $b->id)) {
+        $wpdb->query("SELECT RELEASE_LOCK('brb_book')");
+        return new WP_Error('busy', brb_date_taken_message() . ' This request was not approved.');
+    }
     $wpdb->update(brb_table(), ['status' => 'approved', 'hold_until' => null], ['id' => (int) $b->id]);
+    $wpdb->query("SELECT RELEASE_LOCK('brb_book')");
     $b = brb_booking($b->id);
     brb_send_approve_email($b);
     return $b;
@@ -2688,11 +2856,10 @@ function brb_rest_availability($req) {
     $params = array_merge([$next->format('Y-m-d H:i:s'), $first->format('Y-m-d H:i:s')], $args);
     $rows = $wpdb->get_results($wpdb->prepare($sql, $params));
     $hold_rows = $wpdb->get_results($wpdb->prepare(
-        'SELECT start_dt, end_dt FROM ' . brb_hold_table() . ' WHERE start_dt < %s AND end_dt > %s',
+        'SELECT start_dt, end_dt, hold_type FROM ' . brb_hold_table() . ' WHERE start_dt < %s AND end_dt > %s',
         $next->format('Y-m-d H:i:s'),
         $first->format('Y-m-d H:i:s')
     ));
-    if ($hold_rows) $rows = array_merge($rows, $hold_rows);
     $o = brb_opt();
     $bo = brb_blackouts();
     $today = brb_now()->setTime(0, 0);
@@ -2703,22 +2870,30 @@ function brb_rest_availability($req) {
         $open = $d->setTime((int) $o['open_hour'], 0);
         $close = $d->setTime((int) $o['close_hour'], 0);
         $full = false;
-        foreach ($rows as $r) {
+        $blocked_hold = false;
+        $booked_span = false;
+        $mark = function ($r) use ($d, $tz, $open, $close, &$busy, &$full, &$booked_span, &$blocked_hold) {
             $s = new DateTimeImmutable($r->start_dt, $tz);
             $e = new DateTimeImmutable($r->end_dt, $tz);
             $dayEnd = $d->modify('+1 day');
-            if ($s < $dayEnd && $e > $d) {
-                if ($s <= $open && $e >= $close) $full = true;
-                $busy[] = [
-                    max(0, (int) floor(($s->getTimestamp() - $d->getTimestamp()) / 3600)),
-                    min(24, (int) ceil(($e->getTimestamp() - $d->getTimestamp()) / 3600)),
-                ];
+            if (!($s < $dayEnd && $e > $d)) return;
+            if (($r->hold_type ?? '') === 'blocked') {
+                $blocked_hold = true;
+                return;
             }
-        }
+            $booked_span = true;
+            if ($s <= $open && $e >= $close) $full = true;
+            $busy[] = [
+                max(0, (int) floor(($s->getTimestamp() - $d->getTimestamp()) / 3600)),
+                min(24, (int) ceil(($e->getTimestamp() - $d->getTimestamp()) / 3600)),
+            ];
+        };
+        foreach ($rows as $r) $mark($r);
+        foreach ((array) $hold_rows as $r) $mark($r);
         $slot = brb_slot_info($d);
         if ($d < $today) $st = 'past';
-        elseif (in_array($k, $bo, true)) $st = 'blackout';
-        elseif ($full || $busy) $st = 'booked';
+        elseif (in_array($k, $bo, true) || $blocked_hold) $st = 'blocked';
+        elseif ($full || $booked_span) $st = 'booked';
         elseif (!$slot['any']) $st = 'soon';
         else $st = 'free';
         $full_price = brb_rate_for_date($k, 'full');
@@ -2780,7 +2955,7 @@ function brb_calendar_markup($link_to_book = false) {
         $extra = ' data-book="' . esc_url(brb_book_url()) . '" data-lazy="1"';
     }
     $html = '<div id="brb-cal" class="brb-cal" aria-live="polite" data-api="' . esc_url(rest_url('brb/v1/availability')) . '" data-nonce="' . esc_attr(wp_create_nonce('wp_rest')) . '" data-notice="' . (int) $notice . '" data-mode="' . esc_attr($o['mode']) . '"' . $extra . '>Loading calendar…</div>';
-    $html .= '<p class="brb-legend"><span class="free"></span>Available <span class="booked"></span>Unavailable <span class="soon"></span>Inside ' . (int) $notice . 'h notice</p>';
+    $html .= '<p class="brb-legend"><span class="free"></span>Available <span class="booked"></span>Booked <span class="blocked"></span>Blocked <span class="soon"></span>Inside ' . (int) $notice . 'h notice <span class="past"></span>Past</p>';
     return $html;
 }
 function brb_home_calendar_html() {
