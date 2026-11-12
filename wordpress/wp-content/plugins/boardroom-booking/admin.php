@@ -361,7 +361,7 @@ function brb_admin_list_url($status = '') {
 }
 function brb_admin_bulk_redirect($status, $note, $ok = false) {
     $url = brb_admin_list_url($status);
-    foreach (['q', 'orderby', 'order', 'paged'] as $key) {
+    foreach (['q', 'orderby', 'order', 'paged', 'entries'] as $key) {
         $value = sanitize_text_field(wp_unslash($_POST[$key] ?? ''));
         if ($value !== '') $url = add_query_arg($key, $value, $url);
     }
@@ -456,9 +456,107 @@ function brb_admin_router() {
     if (!empty($_GET['booking'])) brb_admin_detail((int) $_GET['booking']);
     else brb_admin_list();
 }
+function brb_admin_list_kind() {
+    $k = sanitize_key($_GET['entries'] ?? '');
+    return in_array($k, ['bookings', 'calendar'], true) ? $k : 'all';
+}
+function brb_admin_list_calendar_source($type) {
+    if ($type === 'reserved') return 'Calendar - Reserved';
+    if ($type === 'hold') return 'Calendar - Hold';
+    return 'Calendar - Date block';
+}
+function brb_admin_list_active_bookings() {
+    global $wpdb;
+    return $wpdb->get_results('SELECT id, start_dt, end_dt, status FROM ' . brb_table() . " WHERE status NOT IN ('cancelled','declined','expired','spam')");
+}
+function brb_admin_list_range_overlaps($start, $end, $rows) {
+    foreach ((array) $rows as $row) {
+        if ($row->start_dt < $end && $row->end_dt > $start) return true;
+    }
+    return false;
+}
+function brb_admin_list_cover_dates(&$covered, $start_dt, $end_dt) {
+    $s = (new DateTimeImmutable($start_dt, brb_tz()))->setTime(0, 0);
+    $e = new DateTimeImmutable($end_dt, brb_tz());
+    for ($d = $s; $d < $e; $d = $d->modify('+1 day')) $covered[$d->format('Y-m-d')] = true;
+    if ($e->format('H:i') !== '00:00') $covered[$e->format('Y-m-d')] = true;
+}
+function brb_admin_list_calendar_when($start_dt, $end_dt) {
+    $s = new DateTimeImmutable($start_dt, brb_tz());
+    $e = new DateTimeImmutable($end_dt, brb_tz());
+    $all_day = $s->format('H:i') === '00:00' && in_array($e->format('H:i'), ['00:00', '23:59'], true);
+    return brb_when((object) [
+        'start_dt' => $start_dt,
+        'end_dt' => $end_dt,
+        'mode' => $all_day ? 'day' : 'hourly',
+    ]);
+}
+function brb_admin_list_calendar_items($q = '') {
+    global $wpdb;
+    $tz = brb_tz();
+    $today = brb_now()->setTime(0, 0);
+    $from = $today->format('Y-m-d H:i:s');
+    $q = trim((string) $q);
+    $active = brb_admin_list_active_bookings();
+    $items = [];
+    $covered = [];
+    $holds = $wpdb->get_results($wpdb->prepare(
+        'SELECT id, name, hold_type, start_dt, end_dt FROM ' . brb_hold_table() . ' WHERE end_dt > %s ORDER BY start_dt ASC, id ASC',
+        $from
+    ));
+    foreach ((array) $holds as $h) {
+        brb_admin_list_cover_dates($covered, $h->start_dt, $h->end_dt);
+        if (brb_admin_list_range_overlaps($h->start_dt, $h->end_dt, $active)) continue;
+        $type = isset(brb_hold_types()[$h->hold_type]) ? $h->hold_type : 'blocked';
+        $is_block = $type === 'blocked';
+        if ($q !== '') {
+            if ($is_block) {
+                if (stripos('Date block', $q) === false) continue;
+            } elseif (stripos((string) $h->name, $q) === false) {
+                continue;
+            }
+        }
+        $s = new DateTimeImmutable($h->start_dt, $tz);
+        $items[] = [
+            'kind' => 'calendar',
+            'id' => 0,
+            'start_dt' => $h->start_dt,
+            'end_dt' => $h->end_dt,
+            'name' => $is_block ? 'Date block' : (string) $h->name,
+            'hide_name' => $is_block,
+            'source' => brb_admin_list_calendar_source($type),
+            'status' => $is_block ? 'Date block' : (string) (brb_hold_types()[$type] ?? 'Date block'),
+            'href' => brb_cal_url(['m' => $s->format('Y-m'), 'hold' => (int) $h->id, 'date' => $s->format('Y-m-d')]) . '#brb-hold-form',
+            'total' => null,
+            'amount_paid' => null,
+        ];
+    }
+    foreach (brb_blackouts() as $ymd) {
+        if ($ymd < $today->format('Y-m-d')) continue;
+        if (!empty($covered[$ymd])) continue;
+        $start = $ymd . ' 00:00:00';
+        $end = (new DateTimeImmutable($ymd . ' 00:00:00', $tz))->modify('+1 day')->format('Y-m-d H:i:s');
+        if (brb_admin_list_range_overlaps($start, $end, $active)) continue;
+        if ($q !== '' && stripos('Date block', $q) === false) continue;
+        $items[] = [
+            'kind' => 'calendar',
+            'id' => 0,
+            'start_dt' => $start,
+            'end_dt' => $ymd . ' 23:59:00',
+            'name' => 'Date block',
+            'hide_name' => true,
+            'source' => brb_admin_list_calendar_source('blocked'),
+            'status' => 'Date block',
+            'href' => brb_cal_url(['m' => substr($ymd, 0, 7), 'blackout' => $ymd, 'date' => $ymd]) . '#brb-hold-form',
+            'total' => null,
+            'amount_paid' => null,
+        ];
+    }
+    return $items;
+}
 function brb_admin_list_query($extra = []) {
     $args = ['page' => 'brb'];
-    foreach (['status', 'q', 'orderby', 'order', 'paged'] as $key) {
+    foreach (['status', 'q', 'orderby', 'order', 'paged', 'entries'] as $key) {
         if (!isset($extra[$key])) continue;
         if ($extra[$key] === '' || $extra[$key] === null) continue;
         $args[$key] = $extra[$key];
@@ -471,6 +569,7 @@ function brb_admin_list() {
     $f = sanitize_key($_GET['status'] ?? '');
     if (!in_array($f, $allowed, true)) $f = '';
     $q = sanitize_text_field(wp_unslash($_GET['q'] ?? ''));
+    $kind = brb_admin_list_kind();
     $orderby = sanitize_key($_GET['orderby'] ?? 'when');
     $order = strtolower((string) ($_GET['order'] ?? 'desc')) === 'asc' ? 'asc' : 'desc';
     $per = 50;
@@ -519,7 +618,11 @@ function brb_admin_list() {
         $ids = array_map('intval', explode(',', (string) $dup->ids));
         foreach ($ids as $id) $dup_map[$id] = $ids;
     }
-    $base_args = ['status' => $f, 'q' => $q, 'orderby' => $orderby, 'order' => $order];
+    $base_args = ['status' => $f, 'q' => $q, 'orderby' => $orderby, 'order' => $order, 'entries' => $kind === 'all' ? '' : $kind];
+    $calendar_items = [];
+    if ($kind === 'calendar' || ($kind === 'all' && $f === '')) {
+        $calendar_items = brb_admin_list_calendar_items($q);
+    }
     $sort_link = function ($key, $label) use ($base_args, $orderby, $order) {
         $next = ($orderby === $key && $order === 'asc') ? 'desc' : 'asc';
         $url = brb_admin_list_query($base_args + ['orderby' => $key, 'order' => $next, 'paged' => 1]);
@@ -531,12 +634,19 @@ function brb_admin_list() {
     echo '<form method="get" class="brb-booking-search" style="margin-top:12px">';
     echo '<input type="hidden" name="page" value="brb">';
     if ($f !== '') echo '<input type="hidden" name="status" value="' . esc_attr($f) . '">';
-    echo '<label for="brb-q">Search <input id="brb-q" name="q" value="' . esc_attr($q) . '" placeholder="Name, email, phone, or BR-#"></label> ';
+    if ($kind !== 'all') echo '<input type="hidden" name="entries" value="' . esc_attr($kind) . '">';
+    echo '<label for="brb-q">Search <input id="brb-q" name="q" value="' . esc_attr($q) . '" placeholder="Name, email, phone, BR-#, or calendar name"></label> ';
     echo '<button class="button">Search</button></form>';
     echo '<p style="margin-top:12px">';
-    $filters = ['' => 'All', 'review' => 'Pending review', 'approved' => 'Approved, deposit due', 'deposit_paid' => 'Deposit paid', 'paid' => 'Paid in full', 'declined' => 'Declined', 'cancelled' => 'Cancelled', 'expired' => 'Expired', 'spam' => 'Flagged as spam/joke', 'card_review' => 'Needs staff review'];
+    foreach (['all' => 'All', 'bookings' => 'Bookings only', 'calendar' => 'Calendar only'] as $k => $l) {
+        $url = brb_admin_list_query(['entries' => $k === 'all' ? '' : $k, 'status' => $kind === 'calendar' ? '' : $f, 'q' => $q, 'orderby' => $orderby, 'order' => $order]);
+        printf('<a class="button%s" href="%s">%s</a> ', $kind === $k ? ' button-primary' : '', esc_url($url), esc_html($l));
+    }
+    echo '</p>';
+    echo '<p>';
+    $filters = ['' => 'All statuses', 'review' => 'Pending review', 'approved' => 'Approved, deposit due', 'deposit_paid' => 'Deposit paid', 'paid' => 'Paid in full', 'declined' => 'Declined', 'cancelled' => 'Cancelled', 'expired' => 'Expired', 'spam' => 'Flagged as spam/joke', 'card_review' => 'Needs staff review'];
     foreach ($filters as $k => $l) {
-        $url = brb_admin_list_query(['status' => $k, 'q' => $q, 'orderby' => $orderby, 'order' => $order]);
+        $url = brb_admin_list_query(['status' => $k, 'entries' => $kind === 'all' ? '' : $kind, 'q' => $q, 'orderby' => $orderby, 'order' => $order]);
         printf('<a class="button%s" href="%s">%s</a> ', $f === $k ? ' button-primary' : '', esc_url($url), esc_html($l));
     }
     echo '</p><form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" id="brb-bulk">';
@@ -546,6 +656,7 @@ function brb_admin_list() {
     echo '<input type="hidden" name="orderby" value="' . esc_attr($orderby) . '">';
     echo '<input type="hidden" name="order" value="' . esc_attr($order) . '">';
     echo '<input type="hidden" name="paged" value="' . (int) $paged . '">';
+    if ($kind !== 'all') echo '<input type="hidden" name="entries" value="' . esc_attr($kind) . '">';
     echo '<input type="hidden" name="bulk_action" value="">';
     wp_nonce_field('brb_bulk_delete');
     $nav = function ($which) {
@@ -559,8 +670,62 @@ function brb_admin_list() {
     $nav('top');
     $head = '<tr><td class="manage-column column-cb check-column"><input type="checkbox" class="brb-select-all" aria-label="Select all bookings"></td><th>' . $sort_link('id', '#') . '</th><th>' . $sort_link('when', 'When') . '</th><th>' . $sort_link('guest', 'Guest') . '</th><th>' . $sort_link('source', 'Source') . '</th><th>' . $sort_link('total', 'Total') . '</th><th>' . $sort_link('paid', 'Paid') . '</th><th>Balance</th><th>' . $sort_link('status', 'Status') . '</th><th>Reserved</th><th></th></tr>';
     echo '<table class="widefat"><thead>' . $head . '</thead><tbody>';
-    if (!$rows) echo '<tr><td colspan="11">No bookings yet.</td></tr>';
-    foreach ($rows as $b) {
+    $display = [];
+    if ($kind !== 'calendar') {
+        foreach ($rows as $b) {
+            $display[] = [
+                'kind' => 'booking',
+                'row' => $b,
+                'id' => (int) $b->id,
+                'start_dt' => $b->start_dt,
+                'name' => (string) $b->name,
+                'source' => brb_source_label($b->source),
+                'status' => (string) $b->status,
+                'total' => (float) $b->total,
+                'amount_paid' => (float) $b->amount_paid,
+            ];
+        }
+    }
+    foreach ($calendar_items as $item) $display[] = $item;
+    $dir = $order === 'asc' ? 1 : -1;
+    $keyed = [];
+    foreach ($display as $i => $item) {
+        if ($orderby === 'id') $key = (int) ($item['id'] ?? 0);
+        elseif ($orderby === 'guest') $key = strtolower((string) ($item['name'] ?? ''));
+        elseif ($orderby === 'source') $key = strtolower((string) ($item['source'] ?? ''));
+        elseif ($orderby === 'status') $key = strtolower((string) ($item['status'] ?? ''));
+        elseif ($orderby === 'total') $key = $item['total'];
+        elseif ($orderby === 'paid') $key = $item['amount_paid'];
+        else $key = (string) ($item['start_dt'] ?? '');
+        $keyed[] = [$item, $key, $i];
+    }
+    usort($keyed, function ($a, $b) use ($dir, $orderby) {
+        $money = in_array($orderby, ['total', 'paid', 'id'], true);
+        $cal_a = $a[0]['kind'] === 'calendar' && $money;
+        $cal_b = $b[0]['kind'] === 'calendar' && $money;
+        if ($cal_a && $cal_b) return $a[2] <=> $b[2];
+        if ($cal_a) return 1;
+        if ($cal_b) return -1;
+        if ($a[1] === $b[1]) return $a[2] <=> $b[2];
+        return ($a[1] <=> $b[1]) * $dir;
+    });
+    $display = array_map(function ($row) { return $row[0]; }, $keyed);
+    if (!$display) echo '<tr><td colspan="11">' . esc_html($kind === 'calendar' ? 'No calendar entries.' : 'No bookings yet.') . '</td></tr>';
+    foreach ($display as $item) {
+        if (($item['kind'] ?? '') === 'calendar') {
+            $guest = !empty($item['hide_name']) ? 'Date block' : (string) $item['name'];
+            printf(
+                '<tr class="brb-cal-list-row"><th scope="row" class="check-column"></th><td>—</td><td><a href="%s">%s</a></td><td><a href="%s">%s</a></td><td>%s</td><td>—</td><td>—</td><td>—</td><td><span class="brb-badge">%s</span></td><td>Yes</td><td></td></tr>',
+                esc_url($item['href']),
+                esc_html(brb_admin_list_calendar_when($item['start_dt'], $item['end_dt'])),
+                esc_url($item['href']),
+                esc_html($guest),
+                esc_html($item['source']),
+                esc_html($item['status'])
+            );
+            continue;
+        }
+        $b = $item['row'];
         $set = brb_price_is_set($b);
         $balance = $set ? max(0, round((float) $b->total - (float) $b->amount_paid, 2)) : 0;
         if (in_array($b->status, ['deposit_paid', 'paid', 'confirmed'], true)) $until = 'Yes';
