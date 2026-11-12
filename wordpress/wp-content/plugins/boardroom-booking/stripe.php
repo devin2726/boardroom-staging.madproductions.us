@@ -123,16 +123,11 @@ function brb_stripe_dashboard_url($stripe_id, $session_id = '') {
     return $base . 'payments';
 }
 function brb_stripe_append_audit($b, $line) {
-    global $wpdb;
     if (!$b || $line === '') return;
-    brb_ensure_column(brb_table(), 'audit_log', 'longtext NULL');
     $fresh = brb_booking($b->id);
     if (!$fresh) return;
-    $log = trim((string) ($fresh->audit_log ?? ''));
-    if (strpos($log, $line) !== false) return;
-    $entry = brb_now()->format('Y-m-d g:i A') . ' America/Chicago — system: ' . $line;
-    $log = $log === '' ? $entry : $log . "\n" . $entry;
-    $wpdb->update(brb_table(), ['audit_log' => $log], ['id' => (int) $b->id]);
+    if (strpos((string) ($fresh->audit_log ?? ''), $line) !== false) return;
+    brb_audit_append((int) $b->id, $line, 'system');
 }
 function brb_stripe_note_checkout_blocked($b) {
     global $wpdb;

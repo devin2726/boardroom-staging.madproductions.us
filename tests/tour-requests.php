@@ -33,7 +33,7 @@ $created = [];
 $snapshot = get_option('brb_settings');
 
 try {
-    brb_t(get_option('brb_version') === '2.5.60', 'plugin storage version is 2.5.60');
+    brb_t(get_option('brb_version') === '2.5.61', 'plugin storage version is 2.5.61');
     putenv('BRB_ENV=production');
     $_ENV['BRB_ENV'] = 'production';
     $_SERVER['BRB_ENV'] = 'production';
