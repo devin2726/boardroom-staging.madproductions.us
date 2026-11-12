@@ -45,7 +45,7 @@ add_filter('pre_wp_mail', function ($short, $atts) {
 $GLOBALS['brb_mails'] = [];
 
 try {
-    brb_t(get_option('brb_version') === '2.5.64', 'plugin storage version is 2.5.64');
+    brb_t(get_option('brb_version') === '2.5.65', 'plugin storage version is 2.5.65');
     $cc_before = (string) brb_opt('inquiry_cc');
     delete_option('brb_inquiry_cc_seeded');
     $cc_settings = get_option('brb_settings');
@@ -888,7 +888,7 @@ try {
         'Sales tax is included in the price.' => $terms_html,
         'Last updated: November 9, 2026' => $terms_html,
         '60 or more days before your event' => $terms_html,
-        'MAD Productions, LLC' => $privacy_html,
+        'what Boardroom QC LLC, doing business as The Boardroom QC' => $privacy_html,
         'boardroomqc@gmail.com' => $privacy_html,
         'We never see or store card numbers' => $privacy_html,
         'FACILITY EVENT SPACE RENTAL AGREEMENT' => $agreement_html,
@@ -903,7 +903,7 @@ try {
     brb_t(strpos($agreement_html, 'Published full-day rates start at $850. The price for a date is the rate shown on the booking calendar, and Owner confirms the final price in writing. Sales tax is included in the price. The refundable damage deposit is a flat $250.') !== false && strpos($agreement_html, 'most events are about $1,200') === false, 'the rental agreement drops the typical event price and keeps sales tax and the $250 deposit');
     brb_t(strpos(brb_cancellation_summary(), 'no later than one week before the event') !== false && strpos(brb_cancellation_summary(), '48 hours before the event') === false && strpos(brb_cancellation_summary(), 'Mad Productions at The Boardroom, 2220 37th Street, Moline, IL 61265') !== false && strpos(brb_cancellation_summary(), '2212') === false && strpos(brb_agreement_html(), 'no later than one week before the event') !== false && strpos(brb_agreement_html(), '48 hours before the event') === false && strpos(brb_agreement_html(), '80 guests') !== false && strpos(brb_agreement_html(), '75 to 80') === false, 'the summary and the rental agreement use one week, 80 guests, and checks at The Boardroom');
     brb_t(strpos($terms_html, '[VERIFY current fee and issuing office]') === false, 'liquor license fee is no longer marked for verification');
-    brb_t(strpos($terms_html, '2220 37th Street, Moline, IL 61265') !== false && strpos($terms_html, 'MAD Productions, LLC') !== false, 'terms name the venue at 2220 37th Street');
+    brb_t(strpos($terms_html, '2220 37th Street, Moline, IL 61265') !== false && strpos($terms_html, 'operated by Boardroom QC LLC') !== false, 'terms name the venue at 2220 37th Street');
     brb_t(strpos($terms_html, 'Make checks payable to Mad Productions at The Boardroom, 2220 37th Street, Moline, IL 61265.') !== false, 'terms tell guests where to bring checks');
     brb_t(strpos($terms_html, '[VERIFY address.') === false && strpos($terms_html, '2212 47 Ave') === false && strpos($terms_html, '2212 37th St,') === false, 'terms drop the old unverified addresses');
     brb_t(strpos($privacy_html, 'at 2220 37th Street, Moline, IL 61265') !== false, 'privacy names the venue address');
@@ -916,6 +916,49 @@ try {
     $agreement_src = brb_agreement_html();
     brb_t(strpos($agreement_src, '22. Recording Notice. ' . $recording) !== false && strpos($agreement_html, '22. Recording Notice. ' . $recording) !== false && strpos($agreement_src, 'consent to that recording') !== false && strpos($agreement_html, 'consent to that recording') !== false && strpos($agreement_src, '21. Entire Agreement; Authority to Sign.') < strpos($agreement_src, '22. Recording Notice.') && strpos($agreement_src, '22. Recording Notice.') < strpos($agreement_src, 'IN WITNESS WHEREOF') && strpos($terms_html, '22. Recording') !== false && strpos($terms_html, 'Cameras are not used in restrooms.') !== false && strpos($terms_html, '21. The whole agreement') < strpos($terms_html, '22. Recording'), 'the rental agreement and the terms page both state the recording notice after section 21');
     brb_t(strpos($agreement_html, '2212 37th Street') === false && strpos($agreement_html, '2212 47 Ave') === false, 'signed agreement body is not rewritten to the site address');
+    // Task #72: the legal entity is Boardroom QC LLC. Mad Productions appears only inside the Released Parties list.
+    $released_def = 'Boardroom QC LLC, Mad Rentals, and Mad Productions, and each of their members and managers (collectively, the "Released Parties")';
+    $negligence = 'including claims arising from the negligence of the Released Parties, except for gross negligence or willful misconduct';
+    $legal_docs = [
+        'stored agreement' => html_entity_decode($agreement_html, ENT_QUOTES),
+        'agreement source' => html_entity_decode(brb_agreement_html(), ENT_QUOTES),
+        'stored terms' => html_entity_decode($terms_html, ENT_QUOTES),
+        'terms source' => html_entity_decode(brb_terms_html(), ENT_QUOTES),
+        'stored privacy' => html_entity_decode($privacy_html, ENT_QUOTES),
+        'privacy source' => html_entity_decode(brb_privacy_html(), ENT_QUOTES),
+    ];
+    foreach ($legal_docs as $label => $doc) {
+        brb_t(stripos($doc, 'MAD Productions, LLC') === false && stripos($doc, 'operated by Mad Productions') === false && stripos($doc, 'between Mad Productions') === false, $label . ' does not name MAD Productions, LLC as Owner');
+        brb_t(substr_count($doc, 'Mad Productions') === substr_count($doc, 'Mad Rentals, and Mad Productions') + substr_count($doc, 'checks payable to Mad Productions'), $label . ' names Mad Productions only in the Released Parties list or the check payee line');
+        brb_t(strpos($doc, 'Boardroom QC LLC') !== false && strpos($doc, 'The Boardroom QC LLC') === false, $label . ' names Boardroom QC LLC without a leading The');
+    }
+    foreach (['stored agreement', 'agreement source'] as $label) {
+        $doc = $legal_docs[$label];
+        brb_t(strpos($doc, 'by and between Boardroom QC LLC, an Illinois limited liability company (the "Owner")') !== false, $label . ' names Boardroom QC LLC as Owner in the intro');
+        brb_t(strpos($doc, "THE OWNER\n\nBoardroom QC LLC") !== false || preg_match('#THE OWNER</p>\s*<p>Boardroom QC LLC</p>#', $doc) === 1, $label . ' signature block names Boardroom QC LLC');
+        $s5 = strpos($doc, '5. Required Renters Insurance.');
+        $s6 = strpos($doc, '6. Outside Vendors');
+        $s14 = strpos($doc, '14. Indemnification, Hold Harmless, and Release.');
+        $s15 = strpos($doc, '15. Attorney Fees');
+        $sec5 = ($s5 !== false && $s6 !== false) ? substr($doc, $s5, $s6 - $s5) : '';
+        $sec14 = ($s14 !== false && $s15 !== false) ? substr($doc, $s14, $s15 - $s14) : '';
+        brb_t(strpos($sec5, 'Owner may require that ' . $released_def . ', The Boardroom QC, the Venue owner, and any related parties designated by Owner be named as additional insureds') !== false, $label . ' section 5 defines the Released Parties as the three entities and their members and managers');
+        brb_t(strpos($sec5, $negligence) !== false, $label . ' section 5 covers the Released Parties\' negligence except gross negligence or willful misconduct');
+        brb_t(strpos($sec14, 'hold harmless Owner, the Released Parties, The Boardroom QC, the Venue, the property owner, and their respective members, managers,') !== false && strpos($sec14, 'any breach of this Agreement.') !== false, $label . ' section 14 protects the Released Parties and keeps the rest of the list');
+        brb_t(strpos($sec14, $negligence) !== false, $label . ' section 14 covers the Released Parties\' negligence except gross negligence or willful misconduct');
+        brb_t(strpos($doc, '"Released Parties"') === strpos($sec5, '"Released Parties"') + $s5 && substr_count($doc, '(collectively, the "Released Parties")') === 1, $label . ' defines Released Parties once, at its first use in section 5');
+    }
+    foreach (['stored terms', 'terms source'] as $label) {
+        $doc = $legal_docs[$label];
+        brb_t(strpos($doc, 'operated by Boardroom QC LLC ("we" or "the Owner")') !== false, $label . ' names Boardroom QC LLC as Owner');
+        brb_t(strpos($doc, $released_def) !== false && substr_count($doc, $negligence) === 2, $label . ' summaries of sections 5 and 14 name the Released Parties and the negligence carve-out');
+    }
+    ob_start();
+    brb_place_schema();
+    $place_schema = (string) ob_get_clean();
+    brb_t(strpos($place_schema, '"legalName":"Boardroom QC LLC"') !== false && strpos($place_schema, '"name":"The Boardroom"') !== false, 'venue schema adds legalName Boardroom QC LLC and keeps the brand name');
+    $footer_src = (string) file_get_contents(get_template_directory() . '/footer.php');
+    brb_t(strpos($footer_src, "Boardroom QC LLC - All Rights Reserved.") !== false && stripos($footer_src, 'Mad Productions') === false, 'footer copyright names Boardroom QC LLC');
     $contact = get_page_by_path('contact');
     $contact_html = $contact ? (string) $contact->post_content : '';
     brb_t(strpos($contact_html, '2220 37th Street') === false && strpos($contact_html, 'mailto:') === false && strpos($contact_html, 'Get directions') === false && strpos($contact_html, 'PLACEHOLDER') === false, 'stored contact content does not repeat the address, email, or directions');
