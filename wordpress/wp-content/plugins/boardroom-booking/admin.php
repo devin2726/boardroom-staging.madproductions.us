@@ -53,13 +53,31 @@ function brb_admin_note() {
 add_action('admin_post_brb_price', function () {
     brb_admin_gate('brb_price');
     $id = (int) ($_POST['booking'] ?? 0);
-    $res = brb_set_agreed_price($id, wp_unslash($_POST['agreed_price'] ?? ''));
+    $res = brb_set_agreed_price($id, wp_unslash($_POST['agreed_price'] ?? ''), false);
     if (is_wp_error($res)) brb_admin_back($id, $res->get_error_message());
-    brb_admin_back($id, brb_ref($res) . ' agreed price set to ' . brb_money($res->total) . '. The guest was emailed the check amount.');
+    brb_admin_back($id, brb_ref($res) . ' agreed price set to ' . brb_money($res->total) . '. No email was sent.');
+});
+add_action('admin_post_brb_price_email', function () {
+    brb_admin_gate('brb_price_email');
+    $id = (int) ($_POST['booking'] ?? 0);
+    $choice = sanitize_key(wp_unslash($_POST['email_guest'] ?? ''));
+    if ($choice !== '1' && $choice !== '0') brb_admin_back($id, 'Choose Send or Don\'t email.');
+    $b = brb_booking($id);
+    if (!$b) brb_admin_back(0, 'Booking not found.');
+    if (!brb_price_is_set($b)) brb_admin_back($id, 'Save the rental price before emailing the guest.');
+    if ($choice === '1') {
+        brb_send_price_email($b);
+        brb_audit_append($id, 'emailed the guest the total from the preview');
+        brb_admin_back($id, brb_ref($b) . ' price email sent.');
+    }
+    brb_audit_append($id, 'price email skipped from the preview');
+    brb_admin_back($id, brb_ref($b) . ' was not emailed.');
 });
 add_action('admin_post_brb_payment', function () {
     brb_admin_gate('brb_payment');
     $id = (int) ($_POST['booking'] ?? 0);
+    $choice = sanitize_key(wp_unslash($_POST['email_guest'] ?? ''));
+    if ($choice !== '1' && $choice !== '0') brb_admin_back($id, 'Choose Send or Don\'t email.');
     $method = sanitize_key(wp_unslash($_POST['method'] ?? 'check'));
     $res = brb_record_payment(
         $id,
@@ -68,10 +86,13 @@ add_action('admin_post_brb_payment', function () {
         sanitize_text_field(wp_unslash($_POST['received_on'] ?? '')),
         wp_unslash($_POST['pay_notes'] ?? ''),
         false,
-        $method
+        $method,
+        ['notify' => $choice === '1']
     );
     if (is_wp_error($res)) brb_admin_back($id, $res->get_error_message());
-    brb_admin_back($id, brb_ref($res) . ' updated: ' . brb_status_label($res->status) . '. The guest was emailed.');
+    $note = brb_ref($res) . ' updated: ' . brb_status_label($res->status) . '.';
+    $note .= $choice === '1' ? ' The guest was emailed.' : ' The guest was not emailed.';
+    brb_admin_back($id, $note);
 });
 add_action('admin_post_brb_line', function () {
     brb_admin_gate('brb_line');
@@ -124,21 +145,79 @@ add_action('admin_post_brb_edit_booking', function () {
     $id = (int) ($_POST['booking'] ?? 0);
     $res = brb_save_booking_edit($id, wp_unslash($_POST));
     if (is_wp_error($res)) brb_admin_back($id, $res->get_error_message());
-    brb_admin_back($id, brb_ref($res) . ' updated.');
+    brb_admin_back($id, brb_ref($res) . ' updated. No email was sent.');
+});
+add_action('admin_post_brb_save_changes', function () {
+    brb_admin_gate('brb_save_changes');
+    $id = (int) ($_POST['booking'] ?? 0);
+    $res = brb_save_booking_changes($id, wp_unslash($_POST));
+    if (is_wp_error($res)) brb_admin_back($id, $res->get_error_message());
+    brb_admin_back($id, brb_ref($res) . ' saved. No email was sent.');
 });
 add_action('admin_post_brb_approve', function () {
     brb_admin_gate('brb_approve');
     $id = (int) ($_POST['booking'] ?? 0);
-    $res = brb_approve_booking($id);
+    $choice = sanitize_key(wp_unslash($_POST['email_guest'] ?? ''));
+    if ($choice !== '1' && $choice !== '0') brb_admin_back($id, 'Choose Send or Don\'t email.');
+    $res = brb_approve_booking($id, $choice === '1');
     if (is_wp_error($res)) brb_admin_back($id, $res->get_error_message());
-    brb_admin_back($id, brb_ref($res) . ' approved. The guest was emailed that the date is not held until the deposit is received.');
+    $note = brb_ref($res) . ' approved. Held after approval; reserved when the deposit is received.';
+    $note .= $choice === '1' ? ' The guest was emailed.' : ' The guest was not emailed.';
+    brb_admin_back($id, $note);
 });
 add_action('admin_post_brb_decline', function () {
     brb_admin_gate('brb_decline');
     $id = (int) ($_POST['booking'] ?? 0);
-    $res = brb_decline_booking($id);
+    $choice = sanitize_key(wp_unslash($_POST['email_guest'] ?? ''));
+    if ($choice !== '1' && $choice !== '0') brb_admin_back($id, 'Choose Decline and send email, or Decline without emailing.');
+    $b = brb_booking($id);
+    if (!$b) brb_admin_back(0, 'Booking not found.');
+    $dates = brb_collect_decline_dates(wp_unslash($_POST), $b);
+    if (is_wp_error($dates)) brb_admin_back($id, $dates->get_error_message());
+    $res = brb_decline_booking($id, [
+        'send' => $choice === '1',
+        'message' => sanitize_textarea_field(wp_unslash($_POST['decline_message'] ?? '')),
+        'dates' => $dates,
+    ]);
     if (is_wp_error($res)) brb_admin_back($id, $res->get_error_message());
-    brb_admin_back($id, brb_ref($res) . ' declined. The date is not reserved.');
+    $note = brb_ref($res) . ' declined. The date is not reserved.';
+    $note .= $choice === '1' ? ' The guest was emailed.' : ' The guest was not emailed.';
+    brb_admin_back($id, $note);
+});
+add_action('admin_post_brb_spam', function () {
+    brb_admin_gate('brb_spam');
+    $id = (int) ($_POST['booking'] ?? 0);
+    $res = brb_flag_spam_booking($id);
+    if (is_wp_error($res)) brb_admin_back($id, $res->get_error_message());
+    brb_admin_back($id, brb_ref($res) . ' flagged as spam/joke. No email was sent.');
+});
+add_action('wp_ajax_brb_decline_preview', function () {
+    if (!current_user_can('manage_options')) wp_send_json_error(['message' => 'Sorry, you are not allowed to do that.'], 403);
+    check_ajax_referer('brb_decline');
+    $id = (int) ($_POST['booking'] ?? 0);
+    $b = brb_booking($id);
+    if (!$b) wp_send_json_error(['message' => 'Booking not found.'], 404);
+    $dates = brb_collect_decline_dates(wp_unslash($_POST), $b);
+    if (is_wp_error($dates)) wp_send_json_error(['message' => $dates->get_error_message()]);
+    $message = sanitize_textarea_field(wp_unslash($_POST['decline_message'] ?? ''));
+    wp_send_json_success(['body' => brb_decline_guest_body($b, $message, $dates)]);
+});
+add_action('wp_ajax_brb_payment_preview', function () {
+    if (!current_user_can('manage_options')) wp_send_json_error(['message' => 'Sorry, you are not allowed to do that.'], 403);
+    check_ajax_referer('brb_payment');
+    $id = (int) ($_POST['booking'] ?? 0);
+    $b = brb_booking($id);
+    if (!$b) wp_send_json_error(['message' => 'Booking not found.'], 404);
+    $message = brb_preview_payment_message(
+        $b,
+        wp_unslash($_POST['amount'] ?? ''),
+        wp_unslash($_POST['check_number'] ?? ''),
+        sanitize_text_field(wp_unslash($_POST['received_on'] ?? '')),
+        wp_unslash($_POST['pay_notes'] ?? ''),
+        sanitize_key(wp_unslash($_POST['method'] ?? 'check'))
+    );
+    if (is_wp_error($message)) wp_send_json_error(['message' => $message->get_error_message()]);
+    wp_send_json_success(['body' => $message['body']]);
 });
 add_action('admin_post_brb_cancel', function () {
     brb_admin_gate('brb_cancel');
@@ -150,13 +229,14 @@ add_action('admin_post_brb_cancel', function () {
 add_action('admin_post_brb_delete', function () {
     brb_admin_gate('brb_delete');
     $id = (int) ($_POST['booking'] ?? 0);
-    $res = brb_delete_booking($id);
+    $confirm = sanitize_text_field(wp_unslash($_POST['confirm_ref'] ?? ''));
+    $res = brb_delete_booking($id, $confirm);
     if (is_wp_error($res)) brb_admin_back($id, $res->get_error_message());
     brb_admin_back(0, 'Booking deleted.');
 });
 function brb_admin_list_url($status = '') {
     $url = admin_url('admin.php?page=brb');
-    $allowed = ['review', 'approved', 'deposit_paid', 'paid', 'declined', 'cancelled', 'expired', 'held', 'card_review'];
+    $allowed = ['review', 'approved', 'deposit_paid', 'paid', 'declined', 'cancelled', 'expired', 'held', 'card_review', 'spam'];
     if (in_array($status, $allowed, true)) $url = add_query_arg('status', $status, $url);
     return $url;
 }
@@ -265,7 +345,7 @@ function brb_admin_list_query($extra = []) {
 }
 function brb_admin_list() {
     global $wpdb;
-    $allowed = ['review', 'approved', 'deposit_paid', 'paid', 'declined', 'cancelled', 'expired', 'held', 'card_review'];
+    $allowed = ['review', 'approved', 'deposit_paid', 'paid', 'declined', 'cancelled', 'expired', 'held', 'card_review', 'spam'];
     $f = sanitize_key($_GET['status'] ?? '');
     if (!in_array($f, $allowed, true)) $f = '';
     $q = sanitize_text_field(wp_unslash($_GET['q'] ?? ''));
@@ -279,11 +359,17 @@ function brb_admin_list() {
     $where = '1=1';
     $params = [];
     if ($f === 'card_review') {
-        $where .= ' AND attention=%s';
+        $where .= ' AND attention=%s AND status<>%s';
         $params[] = brb_stripe_review_mark();
+        $params[] = 'spam';
+    } elseif ($f === 'spam') {
+        $where .= ' AND status=%s';
+        $params[] = 'spam';
     } elseif ($f !== '') {
         $where .= ' AND status=%s';
         $params[] = $f;
+    } else {
+        $where .= " AND status<>'spam'";
     }
     if ($q !== '') {
         $like = '%' . $wpdb->esc_like($q) . '%';
@@ -326,7 +412,7 @@ function brb_admin_list() {
     echo '<label for="brb-q">Search <input id="brb-q" name="q" value="' . esc_attr($q) . '" placeholder="Name, email, phone, or BR-#"></label> ';
     echo '<button class="button">Search</button></form>';
     echo '<p style="margin-top:12px">';
-    $filters = ['' => 'All', 'review' => 'Pending review', 'approved' => 'Approved, deposit due', 'deposit_paid' => 'Deposit paid', 'paid' => 'Paid in full', 'declined' => 'Declined', 'cancelled' => 'Cancelled', 'expired' => 'Expired', 'card_review' => 'Needs staff review'];
+    $filters = ['' => 'All', 'review' => 'Pending review', 'approved' => 'Approved, deposit due', 'deposit_paid' => 'Deposit paid', 'paid' => 'Paid in full', 'declined' => 'Declined', 'cancelled' => 'Cancelled', 'expired' => 'Expired', 'spam' => 'Flagged as spam/joke', 'card_review' => 'Needs staff review'];
     foreach ($filters as $k => $l) {
         $url = brb_admin_list_query(['status' => $k, 'q' => $q, 'orderby' => $orderby, 'order' => $order]);
         printf('<a class="button%s" href="%s">%s</a> ', $f === $k ? ' button-primary' : '', esc_url($url), esc_html($l));
@@ -355,7 +441,9 @@ function brb_admin_list() {
     foreach ($rows as $b) {
         $set = brb_price_is_set($b);
         $balance = $set ? max(0, round((float) $b->total - (float) $b->amount_paid, 2)) : 0;
-        $until = in_array($b->status, ['deposit_paid', 'paid', 'confirmed'], true) ? 'Yes' : 'No';
+        if (in_array($b->status, ['deposit_paid', 'paid', 'confirmed'], true)) $until = 'Yes';
+        elseif (in_array($b->status, ['approved', 'held'], true)) $until = 'Held';
+        else $until = 'No';
         $guest_email = brb_email_customer_anchor($b, (string) $b->email);
         if ($guest_email === '') $guest_email = esc_html($b->email);
         $dup_note = '';
@@ -471,10 +559,7 @@ function brb_admin_card_payment($b) {
             echo ' <span class="description">' . esc_html('Add BRB_STRIPE_SECRET_KEY on the server.') . ' <a href="' . esc_url(admin_url('admin.php?page=brb-settings')) . '">Booking Settings</a></span>';
         }
         if (!$met && $key === 'approved' && in_array((string) $b->status, ['review', 'pending'], true)) {
-            echo ' <form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="display:inline">';
-            echo '<input type="hidden" name="action" value="brb_approve"><input type="hidden" name="booking" value="' . (int) $b->id . '">';
-            wp_nonce_field('brb_approve');
-            echo '<button class="button button-primary">Approve</button></form>';
+            echo ' <a class="button button-primary" href="#brb-approve">Approve</a>';
         }
         echo '</li>';
     }
@@ -520,16 +605,10 @@ function brb_admin_detail($id) {
         $rows['Cleaning'] = brb_money($b->cleaning);
         $rows['Tax'] = brb_money($b->tax);
     }
-    $rows['Agreed price'] = $set ? brb_money($b->total) : 'Price to be confirmed';
-    $rows['Deposit that reserves the date'] = $set ? brb_money($b->deposit_due) : 'Price to be confirmed';
-    $rows['Paid'] = brb_money($b->amount_paid);
-    $rows['Balance'] = $set ? brb_money($balance) : 'Price to be confirmed';
-    $rows['Balance due'] = brb_balance_due_display($b);
     $rows['Walk-through'] = !empty($b->walkthrough_done) ? 'Completed' : 'Not yet';
-    $rows['Refundable damage deposit'] = brb_money($b->damage_deposit ?? 0) . ((float) ($b->damage_paid ?? 0) > 0.009 ? ' paid ' . brb_money($b->damage_paid) : ' not paid yet') . (!empty($b->damage_refunded) ? ' (marked refunded)' : '');
     $rows['Setup day'] = !empty($b->setup_addon) ? 'Added' : 'No';
     $rows['Takedown day'] = !empty($b->takedown_addon) ? 'Added' : 'No';
-    $rows['Date reserved'] = in_array($b->status, ['deposit_paid', 'paid', 'confirmed'], true) ? 'Yes, a deposit has been received' : 'No, not until the deposit is received';
+    $rows['Date hold'] = brb_date_hold_state($b);
     foreach ($rows as $label => $val) {
         echo '<tr><th style="width:280px">' . esc_html($label) . '</th><td>' . nl2br(esc_html((string) $val));
         if ($label === 'Email') {
@@ -539,31 +618,48 @@ function brb_admin_detail($id) {
         echo '</td></tr>';
     }
     echo '</tbody></table>';
+    $money = brb_booking_money($b);
+    echo '<h2>Money</h2><table class="widefat" style="max-width:760px"><tbody>';
+    foreach ($money['rows'] as $label => $val) {
+        echo '<tr><th style="width:280px">' . esc_html($label) . '</th><td>' . esc_html((string) $val) . '</td></tr>';
+    }
+    echo '</tbody></table>';
+    echo '<h2>Edit history</h2>';
+    $history = brb_audit_entries($b->audit_log ?? '');
+    if (!$history) {
+        echo '<p>No edits yet.</p>';
+    } else {
+        echo '<ol class="brb-audit">';
+        foreach ($history as $line) echo '<li>' . esc_html($line) . '</li>';
+        echo '</ol>';
+    }
     $edit_date = substr((string) $b->start_dt, 0, 10);
-    echo '<h2>Edit booking</h2><form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="max-width:720px">';
-    echo '<input type="hidden" name="action" value="brb_edit_booking"><input type="hidden" name="booking" value="' . (int) $b->id . '">';
-    wp_nonce_field('brb_edit_booking');
+    if (empty($b->walkthrough_done)) {
+        echo '<div class="notice notice-warning"><p>The in-person walk-through is not marked complete. Approval and the payment link stay off until it is checked.</p></div>';
+    }
+    echo '<h2>Save changes</h2><form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="max-width:720px">';
+    echo '<input type="hidden" name="action" value="brb_save_changes"><input type="hidden" name="booking" value="' . (int) $b->id . '">';
+    wp_nonce_field('brb_save_changes');
     echo '<table class="form-table">';
     echo '<tr><th><label for="brb-edit-date">Date</label></th><td><input type="date" id="brb-edit-date" name="date" required value="' . esc_attr($edit_date) . '"></td></tr>';
     echo '<tr><th><label for="brb-edit-name">Name</label></th><td><input id="brb-edit-name" name="name" class="regular-text" required value="' . esc_attr($b->name) . '"></td></tr>';
     echo '<tr><th><label for="brb-edit-email">Email</label></th><td><input type="email" id="brb-edit-email" name="email" class="regular-text" required value="' . esc_attr($b->email) . '"></td></tr>';
     echo '<tr><th><label for="brb-edit-phone">Phone</label></th><td><input id="brb-edit-phone" name="phone" class="regular-text" value="' . esc_attr($b->phone) . '"></td></tr>';
     echo '<tr><th><label for="brb-edit-notes">Notes</label></th><td><textarea id="brb-edit-notes" name="notes" rows="4" class="large-text">' . esc_textarea($b->notes) . '</textarea></td></tr>';
-    echo '</table><p><button class="button button-primary">Save booking</button></p></form>';
-    if (trim((string) ($b->audit_log ?? '')) !== '') {
-        echo '<h2>Edit history</h2><pre class="brb-audit">' . esc_html($b->audit_log) . '</pre>';
-    }
-    if (empty($b->walkthrough_done)) {
-        echo '<div class="notice notice-warning"><p>The in-person walk-through is not marked complete. Approval and the payment link stay off until it is checked.</p></div>';
-    }
-    echo '<h2>Walk-through, deposit, and add-ons</h2><form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="max-width:640px">';
-    echo '<input type="hidden" name="action" value="brb_flags"><input type="hidden" name="booking" value="' . (int) $b->id . '">';
-    wp_nonce_field('brb_flags');
+    echo '</table>';
+    echo '<h2>Walk-through, deposit, and add-ons</h2>';
     echo '<p><label><input type="checkbox" name="walkthrough_done" value="1"' . (!empty($b->walkthrough_done) ? ' checked' : '') . '> Walk-through completed</label></p>';
     echo '<p>The refundable damage deposit is a flat ' . esc_html(brb_money(brb_damage_amount())) . '. It is charged with the booking deposit and is separate from the 50% that holds the date.</p>';
     echo '<p><label><input type="checkbox" name="setup_addon" value="1"' . (!empty($b->setup_addon) ? ' checked' : '') . '> Setup day</label></p>';
     echo '<p><label><input type="checkbox" name="takedown_addon" value="1"' . (!empty($b->takedown_addon) ? ' checked' : '') . '> Takedown day</label></p>';
-    echo '<p><button class="button">Save booking record</button></p></form>';
+    if ($b->status !== 'cancelled') {
+        echo '<h2>Agreed price</h2>';
+        $rental_line = brb_find_line_kind($b->id, 'rental');
+        $suggest = $rental_line ? brb_dec($rental_line->amount) : ($set ? brb_dec($b->total) : '');
+        echo '<table class="form-table"><tr><th><label for="agreed_price">Rental price</label></th><td><input name="agreed_price" id="agreed_price" type="number" step="0.01" min="0.01" value="' . esc_attr($suggest) . '"> <span class="description">This sets the Rental line only. Extras and discounts below are added on top. Saving does not email the guest.</span></td></tr></table>';
+    }
+    echo '<p><button class="button button-primary">Save changes</button></p>';
+    echo '<p class="description">Save changes stores the booking, the walk-through, add-ons, and the rental price. It never emails the guest.</p></form>';
     if (($b->public_event ?? '') === 'yes') {
         echo '<div class="notice notice-warning"><p>Open to the public. Staff review: all events must be free to attend. The Boardroom does not host concerts or ticketed shows.</p></div>';
     }
@@ -609,7 +705,7 @@ function brb_admin_detail($id) {
         echo '</td><td>' . esc_html(brb_money($line->amount)) . '</td><td>' . esc_html($line->kind) . (!empty($line->refundable) ? ', refundable' : '') . '</td><td></td></tr>';
     }
     echo '</tbody></table>';
-    echo '<p>Guest total: <strong>' . esc_html(brb_money($running)) . '</strong>. Refundable damage deposit: <strong>' . esc_html(brb_money($b->damage_deposit ?? 0)) . '</strong>.</p>';
+    echo '<p>Guest total: <strong>' . esc_html(brb_money($running)) . '</strong>. Refundable damage deposit: <strong>' . esc_html(brb_money(brb_booking_damage_figure($b))) . '</strong>.</p>';
     echo '<h2>Extras and discounts (optional)</h2>';
     echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="max-width:640px">';
     echo '<input type="hidden" name="action" value="brb_line"><input type="hidden" name="booking" value="' . (int) $b->id . '">';
@@ -617,16 +713,18 @@ function brb_admin_detail($id) {
     echo '<table class="form-table"><tr><th><label for="brb-extra-label">Label</label></th><td><input id="brb-extra-label" name="label" class="regular-text" placeholder="e.g. Extra cleaning or Returning guest discount" required></td></tr>';
     echo '<tr><th><label for="brb-extra-amount">Amount</label></th><td><input id="brb-extra-amount" name="amount" type="number" step="0.01" style="width:16em" placeholder="e.g. 150 or -100" required></td></tr></table>';
     echo '<p><button class="button">Add to total</button></p>';
-    echo '<p class="description">Optional. Adds a line to the total. Use a minus sign for a discount. The 50% deposit and payment link use the new total. The guest isn\'t emailed until you click \'Save rental price and email guest the total\' below. Paid lines can\'t be edited, so add a credit instead.</p></form>';
+    echo '<p class="description">Optional. Adds a line to the total. Use a minus sign for a discount. The 50% deposit and payment link use the new total. Adding a line does not email the guest. Paid lines can\'t be edited, so add a credit instead.</p></form>';
 
-    if ($b->status !== 'cancelled') {
-        echo '<h2>Agreed price</h2><form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="max-width:640px">';
-        echo '<input type="hidden" name="action" value="brb_price"><input type="hidden" name="booking" value="' . (int) $b->id . '">';
-        wp_nonce_field('brb_price');
-        $rental_line = brb_find_line_kind($b->id, 'rental');
-        $suggest = $rental_line ? brb_dec($rental_line->amount) : ($set ? brb_dec($b->total) : '');
-        echo '<table class="form-table"><tr><th><label for="agreed_price">Rental price</label></th><td><input name="agreed_price" id="agreed_price" type="number" step="0.01" min="0.01" value="' . esc_attr($suggest) . '" required> <span class="description">This sets the Rental line only. Extras and discounts above are added on top. Guest total: ' . esc_html(brb_money($running)) . '</span></td></tr></table>';
-        echo '<p><button class="button button-primary">Save rental price and email guest the total</button></p></form>';
+    if ($set && $b->status !== 'cancelled') {
+        $price_body = brb_price_guest_body($b);
+        echo '<details id="brb-price-email" style="max-width:720px;margin:16px 0"><summary class="button">Email guest the total</summary>';
+        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="margin-top:12px">';
+        echo '<input type="hidden" name="action" value="brb_price_email"><input type="hidden" name="booking" value="' . (int) $b->id . '">';
+        wp_nonce_field('brb_price_email');
+        echo '<p>This is the exact email the guest would receive for the saved price. Nothing is sent until you choose Send.</p>';
+        echo '<pre class="brb-audit" id="brb-price-preview">' . esc_html($price_body) . '</pre>';
+        echo '<p><button class="button button-primary" name="email_guest" value="1">Send</button> ';
+        echo '<button class="button" name="email_guest" value="0">Don\'t email</button></p></form></details>';
     }
 
     if (!in_array($b->status, ['cancelled', 'declined', 'expired', 'paid'], true)) brb_admin_card_payment($b);
@@ -636,7 +734,7 @@ function brb_admin_detail($id) {
     }
     $damage_left_now = brb_damage_left($b);
     if ($set && !in_array($b->status, ['cancelled', 'expired', 'paid'], true) && ($balance > 0.009 || $damage_left_now > 0.009)) {
-        echo '<h2>Record payment</h2><form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="max-width:640px">';
+        echo '<h2>Record payment</h2><form id="brb-payment-form" method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="max-width:640px">';
         echo '<input type="hidden" name="action" value="brb_payment"><input type="hidden" name="booking" value="' . (int) $b->id . '">';
         wp_nonce_field('brb_payment');
         $toward = round((float) $b->deposit_due - (float) $b->amount_paid, 2);
@@ -652,19 +750,56 @@ function brb_admin_detail($id) {
         echo '<tr><th><label for="check_number">Check number</label></th><td><input name="check_number" id="check_number" class="regular-text"> <span class="description">Only for a check. Leave this blank for cash.</span></td></tr>';
         echo '<tr><th><label for="received_on">Date received</label></th><td><input name="received_on" id="received_on" type="date" value="' . esc_attr(brb_now()->format('Y-m-d')) . '" required></td></tr>';
         echo '<tr><th><label for="pay_notes">Notes</label></th><td><textarea name="pay_notes" id="pay_notes" rows="3" class="large-text"></textarea></td></tr></table>';
-        echo '<p><button class="button button-primary">Record payment and email guest</button></p></form>';
+        $pay_preview = brb_preview_payment_message($b, $bundle, '', brb_now()->format('Y-m-d'), '', 'check');
+        $pay_preview_body = is_wp_error($pay_preview) ? $pay_preview->get_error_message() : $pay_preview['body'];
+        echo '<p>This is the exact receipt for the amount, method, and notes above. Nothing is recorded or emailed until you choose Send or Don\'t email.</p>';
+        echo '<pre class="brb-audit" id="brb-payment-preview">' . esc_html($pay_preview_body) . '</pre>';
+        echo '<p><button class="button button-primary" name="email_guest" value="1">Send</button> ';
+        echo '<button class="button" name="email_guest" value="0">Don\'t email</button></p></form>';
+        echo '<script>(function(){var form=document.getElementById("brb-payment-form");var preview=document.getElementById("brb-payment-preview");if(!form||!preview)return;var timer;function refresh(){var data=new FormData(form);data.set("action","brb_payment_preview");fetch(ajaxurl,{method:"POST",credentials:"same-origin",body:data}).then(function(r){return r.json();}).then(function(res){if(res&&res.success)preview.textContent=res.data.body;else if(res&&res.data&&res.data.message)preview.textContent=res.data.message;});}form.addEventListener("input",function(){clearTimeout(timer);timer=setTimeout(refresh,200);});form.addEventListener("change",function(){clearTimeout(timer);timer=setTimeout(refresh,200);});})();</script>';
     }
 
-    echo '<h2>Actions</h2><div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end">';
+    echo '<h2>Actions</h2><div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start">';
     if (in_array($b->status, ['review', 'pending'], true)) {
-        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '"><input type="hidden" name="action" value="brb_approve"><input type="hidden" name="booking" value="' . (int) $b->id . '">';
+        echo '<details id="brb-approve"><summary class="button button-primary">Approve</summary>';
+        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="max-width:640px;margin-top:12px">';
+        echo '<input type="hidden" name="action" value="brb_approve"><input type="hidden" name="booking" value="' . (int) $b->id . '">';
         wp_nonce_field('brb_approve');
-        echo '<button class="button button-primary">Approve</button></form>';
+        echo '<p>This is the exact approval email. Nothing is approved or emailed until you choose Send or Don\'t email.</p>';
+        echo '<pre class="brb-audit">' . esc_html(brb_approve_guest_body($b)) . '</pre>';
+        echo '<p><button class="button button-primary" name="email_guest" value="1">Send</button> ';
+        echo '<button class="button" name="email_guest" value="0">Don\'t email</button></p></form></details>';
     }
     if (in_array($b->status, ['review', 'approved', 'pending', 'held', 'deposit_paid'], true)) {
-        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" onsubmit="return confirm(\'Decline this request? The date is not reserved.\');"><input type="hidden" name="action" value="brb_decline"><input type="hidden" name="booking" value="' . (int) $b->id . '">';
+        $free_from = brb_now()->format('Y-m-d');
+        $free_until = brb_now()->modify('+12 months')->format('Y-m-d');
+        $own_day = substr((string) $b->start_dt, 0, 10);
+        $free_days = array_values(array_filter(brb_free_full_days($free_from, $free_until, (int) $b->id), function ($ymd) use ($own_day) {
+            return $ymd !== $own_day;
+        }));
+        echo '<details id="brb-decline"><summary class="button">Decline</summary>';
+        echo '<form id="brb-decline-form" method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="max-width:640px;margin-top:12px">';
+        echo '<input type="hidden" name="action" value="brb_decline"><input type="hidden" name="booking" value="' . (int) $b->id . '">';
         wp_nonce_field('brb_decline');
-        echo '<button class="button">Decline</button></form>';
+        echo '<p><label for="brb-decline-message">Personal message (optional)<br><textarea id="brb-decline-message" name="decline_message" rows="4" class="large-text" maxlength="2000"></textarea></label></p>';
+        echo '<p>Suggest up to 3 dates. The list only includes dates that are free on the calendar.</p>';
+        for ($i = 1; $i <= 3; $i++) {
+            echo '<p><label for="brb-alt-date-' . $i . '">Suggested date ' . $i . '<br>';
+            echo '<select id="brb-alt-date-' . $i . '" name="alt_date_' . $i . '">';
+            echo '<option value="">None</option>';
+            foreach ($free_days as $ymd) {
+                echo '<option value="' . esc_attr($ymd) . '">' . esc_html($ymd) . '</option>';
+            }
+            echo '</select></label></p>';
+        }
+        echo '<p>This is the exact email the guest would receive. Nothing is sent until you choose Decline and send email.</p>';
+        echo '<pre class="brb-audit" id="brb-decline-preview">' . esc_html(brb_decline_guest_body($b)) . '</pre>';
+        echo '<p><button class="button button-primary" name="email_guest" value="1">Decline and send email</button> ';
+        echo '<button class="button" name="email_guest" value="0">Decline without emailing</button></p></form>';
+        echo '<script>(function(){var form=document.getElementById("brb-decline-form");var preview=document.getElementById("brb-decline-preview");if(!form||!preview)return;var timer;function refresh(){var data=new FormData(form);data.set("action","brb_decline_preview");fetch(ajaxurl,{method:"POST",credentials:"same-origin",body:data}).then(function(r){return r.json();}).then(function(res){if(res&&res.success)preview.textContent=res.data.body;else if(res&&res.data&&res.data.message)preview.textContent=res.data.message;});}form.addEventListener("input",function(){clearTimeout(timer);timer=setTimeout(refresh,200);});form.addEventListener("change",function(){clearTimeout(timer);timer=setTimeout(refresh,200);});})();</script></details>';
+        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '"><input type="hidden" name="action" value="brb_spam"><input type="hidden" name="booking" value="' . (int) $b->id . '">';
+        wp_nonce_field('brb_spam');
+        echo '<button class="button">Flag as spam/joke</button></form>';
     }
     if ((float) ($b->damage_paid ?? 0) > 0.009 && empty($b->damage_refunded)) {
         echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '"><input type="hidden" name="action" value="brb_refund_damage"><input type="hidden" name="booking" value="' . (int) $b->id . '">';
@@ -681,9 +816,15 @@ function brb_admin_detail($id) {
         wp_nonce_field('brb_cancel');
         echo '<button class="button">Cancel booking</button></form>';
     }
-    echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" onsubmit="return confirm(\'Delete this booking and its payment records? This cannot be undone.\');"><input type="hidden" name="action" value="brb_delete"><input type="hidden" name="booking" value="' . (int) $b->id . '">';
-    wp_nonce_field('brb_delete');
-    echo '<button class="button button-link-delete">Delete booking</button></form>';
+    if (brb_booking_has_recorded_payment($b)) {
+        echo '<p>This booking has a recorded payment. Cancel it instead of deleting it.</p>';
+    } else {
+        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '"><input type="hidden" name="action" value="brb_delete"><input type="hidden" name="booking" value="' . (int) $b->id . '">';
+        wp_nonce_field('brb_delete');
+        echo '<p><label>Type <strong>' . esc_html(brb_ref($b)) . '</strong> to confirm<br><input name="confirm_ref" autocomplete="off" required aria-label="' . esc_attr('Type ' . brb_ref($b) . ' to delete') . '"></label></p>';
+        echo '<p>This cannot be undone.</p>';
+        echo '<button class="button button-link-delete">Delete booking</button></form>';
+    }
     echo '</div>';
 
     $pays = brb_payments($b->id);
@@ -777,7 +918,7 @@ function brb_cal_span_label($start, $end, $mode = '') {
     return $start->format('g:i A') . '–' . $end->format('g:i A');
 }
 function brb_cal_closed_statuses() {
-    return ['cancelled', 'declined', 'expired'];
+    return ['cancelled', 'declined', 'expired', 'spam'];
 }
 function brb_admin_cal() {
     global $wpdb;
@@ -1015,7 +1156,7 @@ function brb_bookings_on_day($ymd) {
         return [];
     }
     $rows = $wpdb->get_results($wpdb->prepare(
-        'SELECT * FROM ' . brb_table() . ' WHERE start_dt < %s AND end_dt > %s ORDER BY start_dt ASC',
+        'SELECT * FROM ' . brb_table() . " WHERE start_dt < %s AND end_dt > %s AND status<>'spam' ORDER BY start_dt ASC",
         $day->modify('+1 day')->format('Y-m-d H:i:s'),
         $day->format('Y-m-d H:i:s')
     ));

@@ -180,7 +180,7 @@ function brb_ensure_addon_line($booking_id, $which) {
 function brb_save_custom_line($booking_id, $label, $amount, $line_id = 0) {
     $b = brb_booking($booking_id);
     if (!$b) return new WP_Error('missing', 'Booking not found.');
-    if (in_array($b->status, ['cancelled', 'declined'], true)) return new WP_Error('status', 'That booking cannot take a charge.');
+    if (in_array($b->status, ['cancelled', 'declined', 'spam'], true)) return new WP_Error('status', 'That booking cannot take a charge.');
     $label = trim(sanitize_text_field($label));
     if ($label === '') return new WP_Error('label', 'Enter a label for the charge.');
     $amount = round((float) $amount, 2);

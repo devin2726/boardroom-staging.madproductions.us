@@ -78,7 +78,7 @@ add_filter('pre_wp_mail', function ($short, $atts) {
 $GLOBALS['brb_mails'] = [];
 
 try {
-    brb_t(get_option('brb_version') === '2.5.60', 'plugin storage version is 2.5.60');
+    brb_t(get_option('brb_version') === '2.5.61', 'plugin storage version is 2.5.61');
     wp_set_current_user(0);
     $sample = (object) ['id' => 7];
     $saved_http_host = array_key_exists('HTTP_HOST', $_SERVER) ? $_SERVER['HTTP_HOST'] : null;

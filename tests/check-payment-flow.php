@@ -45,7 +45,7 @@ add_filter('pre_wp_mail', function ($short, $atts) {
 $GLOBALS['brb_mails'] = [];
 
 try {
-    brb_t(get_option('brb_version') === '2.5.60', 'plugin storage version is 2.5.60');
+    brb_t(get_option('brb_version') === '2.5.61', 'plugin storage version is 2.5.61');
     $cc_before = (string) brb_opt('inquiry_cc');
     delete_option('brb_inquiry_cc_seeded');
     $cc_settings = get_option('brb_settings');
@@ -632,7 +632,7 @@ try {
             $saved_admin = ob_get_clean();
             brb_t(strpos($saved_admin, 'Event type') !== false && strpos($saved_admin, 'Wedding') !== false && strpos($saved_admin, 'Alcohol served') !== false && strpos($saved_admin, '>Yes<') !== false, 'admin detail still shows a saved event type and alcohol answer');
             brb_t(strpos($admin_html, 'Payments recorded') !== false && strpos($admin_html, '>Check<') !== false, 'payments list shows the check method');
-            brb_t(strpos($admin_html, 'Delete booking') !== false && strpos($admin_html, 'value="brb_delete"') !== false && strpos($admin_html, 'This cannot be undone') !== false && strpos($admin_html, '_wpnonce') !== false, 'a paid booking can be deleted from its page');
+            brb_t(strpos($admin_html, 'Cancel booking') !== false && strpos($admin_html, 'recorded payment') !== false && strpos($admin_html, 'value="brb_delete"') === false, 'a paid booking cannot be deleted from its page and staff are pointed to Cancel');
             foreach ($banned as $w) brb_t(stripos($admin_html, $w) === false, "admin detail has no $w");
             ob_start();
             brb_admin_settings();
@@ -1145,7 +1145,7 @@ try {
             ob_start();
             brb_admin_detail((int) $cash_b->id);
             $cash_admin = ob_get_clean();
-            brb_t(strpos($cash_admin, 'Record payment') !== false && strpos($cash_admin, 'name="method"') !== false && strpos($cash_admin, '>Cash<') !== false && strpos($cash_admin, 'Delete booking') !== false && strpos($cash_admin, 'value="brb_delete"') !== false, 'staff can record cash and delete an open booking from its page');
+            brb_t(strpos($cash_admin, 'Record payment') !== false && strpos($cash_admin, 'name="method"') !== false && strpos($cash_admin, '>Cash<') !== false && strpos($cash_admin, 'recorded payment') !== false && strpos($cash_admin, 'value="brb_delete"') === false, 'staff can record cash, and a booking with a payment cannot be deleted from its page');
             brb_t(strpos($cash_admin, 'name="check_number" id="check_number" class="regular-text"') !== false && strpos($cash_admin, 'name="check_number" id="check_number" class="regular-text" required') === false, 'the check number field is present and not required');
         }
         $_GET = ['br_token' => $cash_after && !is_wp_error($cash_after) ? $cash_after->token : ''];
@@ -1174,11 +1174,11 @@ try {
             ob_start();
             brb_admin_detail((int) $del->id);
             $open_html = ob_get_clean();
-            brb_t(strpos($open_html, 'Delete booking') !== false && strpos($open_html, 'value="brb_delete"') !== false && strpos($open_html, 'This cannot be undone') !== false && strpos($open_html, '_wpnonce') !== false && strpos($open_html, 'Cancel booking') !== false, 'delete is on the booking page next to cancel, before the booking is cancelled');
+            brb_t(strpos($open_html, 'recorded payment') !== false && strpos($open_html, 'Cancel booking') !== false && strpos($open_html, 'value="brb_delete"') === false, 'a booking with a payment points staff to Cancel instead of delete');
         }
         $delete_mails = count($GLOBALS['brb_mails']);
         $removed = brb_delete_booking($del->id);
-        brb_t($removed === true && !brb_booking($del->id) && brb_payments($del->id) === [] && count($GLOBALS['brb_mails']) === $delete_mails, 'deleting from the booking page removes it and its payments and sends no email');
+        brb_t(is_wp_error($removed) && $removed->get_error_code() === 'paid' && brb_booking($del->id) && brb_payments($del->id) !== [] && count($GLOBALS['brb_mails']) === $delete_mails, 'deleting a booking with a payment is refused and sends no email');
     }
 
     $bulk_day = brb_now()->modify('+40 days')->format('Y-m-d');
@@ -1224,8 +1224,7 @@ try {
         brb_t(substr_count($all_list, 'brb-select-all') === 2 && strpos($all_list, 'name="booking_ids[]"') !== false && strpos($all_list, 'Delete selected') !== false && strpos($all_list, 'value="' . (int) $bulk_a->id . '"') !== false && strpos($all_list, 'value="brb_bulk_delete"') !== false && strpos($paid_list, 'name="status" value="paid"') !== false, 'the bookings list has select-all, row checkboxes, and keeps the status filter');
         $mail_before = count($GLOBALS['brb_mails']);
         $removed_n = brb_bulk_delete_bookings([(string) $bulk_a->id, 0, 'nope', $bulk_a->id]);
-        brb_t($removed_n === 1 && !brb_booking($bulk_a->id) && brb_payments($bulk_a->id) === [] && brb_lines($bulk_a->id) === [] && brb_booking($bulk_b->id) && count($GLOBALS['brb_mails']) === $mail_before, 'bulk delete removes only the selected booking, its payments and line items, and sends no email');
-        brb_t($start && $end && brb_is_free($start, $end), 'deleting the booking frees its calendar date');
+        brb_t($removed_n === 0 && brb_booking($bulk_a->id) && brb_payments($bulk_a->id) !== [] && brb_lines($bulk_a->id) !== [] && brb_booking($bulk_b->id) && count($GLOBALS['brb_mails']) === $mail_before && $start && $end && !brb_is_free($start, $end), 'bulk delete does not remove a booking that has a recorded payment, and the date stays reserved');
         $still_open = brb_process_public_booking([
             'date' => brb_now()->modify('+42 days')->format('Y-m-d'),
             'type' => 'day',

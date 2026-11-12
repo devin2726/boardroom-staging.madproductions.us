@@ -533,7 +533,7 @@ function brb_report_build($start, $end) {
     $payments = $wpdb->get_results($wpdb->prepare(
         "SELECT p.*, b.event_type, b.email, b.status AS booking_status, b.total, b.deposit_due, b.amount_paid, b.damage_deposit, b.damage_paid, b.damage_refunded, b.guests, b.start_dt, b.created AS booked_at
          FROM $pay p LEFT JOIN $book b ON b.id = p.booking_id
-         WHERE p.received_on >= %s AND p.received_on <= %s",
+         WHERE p.received_on >= %s AND p.received_on <= %s AND (b.status IS NULL OR b.status <> 'spam')",
         $start,
         $end
     ));
@@ -570,7 +570,7 @@ function brb_report_build($start, $end) {
     }
 
     $bookings = $wpdb->get_results($wpdb->prepare(
-        "SELECT * FROM $book WHERE created >= %s AND created <= %s",
+        "SELECT * FROM $book WHERE created >= %s AND created <= %s AND status <> 'spam'",
         $start_dt,
         $end_dt
     ));
@@ -608,7 +608,7 @@ function brb_report_build($start, $end) {
     }
     $repeat = 0;
     if ($emails) {
-        $all = $wpdb->get_results("SELECT email, COUNT(*) AS n FROM $book WHERE status NOT IN ('cancelled','declined','expired') GROUP BY email");
+        $all = $wpdb->get_results("SELECT email, COUNT(*) AS n FROM $book WHERE status NOT IN ('cancelled','declined','expired','spam') GROUP BY email");
         foreach ((array) $all as $row) {
             $email = strtolower(trim((string) $row->email));
             if ($email !== '' && isset($emails[$email]) && (int) $row->n > 1) $repeat++;
@@ -652,7 +652,7 @@ function brb_report_build($start, $end) {
         $email = strtolower(trim((string) $row->email));
         if ($email === '') continue;
         $match = $wpdb->get_row($wpdb->prepare(
-            "SELECT created, status FROM $book WHERE LOWER(email) = %s AND created >= %s ORDER BY created ASC LIMIT 1",
+            "SELECT created, status FROM $book WHERE LOWER(email) = %s AND created >= %s AND status <> 'spam' ORDER BY created ASC LIMIT 1",
             $email,
             $row->created
         ));
@@ -771,7 +771,7 @@ function brb_report_build($start, $end) {
 
     $upcoming_list = $wpdb->get_results($wpdb->prepare(
         "SELECT id, name, email, status, start_dt, guests, total, amount_paid, event_type FROM $book
-         WHERE end_dt >= %s AND status NOT IN ('cancelled','declined','expired') ORDER BY start_dt ASC LIMIT 12",
+         WHERE end_dt >= %s AND status NOT IN ('cancelled','declined','expired','spam') ORDER BY start_dt ASC LIMIT 12",
         $now
     ));
 

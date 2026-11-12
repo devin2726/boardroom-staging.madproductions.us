@@ -2,11 +2,11 @@
 /**
  * Plugin Name: Boardroom Booking
  * Description: Self-hosted direct booking for The Boardroom — full-day blocks, availability calendar, agreed prices, approval before payment, blackout dates, and emails.
- * Version: 2.5.60
+ * Version: 2.5.61
  * Author: Mad Productions
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.5.60');
+define('BRB_VER', '2.5.61');
 function brb_reserve_explainer_steps() {
     return [
         'Pick a date. Prices are on the calendar.',
@@ -412,6 +412,7 @@ function brb_status_label($s) {
         'deposit_paid' => 'Deposit paid',
         'paid' => 'Paid in full',
         'declined' => 'Declined',
+        'spam' => 'Flagged as spam/joke',
         'cancelled' => 'Cancelled',
         'expired' => 'Expired',
         'pending' => 'Pending review',
@@ -2079,6 +2080,117 @@ function brb_payment_lines($b) {
 function brb_hold_lines($b) {
     return brb_payment_lines($b);
 }
+function brb_booking_damage_figure($b) {
+    $line = ($b && function_exists('brb_find_line_kind')) ? brb_find_line_kind((int) $b->id, 'damage_deposit') : null;
+    if ($line) return round((float) $line->amount, 2);
+    return round((float) ($b->damage_deposit ?? 0), 2);
+}
+function brb_money_equation($parts) {
+    $clean = [];
+    foreach ((array) $parts as $n) {
+        $n = round((float) $n, 2);
+        if ($n > 0.009) $clean[] = $n;
+    }
+    if (!$clean) return brb_money(0);
+    if (count($clean) === 1) return brb_money($clean[0]);
+    $sum = 0.0;
+    $bits = [];
+    foreach ($clean as $n) {
+        $sum += $n;
+        $bits[] = brb_money($n);
+    }
+    return implode(' + ', $bits) . ' = ' . brb_money(round($sum, 2));
+}
+function brb_booking_money($b) {
+    $set = brb_price_is_set($b);
+    $rental = $set ? round((float) $b->total, 2) : null;
+    $damage = brb_booking_damage_figure($b);
+    $damage_paid = round((float) ($b->damage_paid ?? 0), 2);
+    $damage_left = !empty($b->damage_refunded) ? 0.0 : max(0, round($damage - $damage_paid, 2));
+    $deposit = $set ? round((float) $b->deposit_due, 2) : null;
+    $paid = round((float) $b->amount_paid, 2);
+    $deposit_left = $deposit === null ? null : max(0, round($deposit - $paid, 2));
+    $balance = null;
+    if ($rental !== null && $deposit !== null) {
+        $scheduled = max(0, round($rental - $deposit, 2));
+        $paid_after = max(0, round($paid - $deposit, 2));
+        $balance = max(0, round($scheduled - $paid_after, 2));
+    }
+    $due_parts = [];
+    $due_now = null;
+    if ($set && $deposit_left > 0.009) {
+        $due_parts[] = $deposit_left;
+        if ($damage_left > 0.009) $due_parts[] = $damage_left;
+        $due_now = round(array_sum($due_parts), 2);
+        $due_text = brb_money_equation($due_parts);
+    } elseif ($set) {
+        $due_now = 0.0;
+        $due_text = 'Deposit received';
+    } else {
+        $due_text = 'Price to be confirmed';
+    }
+    if ($damage <= 0.009 && $damage_paid <= 0.009) {
+        $damage_text = brb_money(0);
+    } elseif (!empty($b->damage_refunded)) {
+        $damage_text = brb_money($damage) . ' (marked refunded)';
+    } elseif ($damage_left <= 0.009 && $damage_paid > 0.009) {
+        $damage_text = brb_money($damage) . ' paid';
+    } elseif ($damage_paid > 0.009) {
+        $damage_text = brb_money($damage) . ', ' . brb_money($damage_paid) . ' paid, ' . brb_money($damage_left) . ' unpaid';
+    } else {
+        $damage_text = brb_money($damage) . ' unpaid';
+    }
+    $card_fee = null;
+    if (!empty($b->id)) {
+        $fee_sum = 0.0;
+        $card = false;
+        foreach (brb_payments($b->id) as $p) {
+            if ((string) ($p->method ?? '') === 'card') {
+                $card = true;
+                $fee_sum += (float) ($p->fee ?? 0);
+            }
+        }
+        if ($card) $card_fee = round($fee_sum, 2);
+    }
+    $rows = [
+        'Rental' => $set ? brb_money($rental) : 'Price to be confirmed',
+        'Refundable damage deposit' => $damage_text,
+        'Due now to reserve' => $due_text,
+        'Balance' => $set ? brb_money((float) $balance) : 'Price to be confirmed',
+        'Balance due' => brb_balance_due_display($b),
+    ];
+    if ($card_fee !== null) {
+        $rows['Card processing fee (' . brb_fee_percent_label() . ')'] = brb_money($card_fee) . ' (not part of the rental or the damage deposit)';
+    }
+    return [
+        'priced' => $set,
+        'rental' => $rental,
+        'damage' => $damage,
+        'damage_paid' => $damage_paid,
+        'damage_left' => $damage_left,
+        'deposit' => $deposit,
+        'deposit_left' => $deposit_left,
+        'balance' => $balance,
+        'due_parts' => $due_parts,
+        'due_now' => $due_now,
+        'due_text' => $due_text,
+        'card_fee' => $card_fee,
+        'rows' => $rows,
+    ];
+}
+function brb_date_hold_state($b) {
+    $status = (string) ($b->status ?? '');
+    if (in_array($status, ['deposit_paid', 'paid', 'confirmed'], true)) {
+        return 'Reserved. The deposit has been received.';
+    }
+    if (in_array($status, ['approved', 'held'], true)) {
+        return 'Held after approval; reserved when the deposit is received.';
+    }
+    if (in_array($status, ['declined', 'cancelled', 'expired', 'spam'], true)) {
+        return 'Not held. This request is closed.';
+    }
+    return 'Not held yet. Held after approval; reserved when the deposit is received.';
+}
 function brb_preview_lines($q, DateTimeImmutable $start) {
     unset($q, $start);
     return [
@@ -2485,24 +2597,196 @@ function brb_send_request_emails($b) {
 function brb_send_hold_emails($b) {
     brb_send_request_emails($b);
 }
-function brb_send_approve_email($b) {
-    $o = brb_opt();
+function brb_audit_who() {
+    if (!function_exists('wp_get_current_user')) return 'system';
+    $user = wp_get_current_user();
+    if ($user && !empty($user->user_login)) return (string) $user->user_login;
+    return 'system';
+}
+function brb_audit_clean($text) {
+    $text = trim(preg_replace("/[\r\n]+/", ' ', (string) $text));
+    return $text;
+}
+function brb_audit_append($booking_id, $text, $who = null) {
+    global $wpdb;
+    $text = brb_audit_clean($text);
+    if ($text === '') return;
+    $b = brb_booking($booking_id);
+    if (!$b) return;
+    if ($who === null || $who === '') $who = brb_audit_who();
+    $who = brb_audit_clean($who);
+    if ($who === '') $who = 'system';
+    brb_ensure_column(brb_table(), 'audit_log', 'longtext NULL');
+    $line = brb_now()->format('Y-m-d g:i A') . ' America/Chicago — ' . $who . ': ' . $text;
+    $fresh = brb_booking($b->id);
+    $log = trim((string) ($fresh->audit_log ?? ''));
+    $log = $log === '' ? $line : $log . "\n" . $line;
+    $wpdb->update(brb_table(), ['audit_log' => $log], ['id' => (int) $b->id]);
+}
+function brb_audit_entries($log) {
+    $log = trim((string) $log);
+    if ($log === '') return [];
+    $lines = preg_split("/\r\n|\n|\r/", $log);
+    if (!is_array($lines)) return [];
+    $lines = array_values(array_filter(array_map('trim', $lines), function ($line) {
+        return $line !== '';
+    }));
+    return array_reverse($lines);
+}
+function brb_delete_log_append($text) {
+    $text = brb_audit_clean($text);
+    if ($text === '') return;
+    $line = brb_now()->format('Y-m-d g:i A') . ' America/Chicago — ' . brb_audit_who() . ': ' . $text;
+    $log = get_option('brb_delete_log', '');
+    if (!is_string($log)) $log = '';
+    $log = trim($log);
+    $log = $log === '' ? $line : $log . "\n" . $line;
+    update_option('brb_delete_log', $log, false);
+}
+function brb_booking_has_recorded_payment($b) {
+    if (!$b) return false;
+    if ((float) ($b->amount_paid ?? 0) > 0.009) return true;
+    if ((float) ($b->damage_paid ?? 0) > 0.009) return true;
+    return brb_payments($b->id) !== [];
+}
+function brb_reserve_date_url($ymd) {
+    return add_query_arg('date', $ymd, brb_book_url());
+}
+function brb_decline_date_line($ymd) {
+    try {
+        $label = (new DateTimeImmutable($ymd . ' 12:00:00', brb_tz()))->format('l, F j, Y');
+    } catch (Exception $e) {
+        $label = $ymd;
+    }
+    return $label . ': ' . brb_reserve_date_url($ymd);
+}
+function brb_decline_guest_body($b, $message = '', $dates = []) {
     $ref = brb_ref($b);
-    $facts = implode("\n\n", brb_payment_lines($b));
+    $message = trim((string) $message);
+    $dates = array_values(array_filter((array) $dates, function ($ymd) {
+        return $ymd !== '';
+    }));
+    $head = brb_guest_hello_line() . "\n\n" . brb_guest_review_line() . "\n\n";
+    $tail = "\n\n" . brb_deposit_line() . "\n\nIf a payment was recorded, our team will resolve it manually.\n";
+    if ($message === '' && !$dates) {
+        $core = 'This request (' . $ref . ', ' . brb_when($b) . ') is not approved because it does not meet our event rules or the date is not available. The date is not reserved.';
+    } else {
+        $core = 'This request (' . $ref . ', ' . brb_when($b) . ') is not approved. The date is not reserved.';
+        if ($message !== '') $core .= "\n\n" . $message;
+        if ($dates) {
+            $lines = [];
+            foreach ($dates as $ymd) $lines[] = brb_decline_date_line($ymd);
+            $core .= "\n\nThese dates are open if you would like to request one of them:\n" . implode("\n", $lines);
+        }
+    }
+    return $head . $core . $tail;
+}
+function brb_collect_decline_dates($input, $b) {
+    $raw = [];
+    if (isset($input['alt_dates']) && is_array($input['alt_dates'])) $raw = $input['alt_dates'];
+    for ($i = 1; $i <= 3; $i++) {
+        if (isset($input['alt_date_' . $i])) $raw[] = $input['alt_date_' . $i];
+    }
+    $own = substr((string) ($b->start_dt ?? ''), 0, 10);
+    $out = [];
+    foreach ($raw as $ymd) {
+        $ymd = sanitize_text_field((string) $ymd);
+        if ($ymd === '') continue;
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $ymd)) return new WP_Error('date', 'Choose a free date from the calendar.');
+        if ($ymd === $own) return new WP_Error('date', 'Suggested dates have to be different from this booking.');
+        if (!brb_public_date_is_open($ymd)) return new WP_Error('date', 'That date is not free on the calendar.');
+        if (!in_array($ymd, $out, true)) $out[] = $ymd;
+        if (count($out) > 3) return new WP_Error('date', 'Suggest up to 3 dates.');
+    }
+    return $out;
+}
+function brb_free_full_days($from_ymd, $to_ymd, $exclude_id = 0) {
+    global $wpdb;
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $from_ymd) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $to_ymd)) return [];
+    $tz = brb_tz();
+    try {
+        $start = new DateTimeImmutable($from_ymd . ' 00:00:00', $tz);
+        $end_day = new DateTimeImmutable($to_ymd . ' 00:00:00', $tz);
+    } catch (Exception $e) {
+        return [];
+    }
+    if ($end_day < $start) return [];
+    $range_end = $end_day->modify('+1 day');
+    list($block, $args) = brb_blocking_sql();
+    $sql = 'SELECT start_dt, end_dt FROM ' . brb_table() . " WHERE id<>%d AND start_dt < %s AND end_dt > %s AND $block";
+    $params = array_merge([(int) $exclude_id, $range_end->format('Y-m-d H:i:s'), $start->format('Y-m-d H:i:s')], $args);
+    $bookings = $wpdb->get_results($wpdb->prepare($sql, $params));
+    $holds = brb_holds_overlapping($start->format('Y-m-d H:i:s'), $range_end->format('Y-m-d H:i:s'));
+    $addons = $wpdb->get_results($wpdb->prepare(
+        'SELECT id, start_dt, setup_addon, takedown_addon FROM ' . brb_table() . ' WHERE id<>%d AND (setup_addon=1 OR takedown_addon=1)',
+        (int) $exclude_id
+    ));
+    $blackouts = array_fill_keys(brb_blackouts(), true);
+    $notice = brb_notice_cutoff();
+    $today = brb_now()->setTime(0, 0);
+    $free = [];
+    for ($d = $start; $d <= $end_day; $d = $d->modify('+1 day')) {
+        if ($d < $today) continue;
+        $s = $d->setTime(10, 0);
+        $e = $d->setTime(23, 30);
+        if ($s < $notice) continue;
+        $ymd = $d->format('Y-m-d');
+        if (isset($blackouts[$ymd])) continue;
+        $hit = false;
+        foreach ((array) $bookings as $row) {
+            $bs = new DateTimeImmutable($row->start_dt, $tz);
+            $be = new DateTimeImmutable($row->end_dt, $tz);
+            if ($bs < $e && $be > $s) { $hit = true; break; }
+        }
+        if ($hit) continue;
+        foreach ((array) $holds as $row) {
+            $bs = new DateTimeImmutable($row->start_dt, $tz);
+            $be = new DateTimeImmutable($row->end_dt, $tz);
+            if ($bs < $e && $be > $s) { $hit = true; break; }
+        }
+        if ($hit) continue;
+        foreach ((array) $addons as $row) {
+            $origin = new DateTimeImmutable($row->start_dt, $tz);
+            $windows = [];
+            if (!empty($row->setup_addon)) $windows[] = $origin->modify('-1 day');
+            if (!empty($row->takedown_addon)) $windows[] = $origin->modify('+1 day');
+            foreach ($windows as $day) {
+                $a = $day->setTime(10, 0);
+                $c = $day->setTime(23, 30);
+                if ($a < $e && $c > $s) { $hit = true; break 2; }
+            }
+        }
+        if (!$hit) $free[] = $ymd;
+    }
+    return $free;
+}
+function brb_approve_guest_body($b) {
+    $ref = brb_ref($b);
     $guest_facts = implode("\n\n", array_values(array_filter(brb_payment_lines($b), function ($line) {
         return !in_array($line, [brb_not_held_line(), brb_reserved_line(), brb_approval_line(), brb_request_open_line()], true);
     })));
-    $body = brb_guest_hello_line() . "\n\nYour request is approved.\n\n" . brb_guest_review_line() . "\n\n" . $guest_facts . "\n\n" . brb_guest_out_line() . "\n" . brb_guest_free_line() . "\n\nWhen: " . brb_when($b) . "\n" . brb_event_type_line($b) . "Estimated Guests: {$b->guests}\nReference: {$ref}\n\nView your booking: " . brb_guest_link($b) . "\n\n" . brb_checklist_plain();
+    return brb_guest_hello_line() . "\n\nYour request is approved.\n\n" . brb_guest_review_line() . "\n\n" . $guest_facts . "\n\n" . brb_guest_out_line() . "\n" . brb_guest_free_line() . "\n\nWhen: " . brb_when($b) . "\n" . brb_event_type_line($b) . "Estimated Guests: {$b->guests}\nReference: {$ref}\n\nView your booking: " . brb_guest_link($b) . "\n\n" . brb_checklist_plain();
+}
+function brb_send_approve_email($b) {
+    $ref = brb_ref($b);
+    $facts = implode("\n\n", brb_payment_lines($b));
+    $body = brb_approve_guest_body($b);
     brb_mail($b->email, 'Your Boardroom request is approved (' . $ref . ')', $body, brb_guest_reply_to());
     $staff = "Request approved.\n\n{$facts}\n\nWhen: " . brb_when($b) . "\n" . brb_event_type_line($b) . "Estimated Guests: {$b->guests}\nReference: {$ref}\n\n" . admin_url('admin.php?page=brb&booking=' . (int) $b->id) . "\n";
     brb_mail_staff('Request approved ' . $ref . ' – ' . $b->name, $staff, $b->email);
 }
-function brb_send_decline_email($b) {
-    $o = brb_opt();
+function brb_send_decline_email($b, $message = '', $dates = []) {
     $ref = brb_ref($b);
-    $body = brb_guest_hello_line() . "\n\n" . brb_guest_review_line() . "\n\nThis request ({$ref}, " . brb_when($b) . ") is not approved because it does not meet our event rules or the date is not available. The date is not reserved.\n\n" . brb_deposit_line() . "\n\nIf a payment was recorded, our team will resolve it manually.\n";
+    $body = brb_decline_guest_body($b, $message, $dates);
     brb_mail($b->email, 'Your Boardroom request was declined (' . $ref . ')', $body, brb_guest_reply_to());
-    $staff = "Request declined.\n\n{$ref}, " . brb_when($b) . "\nThe date is not reserved.\n\n" . brb_deposit_line() . "\n\n" . admin_url('admin.php?page=brb&booking=' . (int) $b->id) . "\n";
+    $staff = "Request declined.\n\n{$ref}, " . brb_when($b) . "\nThe date is not reserved.\n\n" . brb_deposit_line() . "\n";
+    $message = trim((string) $message);
+    if ($message !== '') $staff .= "\nMessage to the guest:\n" . $message . "\n";
+    if ($dates) {
+        $staff .= "\nSuggested dates:\n";
+        foreach ($dates as $ymd) $staff .= brb_decline_date_line($ymd) . "\n";
+    }
+    $staff .= "\n" . admin_url('admin.php?page=brb&booking=' . (int) $b->id) . "\n";
     brb_mail_staff('Request declined ' . $ref . ' – ' . $b->name, $staff, $b->email);
 }
 function brb_send_checklist_reminder($b) {
@@ -2557,11 +2841,15 @@ function brb_send_receipt_copies($b, $subject, $admin_subject, $body) {
         brb_mail($admin, $admin_subject, $staff, $b->email);
     }
 }
-function brb_send_payment_email($b, $amount, $check_number, $method = 'check') {
+function brb_payment_guest_message($b, $amount, $check_number, $method = 'check', $payment = null) {
     $ref = brb_ref($b);
     $method = brb_pay_method_known($method) ? $method : 'check';
-    $pays = brb_payments($b->id);
-    $last_pay = $pays ? end($pays) : null;
+    if ($payment) {
+        $last_pay = $payment;
+    } else {
+        $pays = brb_payments($b->id);
+        $last_pay = $pays ? end($pays) : null;
+    }
     $fee = ($method === 'card' && $last_pay) ? (float) ($last_pay->fee ?? 0) : 0;
     $received_on = ($last_pay && !empty($last_pay->received_on)) ? (string) $last_pay->received_on : brb_now()->format('Y-m-d');
     if ((float) $amount > 0) {
@@ -2609,7 +2897,35 @@ function brb_send_payment_email($b, $amount, $check_number, $method = 'check') {
         $admin_subject = 'Check recorded for ' . $ref . ' – ' . $b->name;
     }
     $body = brb_guest_hello_line() . "\n\nHere is your receipt.\n\n" . brb_receipt_block($b, $amount, $method, $received_on) . "\n\n{$check}\n\n{$follow}\n\n" . brb_event_type_line($b) . "Estimated Guests: {$b->guests}\n\nView your booking: " . brb_guest_link($b) . "\n";
-    brb_send_receipt_copies($b, $subject, $admin_subject, $body);
+    return ['subject' => $subject, 'admin_subject' => $admin_subject, 'body' => $body];
+}
+function brb_send_payment_email($b, $amount, $check_number, $method = 'check', $payment = null) {
+    $message = brb_payment_guest_message($b, $amount, $check_number, $method, $payment);
+    brb_send_receipt_copies($b, $message['subject'], $message['admin_subject'], $message['body']);
+    return $message;
+}
+function brb_preview_payment_message($b, $amount, $check_number, $received_on, $notes, $method) {
+    $amount = round((float) $amount, 2);
+    $split = brb_split_payment($b, $amount, null);
+    if (is_wp_error($split)) return $split;
+    $clone = clone $b;
+    $clone->amount_paid = round((float) $b->amount_paid + $split['rental'], 2);
+    $clone->damage_paid = round((float) ($b->damage_paid ?? 0) + $split['damage'], 2);
+    $clone->status = ($clone->amount_paid + 0.009 >= (float) $b->total) ? 'paid' : 'deposit_paid';
+    $notes = sanitize_textarea_field((string) $notes);
+    if ($split['damage'] > 0.009) $notes = trim($notes . ' Refundable damage deposit ' . brb_money($split['damage']) . '.');
+    $method = sanitize_key((string) $method);
+    if (!brb_pay_method_known($method)) $method = 'check';
+    if ($method === 'cash' || $method === 'card') $check_number = '';
+    else $check_number = sanitize_text_field((string) $check_number);
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $received_on)) $received_on = brb_now()->format('Y-m-d');
+    $payment = (object) [
+        'method' => $method,
+        'fee' => 0,
+        'received_on' => $received_on,
+        'notes' => $notes,
+    ];
+    return brb_payment_guest_message($clone, $amount, $check_number, $method, $payment);
 }
 function brb_send_expired_emails($b) {
     unset($b);
@@ -2643,7 +2959,7 @@ function brb_recent_same_day_booking($email, DateTimeInterface $start) {
     }
     $cutoff = gmdate('Y-m-d H:i:s', time() - 600);
     return $wpdb->get_row($wpdb->prepare(
-        'SELECT * FROM ' . brb_table() . " WHERE LOWER(email)=%s AND start_dt >= %s AND start_dt < %s AND created >= %s AND status NOT IN ('cancelled','declined') ORDER BY id DESC LIMIT 1",
+        'SELECT * FROM ' . brb_table() . " WHERE LOWER(email)=%s AND start_dt >= %s AND start_dt < %s AND created >= %s AND status NOT IN ('cancelled','declined','spam') ORDER BY id DESC LIMIT 1",
         $email,
         $day . ' 00:00:00',
         $next,
@@ -2770,7 +3086,10 @@ function brb_record_payment($booking_id, $amount, $check_number, $received_on, $
     $b = brb_booking($booking_id);
     if (!$b) return new WP_Error('missing', 'Booking not found.');
     $paid_before = in_array($b->status, ['deposit_paid', 'paid', 'confirmed'], true);
-    if (in_array($b->status, ['cancelled', 'expired', 'declined'], true)) {
+    $before_status = brb_status_label($b->status);
+    if (!is_array($extra)) $extra = [];
+    $notify = !array_key_exists('notify', $extra) || !($extra['notify'] === false || $extra['notify'] === 0 || $extra['notify'] === '0');
+    if (in_array($b->status, ['cancelled', 'expired', 'declined', 'spam'], true)) {
         return new WP_Error('status', 'That booking is not open for a payment.');
     }
     if (!brb_price_is_set($b)) {
@@ -2785,7 +3104,6 @@ function brb_record_payment($booking_id, $amount, $check_number, $received_on, $
     if (is_wp_error($split)) return $split;
     $method = sanitize_key((string) $method);
     if (!brb_pay_method_known($method)) $method = 'check';
-    if (!is_array($extra)) $extra = [];
     $fee = round((float) ($extra['fee'] ?? 0), 2);
     if ($fee < 0) $fee = 0;
     $stripe_id = sanitize_text_field($extra['stripe_id'] ?? '');
@@ -2832,30 +3150,34 @@ function brb_record_payment($booking_id, $amount, $check_number, $received_on, $
         $notes = trim($notes . ' Refundable damage deposit ' . brb_money($split['damage']) . '.');
         $wpdb->update(brb_pay_table(), ['notes' => $notes], ['id' => $pay_id]);
     }
-    brb_send_payment_email($b, $amount, $check_number, $method);
+    if ($notify) brb_send_payment_email($b, $amount, $check_number, $method);
+    brb_audit_append((int) $b->id, 'recorded ' . brb_pay_method_label($method) . ' payment ' . brb_money($amount) . '; status from "' . $before_status . '" to "' . brb_status_label($b->status) . '"; guest email ' . ($notify ? 'sent' : 'skipped'));
     if (!$paid_before && in_array($b->status, ['deposit_paid', 'paid', 'confirmed'], true)) brb_event_hit('deposit_paid');
-    return $b;
+    return brb_booking($b->id);
 }
 function brb_mark_paid_full($booking_id) {
     $b = brb_booking($booking_id);
     if (!$b) return new WP_Error('missing', 'Booking not found.');
-    if (in_array($b->status, ['cancelled', 'expired', 'declined'], true)) return new WP_Error('status', 'Cancelled or declined bookings cannot be marked paid.');
+    if (in_array($b->status, ['cancelled', 'expired', 'declined', 'spam'], true)) return new WP_Error('status', 'Cancelled or declined bookings cannot be marked paid.');
     if (!brb_price_is_set($b)) return new WP_Error('price', 'Set the agreed price before marking the booking paid.');
     $remaining = round(brb_rental_left($b) + brb_damage_left($b), 2);
     if (brb_rental_left($b) <= 0.009) {
         global $wpdb;
+        $before_status = brb_status_label($b->status);
         $wpdb->update(brb_table(), ['status' => 'paid'], ['id' => (int) $b->id]);
         $b = brb_booking($b->id);
         brb_send_payment_email($b, 0, '');
+        brb_audit_append((int) $b->id, 'marked paid in full; status from "' . $before_status . '" to "' . brb_status_label($b->status) . '"; guest email sent');
         return $b;
     }
     return brb_record_payment($b->id, $remaining, '', brb_now()->format('Y-m-d'), 'Marked paid in full by staff.', false);
 }
-function brb_set_agreed_price($booking_id, $amount) {
+function brb_set_agreed_price($booking_id, $amount, $notify = true) {
     global $wpdb;
     $b = brb_booking($booking_id);
     if (!$b) return new WP_Error('missing', 'Booking not found.');
-    if (in_array($b->status, ['cancelled', 'declined'], true)) return new WP_Error('status', 'That booking cannot take a price.');
+    if (in_array($b->status, ['cancelled', 'declined', 'spam'], true)) return new WP_Error('status', 'That booking cannot take a price.');
+    $before = brb_price_is_set($b) ? brb_money($b->total) : 'Price to be confirmed';
     $amount = round((float) $amount, 2);
     if ($amount <= 0) return new WP_Error('amount', 'Enter an agreed price greater than zero.');
     brb_ensure_damage_line($b->id);
@@ -2869,11 +3191,11 @@ function brb_set_agreed_price($booking_id, $amount) {
     if ((float) $b->amount_paid - (float) $b->total > 0.009) {
         return new WP_Error('amount', 'The agreed price cannot be less than the ' . brb_money($b->amount_paid) . ' already recorded.');
     }
-    brb_send_price_email($b);
-    return $b;
+    if ($notify) brb_send_price_email($b);
+    brb_audit_append((int) $b->id, 'saved rental price from "' . $before . '" to "' . brb_money($b->total) . '"; guest email ' . ($notify ? 'sent' : 'skipped'));
+    return brb_booking($b->id);
 }
-function brb_send_price_email($b) {
-    $o = brb_opt();
+function brb_price_guest_body($b) {
     $ref = brb_ref($b);
     $bring = brb_money(brb_amount_to_bring($b));
     $body = brb_guest_hello_line() . "\n\nThe price for your Boardroom date is confirmed.\n\nAgreed price: " . brb_money($b->total) . "\nDeposit: {$bring}\n\n" . brb_guest_review_line() . "\n\n";
@@ -2883,6 +3205,11 @@ function brb_send_price_email($b) {
         $body .= "Payment instructions are sent when the request is approved.\n\n" . brb_deposit_line() . "\n\n";
     }
     $body .= 'When: ' . brb_when($b) . "\n" . brb_event_type_line($b) . "Estimated Guests: {$b->guests}\nReference: {$ref}\n\nView your booking: " . brb_guest_link($b) . "\n";
+    return $body;
+}
+function brb_send_price_email($b) {
+    $ref = brb_ref($b);
+    $body = brb_price_guest_body($b);
     brb_mail($b->email, 'Your Boardroom price is confirmed (' . $ref . ')', $body, brb_guest_reply_to());
     brb_mail_staff('Price set for ' . $ref . ' – ' . $b->name, $body . "\n" . admin_url('admin.php?page=brb&booking=' . (int) $b->id) . "\n", $b->email);
 }
@@ -2913,23 +3240,17 @@ function brb_save_booking_edit($booking_id, $input) {
         return new WP_Error('busy', brb_date_taken_message());
     }
     $changes = [];
-    if ($date !== $old_day) $changes[] = 'date ' . $old_day . ' → ' . $date;
-    if ($name !== (string) $b->name) $changes[] = 'name changed';
-    if (strtolower($email) !== strtolower((string) $b->email)) $changes[] = 'email changed';
-    if ($phone !== (string) $b->phone) $changes[] = 'phone changed';
-    if ($notes !== (string) $b->notes) $changes[] = 'notes changed';
+    if ($date !== $old_day) $changes[] = 'date from "' . $old_day . '" to "' . $date . '"';
+    if ($name !== (string) $b->name) $changes[] = 'name from "' . (string) $b->name . '" to "' . $name . '"';
+    if (strtolower($email) !== strtolower((string) $b->email)) $changes[] = 'email from "' . (string) $b->email . '" to "' . $email . '"';
+    if ($phone !== (string) $b->phone) $changes[] = 'phone from "' . (string) $b->phone . '" to "' . $phone . '"';
+    if ($notes !== (string) $b->notes) $changes[] = 'notes from "' . brb_audit_clean($b->notes) . '" to "' . brb_audit_clean($notes) . '"';
     if (!$changes) return $b;
-    $user = wp_get_current_user();
-    $who = ($user && $user->user_login) ? $user->user_login : 'admin';
-    $line = brb_now()->format('Y-m-d g:i A') . ' America/Chicago — ' . $who . ': ' . implode('; ', $changes);
-    $log = trim((string) ($b->audit_log ?? ''));
-    $log = $log === '' ? $line : $log . "\n" . $line;
     $fields = [
         'name' => $name,
         'email' => $email,
         'phone' => $phone,
         'notes' => $notes,
-        'audit_log' => $log,
     ];
     if ($date !== $old_day) {
         $fields['start_dt'] = $start->format('Y-m-d H:i:s');
@@ -2937,15 +3258,50 @@ function brb_save_booking_edit($booking_id, $input) {
         $fields['mode'] = 'day';
         $fields['balance_due_on'] = brb_balance_due_on($start);
     }
-    brb_ensure_column(brb_table(), 'audit_log', 'longtext NULL');
     $wpdb->update(brb_table(), $fields, ['id' => (int) $b->id]);
+    brb_audit_append((int) $b->id, 'saved ' . implode('; ', $changes) . '; no email sent');
     return brb_booking($b->id);
 }
-function brb_approve_booking($booking_id) {
+function brb_save_booking_changes($booking_id, $input) {
+    global $wpdb;
+    $b = brb_booking($booking_id);
+    if (!$b) return new WP_Error('missing', 'Booking not found.');
+    $saved = brb_save_booking_edit($booking_id, $input);
+    if (is_wp_error($saved)) return $saved;
+    $b = brb_booking($booking_id);
+    $walk = empty($input['walkthrough_done']) ? 0 : 1;
+    $flag_changes = [];
+    if ((int) $walk !== (int) ($b->walkthrough_done ?? 0)) {
+        $flag_changes[] = 'walk-through from "' . (!empty($b->walkthrough_done) ? 'Completed' : 'Not yet') . '" to "' . ($walk ? 'Completed' : 'Not yet') . '"';
+        $wpdb->update(brb_table(), ['walkthrough_done' => $walk], ['id' => (int) $b->id]);
+    }
+    foreach (['setup' => 'setup_addon', 'takedown' => 'takedown_addon'] as $which => $col) {
+        if (empty($input[$col]) || !empty($b->$col)) continue;
+        $before = 'No';
+        $applied = brb_apply_addon($b->id, $which);
+        if (is_wp_error($applied)) return $applied;
+        $label = $which === 'setup' ? 'Setup day' : 'Takedown day';
+        $flag_changes[] = $label . ' from "' . $before . '" to "Added"';
+        $b = brb_booking($b->id);
+    }
+    if ($flag_changes) brb_audit_append((int) $b->id, 'saved ' . implode('; ', $flag_changes) . '; no email sent');
+    if ((string) ($b->status ?? '') !== 'cancelled' && array_key_exists('agreed_price', $input) && trim((string) $input['agreed_price']) !== '') {
+        $amount = round((float) $input['agreed_price'], 2);
+        $line = brb_find_line_kind($b->id, 'rental');
+        $current = $line ? round((float) $line->amount, 2) : ($b && brb_price_is_set($b) ? round((float) $b->total, 2) : 0);
+        if ($amount > 0 && (abs($amount - $current) > 0.009 || !brb_price_is_set($b))) {
+            $priced = brb_set_agreed_price($b->id, $amount, false);
+            if (is_wp_error($priced)) return $priced;
+        }
+    }
+    return brb_booking($booking_id);
+}
+function brb_approve_booking($booking_id, $notify = true) {
     global $wpdb;
     $b = brb_booking($booking_id);
     if (!$b) return new WP_Error('missing', 'Booking not found.');
     if (!in_array($b->status, ['review', 'pending'], true)) return new WP_Error('status', 'Only a request that is pending review can be approved.');
+    $before_status = brb_status_label($b->status);
     if (empty($b->walkthrough_done)) return new WP_Error('walkthrough', 'Mark the in-person walk-through complete before approving. Approval follows the event details, availability, and house rules.');
     $start = new DateTimeImmutable($b->start_dt, brb_tz());
     $end = new DateTimeImmutable($b->end_dt, brb_tz());
@@ -2958,32 +3314,63 @@ function brb_approve_booking($booking_id) {
     $wpdb->update(brb_table(), ['status' => 'approved', 'hold_until' => null], ['id' => (int) $b->id]);
     $wpdb->query("SELECT RELEASE_LOCK('brb_book')");
     $b = brb_booking($b->id);
-    brb_send_approve_email($b);
-    return $b;
+    if ($notify) brb_send_approve_email($b);
+    brb_audit_append((int) $b->id, 'status from "' . $before_status . '" to "' . brb_status_label('approved') . '"; guest email ' . ($notify ? 'sent' : 'skipped'));
+    return brb_booking($b->id);
 }
-function brb_decline_booking($booking_id) {
+function brb_decline_booking($booking_id, $args = []) {
     global $wpdb;
     $b = brb_booking($booking_id);
     if (!$b) return new WP_Error('missing', 'Booking not found.');
     if (!in_array($b->status, ['review', 'approved', 'pending', 'held', 'deposit_paid'], true)) return new WP_Error('status', 'Only a request that is pending review, approved, or deposit paid can be declined.');
+    if (!is_array($args)) $args = [];
+    $send = array_key_exists('send', $args) ? (bool) $args['send'] : true;
+    $message = trim(sanitize_textarea_field((string) ($args['message'] ?? '')));
+    if (strlen($message) > 2000) $message = substr($message, 0, 2000);
+    $dates = $args['dates'] ?? [];
+    if (!is_array($dates)) $dates = [];
+    $checked = brb_collect_decline_dates(['alt_dates' => $dates], $b);
+    if (is_wp_error($checked)) return $checked;
+    $before_status = brb_status_label($b->status);
     $fields = ['status' => 'declined', 'hold_until' => null];
-    if ((float) $b->amount_paid > 0.009) {
+    if ((float) $b->amount_paid > 0.009 || (float) ($b->damage_paid ?? 0) > 0.009) {
         $fields['attention'] = 'A payment was recorded before this request was declined. Resolve it manually.';
     }
     $wpdb->update(brb_table(), $fields, ['id' => (int) $b->id]);
     $b = brb_booking($b->id);
-    brb_send_decline_email($b);
-    return $b;
+    if ($send) brb_send_decline_email($b, $message, $checked);
+    $note = 'status from "' . $before_status . '" to "' . brb_status_label('declined') . '"';
+    $note .= '; message: ' . ($message === '' ? '(none)' : '"' . brb_audit_clean($message) . '"');
+    $note .= '; suggested dates: ' . ($checked ? implode(', ', $checked) : '(none)');
+    $note .= '; guest email ' . ($send ? 'sent' : 'skipped');
+    brb_audit_append((int) $b->id, $note);
+    return brb_booking($b->id);
+}
+function brb_flag_spam_booking($booking_id) {
+    global $wpdb;
+    $b = brb_booking($booking_id);
+    if (!$b) return new WP_Error('missing', 'Booking not found.');
+    if ((string) $b->status === 'spam') return $b;
+    if (brb_booking_has_recorded_payment($b)) {
+        brb_audit_append((int) $b->id, 'spam flag blocked because a payment is recorded. Cancel the booking instead.');
+        return new WP_Error('paid', 'This booking has a recorded payment. Cancel it instead of flagging it.');
+    }
+    $before_status = brb_status_label($b->status);
+    $wpdb->update(brb_table(), ['status' => 'spam', 'hold_until' => null], ['id' => (int) $b->id]);
+    brb_audit_append((int) $b->id, 'flagged as spam/joke; status from "' . $before_status . '" to "' . brb_status_label('spam') . '"; no email sent');
+    return brb_booking($b->id);
 }
 function brb_cancel_booking($booking_id) {
     global $wpdb;
     $b = brb_booking($booking_id);
     if (!$b) return new WP_Error('missing', 'Booking not found.');
     if ($b->status === 'cancelled') return $b;
+    $before_status = brb_status_label($b->status);
     $wpdb->update(brb_table(), ['status' => 'cancelled'], ['id' => (int) $b->id]);
     $b->status = 'cancelled';
     brb_send_cancel_email($b);
-    return $b;
+    brb_audit_append((int) $b->id, 'status from "' . $before_status . '" to "' . brb_status_label('cancelled') . '"; guest email sent');
+    return brb_booking($b->id);
 }
 function brb_purge_booking($booking_id) {
     global $wpdb;
@@ -2994,9 +3381,22 @@ function brb_purge_booking($booking_id) {
     $ok = $wpdb->delete(brb_table(), ['id' => $id], ['%d']);
     return $ok !== false && (int) $ok > 0;
 }
-function brb_delete_booking($booking_id) {
+function brb_delete_booking($booking_id, $confirm = null) {
     $b = brb_booking($booking_id);
     if (!$b) return new WP_Error('missing', 'Booking not found.');
+    if (brb_booking_has_recorded_payment($b)) {
+        brb_audit_append((int) $b->id, 'delete blocked because a payment is recorded. Cancel the booking instead of deleting it.');
+        return new WP_Error('paid', 'This booking has a recorded payment. Cancel it instead of deleting it.');
+    }
+    if ($confirm !== null && trim((string) $confirm) !== brb_ref($b)) {
+        brb_audit_append((int) $b->id, 'delete blocked because the booking number did not match. Typed "' . brb_audit_clean($confirm) . '".');
+        return new WP_Error('confirm', 'Type ' . brb_ref($b) . ' exactly to delete this booking.');
+    }
+    $ref = brb_ref($b);
+    brb_audit_append((int) $b->id, 'deleted ' . $ref . ' (' . brb_audit_clean($b->name) . ', ' . brb_audit_clean($b->email) . ').');
+    $fresh = brb_booking($b->id);
+    $history = trim((string) ($fresh->audit_log ?? ''));
+    brb_delete_log_append('deleted ' . $ref . ' (' . brb_audit_clean($b->name) . ', ' . brb_audit_clean($b->email) . '). History: ' . str_replace("\n", ' | ', $history));
     if (!brb_purge_booking($b->id)) return new WP_Error('db', 'Could not delete that booking.');
     return true;
 }
@@ -3007,7 +3407,7 @@ function brb_bulk_delete_bookings($ids) {
         $id = (int) $id;
         if ($id <= 0 || isset($seen[$id])) continue;
         $seen[$id] = true;
-        if (brb_purge_booking($id)) $n++;
+        if (brb_delete_booking($id) === true) $n++;
     }
     return $n;
 }
