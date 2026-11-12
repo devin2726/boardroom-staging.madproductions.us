@@ -2102,6 +2102,9 @@ function brb_is_live_host($host) {
     $host = brb_host_name($host);
     return $host === 'boardroomqc.com' || $host === 'www.boardroomqc.com';
 }
+function brb_is_staging_host($host) {
+    return brb_host_name($host) === 'boardroom-staging.madproductions.us';
+}
 function brb_request_host() {
     $raw = '';
     if (!empty($_SERVER['HTTP_HOST']) && is_string($_SERVER['HTTP_HOST'])) $raw = $_SERVER['HTTP_HOST'];
@@ -2119,9 +2122,15 @@ function brb_is_production() {
     static $checking = false;
     if ($checking) return !brb_is_nonproduction_env();
     $checking = true;
-    $live = brb_is_live_host(brb_request_host()) || brb_is_live_host(brb_home_host());
+    $request = brb_request_host();
+    $home = brb_home_host();
     $checking = false;
-    if ($live) return true;
+    // The public production host wins over any BRB_ENV value.
+    if (brb_is_live_host($request) || brb_is_live_host($home)) return true;
+    // The known staging host wins too, including over BRB_ENV=production.
+    // That hostname is publicly reachable, so an explicit production flag there
+    // would mint real-looking refs and send unmarked mail again.
+    if (brb_is_staging_host($request) || brb_is_staging_host($home)) return false;
     return !brb_is_nonproduction_env();
 }
 function brb_live_book_url() {

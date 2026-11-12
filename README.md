@@ -65,7 +65,7 @@ Outbound mail uses SMTP only when `BRB_SMTP_USER` and `BRB_SMTP_PASS` are set on
 
 Online card payment uses Stripe Checkout only when `BRB_STRIPE_SECRET_KEY` is set. Also set `BRB_STRIPE_WEBHOOK_SECRET` for `POST /wp-json/brb/v1/stripe-webhook`. `BRB_STRIPE_PUBLISHABLE_KEY` is passed through and is not used for hosted Checkout. Do not commit the keys. Guests can pay by check or in person, or by card with a processing fee (default 3%) that is not part of the booking balance.
 
-Search indexing follows `BRB_ENV` and `DISCOURAGE_SEARCH`. The site is production unless `BRB_ENV` is exactly `staging`, `dev`, or `test` (any case, surrounding space ignored). Empty, missing, and misspelled values are production and are indexed. A request whose host, or whose `home_url()` host, is `boardroomqc.com` or `www.boardroomqc.com` is always production. Staging must set `BRB_ENV=staging` and keeps the default `DISCOURAGE_SEARCH=1`, which sets `blog_public=0` (noindex). `DISCOURAGE_SEARCH=0` allows indexing on staging.
+Search indexing follows `BRB_ENV` and `DISCOURAGE_SEARCH`. The site is production unless `BRB_ENV` is exactly `staging`, `dev`, or `test` (any case, surrounding space ignored). Empty, missing, and misspelled values are production and are indexed. A request whose host, or whose `home_url()` host, is `boardroomqc.com` or `www.boardroomqc.com` is always production. The host `boardroom-staging.madproductions.us` is non-production even when `BRB_ENV` is empty or set to `production`. Staging must set `BRB_ENV=staging` and keeps the default `DISCOURAGE_SEARCH=1`, which sets `blog_public=0` (noindex). `DISCOURAGE_SEARCH=0` allows indexing on staging.
 
 ## Production
 
