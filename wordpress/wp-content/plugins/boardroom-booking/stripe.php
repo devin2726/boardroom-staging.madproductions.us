@@ -103,8 +103,143 @@ function brb_pay_online_line($b) {
     return 'Pay online: ' . $url . ' The card charge is ' . brb_money($due) . ' plus a ' . brb_fee_percent_label() . ' processing fee of ' . brb_money($fee) . '. That fee is not part of the booking balance. You can still pay by check or in person. ' . brb_deposit_line() . ' ' . brb_fee_public_line();
 }
 
+function brb_stripe_unavailable_guest_message() {
+    return 'That date is no longer available. Please contact the venue.';
+}
+function brb_stripe_review_mark() {
+    return 'needs staff review - payment received for unavailable date';
+}
+function brb_stripe_review_steps() {
+    return 'Do not refund this from the website, and do not email the guest automatically. Open the payment in the Stripe dashboard and refund it there if this guest cannot have the date. After the refund, clear the booking flag.';
+}
+function brb_stripe_dashboard_url($stripe_id, $session_id = '') {
+    $stripe_id = (string) $stripe_id;
+    $session_id = (string) $session_id;
+    $test = strpos($stripe_id, '_test_') !== false || strpos($session_id, '_test_') !== false || brb_stripe_mode() === 'test';
+    $base = 'https://dashboard.stripe.com/' . ($test ? 'test/' : '');
+    if ($stripe_id !== '' && strpos($stripe_id, 'pi_') === 0) return $base . 'payments/' . rawurlencode($stripe_id);
+    if ($session_id !== '' && strpos($session_id, 'cs_') === 0) return $base . 'checkout/sessions/' . rawurlencode($session_id);
+    if ($stripe_id !== '') return $base . 'payments/' . rawurlencode($stripe_id);
+    return $base . 'payments';
+}
+function brb_stripe_append_audit($b, $line) {
+    global $wpdb;
+    if (!$b || $line === '') return;
+    brb_ensure_column(brb_table(), 'audit_log', 'longtext NULL');
+    $fresh = brb_booking($b->id);
+    if (!$fresh) return;
+    $log = trim((string) ($fresh->audit_log ?? ''));
+    if (strpos($log, $line) !== false) return;
+    $entry = brb_now()->format('Y-m-d g:i A') . ' America/Chicago — system: ' . $line;
+    $log = $log === '' ? $entry : $log . "\n" . $entry;
+    $wpdb->update(brb_table(), ['audit_log' => $log], ['id' => (int) $b->id]);
+}
+function brb_stripe_note_checkout_blocked($b) {
+    global $wpdb;
+    if (!$b) return;
+    $note = 'Card checkout was blocked because the date is no longer available. The guest was told to contact the venue. No Stripe session was created.';
+    $attention = (string) ($b->attention ?? '');
+    if ($attention !== brb_stripe_review_mark() && strpos($attention, 'Card checkout was blocked') === false) {
+        $wpdb->update(brb_table(), ['attention' => $note], ['id' => (int) $b->id]);
+    }
+    brb_stripe_append_audit($b, $note);
+}
+function brb_stripe_review_rows($booking_id = null) {
+    global $wpdb;
+    if ($booking_id === null) {
+        return $wpdb->get_results("SELECT * FROM " . brb_pay_table() . " WHERE method='card_review' ORDER BY id DESC");
+    }
+    return $wpdb->get_results($wpdb->prepare(
+        'SELECT * FROM ' . brb_pay_table() . " WHERE method='card_review' AND booking_id=%d ORDER BY id DESC",
+        (int) $booking_id
+    ));
+}
+function brb_stripe_log_review($ref, $sid, $pi, $reason) {
+    error_log('Boardroom ' . brb_stripe_review_mark() . ': ' . $ref . ' session ' . $sid . ' payment ' . $pi . '. ' . brb_stripe_redact($reason));
+}
+function brb_stripe_save_unapplied($booking_id, $session, $reason) {
+    global $wpdb;
+    if (!is_array($session)) return new WP_Error('payload', 'Invalid payment session.', ['status' => 400]);
+    $meta = isset($session['metadata']) && is_array($session['metadata']) ? $session['metadata'] : [];
+    $base_cents = (int) ($meta['base_cents'] ?? 0);
+    $fee_cents = (int) ($meta['fee_cents'] ?? 0);
+    $pi = brb_stripe_id_value($session['payment_intent'] ?? '');
+    $sid = brb_stripe_id_value($session['id'] ?? '');
+    if (brb_find_stripe_payment([$pi, $sid])) return true;
+    $mark = brb_stripe_review_mark();
+    $notes = $mark . ' ' . sanitize_text_field($reason);
+    $ok = $wpdb->insert(brb_pay_table(), [
+        'booking_id' => max(0, (int) $booking_id),
+        'amount' => brb_dec(max(0, $base_cents) / 100),
+        'check_number' => '',
+        'received_on' => brb_now()->format('Y-m-d'),
+        'notes' => $notes,
+        'method' => 'card_review',
+        'fee' => brb_dec(max(0, $fee_cents) / 100),
+        'stripe_id' => $pi !== '' ? $pi : $sid,
+        'stripe_session' => $sid,
+        'created' => current_time('mysql', true),
+    ]);
+    if (!$ok) return new WP_Error('db', 'Could not save the card payment for staff review.', ['status' => 500]);
+    $b = $booking_id > 0 ? brb_booking($booking_id) : null;
+    $ref = $b ? brb_ref($b) : 'no booking on file';
+    if ($b) {
+        $wpdb->update(brb_table(), ['attention' => $mark], ['id' => (int) $b->id]);
+        brb_stripe_append_audit($b, $mark . '. Session ' . $sid . '. ' . $reason);
+    }
+    $url = brb_stripe_dashboard_url($pi !== '' ? $pi : $sid, $sid);
+    $body = "A card payment was received and was not applied.\n\n"
+        . $mark . "\n"
+        . 'Booking: ' . $ref . "\n"
+        . 'Reason: ' . $reason . "\n"
+        . 'Stripe payment: ' . $url . "\n"
+        . 'Session: ' . $sid . "\n"
+        . 'Payment: ' . ($pi !== '' ? $pi : $sid) . "\n\n"
+        . brb_stripe_review_steps() . "\n";
+    if ($b) $body .= "\n" . admin_url('admin.php?page=brb&booking=' . (int) $b->id) . "\n";
+    brb_mail_staff('Needs staff review - payment received for unavailable date (' . $ref . ')', $body);
+    brb_stripe_log_review($ref, $sid, $pi !== '' ? $pi : $sid, $reason);
+    return true;
+}
+function brb_stripe_review_notice() {
+    if (!current_user_can('manage_options')) return;
+    global $wpdb;
+    $mark = brb_stripe_review_mark();
+    $bookings = $wpdb->get_results($wpdb->prepare(
+        'SELECT id FROM ' . brb_table() . ' WHERE attention=%s ORDER BY id DESC LIMIT 20',
+        $mark
+    ));
+    $orphans = brb_stripe_review_rows(0);
+    if (!$bookings && !$orphans) return;
+    $list = admin_url('admin.php?page=brb&status=card_review');
+    echo '<div class="notice notice-error"><p><strong>Boardroom Booking:</strong> ' . esc_html($mark) . '.</p>';
+    echo '<p>' . esc_html(brb_stripe_review_steps()) . '</p><ul>';
+    foreach ((array) $bookings as $row) {
+        $b = brb_booking($row->id);
+        if (!$b) continue;
+        $pay = brb_stripe_review_rows((int) $b->id);
+        $pay = $pay ? $pay[0] : null;
+        $url = $pay ? brb_stripe_dashboard_url($pay->stripe_id, $pay->stripe_session) : '';
+        echo '<li><a href="' . esc_url(admin_url('admin.php?page=brb&booking=' . (int) $b->id)) . '">' . esc_html(brb_ref($b)) . '</a>';
+        if ($url !== '') echo ' — <a href="' . esc_url($url) . '" target="_blank" rel="noopener">Open this payment in the Stripe dashboard</a>';
+        echo '</li>';
+    }
+    foreach ((array) $orphans as $pay) {
+        $url = brb_stripe_dashboard_url($pay->stripe_id, $pay->stripe_session);
+        echo '<li>No booking on file';
+        if ($url !== '') echo ' — <a href="' . esc_url($url) . '" target="_blank" rel="noopener">Open this payment in the Stripe dashboard</a>';
+        echo '</li>';
+    }
+    echo '</ul><p><a href="' . esc_url($list) . '">Open the needs-staff-review list</a></p></div>';
+}
+add_action('admin_notices', 'brb_stripe_review_notice');
+
 function brb_stripe_create_session($b) {
     if (!brb_stripe_enabled()) return new WP_Error('stripe', 'Online card payment is not available.');
+    if ($b && brb_date_taken($b)) {
+        brb_stripe_note_checkout_blocked($b);
+        return new WP_Error('busy', brb_stripe_unavailable_guest_message());
+    }
     $due = brb_amount_due_now($b);
     if ($due <= 0) return new WP_Error('amount', 'There is no balance to pay online.');
     $charge = brb_checkout_lines($b);
@@ -200,6 +335,13 @@ function brb_view_pay($token, $sig) {
         return;
     }
     $due = brb_amount_due_now($b);
+    if (brb_date_taken($b)) {
+        brb_stripe_note_checkout_blocked($b);
+        echo '<div class="brb-alert brb-err">' . esc_html(brb_stripe_unavailable_guest_message()) . '</div>';
+        echo '<p><a href="' . esc_url(home_url('/contact/')) . '">Contact the venue</a></p>';
+        echo '<p><a href="' . esc_url(brb_guest_link($b)) . '">Back to your booking</a></p>';
+        return;
+    }
     if ($due <= 0) {
         echo '<div class="brb-alert">There is no balance to pay online.</div>';
         echo '<p><a href="' . esc_url(brb_guest_link($b)) . '">Back to your booking</a></p>';
@@ -289,7 +431,7 @@ function brb_stripe_apply_session($session) {
     $fee_cents = (int) ($meta['fee_cents'] ?? 0);
     $damage_cents = (int) ($meta['damage_cents'] ?? 0);
     $amount_total = (int) ($session['amount_total'] ?? 0);
-    if ($booking_id <= 0 || $base_cents <= 0 || $damage_cents < 0 || $damage_cents > $base_cents || $amount_total !== $base_cents + $fee_cents) {
+    if ($base_cents <= 0 || $damage_cents < 0 || $damage_cents > $base_cents || $amount_total !== $base_cents + $fee_cents) {
         return new WP_Error('amount', 'Payment total does not match the booking charge.', ['status' => 400]);
     }
     $pi = brb_stripe_id_value($session['payment_intent'] ?? '');
@@ -301,11 +443,19 @@ function brb_stripe_apply_session($session) {
     try {
         if (brb_find_stripe_payment([$pi, $sid])) return true;
         $b = brb_booking($booking_id);
-        if (!$b) return new WP_Error('missing', 'Booking not found.', ['status' => 400]);
+        if (!$b) return brb_stripe_save_unapplied(0, $session, 'No booking matches this payment.');
         $token = (string) ($meta['token'] ?? '');
         $expected_token = (string) $b->token;
         if ($token === '' || strlen($token) !== strlen($expected_token) || !hash_equals($expected_token, $token)) {
             return new WP_Error('token', 'Booking token does not match.', ['status' => 400]);
+        }
+        $blocked_status = in_array((string) $b->status, ['cancelled', 'expired', 'declined'], true);
+        $taken = brb_date_taken($b);
+        if ($blocked_status || $taken) {
+            $reason = $taken
+                ? 'The date is no longer available.'
+                : 'The booking status is ' . (string) $b->status . ', so the payment cannot be applied.';
+            return brb_stripe_save_unapplied((int) $b->id, $session, $reason);
         }
         $res = brb_record_payment($b->id, $base_cents / 100, '', brb_now()->format('Y-m-d'), 'Card payment', false, 'card', [
             'fee' => $fee_cents / 100,
@@ -314,8 +464,10 @@ function brb_stripe_apply_session($session) {
             'damage' => $damage_cents / 100,
         ]);
         if (is_wp_error($res)) {
-            brb_flag_booking($b->id, 'A card payment could not be applied: ' . $res->get_error_message());
-            return true;
+            if (in_array($res->get_error_code(), ['busy', 'status'], true)) {
+                return brb_stripe_save_unapplied((int) $b->id, $session, $res->get_error_message());
+            }
+            return $res;
         }
         return true;
     } finally {
