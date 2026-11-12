@@ -11,6 +11,7 @@
 </div>
 <?php if (function_exists('brb_walter_html')): ?><p class="footer-ask-wrap"><button type="button" class="footer-ask" data-brb-open-chat><?php echo brb_walter_html(96, 'brb-walter brb-walter-footer'); ?><span>Ask Walter</span></button></p><?php endif; ?>
 <p>Copyright © <?php echo date('Y'); ?> The Boardroom - All Rights Reserved.</p>
+<p class="legal-links"><a href="https://boardroomqc.com/blog/">Resources</a></p>
 <p><?php wp_nav_menu(['theme_location' => 'footer', 'container' => false, 'items_wrap' => '<ul class="fmenu">%3$s</ul>', 'fallback_cb' => false, 'depth' => 1]); ?></p>
 <nav class="legal-links" aria-label="Legal"><a href="<?php echo esc_url(home_url('/rental-checklist/')); ?>">Rental Checklist</a><a href="<?php echo esc_url(home_url('/terms/')); ?>">Rental Terms</a><a href="<?php echo esc_url(home_url('/privacy/')); ?>">Privacy Policy</a><a href="<?php echo esc_url(home_url('/rental-agreement/')); ?>">Rental Agreement</a></nav>
 </footer>

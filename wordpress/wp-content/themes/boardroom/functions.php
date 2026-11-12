@@ -3,7 +3,7 @@ add_action('after_setup_theme', function () {
     add_theme_support('title-tag'); add_theme_support('post-thumbnails'); add_theme_support('custom-logo');
     register_nav_menus(['primary' => 'Primary', 'footer' => 'Footer']);
 });
-function br_ver() { return '1.2.45'; }
+function br_ver() { return '1.2.47'; }
 add_action('wp_enqueue_scripts', function () {
     wp_enqueue_style('boardroom', get_stylesheet_uri(), [], br_ver());
     wp_enqueue_script('boardroom', get_template_directory_uri() . '/assets/site.js', [], br_ver(), true);
@@ -431,6 +431,7 @@ function br_seo_pages() {
         'rental-checklist' => ['title' => 'Rental Checklist | The Boardroom, ' . $place, 'description' => 'What to do before and after an event at The Boardroom in Moline, IL, including setup, cleanup, and house rules.'],
         'contact' => ['title' => 'Contact The Boardroom | ' . $place, 'description' => 'Email boardroomqc@gmail.com or use the contact form to ask about The Boardroom in Moline, IL.'],
         'gallery' => ['title' => 'Photo Gallery | The Boardroom, ' . $place, 'description' => 'Photos of The Boardroom, a party and event venue in Moline, IL, in the Quad Cities.'],
+        'holiday-party-venue-quad-cities' => ['title' => '', 'description' => 'Planning a holiday party in the Quad Cities? The Boardroom in Moline, IL hosts up to 80 guests. See open dates and pricing on our calendar.'],
     ];
 }
 function br_seo_key() {
@@ -440,33 +441,146 @@ function br_seo_key() {
     $pages = br_seo_pages();
     return isset($pages[$slug]) ? $slug : '';
 }
+function br_yoast_active() {
+    return defined('WPSEO_VERSION');
+}
+function br_seo_row() {
+    $key = br_seo_key();
+    if ($key === '') return null;
+    $pages = br_seo_pages();
+    return $pages[$key] ?? null;
+}
+function br_yoast_document_title($fallback) {
+    $row = br_seo_row();
+    if ($row && ($row['title'] ?? '') !== '') return $row['title'];
+    $post = get_queried_object();
+    if ($post && !empty($post->post_title) && ($row || (function_exists('is_singular') && is_singular()))) {
+        return $post->post_title . ' – ' . get_bloginfo('name', 'display');
+    }
+    return $fallback;
+}
+function br_yoast_meta_description($fallback) {
+    $row = br_seo_row();
+    if ($row && ($row['description'] ?? '') !== '') return $row['description'];
+    return $fallback;
+}
+function br_post_booking_html() {
+    $html = '<section class="post-booking" id="check-your-date">';
+    $html .= '<h2>Check Your Date</h2>';
+    if (function_exists('brb_home_calendar_html')) $html .= brb_home_calendar_html();
+    $html .= '<p class="post-booking-cta"><a class="btn" href="' . esc_url('https://boardroomqc.com/reserve-the-boardroom-quad-cities/') . '">Book Now</a></p>';
+    $html .= '</section>';
+    return $html;
+}
+function br_yoast_schema_drop($piece) {
+    if (!is_array($piece) || !isset($piece['@type'])) return false;
+    $types = is_array($piece['@type']) ? $piece['@type'] : [$piece['@type']];
+    return (bool) array_intersect($types, ['Organization', 'LocalBusiness', 'EventVenue', 'FAQPage']);
+}
+function br_yoast_clean_schema($value) {
+    if (!is_array($value)) return $value;
+    if (br_yoast_schema_drop($value)) return null;
+    unset($value['telephone'], $value['aggregateRating']);
+    $list = function_exists('array_is_list') ? array_is_list($value) : false;
+    if ($list) {
+        $next = [];
+        foreach ($value as $child) {
+            if (!is_array($child)) {
+                $next[] = $child;
+                continue;
+            }
+            $clean = br_yoast_clean_schema($child);
+            if ($clean !== null) $next[] = $clean;
+        }
+        return $next;
+    }
+    foreach ($value as $key => $child) {
+        if (!is_array($child)) continue;
+        $clean = br_yoast_clean_schema($child);
+        if ($clean === null) unset($value[$key]);
+        else $value[$key] = $clean;
+    }
+    return $value;
+}
 function br_share_image() {
     $file = 'PXL_20220912_160655168.jpg';
     if (br_has_webp($file)) $file = br_webp_file($file);
     return br_img($file);
 }
 add_filter('document_title_parts', function ($parts) {
+    if (br_yoast_active()) return $parts;
     $key = br_seo_key();
     $pages = br_seo_pages();
-    if ($key !== '' && isset($pages[$key])) {
+    if ($key !== '' && isset($pages[$key]) && $pages[$key]['title'] !== '') {
         $parts['title'] = $pages[$key]['title'];
         unset($parts['site'], $parts['tagline']);
     }
     return $parts;
 });
 add_action('wp_head', function () {
+    if (br_yoast_active()) return;
     $key = br_seo_key();
     if ($key === '') return;
     $row = br_seo_pages()[$key];
+    $description = (string) ($row['description'] ?? '');
+    if ($description === '') return;
+    echo '<meta name="description" content="' . esc_attr($description) . '">' . "\n";
+    if (($row['title'] ?? '') === '') return;
     $url = $key === 'home' ? home_url('/') : home_url('/' . $key . '/');
     $image = br_share_image();
-    echo '<meta name="description" content="' . esc_attr($row['description']) . '">' . "\n";
     echo '<meta property="og:type" content="website">' . "\n";
     echo '<meta property="og:title" content="' . esc_attr($row['title']) . '">' . "\n";
-    echo '<meta property="og:description" content="' . esc_attr($row['description']) . '">' . "\n";
+    echo '<meta property="og:description" content="' . esc_attr($description) . '">' . "\n";
     echo '<meta property="og:url" content="' . esc_url($url) . '">' . "\n";
     echo '<meta property="og:image" content="' . esc_url($image) . '">' . "\n";
 }, 2);
+add_filter('wpseo_title', function ($title) {
+    return br_yoast_document_title($title);
+});
+add_filter('wpseo_opengraph_title', function ($title) {
+    return br_yoast_document_title($title);
+});
+add_filter('wpseo_metadesc', function ($description) {
+    return br_yoast_meta_description($description);
+});
+add_filter('wpseo_opengraph_desc', function ($description) {
+    return br_yoast_meta_description($description);
+});
+add_filter('wpseo_schema_graph_pieces', function ($pieces) {
+    if (!is_array($pieces)) return $pieces;
+    $drop = ['Yoast\WP\SEO\Generators\Schema\Organization', 'Yoast\WP\SEO\Generators\Schema\FAQ'];
+    $kept = [];
+    foreach ($pieces as $piece) {
+        if (is_object($piece) && in_array(get_class($piece), $drop, true)) continue;
+        $kept[] = $piece;
+    }
+    return $kept;
+});
+add_filter('wpseo_schema_graph', function ($graph) {
+    $clean = br_yoast_clean_schema($graph);
+    return is_array($clean) ? $clean : [];
+});
+add_filter('wpseo_robots_array', function ($robots) {
+    if (!is_array($robots)) return $robots;
+    if (!function_exists('brb_is_production')) return $robots;
+    if (!brb_is_production()) {
+        // Staging and other non-production hosts are never indexed, whatever
+        // Yoast or blog_public say.
+        // Preview limits only matter for indexed pages, so drop them here like
+        // Yoast does for its own noindex pages.
+        unset($robots['max-snippet'], $robots['max-image-preview'], $robots['max-video-preview']);
+        $robots['index'] = 'noindex';
+        $robots['follow'] = 'nofollow';
+        return $robots;
+    }
+    $robots['index'] = 'index';
+    if (($robots['follow'] ?? '') === 'nofollow') $robots['follow'] = 'follow';
+    return $robots;
+}, 99);
+add_action('init', function () {
+    if (!br_yoast_active()) return;
+    remove_action('wp_head', 'rel_canonical');
+}, 20);
 function br_ensure_gallery() {
     if (get_option('br_gallery_ready') === '1') return;
     $page = get_page_by_path('gallery');

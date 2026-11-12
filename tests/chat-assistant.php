@@ -36,7 +36,7 @@ function brb_chat_reply($text, $history = []) {
 }
 
 try {
-    brb_t(get_option('brb_version') === '2.5.61', 'plugin storage version is 2.5.61');
+    brb_t(get_option('brb_version') === '2.5.62', 'plugin storage version is 2.5.62');
     putenv('BRB_ENV=production');
     $_ENV['BRB_ENV'] = 'production';
     $_SERVER['BRB_ENV'] = 'production';
