@@ -104,3 +104,6 @@
 .brb-plain{margin:0 0 12px}
 .brb-report-range{display:flex;flex-wrap:wrap;gap:10px;align-items:end;margin:12px 0}
 .brb-dash{margin:0 0 8px}
+
+.brb-email-body{font-family:Consolas,Monaco,monospace;min-height:18em;white-space:pre-wrap;line-height:1.45}
+.brb-email-subject,.brb-email-body{max-width:100%}
