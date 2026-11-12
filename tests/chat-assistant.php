@@ -36,7 +36,7 @@ function brb_chat_reply($text, $history = []) {
 }
 
 try {
-    brb_t(get_option('brb_version') === '2.5.68', 'plugin storage version is 2.5.68');
+    brb_t(get_option('brb_version') === '2.5.69', 'plugin storage version is 2.5.69');
     putenv('BRB_ENV=production');
     $_ENV['BRB_ENV'] = 'production';
     $_SERVER['BRB_ENV'] = 'production';
@@ -92,7 +92,7 @@ try {
     brb_t(strpos($wedding, 'Weddings') !== false && strpos($wedding, 'free to attend') !== false && strpos($wedding, 'minimum host age is 25') !== false && strpos($wedding, 'Our team will confirm') === false, 'event types are welcome and the host age is 25 for every booking');
     $unknown = 'I\'m not sure about that one';
     $house_prompts = [
-        'When is the balance due?' => ['one week before'],
+        'When is the balance due?' => ['48 hours before'],
         'Is there a refrigerator or ice?' => ['refrigerator', 'ice machine'],
         'Who will be there during my event?' => ['No one is on site', 'connected offices', 'contract is signed'],
         'Is there a private entrance?' => ['private main entrance', 'back entrance', 'surprise guest'],

@@ -1083,7 +1083,7 @@ function brb_chat_specific_text($text) {
         $bits[] = 'The host must be 25 or older. The minimum host age is 25 for every booking.';
     }
     if (preg_match('/balance due|when is the balance|the balance|remaining balance|\bthe rest\b/', $t)) {
-        $bits[] = 'The balance is due no later than one week before the event. We\'ll confirm the amount with you.';
+        $bits[] = 'The balance is due no later than 48 hours before the event. We\'ll confirm the amount with you.';
     }
     if (preg_match('/minimum notice|how far in advance|how far ahead|same day|how soon|hours\'? notice|how much notice|\btonight\b/', $t)) {
         $bits[] = 'Bookings need at least ' . brb_notice_hours() . ' hours\' notice.';
@@ -2183,7 +2183,7 @@ function brb_chat_markup($mode = 'float', $details_target = '') {
         echo '<label>Email*<input type="email" name="email" maxlength="190" autocomplete="email" required></label>';
         echo '<label>Phone (optional)<input name="phone" maxlength="50" autocomplete="tel"></label>';
         echo '<label>Event date<input type="date" name="event_date"></label>';
-        echo '<label>Guests (80)<input type="number" name="guests" min="1" max="200"></label>';
+        echo '<label>Guests (80)<input type="number" name="guests" min="1" max="80"></label>';
         echo '<label>Short note<textarea name="note" rows="3" maxlength="1000"></textarea></label>';
         echo '<label class="brb-chat-consent"><input type="checkbox" name="consent" value="1" required> A team member will reply using this info</label>';
         echo '<p class="brb-chat-lead-actions"><button type="button" class="brb-chat-lead-cancel">Cancel</button><button type="submit" class="brb-chat-send">Send to the team</button></p>';

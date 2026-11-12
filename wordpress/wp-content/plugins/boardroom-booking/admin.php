@@ -1768,7 +1768,7 @@ function brb_admin_settings() {
             ['open_hour', 'Hourly open (0–23)', 'number', null, ''],
             ['close_hour', 'Hourly close (1–24)', 'number', null, ''],
             ['max_days', 'Max consecutive days', 'number', null, ''],
-            ['max_guests', 'Max guests', 'number', null, 'Public help says 80 guests, and graduation parties or open houses can go over. The booking form accepts up to 200.'],
+            ['max_guests', 'Max guests', 'number', null, 'Public help says 80 guests, and graduation parties or open houses can go over. The booking form accepts up to 80.'],
             ['currency', 'Currency code', 'text', null, 'Checks are US dollars. This is kept for records. Older day rate, hourly rate, cleaning fee, and tax figures stay stored and are not shown on the website.'],
         ],
         'Notice' => [
@@ -1778,7 +1778,7 @@ function brb_admin_settings() {
             ['deposit_type', 'Deposit that reserves the date', 'select', ['full' => 'Full amount', 'percent' => 'Percent of the agreed price', 'fixed' => 'Fixed dollar amount'], 'The deposit holds the date. It is refundable if written cancellation is received 60 or more days before the event, less non-refundable processing charges and costs already incurred, and it is not refundable inside 60 days. Staff process refunds manually. Default is 50% of the agreed price. Until staff set a price, the guest is told the price is to be confirmed.'],
             ['deposit_pct', 'Deposit percent', 'number', null, 'Used when the choice above is percent. Default 50.'],
             ['deposit_fixed', 'Fixed deposit amount ($)', 'text', null, 'Used when the choice above is a fixed dollar amount. Cannot exceed the total.'],
-            ['balance_due_days', 'Balance due note', 'number', null, 'Guests are told the balance is due no later than one week before the event. A past date is shown as due now. Until a price is set, the guest sees price to be confirmed.'],
+            ['balance_due_days', 'Balance due note', 'number', null, 'Guests are told the balance is due no later than 48 hours before the event. The due time is 48 hours before the event start. A past due time is shown as due now. Until a price is set, the guest sees price to be confirmed.'],
             ['damage_deposit_amount', 'Damage deposit amount ($)', 'number', null, 'Flat refundable damage deposit added to new bookings. Default 250. Changing this does not change bookings that already have a damage deposit line. Use 0 if a new booking should not include one.'],
             ['venue_address', 'Venue address', 'text', null, 'The event space. Shown in the footer, on Contact, and in Terms and Privacy. Default is 2220 37th Street, Moline, IL 61265. This is not where checks go.'],
             ['payee', 'Check payable to', 'text', null, 'The name guests write on the payee line. Default is Boardroom QC LLC.'],

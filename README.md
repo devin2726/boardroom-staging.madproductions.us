@@ -38,7 +38,7 @@ Bookings → Settings. Anything still marked `[VERIFY]` is shown to guests until
 
 | Setting | Default | Notes |
 |---|---|---|
-| Check payable to | `[VERIFY] Name on the check` | Name on the check |
+| Check payable to | Boardroom QC LLC | Name on the check |
 | Venue address | 2220 37th Street, Moline, IL 61265 | The event space. Footer, Contact, Terms, and Privacy. A blank value, a placeholder, or the check address saved here by mistake is replaced on upgrade. |
 | Map | https://maps.app.goo.gl/nVqUsGTcy48nPzc18 | Contact embeds a Google Map for the Boardroom (41.4913116, -90.4820481) with `loading="lazy"`. The same short link is the “Get directions / View on Google Maps” fallback on Contact and in the footer. Schema geo uses those coordinates. |
 | Where to mail or drop off checks | The Boardroom, 2220 37th Street, Moline, IL 61265 | Checks only. A saved placeholder, or an old check-address line, is replaced on upgrade. |
@@ -47,7 +47,7 @@ Bookings → Settings. Anything still marked `[VERIFY]` is shown to guests until
 | Starting price | $600 per day | Shown to guests as “from” this amount. Whole dollars display without cents. |
 | Typical price text | stored, not shown | Older saves may still contain this phrase. The site no longer prints it. |
 | Amount that secures the date | Full amount of the agreed price | Or a percent, or a fixed dollar amount. Applied only after staff set the price. |
-| Balance due | 7 days before the event | `[VERIFY]` Used only when the first check is less than the agreed price |
+| Balance due | 48 hours before the event | `[VERIFY]` Used only when the first check is less than the agreed price |
 | Minimum notice (hours) | 48 | Booking must **start** at least this many hours from now. This is the “not inside 48 hours” rule. Change the number here if the rule changes. |
 | Deposit | 50% | Non-refundable. This is what reserves the date. A request does not hold the date. |
 | Admin notification email | WordPress admin email | Hold, price, check, expiry, and contact inquiry mail. Separate extra addresses with commas. |

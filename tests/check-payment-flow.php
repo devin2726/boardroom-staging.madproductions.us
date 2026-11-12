@@ -45,7 +45,7 @@ add_filter('pre_wp_mail', function ($short, $atts) {
 $GLOBALS['brb_mails'] = [];
 
 try {
-    brb_t(get_option('brb_version') === '2.5.68', 'plugin storage version is 2.5.68');
+    brb_t(get_option('brb_version') === '2.5.69', 'plugin storage version is 2.5.69');
     $cc_before = (string) brb_opt('inquiry_cc');
     delete_option('brb_inquiry_cc_seeded');
     $cc_settings = get_option('brb_settings');
@@ -236,7 +236,7 @@ try {
     $balance_policy['policy'] = 'The invoice notes require full payment 30 days before the event. Keep the rest.';
     update_option('brb_settings', $balance_policy);
     brb_migrate_settings();
-    brb_t(strpos((string) brb_opt('policy'), 'no later than one week before the event') !== false && strpos((string) brb_opt('policy'), '30 days before the event') === false && strpos((string) brb_opt('policy'), '48 hours before the event') === false && strpos((string) brb_opt('policy'), 'Keep the rest.') !== false, 'a saved 30-day balance sentence becomes the one-week rule');
+    brb_t(strpos((string) brb_opt('policy'), 'no later than 48 hours before the event') !== false && strpos((string) brb_opt('policy'), '30 days before the event') === false && strpos((string) brb_opt('policy'), 'one week before the event') === false && strpos((string) brb_opt('policy'), 'Keep the rest.') !== false, 'a saved 30-day balance sentence becomes the 48-hour rule');
     $balance_policy = brb_opt();
     $balance_policy['policy'] = $balance_before;
     update_option('brb_settings', $balance_policy);
@@ -244,6 +244,19 @@ try {
     brb_t(!array_key_exists($brand . '_sk', $migrated) && !isset($migrated['hold_minutes']), 'legacy keys are dropped');
     brb_t(($migrated['deposit_type'] ?? '') === 'percent' && (string) ($migrated['deposit_pct'] ?? '') === '50', 'a legacy full deposit becomes a 50 percent deposit');
     brb_t(($migrated['hold_hours'] ?? '') === '48' && ($migrated['min_notice_hours'] ?? '') === '48', 'new hour settings default to 48');
+    brb_t((string) ($migrated['max_guests'] ?? '') === '75', 'a stored max other than 200 is left alone');
+    $cap_policy = brb_opt();
+    $cap_policy['max_guests'] = '200';
+    update_option('brb_settings', $cap_policy);
+    brb_migrate_settings();
+    brb_t((string) brb_opt('max_guests') === '80', 'a stored max of 200 becomes 80');
+    $cap_policy = brb_opt();
+    $cap_policy['max_guests'] = '75';
+    update_option('brb_settings', $cap_policy);
+    $due_start = new DateTimeImmutable('2026-11-21 10:00:00', brb_tz());
+    brb_t(brb_balance_due_on($due_start) === '2026-11-19 10:00:00', 'the balance is due 48 hours before the event start');
+    brb_t(brb_balance_due_label('2026-11-19 10:00:00') === 'Thursday, November 19, 2026 at 10:00 AM', 'the balance due label includes the weekday and time');
+    brb_t(brb_balance_due_label('2026-11-19') === 'Thursday, November 19, 2026', 'a date-only balance due keeps a date label');
 
     $blocked = new DateTimeImmutable('2030-01-03 00:00:00', brb_tz());
     brb_t(!brb_is_free($blocked, $blocked->modify('+1 day')), 'a blackout date is not free');
@@ -461,6 +474,21 @@ try {
         if ($late && !is_wp_error($late)) $created_ids[] = (int) $late->id;
         $multi = brb_process_public_booking(array_merge($post, ['date' => brb_now()->modify('+22 days')->format('Y-m-d'), 'days' => 3]));
         brb_t(is_wp_error($multi) && $multi->get_error_code() === 'days', 'more than one day is rejected');
+        $cap_saved = brb_opt();
+        $cap_work = $cap_saved;
+        $cap_work['max_guests'] = '80';
+        update_option('brb_settings', $cap_work);
+        $cap_day = brb_now()->modify('+24 days')->format('Y-m-d');
+        $over_cap = brb_process_public_booking(array_merge($post, ['date' => $cap_day, 'guests' => 81, 'name' => 'Over Cap', 'email' => 'over-cap@example.com']));
+        brb_t(is_wp_error($over_cap) && $over_cap->get_error_code() === 'guests', '81 guests is rejected when the cap is 80');
+        $at_cap = brb_process_public_booking(array_merge($post, ['date' => $cap_day, 'guests' => 80, 'name' => 'At Cap', 'email' => 'at-cap@example.com']));
+        brb_t(!is_wp_error($at_cap) && $at_cap && (int) $at_cap->guests === 80, '80 guests is accepted');
+        if ($at_cap && !is_wp_error($at_cap)) {
+            $created_ids[] = (int) $at_cap->id;
+            $expect_due = brb_balance_due_on(new DateTimeImmutable($cap_day . ' 10:00:00', brb_tz()));
+            brb_t((string) $at_cap->balance_due_on === $expect_due, 'a new booking stores the balance due 48 hours before start');
+        }
+        update_option('brb_settings', $cap_saved);
         $before_start = brb_process_public_booking(array_merge($post, ['date' => brb_now()->modify('+23 days')->format('Y-m-d'), 'type' => 'hourly', 'start_hour' => 18, 'hours' => 2]));
         brb_t(is_wp_error($before_start) && $before_start->get_error_code() === 'type', 'a shorter block is rejected');
         $js = file_get_contents(WP_PLUGIN_DIR . '/boardroom-booking/assets/brb.js');
@@ -908,7 +936,7 @@ try {
         'isn\'t set up' => $terms_html,
         'can\'t set the room for you' => $terms_html,
         'The host must be 25 or older' => $terms_html,
-        'no later than one week before your event' => $terms_html,
+        'no later than 48 hours before your event' => $terms_html,
         'Balloons, yes' => $terms_html,
         'Wall tape' => $terms_html,
         'Sales tax is included in the price.' => $terms_html,
@@ -924,10 +952,10 @@ try {
     }
     brb_t(strpos($terms_html, 'The microwave, blender, food warmers and bar area are yours to use.') !== false && strpos($terms_html, 'The stovetops and oven can\'t be used.') !== false && strpos($terms_html, 'Renters insurance covering your event is required.') !== false, 'terms allow the microwave and require renters insurance');
     brb_t(strpos($terms_html, 'https://moline.il.us/244/Liquor-Licensing') === false && strpos($terms_html, '309-524-2004') === false && strpos($terms_html, 'Half days') === false && strpos($terms_html, 'one-day liquor license') === false && strpos($agreement_html, 'https://moline.il.us/244/Liquor-Licensing') === false && strpos($agreement_html, 'Half days') === false && strpos($agreement_html, 'one-day liquor license') === false && strpos($privacy_html, 'host age bracket') === false && strpos($privacy_html, 'invitation-only') === false && strpos($privacy_html, 'what time the event will end') === false, 'legal pages drop half days, the city liquor license, and the removed booking questions');
-    brb_t(strpos($terms_html, 'Prices are on the calendar.') !== false && strpos($terms_html, 'no later than one week before your event') !== false && strpos($terms_html, '2212') === false && strpos($terms_html, 'Venmo') === false && strpos($terms_html, 'through Stripe for card payments (less the card processing fee) or by check') !== false && strpos($terms_html, 'Book at least 48 hours ahead.') !== false && strpos($terms_html, 'Full days start at $850.') !== false, 'the terms page uses one week, the venue for checks, and the original-method refund');
+    brb_t(strpos($terms_html, 'Prices are on the calendar.') !== false && strpos($terms_html, 'no later than 48 hours before your event') !== false && strpos($terms_html, 'one week before your event') === false && strpos($terms_html, '2212') === false && strpos($terms_html, 'Venmo') === false && strpos($terms_html, 'through Stripe for card payments (less the card processing fee) or by check') !== false && strpos($terms_html, 'Book at least 48 hours ahead.') !== false && strpos($terms_html, 'Full days start at $850.') !== false, 'the terms page uses 48 hours, the venue for checks, and the original-method refund');
     brb_t(strpos($terms_html, 'Full days start at $850. The price for a date is on the calendar.') !== false && strpos($terms_html, 'Full days start at $850. The price for your date is on the calendar, and we confirm the final price by email.') !== false && strpos($terms_html, 'Most events are about $1,200.') === false && strpos($terms_html, 'most events are about $1,200') === false, 'terms drop the typical event price and keep the calendar price');
     brb_t(strpos($agreement_html, 'Published full-day rates start at $850. The price for a date is the rate shown on the booking calendar, and Owner confirms the final price in writing. Sales tax is included in the price. The refundable damage deposit is a flat $250.') !== false && strpos($agreement_html, 'most events are about $1,200') === false, 'the rental agreement drops the typical event price and keeps sales tax and the $250 deposit');
-    brb_t(strpos(brb_cancellation_summary(), 'no later than one week before the event') !== false && strpos(brb_cancellation_summary(), '48 hours before the event') === false && strpos(brb_cancellation_summary(), 'payable to Boardroom QC LLC at The Boardroom, 2220 37th Street, Moline, IL 61265') !== false && strpos(brb_cancellation_summary(), '2212') === false && strpos(brb_agreement_html(), 'no later than one week before the event') !== false && strpos(brb_agreement_html(), '48 hours before the event') === false && strpos(brb_agreement_html(), '80 guests') !== false && strpos(brb_agreement_html(), '75 to 80') === false, 'the summary and the rental agreement use one week, 80 guests, and checks at The Boardroom');
+    brb_t(strpos(brb_cancellation_summary(), 'no later than 48 hours before the event') !== false && strpos(brb_cancellation_summary(), 'one week before the event') === false && strpos(brb_cancellation_summary(), 'payable to Boardroom QC LLC at The Boardroom, 2220 37th Street, Moline, IL 61265') !== false && strpos(brb_cancellation_summary(), '2212') === false && strpos(brb_agreement_html(), 'no later than 48 hours before the event') !== false && strpos(brb_agreement_html(), 'one week before the event') === false && strpos(brb_agreement_html(), '80 guests') !== false && strpos(brb_agreement_html(), '75 to 80') === false, 'the summary and the rental agreement use 48 hours, 80 guests, and checks at The Boardroom');
     brb_t(strpos($terms_html, '[VERIFY current fee and issuing office]') === false, 'liquor license fee is no longer marked for verification');
     brb_t(strpos($terms_html, '2220 37th Street, Moline, IL 61265') !== false && strpos($terms_html, 'operated by Boardroom QC LLC') !== false, 'terms name the venue at 2220 37th Street');
     brb_t(strpos($terms_html, 'Make checks payable to Boardroom QC LLC at The Boardroom, 2220 37th Street, Moline, IL 61265.') !== false, 'terms tell guests where to bring checks');
@@ -935,7 +963,7 @@ try {
     brb_t(strpos($privacy_html, 'at 2220 37th Street, Moline, IL 61265') !== false, 'privacy names the venue address');
     brb_t(strpos($privacy_html, 'Mail or drop off checks payable to Boardroom QC LLC at The Boardroom, 2220 37th Street, Moline, IL 61265.') !== false && strpos($privacy_html, '2212') === false, 'privacy tells guests to bring checks to The Boardroom');
     brb_t(strpos($agreement_html, '2220 37th Street, Moline, Illinois 61265') !== false && strpos($agreement_html, '2220 37th Street, Moline, IL 61265') !== false, 'signed agreement body keeps 2220 37th Street');
-    brb_t(strpos($agreement_html, 'Staff cannot set the room up') !== false && strpos($agreement_html, 'The minimum host age is 25 for every booking') !== false && strpos($agreement_html, 'no later than one week before the event') !== false && strpos($agreement_html, 'Balloons are allowed') !== false && strpos($agreement_html, 'wall tape') !== false, 'the rental agreement states setup, host age, balance, balloons, and wall tape');
+    brb_t(strpos($agreement_html, 'Staff cannot set the room up') !== false && strpos($agreement_html, 'The minimum host age is 25 for every booking') !== false && strpos($agreement_html, 'no later than 48 hours before the event') !== false && strpos($agreement_html, 'Balloons are allowed') !== false && strpos($agreement_html, 'wall tape') !== false, 'the rental agreement states setup, host age, balance, balloons, and wall tape');
     brb_t(strpos($privacy_html, 'event type') === false && strpos($privacy_html, 'whether alcohol will be served') === false && strpos($privacy_html, 'confirmation that the event is free to attend') !== false && strpos($privacy_html, 'event date and time') !== false, 'privacy no longer says the booking form asks for event type or alcohol');
     brb_t(strpos($agreement_html, 'Renter may bring and put up Renter') !== false && strpos($agreement_html, 'Glitter and confetti are not allowed') !== false && strpos($agreement_html, 'glitter; wall tape; party confetti; confetti cannons; rice; birdseed; loose sequins;') !== false && strpos($terms_html, 'Glitter, confetti, confetti cannons, rice, birdseed, or loose sequins') !== false && strpos($terms_html, 'You may bring and put up your own decorations') !== false && strpos($faq_html, 'confetti cannons, rice, birdseed, and loose sequins') !== false, 'renters may decorate, and confetti cannons, rice, birdseed, and loose sequins are banned again');
     $recording = 'The Venue may use audio and video recording, including security cameras in common areas and exterior areas. Cameras are not used in restrooms.';
@@ -1211,7 +1239,8 @@ try {
     $_GET = [];
     $picker = do_shortcode('[boardroom_booking]');
     brb_t(strpos($picker, 'Continue') !== false && strpos($picker, 'hours from now') !== false, 'calendar explains the minimum notice');
-    $facts_order = ['Prices&nbsp;on&nbsp;the&nbsp;Calendar', 'No&nbsp;Charge&nbsp;to&nbsp;Request', '50%&nbsp;Holds&nbsp;Your&nbsp;Date', '$250&nbsp;Refundable&nbsp;Damage&nbsp;Deposit', 'Balance&nbsp;Due&nbsp;1&nbsp;Week&nbsp;Before'];
+    brb_t(strpos($picker, 'id="brb-guests"') !== false && strpos($picker, 'max="80"') !== false && strpos($picker, 'max="200"') === false, 'the booking form accepts up to 80 guests');
+    $facts_order = ['Prices&nbsp;on&nbsp;the&nbsp;Calendar', 'No&nbsp;Charge&nbsp;to&nbsp;Request', '50%&nbsp;Holds&nbsp;Your&nbsp;Date', '$250&nbsp;Refundable&nbsp;Damage&nbsp;Deposit', 'Balance&nbsp;Due&nbsp;48&nbsp;Hours&nbsp;Before'];
     $facts_at = strpos($picker, 'class="hero-facts"');
     $facts_html = $facts_at === false ? '' : substr($picker, $facts_at, 800);
     $facts_ok = $facts_at !== false;

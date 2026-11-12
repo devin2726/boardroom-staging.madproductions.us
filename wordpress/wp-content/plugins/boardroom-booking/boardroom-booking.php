@@ -2,18 +2,18 @@
 /**
  * Plugin Name: Boardroom Booking
  * Description: Self-hosted direct booking for The Boardroom — full-day blocks, availability calendar, agreed prices, approval before payment, blackout dates, and emails.
- * Version: 2.5.68
+ * Version: 2.5.69
  * Author: Boardroom QC LLC
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.5.68');
+define('BRB_VER', '2.5.69');
 function brb_reserve_explainer_steps() {
     return [
         'Pick a date. Prices are on the calendar.',
         'Send a request. No charge yet.',
         'We approve it and email a payment link.',
         'Within 1 day of signing, pay 50% of the invoice. That deposit holds the date. The $250 refundable damage deposit is separate.',
-        'Pay the rest a week before your event.',
+        'Pay the rest no later than 48 hours before your event.',
     ];
 }
 define('BRB_BOOK_SLUG', 'reserve-the-boardroom-quad-cities');
@@ -154,7 +154,7 @@ function brb_defaults() {
         'balance_due_days' => '2',
         'addon_price' => '500',
         'damage_deposit_amount' => '250',
-        'max_guests' => '200',
+        'max_guests' => '80',
         'calendar_rates' => '',
         'date_notes' => '',
         'max_days' => '7',
@@ -610,7 +610,7 @@ function brb_how_booking_works_steps() {
         'Send your request. Nothing is charged yet.',
         'We review it. Once it\'s approved, we\'ll email you a payment link.',
         'Lock in your date. Pay 50% of the rental plus the $250 refundable damage deposit by card (3% fee) or check, and agree to the Terms and Rental Agreement.',
-        'You\'re booked! Pay the balance by check or card no later than one week before your event. Your status link stays with your booking, and we\'ll send a checklist reminder about a week before your event.',
+        'You\'re booked! Pay the balance by check or card no later than 48 hours before your event. Your status link stays with your booking, and we\'ll send a checklist reminder about a week before your event.',
     ];
 }
 function brb_how_booking_works_html() {
@@ -619,7 +619,7 @@ function brb_how_booking_works_html() {
         'No Charge to Request',
         '50% Holds Your Date',
         '$250 Refundable Damage Deposit',
-        'Balance Due 1 Week Before',
+        'Balance Due 48 Hours Before',
     ], 0) : '';
     return '<section class="brb-how"><h2>Pick a Date</h2>' . $facts . '</section>';
 }
@@ -697,7 +697,7 @@ function brb_checklist_default() {
     return implode("\n", [
         'Sign the rental agreement.',
         'The deposit is received and approved.',
-        'The balance is due no later than one week before the event.',
+        'The balance is due no later than 48 hours before the event.',
         'The refundable damage deposit is a flat $250. It is charged with the booking deposit and returned if the room is left as you found it.',
         'The damage deposit is refunded after the event, once the space is checked, by your original payment method: through Stripe for card payments (less the card processing fee) or by check.',
         'Setup is the morning of the event. Setup can begin at 8:00 AM.',
@@ -958,7 +958,7 @@ function brb_install_tables() {
       status varchar(20) NOT NULL DEFAULT 'review',
       source varchar(20) NOT NULL DEFAULT 'online',
       hold_until datetime DEFAULT NULL,
-      balance_due_on date DEFAULT NULL,
+      balance_due_on datetime DEFAULT NULL,
       price_set tinyint(1) NOT NULL DEFAULT 0,
       event_type varchar(40) NOT NULL DEFAULT '',
       public_event varchar(3) NOT NULL DEFAULT '',
@@ -984,7 +984,8 @@ function brb_install_tables() {
     brb_ensure_column($t, 'amount_paid', 'decimal(10,2) NOT NULL DEFAULT 0.00');
     brb_ensure_column($t, 'source', "varchar(20) NOT NULL DEFAULT 'online'");
     brb_ensure_column($t, 'hold_until', 'datetime NULL DEFAULT NULL');
-    brb_ensure_column($t, 'balance_due_on', 'date NULL DEFAULT NULL');
+    brb_ensure_column($t, 'balance_due_on', 'datetime NULL DEFAULT NULL');
+    brb_ensure_balance_due_column($t);
     brb_ensure_column($t, 'price_set', 'tinyint(1) NOT NULL DEFAULT 0');
     brb_ensure_column($t, 'event_type', "varchar(40) NOT NULL DEFAULT ''");
     brb_ensure_column($t, 'public_event', "varchar(3) NOT NULL DEFAULT ''");
@@ -1074,7 +1075,8 @@ function brb_migrate_settings() {
     if ((string) ($stored['open_hour'] ?? '') === '9') $merged['open_hour'] = '10';
     if (!isset($stored['min_notice_hours'])) $merged['min_notice_hours'] = '48';
     if (!isset($stored['hold_hours'])) $merged['hold_hours'] = '48';
-    if (!isset($stored['balance_due_days'])) $merged['balance_due_days'] = '7';
+    if (!isset($stored['balance_due_days']) || (string) $stored['balance_due_days'] === '7') $merged['balance_due_days'] = '2';
+    if (isset($stored['max_guests']) && (string) $stored['max_guests'] === '200') $merged['max_guests'] = '80';
     if (!isset($stored['deposit_fixed']) || $stored['deposit_fixed'] === '') $merged['deposit_fixed'] = '0';
     $defaults = brb_defaults();
     foreach (['payee', 'pay_location', 'pay_hours', 'pay_instructions'] as $k) {
@@ -1111,9 +1113,9 @@ function brb_migrate_settings() {
     $old_balance = 'The invoice notes require full payment 30 days before the event.';
     $week_balance = 'The remaining balance is due the week of the event, no later than 48 hours before the event.';
     $one_week = 'The remaining balance is due no later than one week before the event.';
+    $hours_48 = 'The remaining balance is due no later than 48 hours before the event.';
     $policy = (string) ($merged['policy'] ?? '');
-    if (strpos($policy, $old_balance) !== false) $policy = str_replace($old_balance, $one_week, $policy);
-    if (strpos($policy, $week_balance) !== false) $policy = str_replace($week_balance, $one_week, $policy);
+    $policy = str_replace([$old_balance, $week_balance, $one_week], $hours_48, $policy);
     $policy = str_replace(
         'Mail or drop off checks payable to Mad Productions at 2212 37th Street, Moline, IL 61265.',
         'Mail or drop off checks payable to Boardroom QC LLC at The Boardroom, 2220 37th Street, Moline, IL 61265.',
@@ -1164,7 +1166,8 @@ function brb_faq_markup() {
 <details><summary>Can I rent for a few hours?</summary><p>Each booking is one full day, 10:00 AM to 11:30 PM, with setup from 8:00 AM. Half-day and hourly rentals aren't offered.</p></details>
 
 <h2>Pricing and payment</h2>
-<details><summary>How do I pay?</summary><p>After we approve the request, pay by check or in person, or online by card with a 3% processing fee. Mail or drop off checks payable to Boardroom QC LLC at The Boardroom, 2220 37th Street, Moline, IL 61265. We don't keep set hours. We meet on demand and set a time together, by appointment. The deposit (50% of the agreed total) holds the date. The balance is due no later than one week before the event. Sales tax is included in the price. The card processing fee is non-refundable.</p></details>
+<details><summary>How do I pay?</summary><p>After we approve the request, pay by check or in person, or online by card with a 3% processing fee. Mail or drop off checks payable to Boardroom QC LLC at The Boardroom, 2220 37th Street, Moline, IL 61265. We don't keep set hours. We meet on demand and set a time together, by appointment. The deposit (50% of the agreed total) holds the date. The balance is due no later than 48 hours before the event. Sales tax is included in the price. The card processing fee is non-refundable.</p></details>
+<details><summary>When is the balance due?</summary><p>The remaining balance is due no later than 48 hours before the event.</p></details>
 <details><summary>Can I get an invoice or a receipt?</summary><p>Yes. Card payments get an emailed receipt, and we can provide an invoice or receipt for any payment on request.</p></details>
 <details><summary>Is sales tax included?</summary><p>Sales tax is included in the price.</p></details>
 
@@ -1253,7 +1256,11 @@ function brb_refresh_checklist_copy() {
         brb_byob_line(),
         $next
     );
-    $next = str_replace('The balance is due the week of the event, no later than 48 hours before.', 'The balance is due no later than one week before the event.', $next);
+    $next = str_replace(
+        ['The balance is due the week of the event, no later than 48 hours before.', 'The balance is due no later than one week before the event.'],
+        'The balance is due no later than 48 hours before the event.',
+        $next
+    );
     $next = str_replace('It is returned within 72 hours when Venmo or PayPal is on file. A check takes 1 to 2 weeks.', 'It is refunded through Stripe, less the card processing fee, after the event once the space is checked.', $next);
     $next = str_replace('Not allowed: Glitter, confetti, confetti cannons, rice, birdseed, or loose sequins.', 'Not allowed: Confetti, confetti cannons, rice, birdseed, or loose sequins.', $next);
     $next = str_replace('Not allowed: Glitter and confetti.', 'Not allowed: Confetti, confetti cannons, rice, birdseed, or loose sequins.', $next);
@@ -1374,7 +1381,7 @@ function brb_refresh_faq() {
         'Is smoking allowed?' => 'No smoking or vaping.',
         'Can I bring a pet?' => 'Service animals only. No pets.',
         'Can I bring my own food?' => 'Yes. You can bring your own food. We have warmers and buffet-style warmers, but the stovetop can\'t be used. You can also have it catered by any caterer. The Boardroom does not provide catering.',
-        'When is the balance due?' => 'The remaining balance is due the week of the event, no later than 48 hours before.',
+        'When is the balance due?' => 'The remaining balance is due no later than 48 hours before the event.',
         'Is there a refrigerator or ice?' => 'Yes. There is a refrigerator and an ice machine.',
         'Who is on site during an event?' => 'No one is on site during events. Our connected offices are available on demand if something is needed. Cell numbers are given when the contract is signed, and they are not listed on this site.',
         'Is there a private entrance?' => 'There is one main entrance. A back entrance can be used for a surprise guest when it is arranged ahead of time with our team.',
@@ -1508,6 +1515,7 @@ function brb_maybe_upgrade() {
     if (get_option('brb_settings', null) === null) update_option('brb_settings', brb_defaults());
     else brb_migrate_settings();
     brb_migrate_bookings();
+    brb_migrate_balance_due_times();
     brb_migrate_prices();
     brb_scrub_public_copy();
     brb_refresh_faq();
@@ -1578,8 +1586,8 @@ function brb_build_range($in, $args = []) {
     $e = $d0->modify('+' . ($days - 1) . ' day')->setTime(23, 30);
     $units = $days;
     $guests = max(1, (int) ($in['guests'] ?? 1));
-    $guest_cap = max(200, (int) $o['max_guests']);
-    if ($guests > $guest_cap) return new WP_Error('guests', '80 guests is the usual capacity. Graduation parties or open houses can go over. For a much larger guest count, please contact us.');
+    $guest_cap = max(1, (int) $o['max_guests']);
+    if ($guests > $guest_cap) return new WP_Error('guests', 'The booking form accepts up to 80 guests. Open houses and graduation parties can go over. Anything else over 80 needs our written approval.');
     if (empty($args['override_notice']) && $s < brb_notice_cutoff()) {
         return new WP_Error('notice', sprintf(
             'Bookings must start at least %d hours from now. The earliest start is %s.',
@@ -2138,13 +2146,71 @@ function brb_send_addon_prompts() {
     // Setup and takedown day add-ons are no longer offered.
 }
 add_action('init', 'brb_send_addon_prompts', 20);
+function brb_ensure_balance_due_column($table = null) {
+    global $wpdb;
+    $table = $table ?: brb_table();
+    $col = $wpdb->get_row($wpdb->prepare("SHOW COLUMNS FROM `$table` LIKE %s", 'balance_due_on'));
+    if (!$col) {
+        $wpdb->query("ALTER TABLE `$table` ADD COLUMN `balance_due_on` datetime NULL DEFAULT NULL");
+        return;
+    }
+    $type = strtolower((string) ($col->Type ?? ''));
+    if (strpos($type, 'datetime') === false && strpos($type, 'timestamp') === false) {
+        $wpdb->query("ALTER TABLE `$table` MODIFY COLUMN `balance_due_on` datetime NULL DEFAULT NULL");
+    }
+}
+function brb_migrate_balance_due_times() {
+    global $wpdb;
+    brb_ensure_balance_due_column();
+    $rows = $wpdb->get_results('SELECT id, start_dt, balance_due_on FROM ' . brb_table());
+    if (!$rows) return;
+    foreach ($rows as $row) {
+        $start = brb_parse_start_dt($row->start_dt ?? '');
+        if (!$start) continue;
+        $due = brb_balance_due_on($start);
+        if ((string) $row->balance_due_on !== $due) {
+            $wpdb->update(brb_table(), ['balance_due_on' => $due], ['id' => (int) $row->id]);
+        }
+    }
+}
+function brb_parse_start_dt($value) {
+    $value = trim((string) $value);
+    if ($value === '' || strpos($value, '0000-00-00') === 0) return null;
+    $tz = brb_tz();
+    foreach (['Y-m-d H:i:s', 'Y-m-d H:i', '!Y-m-d'] as $fmt) {
+        $raw = $fmt === '!Y-m-d' ? $value : $value;
+        $d = DateTimeImmutable::createFromFormat($fmt, $raw, $tz);
+        if (!$d) continue;
+        $out = $fmt === '!Y-m-d' ? $d->format('Y-m-d') : $d->format(ltrim($fmt, '!'));
+        if ($out === $value) return $d;
+    }
+    try {
+        return new DateTimeImmutable($value, $tz);
+    } catch (Exception $e) {
+        return null;
+    }
+}
+function brb_parse_balance_due($on) {
+    $on = trim((string) $on);
+    if ($on === '' || strpos($on, '0000-00-00') === 0) return null;
+    $tz = brb_tz();
+    $dt = DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $on, $tz);
+    if ($dt && $dt->format('Y-m-d H:i:s') === $on) return ['dt' => $dt, 'has_time' => true];
+    $dt = DateTimeImmutable::createFromFormat('Y-m-d H:i', $on, $tz);
+    if ($dt && $dt->format('Y-m-d H:i') === $on) return ['dt' => $dt, 'has_time' => true];
+    $d = DateTimeImmutable::createFromFormat('!Y-m-d', $on, $tz);
+    if ($d && $d->format('Y-m-d') === $on) return ['dt' => $d, 'has_time' => false];
+    return null;
+}
 function brb_balance_due_on(DateTimeImmutable $start) {
-    return $start->setTimezone(brb_tz())->modify('-7 days')->format('Y-m-d');
+    return $start->setTimezone(brb_tz())->modify('-48 hours')->format('Y-m-d H:i:s');
 }
 function brb_balance_due_label($on) {
     if (!$on) return '';
-    $d = DateTimeImmutable::createFromFormat('!Y-m-d', $on, brb_tz());
-    return $d ? $d->format('l, F j, Y') : $on;
+    $parsed = brb_parse_balance_due($on);
+    if (!$parsed) return (string) $on;
+    if ($parsed['has_time']) return $parsed['dt']->format('l, F j, Y \\a\\t g:i A');
+    return $parsed['dt']->format('l, F j, Y');
 }
 function brb_balance_due_display($b) {
     if (!brb_price_is_set($b) || (float) ($b->deposit_due ?? 0) <= 0.009) return 'Price to be confirmed';
@@ -2152,9 +2218,13 @@ function brb_balance_due_display($b) {
     if ($balance <= 0.009) return 'Paid';
     $on = trim((string) ($b->balance_due_on ?? ''));
     if ($on === '') return 'Price to be confirmed';
-    $d = DateTimeImmutable::createFromFormat('!Y-m-d', $on, brb_tz());
-    $today = brb_now()->setTime(0, 0);
-    if (!$d || $d < $today) return 'Due now';
+    $parsed = brb_parse_balance_due($on);
+    if (!$parsed) return 'Due now';
+    if ($parsed['has_time']) {
+        if ($parsed['dt'] < brb_now()) return 'Due now';
+    } else {
+        if ($parsed['dt'] < brb_now()->setTime(0, 0)) return 'Due now';
+    }
     return brb_balance_due_label($on);
 }
 function brb_booking($id) {
@@ -2217,7 +2287,7 @@ function brb_payment_lines($b) {
             if ($rental_after > 0.009) {
                 $when = brb_balance_due_display($b);
                 if ($when === 'Due now') $lines[] = 'After that payment, the remaining balance of ' . brb_money($rental_after) . ' is due now.';
-                elseif ($when !== '' && $when !== 'Price to be confirmed' && $when !== 'Paid') $lines[] = 'After that payment, the remaining balance of ' . brb_money($rental_after) . ' is due no later than ' . $when . ' (one week before the event).';
+                elseif ($when !== '' && $when !== 'Price to be confirmed' && $when !== 'Paid') $lines[] = 'After that payment, the remaining balance of ' . brb_money($rental_after) . ' is due no later than 48 hours before your event (by ' . $when . ').';
             }
         } elseif ($damage_left > 0.009) {
             $lines[] = 'The amount due now includes the unpaid refundable damage deposit of ' . brb_money($damage_left) . ' and the remaining rental balance of ' . brb_money(brb_rental_left($b)) . '.';
@@ -3088,7 +3158,7 @@ function brb_payment_guest_message($b, $amount, $check_number, $method = 'check'
     if ($b->status !== 'paid') {
         $due = brb_balance_due_display($b);
         if ($due === 'Due now') $follow = 'The balance remaining is due now.';
-        elseif ($due && $due !== 'Price to be confirmed' && $due !== 'Paid') $follow = 'The balance remaining is due the week of the event, no later than ' . $due . '.';
+        elseif ($due && $due !== 'Price to be confirmed' && $due !== 'Paid') $follow = 'The balance remaining is due no later than 48 hours before your event (by ' . $due . ').';
         $still = round(brb_rental_left($b) + brb_damage_left($b), 2);
         if ($still > 0.009 && brb_damage_left($b) > 0.009) {
             $follow .= ' The amount still due is ' . brb_money($still) . ', including the unpaid refundable damage deposit of ' . brb_money(brb_damage_left($b)) . '.';
@@ -3859,7 +3929,7 @@ function brb_view_select() {
         <label>Date<input type="date" name="date" id="brb-date" required min="<?php echo esc_attr(brb_now()->format('Y-m-d')); ?>"></label>
         <input type="hidden" name="type" value="day">
         <p class="brb-small" id="brb-notice"></p>
-        <label>Estimated Guests<input type="number" name="guests" id="brb-guests" value="10" min="1" max="200"></label>
+        <label>Estimated Guests<input type="number" name="guests" id="brb-guests" value="10" min="1" max="80"></label>
         <p class="brb-small" id="brb-guest-note" hidden>Over 80 needs our written approval. Open houses and graduation parties can go over.</p>
         <button class="brb-btn" type="submit">Continue</button>
       </form>
@@ -4015,7 +4085,7 @@ function brb_view_confirmation($token) {
           else $received = 'We have recorded a check toward this booking. Your date stays reserved.';
           $due_bit = '';
           if ($due === 'Due now') $due_bit = ' is due now';
-          elseif ($due && $due !== 'Price to be confirmed' && $due !== 'Paid') $due_bit = ' is due by ' . $due;
+          elseif ($due && $due !== 'Price to be confirmed' && $due !== 'Paid') $due_bit = ' is due no later than 48 hours before your event (by ' . $due . ')';
           $rental_left = max(0, $paid_off);
           $damage_open = brb_damage_left($b);
           $still = round($rental_left + $damage_open, 2);
@@ -4023,7 +4093,7 @@ function brb_view_confirmation($token) {
           if ($damage_open > 0.009 && $rental_left > 0.009) {
               $now_line = 'The amount due now is ' . brb_money($still) . ', which is the remaining rental balance of ' . brb_money($rental_left) . ' plus the unpaid refundable damage deposit of ' . brb_money($damage_open) . '.';
               if ($due === 'Due now') $now_line .= ' It is due now.';
-              elseif ($due && $due !== 'Price to be confirmed' && $due !== 'Paid') $now_line .= ' It is due by ' . $due . '.';
+              elseif ($due && $due !== 'Price to be confirmed' && $due !== 'Paid') $now_line .= ' It is due no later than 48 hours before your event (by ' . $due . ').';
               echo '<p>' . esc_html($now_line) . '</p>';
           } else {
               echo '<p>Balance of ' . esc_html(brb_money($still)) . esc_html($due_bit) . '.</p>';

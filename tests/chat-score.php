@@ -45,7 +45,7 @@ function brb_chat_topic_spec($topic) {
         'nonprofit' => ['facts' => ['nonprofit or military discounts'], 'lead' => true, 'money' => 'none'],
         'deposit' => ['facts' => ['50% of the agreed total'], 'money' => 'none', 'forbid' => ['not a binding commitment']],
         'deposit_when' => ['facts' => ['50% of the agreed total', '1 day', 'signing'], 'money' => 'none'],
-        'balance' => ['facts' => ['one week before'], 'money' => 'none'],
+        'balance' => ['facts' => ['48 hours before'], 'money' => 'none'],
         'pay_methods' => ['facts' => ['check', 'in person', 'card'], 'money' => 'none'],
         'cash_check' => ['facts' => ['2220 37th Street, Moline, IL 61265', 'Boardroom QC LLC', 'The Boardroom'], 'money' => 'none', 'checks' => true],
         'card_fee' => ['facts' => ['3%', 'card'], 'any' => [['non-refundable', "isn't refundable"]], 'money' => 'none'],

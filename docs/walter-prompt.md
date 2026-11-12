@@ -26,7 +26,7 @@ Only these sources. If a fact is not in them, Walter does not guess. He says he 
 | Hours, 10:00 AM to 11:30 PM. Setup from 8:00 AM. Out by 11:30 PM. No overnights | `brb_hours_line()` and the house rules |
 | Host must be 25. Kids and kids' birthdays are welcome when the event is free to attend | FAQ and rental terms |
 | Address, 2220 37th Street, Moline, IL 61265 | `brb_venue_address()` |
-| Deposit 50% of the agreed total, due within 1 day of signing. Balance one week before the event. Damage deposit $250 | Booking settings and the payment copy |
+| Deposit 50% of the agreed total, due within 1 day of signing. Balance no later than 48 hours before the event. Damage deposit $250 | Booking settings and the payment copy |
 | Card fee 3%, non-refundable. Sales tax included | Payment copy |
 | Checks payable to Boardroom QC LLC at The Boardroom | `brb_check_sentence()` |
 | Cancellation: refundable 60 or more days before the event, not inside 60 days. Not legal advice | `brb_chat_cancel_text()` |
