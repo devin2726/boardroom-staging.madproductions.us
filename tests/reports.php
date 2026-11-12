@@ -164,6 +164,18 @@ try {
     brb_t($report['leads']['funnel'][1]['rate'] === brb_report_rate($report['leads']['funnel'][1]['n'], $report['leads']['funnel'][0]['n']), 'inquiry conversion uses the page-view count');
     $step = $report['leads']['steps'][0];
     brb_t($step['from'] >= 2 && $step['to'] >= 1 && $step['rate'] === brb_report_rate($step['to'], $step['from']), 'booking-step drop-off compares starts with the next step');
+    brb_t(brb_report_step_continued(['from' => 2, 'to' => 1, 'rate' => 50.0]) === '50% continued', 'a later step that stays under its start uses the continued rate');
+    brb_t(brb_report_step_continued(['from' => 0, 'to' => 0, 'rate' => null]) === 'no starts', 'a step with no starts says so');
+    brb_event_hit('booking_step_submit', $day);
+    brb_event_hit('booking_step_submit', $day);
+    brb_event_hit('booking_request_submitted', $day);
+    brb_event_hit('booking_request_submitted', $day);
+    brb_event_hit('booking_request_submitted', $day);
+    $overflow = brb_report_build($day, $day);
+    $submit = $overflow['leads']['steps'][2];
+    $note = 'more completions than starts (some starts aren\'t tracked)';
+    brb_t($submit['from'] === 2 && $submit['to'] === 3 && $submit['rate'] === brb_report_rate(3, 2) && $submit['rate'] !== 100.0, 'a later booking step can exceed its start count and uses the real rate');
+    brb_t(brb_report_step_continued($submit) === $submit['rate'] . '% continued; ' . $note, 'an overflowing step explains that some starts were not tracked');
     brb_t($report['attention']['deposit_overdue'] >= 1, 'an approved booking with no deposit is overdue after a day');
     $csv = brb_report_csv('financials', $report);
     brb_t(strpos($csv, 'Gross collected') !== false && strpos($csv, 'Wedding') !== false && stripos($csv, 'sk_') === false, 'the financial CSV lists totals and does not include a secret key');
@@ -215,6 +227,7 @@ try {
         $wpdb->query('DELETE FROM ' . brb_tour_table() . ' WHERE id IN (' . implode(',', array_map('intval', $inquiry_ids)) . ')');
     }
     $wpdb->query($wpdb->prepare('DELETE FROM ' . brb_views_table() . ' WHERE path = %s AND view_day = %s', '/book/', '2032-03-03'));
+    $wpdb->query($wpdb->prepare('DELETE FROM ' . brb_events_table() . ' WHERE event_day = %s', '2032-03-03'));
     $wpdb->query("DELETE FROM " . brb_chatlog_table() . " WHERE question IN ('How does the deposit work?','Who owns the building?')");
     echo 'ok ' . (int) $GLOBALS['brb_ok'] . ' fail ' . (int) $GLOBALS['brb_fail'] . "\n";
 }

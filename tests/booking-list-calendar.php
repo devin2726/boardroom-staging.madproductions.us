@@ -108,7 +108,7 @@ if ($admin) wp_set_current_user($admin->ID);
 
 try {
     brb_t((bool) $admin && current_user_can('manage_options'), 'an administrator is available for the bookings list');
-    brb_t(get_option('brb_version') === '2.5.71', 'plugin storage version is 2.5.71');
+    brb_t(get_option('brb_version') === '2.5.72', 'plugin storage version is 2.5.72');
     brb_install_hold_table();
 
     $today = brb_now()->setTime(0, 0);
@@ -163,7 +163,27 @@ try {
     brb_t(strpos($all, 'script>alert') === false, 'the list output does not include raw script tags');
     $cal_rows = preg_match_all('/class="brb-cal-list-row"/', $all);
     brb_t($cal_rows === 5, 'the default list shows five future calendar rows (reserved, hold, date block, blackout, and the cancelled-overlap hold)');
-    brb_t(strpos($all, $cal_rows . ' bookings') === false && strpos($all, '7 bookings') === false, 'calendar rows do not change the bookings pager count');
+    brb_t(strpos($all, 'brb-pager') === false && strpos($all, 'Page 1 of') === false, 'a short merged list does not show a pager');
+
+    $guest_href = '';
+    if (preg_match('/<th><a href="([^"]+)">Guest/', $all, $m)) $guest_href = html_entity_decode($m[1], ENT_QUOTES);
+    brb_t($guest_href !== '' && (strpos($guest_href, 'orderby=guest') !== false || strpos($guest_href, 'orderby%3Dguest') !== false), 'the Guest header link carries orderby=guest');
+    $guest_asc = brb_list_cal_render(['orderby' => 'guest', 'order' => 'asc']);
+    $guest_asc_href = '';
+    if (preg_match('/<th><a href="([^"]+)">Guest/', $guest_asc, $m)) $guest_asc_href = html_entity_decode($m[1], ENT_QUOTES);
+    brb_t(
+        (strpos($guest_asc, 'Guest ↑') !== false || strpos($guest_asc, 'Guest &uarr;') !== false)
+        && (strpos($guest_asc_href, 'order=desc') !== false || strpos($guest_asc_href, 'order%3Ddesc') !== false),
+        'a Guest sort in ascending order toggles the header to descending'
+    );
+    $guest_desc = brb_list_cal_render(['orderby' => 'guest', 'order' => 'desc']);
+    $guest_desc_href = '';
+    if (preg_match('/<th><a href="([^"]+)">Guest/', $guest_desc, $m)) $guest_desc_href = html_entity_decode($m[1], ENT_QUOTES);
+    brb_t(
+        (strpos($guest_desc, 'Guest ↓') !== false || strpos($guest_desc, 'Guest &darr;') !== false)
+        && (strpos($guest_desc_href, 'order=asc') !== false || strpos($guest_desc_href, 'order%3Dasc') !== false),
+        'a Guest sort in descending order toggles the header to ascending'
+    );
 
     $bookings_only = brb_list_cal_render(['entries' => 'bookings']);
     brb_t(strpos($bookings_only, 'Kimberly Townsend') === false && strpos($bookings_only, 'Calendar -') === false && strpos($bookings_only, 'Maya Direct') !== false, 'Bookings only hides calendar rows and keeps booking rows');
@@ -183,6 +203,28 @@ try {
 
     $after = brb_list_cal_fingerprint();
     brb_t($before === $after, 'rendering the list does not write bookings, holds, payments, or blackouts');
+
+    $page_ids = [];
+    $page_day = $today->modify('+40 days')->format('Y-m-d');
+    for ($i = 1; $i <= 50; $i++) {
+        $id = brb_list_cal_insert_booking($page_day, sprintf('Page Guest %02d', $i), sprintf('list-cal-page-%02d@example.com', $i), 'review');
+        if ($id > 0) $page_ids[] = $id;
+    }
+    $created_booking_ids = array_merge($created_booking_ids, $page_ids);
+    brb_t(count($page_ids) === 50, 'enough extra bookings were inserted to paginate the merged list');
+    $page1 = brb_list_cal_render();
+    $page2 = brb_list_cal_render(['paged' => 2]);
+    $cal1 = preg_match_all('/class="brb-cal-list-row"/', $page1);
+    $cal2 = preg_match_all('/class="brb-cal-list-row"/', $page2);
+    $book1 = preg_match_all('/class="brb-row-check"/', $page1);
+    $book2 = preg_match_all('/class="brb-row-check"/', $page2);
+    brb_t(strpos($page1, '57 bookings. Page 1 of 2.') !== false && strpos($page1, 'Next') !== false, 'a merged list over 50 rows shows a pager');
+    brb_t(($cal1 + $book1) === 50 && ($cal2 + $book2) === 7 && $page1 !== $page2, 'page 2 differs from page 1 and splits the 57 merged rows 50 then 7');
+    $repeat_names = 0;
+    foreach (['Kimberly Townsend', 'Sara', 'Kept After Cancel'] as $name) {
+        if (strpos($page1, $name) !== false && strpos($page2, $name) !== false) $repeat_names++;
+    }
+    brb_t($repeat_names === 0 && ($cal1 + $cal2) === 5, 'calendar rows appear once across pages and do not repeat');
 } finally {
     if ($created_hold_ids) {
         $in = implode(',', array_map('intval', $created_hold_ids));
@@ -197,6 +239,8 @@ try {
         $wpdb->query($wpdb->prepare('DELETE FROM ' . brb_pay_table() . ' WHERE booking_id IN (SELECT id FROM ' . brb_table() . ' WHERE email=%s)', $email));
         $wpdb->query($wpdb->prepare('DELETE FROM ' . brb_table() . ' WHERE email=%s', $email));
     }
+    $wpdb->query("DELETE FROM " . brb_pay_table() . " WHERE booking_id IN (SELECT id FROM " . brb_table() . " WHERE email LIKE 'list-cal-page-%@example.com')");
+    $wpdb->query("DELETE FROM " . brb_table() . " WHERE email LIKE 'list-cal-page-%@example.com'");
     $wpdb->query("DELETE FROM " . brb_hold_table() . " WHERE name IN ('Kimberly Townsend','Sara','Airbnb Secret Guest','Past Name','Overlap Hold','Kept After Cancel')");
     if ($snapshot !== false && $snapshot !== null) update_option('brb_settings', $snapshot);
     else delete_option('brb_settings');

@@ -604,13 +604,8 @@ function brb_admin_list() {
         }
         $where .= ')';
     }
-    $count_sql = 'SELECT COUNT(*) FROM ' . brb_table() . " WHERE $where";
-    $total = (int) ($params ? $wpdb->get_var($wpdb->prepare($count_sql, $params)) : $wpdb->get_var($count_sql));
-    $pages = max(1, (int) ceil($total / $per));
-    if ($paged > $pages) $paged = $pages;
-    $offset = ($paged - 1) * $per;
-    $sql = 'SELECT * FROM ' . brb_table() . " WHERE $where ORDER BY $col $dir, id DESC LIMIT %d OFFSET %d";
-    $rows = $wpdb->get_results($wpdb->prepare($sql, array_merge($params, [$per, $offset])));
+    $sql = 'SELECT * FROM ' . brb_table() . " WHERE $where ORDER BY $col $dir, id DESC";
+    $rows = $params ? $wpdb->get_results($wpdb->prepare($sql, $params)) : $wpdb->get_results($sql);
     $dup_sql = 'SELECT LOWER(email) ek, DATE(start_dt) dk, GROUP_CONCAT(id ORDER BY id) ids FROM ' . brb_table() . " WHERE $where AND email<>'' GROUP BY ek, dk HAVING COUNT(*)>1";
     $dup_rows = $params ? $wpdb->get_results($wpdb->prepare($dup_sql, $params)) : $wpdb->get_results($dup_sql);
     $dup_map = [];
@@ -623,9 +618,54 @@ function brb_admin_list() {
     if ($kind === 'calendar' || ($kind === 'all' && $f === '')) {
         $calendar_items = brb_admin_list_calendar_items($q);
     }
+    $display = [];
+    if ($kind !== 'calendar') {
+        foreach ($rows as $b) {
+            $display[] = [
+                'kind' => 'booking',
+                'row' => $b,
+                'id' => (int) $b->id,
+                'start_dt' => $b->start_dt,
+                'name' => (string) $b->name,
+                'source' => brb_source_label($b->source),
+                'status' => (string) $b->status,
+                'total' => (float) $b->total,
+                'amount_paid' => (float) $b->amount_paid,
+            ];
+        }
+    }
+    foreach ($calendar_items as $item) $display[] = $item;
+    $dir = $order === 'asc' ? 1 : -1;
+    $keyed = [];
+    foreach ($display as $i => $item) {
+        if ($orderby === 'id') $key = (int) ($item['id'] ?? 0);
+        elseif ($orderby === 'guest') $key = strtolower((string) ($item['name'] ?? ''));
+        elseif ($orderby === 'source') $key = strtolower((string) ($item['source'] ?? ''));
+        elseif ($orderby === 'status') $key = strtolower((string) ($item['status'] ?? ''));
+        elseif ($orderby === 'total') $key = $item['total'];
+        elseif ($orderby === 'paid') $key = $item['amount_paid'];
+        else $key = (string) ($item['start_dt'] ?? '');
+        $keyed[] = [$item, $key, $i];
+    }
+    usort($keyed, function ($a, $b) use ($dir, $orderby) {
+        $money = in_array($orderby, ['total', 'paid', 'id'], true);
+        $cal_a = $a[0]['kind'] === 'calendar' && $money;
+        $cal_b = $b[0]['kind'] === 'calendar' && $money;
+        if ($cal_a && $cal_b) return $a[2] <=> $b[2];
+        if ($cal_a) return 1;
+        if ($cal_b) return -1;
+        if ($a[1] === $b[1]) return $a[2] <=> $b[2];
+        return ($a[1] <=> $b[1]) * $dir;
+    });
+    $display = array_map(function ($row) { return $row[0]; }, $keyed);
+    $total = count($display);
+    $pages = max(1, (int) ceil($total / $per));
+    if ($paged > $pages) $paged = $pages;
+    $offset = ($paged - 1) * $per;
+    $display = array_slice($display, $offset, $per);
     $sort_link = function ($key, $label) use ($base_args, $orderby, $order) {
         $next = ($orderby === $key && $order === 'asc') ? 'desc' : 'asc';
-        $url = brb_admin_list_query($base_args + ['orderby' => $key, 'order' => $next, 'paged' => 1]);
+        $url = brb_admin_list_query(array_merge($base_args, ['orderby' => $key, 'order' => $next, 'paged' => 1]));
         $mark = $orderby === $key ? ($order === 'asc' ? ' ↑' : ' ↓') : '';
         return '<a href="' . esc_url($url) . '">' . esc_html($label . $mark) . '</a>';
     };
@@ -670,46 +710,6 @@ function brb_admin_list() {
     $nav('top');
     $head = '<tr><td class="manage-column column-cb check-column"><input type="checkbox" class="brb-select-all" aria-label="Select all bookings"></td><th>' . $sort_link('id', '#') . '</th><th>' . $sort_link('when', 'When') . '</th><th>' . $sort_link('guest', 'Guest') . '</th><th>' . $sort_link('source', 'Source') . '</th><th>' . $sort_link('total', 'Total') . '</th><th>' . $sort_link('paid', 'Paid') . '</th><th>Balance</th><th>' . $sort_link('status', 'Status') . '</th><th>Reserved</th><th></th></tr>';
     echo '<table class="widefat"><thead>' . $head . '</thead><tbody>';
-    $display = [];
-    if ($kind !== 'calendar') {
-        foreach ($rows as $b) {
-            $display[] = [
-                'kind' => 'booking',
-                'row' => $b,
-                'id' => (int) $b->id,
-                'start_dt' => $b->start_dt,
-                'name' => (string) $b->name,
-                'source' => brb_source_label($b->source),
-                'status' => (string) $b->status,
-                'total' => (float) $b->total,
-                'amount_paid' => (float) $b->amount_paid,
-            ];
-        }
-    }
-    foreach ($calendar_items as $item) $display[] = $item;
-    $dir = $order === 'asc' ? 1 : -1;
-    $keyed = [];
-    foreach ($display as $i => $item) {
-        if ($orderby === 'id') $key = (int) ($item['id'] ?? 0);
-        elseif ($orderby === 'guest') $key = strtolower((string) ($item['name'] ?? ''));
-        elseif ($orderby === 'source') $key = strtolower((string) ($item['source'] ?? ''));
-        elseif ($orderby === 'status') $key = strtolower((string) ($item['status'] ?? ''));
-        elseif ($orderby === 'total') $key = $item['total'];
-        elseif ($orderby === 'paid') $key = $item['amount_paid'];
-        else $key = (string) ($item['start_dt'] ?? '');
-        $keyed[] = [$item, $key, $i];
-    }
-    usort($keyed, function ($a, $b) use ($dir, $orderby) {
-        $money = in_array($orderby, ['total', 'paid', 'id'], true);
-        $cal_a = $a[0]['kind'] === 'calendar' && $money;
-        $cal_b = $b[0]['kind'] === 'calendar' && $money;
-        if ($cal_a && $cal_b) return $a[2] <=> $b[2];
-        if ($cal_a) return 1;
-        if ($cal_b) return -1;
-        if ($a[1] === $b[1]) return $a[2] <=> $b[2];
-        return ($a[1] <=> $b[1]) * $dir;
-    });
-    $display = array_map(function ($row) { return $row[0]; }, $keyed);
     if (!$display) echo '<tr><td colspan="11">' . esc_html($kind === 'calendar' ? 'No calendar entries.' : 'No bookings yet.') . '</td></tr>';
     foreach ($display as $item) {
         if (($item['kind'] ?? '') === 'calendar') {
@@ -768,8 +768,8 @@ function brb_admin_list() {
     if ($pages > 1) {
         echo '<p class="brb-pager">';
         echo esc_html($total . ' bookings. Page ' . $paged . ' of ' . $pages . '. ');
-        if ($paged > 1) echo '<a class="button" href="' . esc_url(brb_admin_list_query($base_args + ['paged' => $paged - 1])) . '">Previous</a> ';
-        if ($paged < $pages) echo '<a class="button" href="' . esc_url(brb_admin_list_query($base_args + ['paged' => $paged + 1])) . '">Next</a>';
+        if ($paged > 1) echo '<a class="button" href="' . esc_url(brb_admin_list_query(array_merge($base_args, ['paged' => $paged - 1]))) . '">Previous</a> ';
+        if ($paged < $pages) echo '<a class="button" href="' . esc_url(brb_admin_list_query(array_merge($base_args, ['paged' => $paged + 1]))) . '">Next</a>';
         echo '</p>';
     }
     $nav('bottom');
