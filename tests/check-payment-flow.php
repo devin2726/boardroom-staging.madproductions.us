@@ -978,8 +978,12 @@ try {
     foreach (['stored terms', 'terms source'] as $label) {
         $doc = $legal_docs[$label];
         brb_t(strpos($doc, 'operated by Boardroom QC LLC ("we" or "the Owner")') !== false, $label . ' names Boardroom QC LLC as Owner');
-        brb_t(strpos($doc, 'the Released Parties (as defined in Section 5 of the Rental Agreement)') !== false && substr_count($doc, $negligence) === 2, $label . ' summaries of sections 5 and 14 refer to the Released Parties as defined in Section 5 and keep the negligence carve-out');
-        brb_t(strpos($doc, $released_def) === false && strpos($doc, 'Mad Rentals') === false && strpos($doc, 'Mad Productions') === false, $label . ' does not repeat the other entity names');
+        $t5 = strpos($doc, '<h2>5. Event insurance</h2>');
+        $t6 = strpos($doc, '<h2>6. Vendors</h2>');
+        $terms5 = ($t5 !== false && $t6 !== false) ? substr($doc, $t5, $t6 - $t5) : '';
+        brb_t(strpos($terms5, 'may ask that ' . $released_def . ', The Boardroom QC, the venue owner, and related parties be listed as additional insureds') !== false && strpos($doc, 'as defined in Section 5 of the Rental Agreement') === false, $label . ' section 5 summary lists the three entities, matching Agreement section 5');
+        brb_t(substr_count($doc, $released_def) === 1 && substr_count($doc, 'Mad Rentals LLC') === 1 && substr_count($doc, 'Mad Productions LLC') === 1 && preg_match_all('/(?<![\w.\/@-])mad\s+(productions|rentals)\b/i', $doc) === 2 && preg_match_all('/(?<![\w.\/@-])mad\s+(productions|rentals)\b/i', $terms5) === 2, $label . ' names the other entities exactly once, in the section 5 summary');
+        brb_t(substr_count($doc, $negligence) === 2 && strpos($doc, 'hold harmless the Released Parties, The Boardroom QC') !== false, $label . ' section 14 summary keeps the defined term and both summaries keep the negligence carve-out');
     }
     ob_start();
     brb_place_schema();
@@ -1011,8 +1015,15 @@ try {
     }
     update_option('brb_settings', $mail_saved);
     brb_t(strpos($mail_text, 'payable to Boardroom QC LLC at The Boardroom, 2220 37th Street') !== false && strpos($mail_text, 'Here is your receipt.') !== false && strpos($mail_text, 'ERROR') === false, 'approval and payment emails say payable to Boardroom QC LLC');
+    $terms_outside5 = '';
+    foreach ([brb_terms_html(), (string) $terms_html] as $terms_doc) {
+        $terms_doc = html_entity_decode($terms_doc, ENT_QUOTES);
+        $t5 = strpos($terms_doc, '<h2>5. Event insurance</h2>');
+        $t6 = strpos($terms_doc, '<h2>6. Vendors</h2>');
+        $terms_outside5 .= ($t5 !== false && $t6 !== false) ? substr($terms_doc, 0, $t5) . substr($terms_doc, $t6) : $terms_doc;
+    }
     $public_surfaces = [
-        'terms' => html_entity_decode(brb_terms_html() . (string) $terms_html, ENT_QUOTES),
+        'terms outside section 5' => $terms_outside5,
         'privacy' => html_entity_decode(brb_privacy_html() . (string) $privacy_html, ENT_QUOTES),
         'faq' => brb_faq_markup() . ($faq_page ? (string) $faq_page->post_content : ''),
         'check sentence' => brb_check_sentence() . brb_check_sentence('a check for $500.00') . brb_cancellation_summary() . (string) brb_opt('policy'),
@@ -1060,6 +1071,9 @@ try {
     $rentals_title = (!is_wp_error($rentals_title_id) && $rentals_title_id) ? get_post((int) $rentals_title_id) : null;
     brb_t($rentals_title && $rentals_title->post_title === 'Boardroom QC LLC update' && $rentals_title->post_excerpt === 'From Boardroom QC LLC.', 'the upgrade cleans Mad Rentals LLC from a saved title and excerpt even when the body names no entity');
     if (!is_wp_error($rentals_title_id) && $rentals_title_id) wp_delete_post((int) $rentals_title_id, true);
+    $terms_after = get_page_by_path('terms');
+    $terms_after_html = $terms_after ? html_entity_decode((string) $terms_after->post_content, ENT_QUOTES) : '';
+    brb_t($terms_after_html !== '' && substr_count($terms_after_html, $released_def) === 1 && strpos($terms_after_html, 'as defined in Section 5 of the Rental Agreement') === false, 'the entity scrub leaves the Terms section 5 list in the stored Terms page');
     $agreement_after = get_page_by_path('rental-agreement');
     brb_t($agreement_after && substr_count(html_entity_decode((string) $agreement_after->post_content, ENT_QUOTES), 'Mad Productions LLC') === 1, 'the entity scrub leaves the section 5 Released Parties definition in the stored agreement');
     $contact = get_page_by_path('contact');
