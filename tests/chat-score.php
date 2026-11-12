@@ -47,7 +47,7 @@ function brb_chat_topic_spec($topic) {
         'deposit_when' => ['facts' => ['50% of the agreed total', '1 day', 'signing'], 'money' => 'none'],
         'balance' => ['facts' => ['one week before'], 'money' => 'none'],
         'pay_methods' => ['facts' => ['check', 'in person', 'card'], 'money' => 'none'],
-        'cash_check' => ['facts' => ['2220 37th Street, Moline, IL 61265', 'Mad Productions', 'The Boardroom'], 'money' => 'none', 'checks' => true],
+        'cash_check' => ['facts' => ['2220 37th Street, Moline, IL 61265', 'Boardroom QC LLC', 'The Boardroom'], 'money' => 'none', 'checks' => true],
         'card_fee' => ['facts' => ['3%', 'card'], 'any' => [['non-refundable', "isn't refundable"]], 'money' => 'none'],
         'cleaning' => ['facts' => ['damage deposit', '$250', 'cleaning'], 'money' => 'damage'],
         'security' => ['facts' => ['damage deposit', '$250'], 'money' => 'damage'],
