@@ -2092,8 +2092,35 @@ function brb_preview_lines($q, DateTimeImmutable $start) {
     ];
 }
 
+function brb_host_name($host) {
+    $host = strtolower(trim((string) $host));
+    return (string) preg_replace('/:\d+$/', '', $host);
+}
+function brb_is_live_host($host) {
+    $host = brb_host_name($host);
+    return $host === 'boardroomqc.com' || $host === 'www.boardroomqc.com';
+}
+function brb_request_host() {
+    $raw = '';
+    if (!empty($_SERVER['HTTP_HOST']) && is_string($_SERVER['HTTP_HOST'])) $raw = $_SERVER['HTTP_HOST'];
+    elseif (!empty($_SERVER['SERVER_NAME']) && is_string($_SERVER['SERVER_NAME'])) $raw = $_SERVER['SERVER_NAME'];
+    return brb_host_name($raw);
+}
+function brb_home_host() {
+    if (!function_exists('home_url')) return '';
+    return brb_host_name((string) wp_parse_url(home_url(), PHP_URL_HOST));
+}
+function brb_is_nonproduction_env() {
+    return in_array(strtolower(brb_env('BRB_ENV')), ['staging', 'dev', 'test'], true);
+}
 function brb_is_production() {
-    return strtolower(brb_env('BRB_ENV')) === 'production';
+    static $checking = false;
+    if ($checking) return !brb_is_nonproduction_env();
+    $checking = true;
+    $live = brb_is_live_host(brb_request_host()) || brb_is_live_host(brb_home_host());
+    $checking = false;
+    if ($live) return true;
+    return !brb_is_nonproduction_env();
 }
 function brb_live_book_url() {
     return 'https://boardroomqc.com/book/';
@@ -2130,11 +2157,28 @@ function brb_staging_robots_txt($output, $public) {
     return $output;
 }
 add_filter('robots_txt', 'brb_staging_robots_txt', 99, 2);
+function brb_is_stripe_webhook_request() {
+    $uri = (string) ($_SERVER['REQUEST_URI'] ?? '');
+    $path = (string) parse_url($uri, PHP_URL_PATH);
+    if (preg_match('#/wp-json/brb/v1/stripe-webhook/?$#', $path)) return true;
+    $route = '';
+    if (isset($_GET['rest_route']) && is_string($_GET['rest_route'])) $route = $_GET['rest_route'];
+    if ($route === '') {
+        $query = (string) parse_url($uri, PHP_URL_QUERY);
+        if ($query !== '') {
+            $qs = [];
+            parse_str($query, $qs);
+            if (isset($qs['rest_route']) && is_string($qs['rest_route'])) $route = $qs['rest_route'];
+        }
+    }
+    return '/' . trim($route, '/') === '/brb/v1/stripe-webhook';
+}
 function brb_staging_basic_exempt() {
     if (brb_is_production()) return true;
     if ((defined('DOING_CRON') && DOING_CRON) || (function_exists('wp_doing_cron') && wp_doing_cron())) return true;
     $uri = (string) ($_SERVER['REQUEST_URI'] ?? '');
     if (strpos($uri, 'wp-cron.php') !== false) return true;
+    if (brb_is_stripe_webhook_request()) return true;
     if (is_user_logged_in() && current_user_can('manage_options')) return true;
     return false;
 }

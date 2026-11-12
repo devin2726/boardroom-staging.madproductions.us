@@ -80,8 +80,51 @@ $GLOBALS['brb_mails'] = [];
 try {
     brb_t(get_option('brb_version') === '2.5.59', 'plugin storage version is 2.5.59');
     wp_set_current_user(0);
-    brb_guard_env('');
     $sample = (object) ['id' => 7];
+    $saved_http_host = array_key_exists('HTTP_HOST', $_SERVER) ? $_SERVER['HTTP_HOST'] : null;
+    brb_guard_env('');
+    brb_t(brb_is_production() && brb_ref($sample) === 'BR-7', 'empty BRB_ENV is production and uses BR-<id>');
+    brb_guard_env('prodution');
+    brb_t(brb_is_production() && brb_ref($sample) === 'BR-7', 'a misspelled BRB_ENV is production and uses BR-<id>');
+    $open_date = brb_guard_open_date(40);
+    brb_t($open_date !== '', 'an open date is available for the submit checks');
+    $empty_email = 'staging-guard-empty@example.com';
+    $empty_before = (int) $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM ' . brb_table() . ' WHERE email=%s', $empty_email));
+    $empty_booking = $open_date === '' ? new WP_Error('date', 'no date') : brb_process_public_booking(brb_guard_post($empty_email, $open_date));
+    if ($empty_booking && !is_wp_error($empty_booking)) $created[] = (int) $empty_booking->id;
+    $empty_after = (int) $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM ' . brb_table() . ' WHERE email=%s', $empty_email));
+    brb_t(!is_wp_error($empty_booking) && $empty_booking && $empty_after === $empty_before + 1 && brb_ref($empty_booking) === 'BR-' . (int) $empty_booking->id, 'empty BRB_ENV allows a public submit and uses BR-<id>');
+    $typo_date = brb_guard_open_date(50);
+    brb_guard_env('stage');
+    $typo_email = 'staging-guard-typo@example.com';
+    $typo_before = (int) $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM ' . brb_table() . ' WHERE email=%s', $typo_email));
+    $typo_booking = $typo_date === '' ? new WP_Error('date', 'no date') : brb_process_public_booking(brb_guard_post($typo_email, $typo_date));
+    if ($typo_booking && !is_wp_error($typo_booking)) $created[] = (int) $typo_booking->id;
+    $typo_after = (int) $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM ' . brb_table() . ' WHERE email=%s', $typo_email));
+    brb_t(!is_wp_error($typo_booking) && $typo_booking && $typo_after === $typo_before + 1 && brb_ref($typo_booking) === 'BR-' . (int) $typo_booking->id, 'a misspelled BRB_ENV allows a public submit and uses BR-<id>');
+    foreach (['staging', 'dev', 'test'] as $mode) {
+        brb_guard_env($mode);
+        brb_t(!brb_is_production() && brb_ref($sample) === 'BR-S7', $mode . ' ref has BR-S prefix');
+    }
+    putenv('BRB_ENV= STAGING ');
+    $_ENV['BRB_ENV'] = ' STAGING ';
+    $_SERVER['BRB_ENV'] = ' STAGING ';
+    brb_t(!brb_is_production() && brb_ref($sample) === 'BR-S7', 'STAGING is case-insensitive and trimmed');
+    brb_guard_env('staging');
+    $_SERVER['HTTP_HOST'] = 'boardroomqc.com';
+    brb_t(brb_is_production() && brb_ref($sample) === 'BR-7', 'boardroomqc.com host with BRB_ENV=staging is production');
+    $_SERVER['HTTP_HOST'] = 'www.boardroomqc.com';
+    brb_t(brb_is_production() && brb_ref($sample) === 'BR-7', 'www.boardroomqc.com with BRB_ENV=staging is production');
+    if ($saved_http_host === null) unset($_SERVER['HTTP_HOST']);
+    else $_SERVER['HTTP_HOST'] = $saved_http_host;
+    $home_cb = function ($url) {
+        unset($url);
+        return 'https://boardroomqc.com/';
+    };
+    add_filter('home_url', $home_cb);
+    brb_t(brb_is_production() && brb_ref($sample) === 'BR-7', 'a boardroomqc.com home_url with BRB_ENV=staging is production');
+    remove_filter('home_url', $home_cb);
+    brb_guard_env('staging');
     brb_t(brb_ref($sample) === 'BR-S7', 'staging ref has BR-S prefix');
     brb_t(brb_ref_id('BR-S7') === 7 && brb_ref_id('br-12') === 12 && brb_ref_id('BR-S') === 0, 'search reads BR-S and BR- refs back to the row id');
 
@@ -172,6 +215,22 @@ try {
     $saved_uri = $_SERVER['REQUEST_URI'] ?? null;
     $_SERVER['REQUEST_URI'] = '/wp-cron.php?doing_wp_cron=1';
     brb_t(brb_staging_basic_exempt(), 'wp-cron skips staging basic auth');
+    foreach ([
+        '/wp-json/brb/v1/stripe-webhook',
+        '/wp-json/brb/v1/stripe-webhook/',
+        '/index.php?rest_route=/brb/v1/stripe-webhook',
+        '/?rest_route=/brb/v1/stripe-webhook',
+    ] as $webhook_uri) {
+        $_SERVER['REQUEST_URI'] = $webhook_uri;
+        unset($_GET['rest_route']);
+        brb_t(brb_staging_basic_exempt(), 'stripe webhook ' . $webhook_uri . ' is not challenged by basic auth');
+    }
+    $_SERVER['REQUEST_URI'] = '/';
+    $_GET['rest_route'] = '/brb/v1/stripe-webhook';
+    brb_t(brb_staging_basic_exempt(), 'stripe webhook rest_route query is not challenged by basic auth');
+    unset($_GET['rest_route']);
+    $_SERVER['REQUEST_URI'] = '/reserve-the-boardroom-quad-cities/';
+    brb_t(!brb_staging_basic_exempt(), 'a normal staging page still requires basic auth');
     if ($saved_uri === null) unset($_SERVER['REQUEST_URI']);
     else $_SERVER['REQUEST_URI'] = $saved_uri;
 
@@ -214,7 +273,7 @@ try {
         $wpdb->query("DELETE FROM " . brb_line_table() . " WHERE booking_id IN ($in)");
         $wpdb->query("DELETE FROM " . brb_table() . " WHERE id IN ($in)");
     }
-    foreach (['staging-guard-book@example.com', 'staging-guard-admin@example.com', 'staging-guard-live@example.com'] as $email) {
+    foreach (['staging-guard-book@example.com', 'staging-guard-admin@example.com', 'staging-guard-live@example.com', 'staging-guard-empty@example.com', 'staging-guard-typo@example.com'] as $email) {
         $ids = $wpdb->get_col($wpdb->prepare('SELECT id FROM ' . brb_table() . ' WHERE email=%s', $email));
         if ($ids) {
             $in = implode(',', array_map('intval', $ids));
