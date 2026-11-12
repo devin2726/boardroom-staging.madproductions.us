@@ -139,6 +139,7 @@ function brb_tour_recipients() {
 
 function brb_tour_submit($input) {
     if (!is_array($input)) $input = [];
+    if (!brb_public_writes_open()) return new WP_Error('staging', brb_staging_guest_message());
     if (trim((string) ($input['company'] ?? '')) !== '') return new WP_Error('spam', 'Ignored.');
     $block = brb_tour_rate_block();
     if ($block !== '') return new WP_Error($block, $block === 'soon' ? 'Please wait a moment and try the form again.' : 'Please wait a little while and try again.');
@@ -312,6 +313,7 @@ function brb_tour_delete($id) {
 }
 
 function brb_tour_message($code) {
+    if ($code === 'staging') return brb_staging_guest_message();
     $messages = [
         'ok' => "Thanks, we'll reply by email.",
         'missing' => 'Please enter your name and email.',
@@ -331,6 +333,7 @@ function brb_tour_message($code) {
 }
 
 function brb_tour_form() {
+    if (!brb_public_writes_open()) return brb_staging_guest_notice_html();
     $code = '';
     if (isset($_GET['inquiry'])) $code = sanitize_key(wp_unslash($_GET['inquiry']));
     elseif (isset($_GET['tour'])) $code = sanitize_key(wp_unslash($_GET['tour']));

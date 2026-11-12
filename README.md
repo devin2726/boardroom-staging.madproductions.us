@@ -81,7 +81,9 @@ Indexing is applied on container start and again on each WordPress request.
 
 | Variable | Production | If unset |
 |---|---|---|
-| `BRB_ENV` | `production` | not production; stays noindex unless `DISCOURAGE_SEARCH=0` |
+| `BRB_ENV` | `production` | not production; stays noindex unless `DISCOURAGE_SEARCH=0`. Public booking, contact, and chat-lead submits are refused. Booking refs use `BR-S`. Outgoing mail subjects start with `[STAGING]`. |
+| `BRB_STAGING_USER` | leave empty | with `BRB_STAGING_PASS`, non-production asks for HTTP basic auth |
+| `BRB_STAGING_PASS` | leave empty | no basic auth unless both this and `BRB_STAGING_USER` are set |
 | `DISCOURAGE_SEARCH` | `0` | defaults to `1` (noindex) |
 | `WP_HOME` | `https://boardroomqc.com` | local default `http://localhost:8080` via `SERVICE_FQDN_WORDPRESS` |
 | `WP_SITEURL` | `https://boardroomqc.com` | follows `WP_HOME` |

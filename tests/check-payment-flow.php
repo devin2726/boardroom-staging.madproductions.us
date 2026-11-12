@@ -45,7 +45,7 @@ add_filter('pre_wp_mail', function ($short, $atts) {
 $GLOBALS['brb_mails'] = [];
 
 try {
-    brb_t(get_option('brb_version') === '2.5.58', 'plugin storage version is 2.5.58');
+    brb_t(get_option('brb_version') === '2.5.59', 'plugin storage version is 2.5.59');
     $cc_before = (string) brb_opt('inquiry_cc');
     delete_option('brb_inquiry_cc_seeded');
     $cc_settings = get_option('brb_settings');
@@ -105,6 +105,9 @@ try {
     $_SERVER['DISCOURAGE_SEARCH'] = '1';
     brb_apply_search_visibility();
     brb_t(!brb_search_indexing_allowed() && ((string) get_option('blog_public') === '0'), 'staging without BRB_ENV stays noindex');
+    putenv('BRB_ENV=production');
+    $_ENV['BRB_ENV'] = 'production';
+    $_SERVER['BRB_ENV'] = 'production';
     $cols = $wpdb->get_col('SHOW COLUMNS FROM ' . brb_table(), 0);
     foreach (['deposit_due', 'amount_paid', 'source', 'hold_until', 'balance_due_on', 'price_set', 'status', 'event_type'] as $col) {
         brb_t(in_array($col, $cols, true), "column $col exists");
