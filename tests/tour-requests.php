@@ -9,6 +9,25 @@ if (!defined('ABSPATH')) {
 
 $GLOBALS['brb_fail'] = 0;
 $GLOBALS['brb_ok'] = 0;
+function brb_test_jsonld_blocks($html) {
+    $blocks = [];
+    $valid = true;
+    if (!preg_match_all('#<script type="application/ld\+json">(.*?)</script>#s', (string) $html, $found) || !$found[1]) {
+        return ['blocks' => [], 'valid' => false];
+    }
+    foreach ($found[1] as $raw) {
+        $data = json_decode($raw, true);
+        if (!is_array($data)) $valid = false;
+        $blocks[] = is_array($data) ? $data : null;
+    }
+    return ['blocks' => $blocks, 'valid' => $valid];
+}
+function brb_test_jsonld_type($parsed, $type) {
+    foreach ($parsed['blocks'] as $block) {
+        if (is_array($block) && ($block['@type'] ?? '') === $type) return $block;
+    }
+    return null;
+}
 function brb_t($cond, $msg) {
     if ($cond) {
         $GLOBALS['brb_ok']++;
@@ -33,7 +52,7 @@ $created = [];
 $snapshot = get_option('brb_settings');
 
 try {
-    brb_t(get_option('brb_version') === '2.5.61', 'plugin storage version is 2.5.61');
+    brb_t(get_option('brb_version') === '2.5.62', 'plugin storage version is 2.5.62');
     putenv('BRB_ENV=production');
     $_ENV['BRB_ENV'] = 'production';
     $_SERVER['BRB_ENV'] = 'production';
@@ -357,6 +376,7 @@ try {
     $saved_query = $wp_query;
     $saved_the = $wp_the_query;
     foreach (br_seo_pages() as $slug => $seo) {
+        if (($seo['title'] ?? '') === '') continue;
         if ($slug === 'home') {
             $front = (int) get_option('page_on_front');
             $q = $front ? new WP_Query(['page_id' => $front]) : new WP_Query(['post_type' => 'page', 'pagename' => 'home']);
@@ -457,6 +477,91 @@ try {
         brb_t(strpos($old_detail, '309-555-0199') !== false && strpos($old_detail, '2026-12-01') !== false && strpos($old_detail, 'Old tour note') !== false && strpos($old_detail, 'Morning') !== false, 'an older tour request still shows its phone, date, and notes');
         $_GET = [];
     }
+
+    $holiday_desc = 'Planning a holiday party in the Quad Cities? The Boardroom in Moline, IL hosts up to 80 guests. See open dates and pricing on our calendar.';
+    $seo_pages = br_seo_pages();
+    brb_t(($seo_pages['holiday-party-venue-quad-cities']['description'] ?? '') === $holiday_desc && ($seo_pages['holiday-party-venue-quad-cities']['title'] ?? null) === '', 'the holiday page description is set without replacing its title');
+    $home_tpl = file_get_contents(get_stylesheet_directory() . '/front-page.php');
+    preg_match_all('/<h1\b[^>]*>.*?<\/h1>/s', (string) $home_tpl, $home_h1s);
+    $home_h1 = $home_h1s[0][0] ?? '';
+    brb_t(is_string($home_tpl) && count($home_h1s[0]) === 1 && strpos($home_h1, 'Party & Event Venue in Moline, IL (Quad Cities)') !== false && strpos($home_h1, '<img') === false && strpos($home_tpl, 'class="hero-logo"') !== false && strpos($home_tpl, '<h1 class="hero-logo"') === false && strpos($home_tpl, 'boardroom-logo-hero.png') !== false, 'the homepage has one text h1 and the logo stays an image');
+
+    $saved_query = $wp_query;
+    $saved_the = $wp_the_query;
+    $front_id = (int) get_option('page_on_front');
+    $home_query = $front_id ? new WP_Query(['page_id' => $front_id]) : new WP_Query(['post_type' => 'page', 'pagename' => 'home']);
+    $wp_query = $home_query;
+    $wp_the_query = $home_query;
+    ob_start();
+    do_action('wp_head');
+    $home_head = ob_get_clean();
+    $home_blocks = brb_test_jsonld_blocks($home_head);
+    $home_venue = brb_test_jsonld_type($home_blocks, 'EventVenue');
+    brb_t($home_blocks['valid'] && is_array($home_venue), 'homepage JSON-LD blocks parse');
+    brb_t(is_array($home_venue) && ($home_venue['email'] ?? '') === 'boardroomqc@gmail.com' && !array_key_exists('telephone', $home_venue) && !array_key_exists('aggregateRating', $home_venue) && strpos($home_head, 'aggregateRating') === false && strpos($home_head, 'reviewCount') === false && strpos($home_head, 'ratingCount') === false && strpos($home_head, '"telephone"') === false, 'homepage venue schema has the email and no rating or telephone');
+
+    $faq_query = new WP_Query(['pagename' => 'faq']);
+    $wp_query = $faq_query;
+    $wp_the_query = $faq_query;
+    ob_start();
+    do_action('wp_head');
+    $faq_head = ob_get_clean();
+    $faq_blocks = brb_test_jsonld_blocks($faq_head);
+    $faq_schema = brb_test_jsonld_type($faq_blocks, 'FAQPage');
+    $faq_venue = brb_test_jsonld_type($faq_blocks, 'EventVenue');
+    $rendered_faq = brb_faq_rendered_html();
+    $visible_pairs = brb_faq_qa_pairs($rendered_faq);
+    $priced = [];
+    $public_pairs = [];
+    foreach ($visible_pairs as $pair) {
+        if (brb_faq_answer_has_dollar_amount($pair['answer'])) $priced[] = $pair;
+        else $public_pairs[] = $pair;
+    }
+    $schema_pairs = [];
+    foreach ((array) ($faq_schema['mainEntity'] ?? []) as $entity) {
+        $schema_pairs[] = [
+            'question' => (string) ($entity['name'] ?? ''),
+            'answer' => (string) ($entity['acceptedAnswer']['text'] ?? ''),
+        ];
+    }
+    brb_t($faq_blocks['valid'] && is_array($faq_schema) && is_array($faq_venue) && $public_pairs !== [] && $schema_pairs === $public_pairs, 'FAQPage JSON-LD matches the questions and answers rendered on the FAQ page');
+    $schema_json = wp_json_encode($faq_schema);
+    $priced_left_out = $priced !== [];
+    foreach ($priced as $pair) {
+        if (strpos((string) $schema_json, $pair['question']) !== false || strpos((string) $schema_json, '$') !== false) $priced_left_out = false;
+    }
+    brb_t($priced_left_out, 'FAQPage leaves out answers that contain a dollar amount');
+    $hours = is_array($faq_venue) ? ($faq_venue['openingHoursSpecification'][0] ?? null) : null;
+    brb_t(brb_faq_states_event_window($rendered_faq) && is_array($hours) && ($hours['opens'] ?? '') === '10:00' && ($hours['closes'] ?? '') === '23:30' && ($hours['dayOfWeek'] ?? null) === ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'], 'venue hours are 10:00 to 23:30 daily because the FAQ states that window');
+    brb_t(is_array($faq_venue) && ($faq_venue['email'] ?? '') === 'boardroomqc@gmail.com' && !array_key_exists('telephone', $faq_venue) && !array_key_exists('aggregateRating', $faq_venue), 'FAQ venue schema keeps the email and omits telephone and aggregateRating');
+
+    $holiday_made = 0;
+    if (!get_page_by_path('holiday-party-venue-quad-cities')) {
+        $holiday_insert = wp_insert_post([
+            'post_type' => 'page',
+            'post_status' => 'publish',
+            'post_title' => 'Holiday Party Venue Quad Cities: A Mid-November Planning Guide',
+            'post_name' => 'holiday-party-venue-quad-cities',
+            'post_content' => '<p>Holiday planning guide.</p>',
+        ], true);
+        $holiday_made = is_wp_error($holiday_insert) ? 0 : (int) $holiday_insert;
+    }
+    $holiday_query = new WP_Query(['pagename' => 'holiday-party-venue-quad-cities']);
+    $wp_query = $holiday_query;
+    $wp_the_query = $holiday_query;
+    $holiday_title = html_entity_decode(wp_get_document_title(), ENT_QUOTES, 'UTF-8');
+    ob_start();
+    do_action('wp_head');
+    $holiday_head = ob_get_clean();
+    preg_match_all('/<meta name="description" content="([^"]*)"/', $holiday_head, $holiday_descs);
+    $holiday_text = isset($holiday_descs[1][0]) ? html_entity_decode($holiday_descs[1][0], ENT_QUOTES, 'UTF-8') : '';
+    $holiday_blocks = brb_test_jsonld_blocks($holiday_head);
+    brb_t($holiday_query->have_posts() && count($holiday_descs[0]) === 1 && $holiday_text === $holiday_desc, 'the holiday page prints one meta description with the requested sentence');
+    brb_t(strpos($holiday_title, 'Holiday Party Venue Quad Cities: A Mid-November Planning Guide') !== false && strpos($holiday_title, 'Planning a holiday party') === false, 'the holiday page keeps its own title');
+    brb_t($holiday_blocks['valid'], 'holiday page JSON-LD blocks parse');
+    $wp_query = $saved_query;
+    $wp_the_query = $saved_the;
+    if ($holiday_made) wp_delete_post($holiday_made, true);
 } finally {
     delete_transient(brb_tour_rate_key());
     if ($created) {

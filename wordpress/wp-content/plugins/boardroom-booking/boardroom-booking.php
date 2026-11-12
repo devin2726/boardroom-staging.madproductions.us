@@ -2,11 +2,11 @@
 /**
  * Plugin Name: Boardroom Booking
  * Description: Self-hosted direct booking for The Boardroom — full-day blocks, availability calendar, agreed prices, approval before payment, blackout dates, and emails.
- * Version: 2.5.61
+ * Version: 2.5.62
  * Author: Mad Productions
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.5.61');
+define('BRB_VER', '2.5.62');
 function brb_reserve_explainer_steps() {
     return [
         'Pick a date. Prices are on the calendar.',
@@ -237,11 +237,65 @@ function brb_public_guest_cap() {
 function brb_parking_car_span() {
     return '40 to 50';
 }
+function brb_faq_source_html() {
+    $page = get_page_by_path('faq');
+    if ($page && trim((string) $page->post_content) !== '') return (string) $page->post_content;
+    return brb_faq_markup();
+}
+function brb_faq_plain_text($html) {
+    $text = html_entity_decode(wp_strip_all_tags((string) $html), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $text = str_replace("\xc2\xa0", ' ', $text);
+    $collapsed = preg_replace('/\s+/u', ' ', $text);
+    if (!is_string($collapsed)) $collapsed = preg_replace('/\s+/', ' ', $text);
+    return trim((string) $collapsed);
+}
+function brb_faq_qa_pairs($html) {
+    $pairs = [];
+    if (!preg_match_all('/<details\b[^>]*>\s*<summary\b[^>]*>(.*?)<\/summary>(.*?)<\/details>/is', (string) $html, $matches, PREG_SET_ORDER)) return $pairs;
+    foreach ($matches as $match) {
+        $question = brb_faq_plain_text($match[1]);
+        $answer = brb_faq_plain_text($match[2]);
+        if ($question === '' || $answer === '') continue;
+        $pairs[] = ['question' => $question, 'answer' => $answer];
+    }
+    return $pairs;
+}
+function brb_faq_answer_has_dollar_amount($answer) {
+    return (bool) preg_match('/\$\s*\d/', (string) $answer);
+}
+function brb_faq_rendered_html() {
+    return apply_filters('the_content', brb_faq_source_html());
+}
+function brb_faq_states_event_window($html = null) {
+    static $cached = null;
+    if ($html === null && $cached !== null) return $cached;
+    if ($html === null) $html = brb_faq_rendered_html();
+    $states = (bool) preg_match('/10(?::00)?\s*a\.?m\.?\s+to\s+11:30\s*p\.?m\.?/i', brb_faq_plain_text($html));
+    if ($cached === null && func_num_args() === 0) $cached = $states;
+    return $states;
+}
+function brb_faq_schema_entities($html = null) {
+    if ($html === null) $html = brb_faq_rendered_html();
+    $entities = [];
+    foreach (brb_faq_qa_pairs($html) as $pair) {
+        if (brb_faq_answer_has_dollar_amount($pair['answer'])) continue;
+        $entities[] = [
+            '@type' => 'Question',
+            'name' => $pair['question'],
+            'acceptedAnswer' => [
+                '@type' => 'Answer',
+                'text' => $pair['answer'],
+            ],
+        ];
+    }
+    return $entities;
+}
 function brb_place_schema() {
     $data = [
         '@context' => 'https://schema.org',
         '@type' => 'EventVenue',
         'name' => 'The Boardroom',
+        'email' => 'boardroomqc@gmail.com',
         'address' => [
             '@type' => 'PostalAddress',
             'streetAddress' => '2220 37th Street',
@@ -260,13 +314,30 @@ function brb_place_schema() {
         'maximumAttendeeCapacity' => brb_public_guest_cap(),
         'sameAs' => [BRB_MAPS_URL],
     ];
-    if ((is_front_page() || is_home()) && function_exists('br_review_aggregate_schema')) {
-        $rating = br_review_aggregate_schema();
-        if (is_array($rating)) $data['aggregateRating'] = $rating;
+    if (brb_faq_states_event_window()) {
+        $data['openingHoursSpecification'] = [[
+            '@type' => 'OpeningHoursSpecification',
+            'dayOfWeek' => ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
+            'opens' => '10:00',
+            'closes' => '23:30',
+        ]];
     }
     echo '<script type="application/ld+json">' . wp_json_encode($data, JSON_UNESCAPED_SLASHES) . "</script>\n";
 }
 add_action('wp_head', 'brb_place_schema', 20);
+function brb_faq_schema() {
+    if (!is_page('faq')) return;
+    $html = brb_faq_rendered_html();
+    $entities = brb_faq_schema_entities($html);
+    if (!$entities) return;
+    $data = [
+        '@context' => 'https://schema.org',
+        '@type' => 'FAQPage',
+        'mainEntity' => $entities,
+    ];
+    echo '<script type="application/ld+json">' . wp_json_encode($data, JSON_UNESCAPED_SLASHES) . "</script>\n";
+}
+add_action('wp_head', 'brb_faq_schema', 21);
 function brb_blackouts() {
     $out = [];
     foreach (preg_split('/[\s,]+/', (string) brb_opt('blackouts')) as $d) {

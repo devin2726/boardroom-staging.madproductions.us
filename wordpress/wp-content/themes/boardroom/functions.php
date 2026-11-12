@@ -3,7 +3,7 @@ add_action('after_setup_theme', function () {
     add_theme_support('title-tag'); add_theme_support('post-thumbnails'); add_theme_support('custom-logo');
     register_nav_menus(['primary' => 'Primary', 'footer' => 'Footer']);
 });
-function br_ver() { return '1.2.45'; }
+function br_ver() { return '1.2.46'; }
 add_action('wp_enqueue_scripts', function () {
     wp_enqueue_style('boardroom', get_stylesheet_uri(), [], br_ver());
     wp_enqueue_script('boardroom', get_template_directory_uri() . '/assets/site.js', [], br_ver(), true);
@@ -431,6 +431,7 @@ function br_seo_pages() {
         'rental-checklist' => ['title' => 'Rental Checklist | The Boardroom, ' . $place, 'description' => 'What to do before and after an event at The Boardroom in Moline, IL, including setup, cleanup, and house rules.'],
         'contact' => ['title' => 'Contact The Boardroom | ' . $place, 'description' => 'Email boardroomqc@gmail.com or use the contact form to ask about The Boardroom in Moline, IL.'],
         'gallery' => ['title' => 'Photo Gallery | The Boardroom, ' . $place, 'description' => 'Photos of The Boardroom, a party and event venue in Moline, IL, in the Quad Cities.'],
+        'holiday-party-venue-quad-cities' => ['title' => '', 'description' => 'Planning a holiday party in the Quad Cities? The Boardroom in Moline, IL hosts up to 80 guests. See open dates and pricing on our calendar.'],
     ];
 }
 function br_seo_key() {
@@ -448,7 +449,7 @@ function br_share_image() {
 add_filter('document_title_parts', function ($parts) {
     $key = br_seo_key();
     $pages = br_seo_pages();
-    if ($key !== '' && isset($pages[$key])) {
+    if ($key !== '' && isset($pages[$key]) && $pages[$key]['title'] !== '') {
         $parts['title'] = $pages[$key]['title'];
         unset($parts['site'], $parts['tagline']);
     }
@@ -458,12 +459,15 @@ add_action('wp_head', function () {
     $key = br_seo_key();
     if ($key === '') return;
     $row = br_seo_pages()[$key];
+    $description = (string) ($row['description'] ?? '');
+    if ($description === '') return;
+    echo '<meta name="description" content="' . esc_attr($description) . '">' . "\n";
+    if (($row['title'] ?? '') === '') return;
     $url = $key === 'home' ? home_url('/') : home_url('/' . $key . '/');
     $image = br_share_image();
-    echo '<meta name="description" content="' . esc_attr($row['description']) . '">' . "\n";
     echo '<meta property="og:type" content="website">' . "\n";
     echo '<meta property="og:title" content="' . esc_attr($row['title']) . '">' . "\n";
-    echo '<meta property="og:description" content="' . esc_attr($row['description']) . '">' . "\n";
+    echo '<meta property="og:description" content="' . esc_attr($description) . '">' . "\n";
     echo '<meta property="og:url" content="' . esc_url($url) . '">' . "\n";
     echo '<meta property="og:image" content="' . esc_url($image) . '">' . "\n";
 }, 2);
