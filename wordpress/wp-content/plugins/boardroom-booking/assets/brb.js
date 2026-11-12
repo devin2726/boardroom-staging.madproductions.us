@@ -209,6 +209,7 @@
     fetch(cfg.eventEndpoint, {
       method: 'POST',
       credentials: 'omit',
+      keepalive: true,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ event: name })
     }).catch(function () {});

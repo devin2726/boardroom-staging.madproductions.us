@@ -2,11 +2,11 @@
 /**
  * Plugin Name: Boardroom Booking
  * Description: Self-hosted direct booking for The Boardroom — full-day blocks, availability calendar, agreed prices, approval before payment, blackout dates, and emails.
- * Version: 2.5.71
+ * Version: 2.5.72
  * Author: Boardroom QC LLC
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.5.71');
+define('BRB_VER', '2.5.72');
 function brb_reserve_explainer_steps() {
     return [
         'Pick a date. Prices are on the calendar.',
@@ -3191,7 +3191,7 @@ function brb_recent_same_day_booking($email, DateTimeInterface $start) {
         $cutoff
     ));
 }
-function brb_insert_booking($r, $q, $guest, $source = 'online', $notify = true) {
+function brb_insert_booking($r, $q, $guest, $source = 'online', $notify = true, $track_submit = false) {
     global $wpdb;
     $source = in_array($source, ['online', 'phone', 'walk-in'], true) ? $source : 'online';
     $locked = $wpdb->get_var("SELECT GET_LOCK('brb_book', 10)");
@@ -3252,8 +3252,8 @@ function brb_insert_booking($r, $q, $guest, $source = 'online', $notify = true) 
     }
     if ($result && !is_wp_error($result)) {
         brb_report_stamp_booking($result->id);
+        if ($track_submit) brb_event_hit('booking_request_submitted');
         if ($notify) {
-            brb_event_hit('booking_request_submitted');
             brb_send_request_emails($result);
         }
     }
@@ -3289,7 +3289,7 @@ function brb_process_public_booking($post) {
         'end_time' => $screen['end_time'],
         'host_age' => $screen['host_age'],
         'event_about' => $screen['event_about'],
-    ], 'online', true);
+    ], 'online', true, true);
 }
 add_action('admin_post_nopriv_brb_book', 'brb_handle_book');
 add_action('admin_post_brb_book', 'brb_handle_book');

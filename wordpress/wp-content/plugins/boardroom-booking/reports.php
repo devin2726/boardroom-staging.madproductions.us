@@ -128,6 +128,13 @@ function brb_report_rate($num, $den) {
     if ($den <= 0) return null;
     return round(100 * $num / $den, 1);
 }
+function brb_report_step_continued($step) {
+    if ($step['rate'] === null) return 'no starts';
+    if ((int) $step['to'] > (int) $step['from']) {
+        return $step['rate'] . '% continued; more completions than starts (some starts aren\'t tracked)';
+    }
+    return $step['rate'] . '% continued';
+}
 
 function brb_report_range($get = null) {
     if (!is_array($get)) $get = [];
@@ -708,7 +715,7 @@ function brb_report_build($start, $end) {
     foreach ($step_pairs as $pair) {
         $from = $hits[$pair[1]] ?? 0;
         $to = $hits[$pair[2]] ?? 0;
-        $rate = brb_report_rate(min($to, $from), $from);
+        $rate = brb_report_rate($to, $from);
         $steps[] = ['label' => $pair[0], 'from' => $from, 'to' => $to, 'rate' => $rate];
     }
 
@@ -1043,8 +1050,7 @@ function brb_admin_reports() {
     echo '</ul>';
     echo '<h3>Booking steps</h3><ul class="brb-plain">';
     foreach ($report['leads']['steps'] as $step) {
-        $rate = $step['rate'] === null ? 'no starts' : $step['rate'] . '% continued';
-        echo '<li>' . esc_html($step['label']) . ': ' . (int) $step['from'] . ' to ' . (int) $step['to'] . ' (' . esc_html($rate) . ')</li>';
+        echo '<li>' . esc_html($step['label']) . ': ' . (int) $step['from'] . ' to ' . (int) $step['to'] . ' (' . esc_html(brb_report_step_continued($step)) . ')</li>';
     }
     echo '</ul>';
     echo '<h3>People</h3><table class="widefat"><thead><tr><th>When</th><th>Name</th><th>Email</th><th>Phone</th><th>Channel</th><th>Origin</th><th>Status</th><th>Event</th><th>Guests</th></tr></thead><tbody>';
