@@ -45,7 +45,9 @@ post_start() {
   # Production is the default. Only an explicit staging, dev, or test env stays noindex,
   # unless DISCOURAGE_SEARCH=0. boardroomqc.com is always indexed.
   BRB_MODE=$(printf '%s' "${BRB_ENV:-}" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')
-  BRB_HOME_HOST=$(printf '%s' "${WP_HOME:-${WP_SITEURL:-}}" | sed -e 's#^[a-zA-Z][a-zA-Z]*://##' -e 's#/.*##' -e 's#:.*##' | tr '[:upper:]' '[:lower:]')
+  # Lowercase, drop the scheme and path, drop a port, then drop trailing dots.
+  # Match boardroomqc.com exactly after that. A lookalike host is left unchanged.
+  BRB_HOME_HOST=$(printf '%s' "${WP_HOME:-${WP_SITEURL:-}}" | tr '[:upper:]' '[:lower:]' | sed -e 's#^[a-z][a-z0-9+.-]*://##' -e 's#/.*##' -e 's#:.*##' -e 's#\.*$##')
   if [ "$BRB_HOME_HOST" = "boardroomqc.com" ] || [ "$BRB_HOME_HOST" = "www.boardroomqc.com" ]; then
     $WP option update blog_public 1 >/dev/null
     echo "[boardroom] search indexing on"

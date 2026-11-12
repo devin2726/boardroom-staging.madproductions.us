@@ -113,7 +113,7 @@ Indexing is applied on container start and again on each WordPress request.
 | `BRB_STRIPE_WEBHOOK_SECRET` | webhook signing secret | webhooks are rejected |
 | `BRB_STRIPE_PUBLISHABLE_KEY` | publishable key | passed through; hosted Checkout does not use it |
 
-`docker-compose.yml` passes `BRB_ENV` (default `staging`), `WP_SITEURL`, `DISCOURAGE_SEARCH`, and the eight `WORDPRESS_*` key and salt variables into the wordpress container. Staging must set `BRB_ENV=staging`. Production sets `BRB_ENV=production`. Salts can stay empty outside production.
+`docker-compose.yml` passes `BRB_ENV` through with an empty default, which means production, because production uses the same file. The staging Coolify app must set `BRB_ENV=staging` in that app's own environment variables. Production sets `BRB_ENV=production`. Salts can stay empty outside production.
 
 Local test:
 

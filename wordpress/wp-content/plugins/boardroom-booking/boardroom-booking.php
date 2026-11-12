@@ -2094,7 +2094,9 @@ function brb_preview_lines($q, DateTimeImmutable $start) {
 
 function brb_host_name($host) {
     $host = strtolower(trim((string) $host));
-    return (string) preg_replace('/:\d+$/', '', $host);
+    $host = rtrim($host, '.');
+    $host = (string) preg_replace('/:\d+$/', '', $host);
+    return rtrim($host, '.');
 }
 function brb_is_live_host($host) {
     $host = brb_host_name($host);

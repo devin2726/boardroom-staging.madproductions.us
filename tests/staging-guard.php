@@ -115,6 +115,16 @@ try {
     brb_t(brb_is_production() && brb_ref($sample) === 'BR-7', 'boardroomqc.com host with BRB_ENV=staging is production');
     $_SERVER['HTTP_HOST'] = 'www.boardroomqc.com';
     brb_t(brb_is_production() && brb_ref($sample) === 'BR-7', 'www.boardroomqc.com with BRB_ENV=staging is production');
+    $_SERVER['HTTP_HOST'] = 'boardroomqc.com.';
+    brb_t(brb_is_production() && brb_ref($sample) === 'BR-7', 'a trailing dot on boardroomqc.com is production');
+    $_SERVER['HTTP_HOST'] = 'www.boardroomqc.com.';
+    brb_t(brb_is_production() && brb_ref($sample) === 'BR-7', 'a trailing dot on www.boardroomqc.com is production');
+    $_SERVER['HTTP_HOST'] = 'BoardroomQC.com:443';
+    brb_t(brb_is_production() && brb_ref($sample) === 'BR-7', 'mixed case and a port are production');
+    $_SERVER['HTTP_HOST'] = 'boardroomqc.com.evil.test';
+    brb_t(!brb_is_production() && brb_ref($sample) === 'BR-S7', 'a host that only starts with boardroomqc.com is not production');
+    $_SERVER['HTTP_HOST'] = 'xboardroomqc.com';
+    brb_t(!brb_is_production() && brb_ref($sample) === 'BR-S7', 'a host that only ends with boardroomqc.com is not production');
     if ($saved_http_host === null) unset($_SERVER['HTTP_HOST']);
     else $_SERVER['HTTP_HOST'] = $saved_http_host;
     $home_cb = function ($url) {
@@ -124,6 +134,13 @@ try {
     add_filter('home_url', $home_cb);
     brb_t(brb_is_production() && brb_ref($sample) === 'BR-7', 'a boardroomqc.com home_url with BRB_ENV=staging is production');
     remove_filter('home_url', $home_cb);
+    $home_dot = function ($url) {
+        unset($url);
+        return 'https://BoardroomQC.com.:443/';
+    };
+    add_filter('home_url', $home_dot);
+    brb_t(brb_is_production() && brb_ref($sample) === 'BR-7', 'a mixed-case home_url with a port and a trailing dot is production');
+    remove_filter('home_url', $home_dot);
     brb_guard_env('staging');
     brb_t(brb_ref($sample) === 'BR-S7', 'staging ref has BR-S prefix');
     brb_t(brb_ref_id('BR-S7') === 7 && brb_ref_id('br-12') === 12 && brb_ref_id('BR-S') === 0, 'search reads BR-S and BR- refs back to the row id');
