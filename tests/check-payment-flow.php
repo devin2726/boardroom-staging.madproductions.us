@@ -45,7 +45,7 @@ add_filter('pre_wp_mail', function ($short, $atts) {
 $GLOBALS['brb_mails'] = [];
 
 try {
-    brb_t(get_option('brb_version') === '2.5.65', 'plugin storage version is 2.5.65');
+    brb_t(get_option('brb_version') === '2.5.68', 'plugin storage version is 2.5.68');
     $cc_before = (string) brb_opt('inquiry_cc');
     delete_option('brb_inquiry_cc_seeded');
     $cc_settings = get_option('brb_settings');
@@ -978,7 +978,8 @@ try {
     foreach (['stored terms', 'terms source'] as $label) {
         $doc = $legal_docs[$label];
         brb_t(strpos($doc, 'operated by Boardroom QC LLC ("we" or "the Owner")') !== false, $label . ' names Boardroom QC LLC as Owner');
-        brb_t(strpos($doc, $released_def) !== false && substr_count($doc, $negligence) === 2, $label . ' summaries of sections 5 and 14 name the Released Parties and the negligence carve-out');
+        brb_t(strpos($doc, 'the Released Parties (as defined in Section 5 of the Rental Agreement)') !== false && substr_count($doc, $negligence) === 2, $label . ' summaries of sections 5 and 14 refer to the Released Parties as defined in Section 5 and keep the negligence carve-out');
+        brb_t(strpos($doc, $released_def) === false && strpos($doc, 'Mad Rentals') === false && strpos($doc, 'Mad Productions') === false, $label . ' does not repeat the other entity names');
     }
     ob_start();
     brb_place_schema();
@@ -986,6 +987,69 @@ try {
     brb_t(strpos($place_schema, '"legalName":"Boardroom QC LLC"') !== false && strpos($place_schema, '"name":"The Boardroom"') !== false, 'venue schema adds legalName Boardroom QC LLC and keeps the brand name');
     $footer_src = (string) file_get_contents(get_template_directory() . '/footer.php');
     brb_t(strpos($footer_src, "Boardroom QC LLC - All Rights Reserved.") !== false && stripos($footer_src, 'Mad Productions') === false, 'footer copyright names Boardroom QC LLC');
+    // 2.5.68: no other entity names in public output, except the Released Parties definition in Rental Agreement section 5.
+    $other_entity = '/(?<![\w.\/@-])mad\s+(productions|rentals)\b/i';
+    $agreement_plain = html_entity_decode(brb_agreement_html(), ENT_QUOTES);
+    $a5 = strpos($agreement_plain, '5. Required Renters Insurance.');
+    $a6 = strpos($agreement_plain, '6. Outside Vendors');
+    $outside5 = ($a5 !== false && $a6 !== false) ? substr($agreement_plain, 0, $a5) . substr($agreement_plain, $a6) : $agreement_plain;
+    $faq_page = get_page_by_path('faq');
+    $probe = (object) ['id' => 999901, 'name' => 'Entity Probe', 'email' => 'entity-probe@example.com', 'phone' => '555-0100', 'start_at' => '2027-03-06 10:00:00', 'end_at' => '2027-03-06 23:30:00', 'start_dt' => '2027-03-06 10:00:00', 'end_dt' => '2027-03-06 23:30:00', 'mode' => 'day', 'guests' => 40, 'total' => 1000, 'deposit_due' => 500, 'amount_paid' => 0, 'amount_due' => 0, 'damage_due' => 250, 'damage_paid' => 0, 'status' => 'approved', 'price_set' => 1, 'source' => 'online', 'event_type' => 'Birthday', 'created_at' => '2026-11-12 10:00:00', 'hold_until' => null, 'notes' => '', 'token' => 'probe', 'alcohol' => 'no'];
+    $mail_saved = brb_opt();
+    $mail_opt = $mail_saved;
+    $mail_opt['payee'] = 'Boardroom QC LLC';
+    $mail_opt['pay_location'] = BRB_VENUE_ADDRESS;
+    update_option('brb_settings', $mail_opt);
+    $mail_text = '';
+    try {
+        $mail_text .= (string) @brb_approve_guest_body($probe) . "\n";
+        $pay_msg = @brb_payment_guest_message($probe, 500, '1234', 'check', null);
+        $mail_text .= is_array($pay_msg) ? implode("\n", array_map('strval', array_filter($pay_msg, 'is_string'))) . "\n" : '';
+        $mail_text .= (string) @brb_receipt_block($probe, 500, 'check', '2026-11-12') . "\n";
+    } catch (Throwable $e) {
+        $mail_text .= 'ERROR ' . $e->getMessage();
+    }
+    update_option('brb_settings', $mail_saved);
+    brb_t(strpos($mail_text, 'payable to Boardroom QC LLC at The Boardroom, 2220 37th Street') !== false && strpos($mail_text, 'Here is your receipt.') !== false && strpos($mail_text, 'ERROR') === false, 'approval and payment emails say payable to Boardroom QC LLC');
+    $public_surfaces = [
+        'terms' => html_entity_decode(brb_terms_html() . (string) $terms_html, ENT_QUOTES),
+        'privacy' => html_entity_decode(brb_privacy_html() . (string) $privacy_html, ENT_QUOTES),
+        'faq' => brb_faq_markup() . ($faq_page ? (string) $faq_page->post_content : ''),
+        'check sentence' => brb_check_sentence() . brb_check_sentence('a check for $500.00') . brb_cancellation_summary() . (string) brb_opt('policy'),
+        'footer' => $footer_src,
+        'schema' => $place_schema,
+        'emails, invoices and receipts' => $mail_text,
+        'rental agreement and printable PDF outside section 5' => $outside5,
+        'plugin header' => (string) file_get_contents(WP_PLUGIN_DIR . '/boardroom-booking/boardroom-booking.php', false, null, 0, 400),
+        'theme style.css header' => (string) file_get_contents(get_template_directory() . '/style.css', false, null, 0, 400),
+        'payee setting' => (string) brb_opt('payee') . ' ' . brb_guest_payee(),
+    ];
+    foreach ($public_surfaces as $label => $text) {
+        brb_t($text !== '' && !preg_match($other_entity, $text) && stripos($text, 'MAD Productions, LLC') === false, $label . ' names no entity other than Boardroom QC LLC');
+    }
+    brb_t(substr_count($agreement_plain, 'Mad Rentals LLC') === 1 && substr_count($agreement_plain, 'Mad Productions LLC') === 1 && preg_match_all($other_entity, $agreement_plain) === 2, 'the other entities appear exactly once, in the section 5 Released Parties definition');
+    brb_t(strpos((string) file_get_contents(WP_PLUGIN_DIR . '/boardroom-booking/boardroom-booking.php', false, null, 0, 400), 'Author: Boardroom QC LLC') !== false && strpos((string) file_get_contents(get_template_directory() . '/style.css', false, null, 0, 400), 'Author: Boardroom QC LLC') !== false, 'plugin and theme Author headers name Boardroom QC LLC');
+    brb_t(brb_scrub_other_entities('Operated by MAD Productions, LLC. Checks payable to Mad Productions at The Boardroom. Ask Mad Rentals LLC. See https://boardroom-staging.madproductions.us/.') === 'Operated by Boardroom QC LLC. Checks payable to Boardroom QC LLC at The Boardroom. Ask Boardroom QC LLC. See https://boardroom-staging.madproductions.us/.', 'the entity scrub rewrites names and keeps the madproductions.us domain');
+    brb_t(brb_scrub_other_entities('hold harmless Boardroom QC LLC, Mad Rentals LLC, and Mad Productions LLC, and each of their members and managers (collectively, the "Released Parties"), The Boardroom QC') === 'hold harmless the Released Parties (as defined in Section 5 of the Rental Agreement), The Boardroom QC' && brb_scrub_other_entities('MAD Productions, LLC, The Boardroom QC') === 'Boardroom QC LLC, The Boardroom QC', 'the entity scrub turns an old party list into the defined term');
+    $stale_id = wp_insert_post(['post_type' => 'page', 'post_status' => 'publish', 'post_title' => 'Entity scrub probe', 'post_name' => 'entity-scrub-probe', 'post_content' => '<p>The Boardroom QC is operated by MAD Productions, LLC. Make checks payable to Mad Productions at The Boardroom. Mad Rentals handles keys.</p>'], true);
+    if (!is_wp_error($stale_id) && $stale_id) {
+        update_post_meta((int) $stale_id, '_yoast_wpseo_metadesc', 'Operated by MAD Productions, LLC.');
+    }
+    $entity_opt = brb_opt();
+    $entity_opt['pay_instructions'] = 'Ask for Mad Productions at the door.';
+    update_option('brb_settings', $entity_opt);
+    brb_scrub_other_entity_copy();
+    $stale = (!is_wp_error($stale_id) && $stale_id) ? get_post((int) $stale_id) : null;
+    $stale_html = $stale ? (string) $stale->post_content : '';
+    brb_t($stale_html !== '' && !preg_match($other_entity, $stale_html) && strpos($stale_html, 'operated by Boardroom QC LLC') !== false && strpos($stale_html, 'payable to Boardroom QC LLC') !== false, 'the upgrade rewrites stored page content that named the other entities');
+    brb_t($stale && !preg_match($other_entity, (string) get_post_meta((int) $stale_id, '_yoast_wpseo_metadesc', true)), 'the upgrade rewrites stored Yoast descriptions that named the other entities');
+    brb_t(!preg_match($other_entity, (string) brb_opt('pay_instructions')), 'the upgrade rewrites stored settings that named the other entities');
+    $entity_opt = brb_opt();
+    $entity_opt['pay_instructions'] = '';
+    update_option('brb_settings', $entity_opt);
+    if (!is_wp_error($stale_id) && $stale_id) wp_delete_post((int) $stale_id, true);
+    $agreement_after = get_page_by_path('rental-agreement');
+    brb_t($agreement_after && substr_count(html_entity_decode((string) $agreement_after->post_content, ENT_QUOTES), 'Mad Productions LLC') === 1, 'the entity scrub leaves the section 5 Released Parties definition in the stored agreement');
     $contact = get_page_by_path('contact');
     $contact_html = $contact ? (string) $contact->post_content : '';
     brb_t(strpos($contact_html, '2220 37th Street') === false && strpos($contact_html, 'mailto:') === false && strpos($contact_html, 'Get directions') === false && strpos($contact_html, 'PLACEHOLDER') === false, 'stored contact content does not repeat the address, email, or directions');
