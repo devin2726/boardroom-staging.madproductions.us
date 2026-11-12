@@ -156,7 +156,7 @@ add_action('admin_post_brb_delete', function () {
 });
 function brb_admin_list_url($status = '') {
     $url = admin_url('admin.php?page=brb');
-    $allowed = ['review', 'approved', 'deposit_paid', 'paid', 'declined', 'cancelled', 'expired', 'held'];
+    $allowed = ['review', 'approved', 'deposit_paid', 'paid', 'declined', 'cancelled', 'expired', 'held', 'card_review'];
     if (in_array($status, $allowed, true)) $url = add_query_arg('status', $status, $url);
     return $url;
 }
@@ -265,7 +265,7 @@ function brb_admin_list_query($extra = []) {
 }
 function brb_admin_list() {
     global $wpdb;
-    $allowed = ['review', 'approved', 'deposit_paid', 'paid', 'declined', 'cancelled', 'expired', 'held'];
+    $allowed = ['review', 'approved', 'deposit_paid', 'paid', 'declined', 'cancelled', 'expired', 'held', 'card_review'];
     $f = sanitize_key($_GET['status'] ?? '');
     if (!in_array($f, $allowed, true)) $f = '';
     $q = sanitize_text_field(wp_unslash($_GET['q'] ?? ''));
@@ -278,7 +278,10 @@ function brb_admin_list() {
     $dir = $order === 'asc' ? 'ASC' : 'DESC';
     $where = '1=1';
     $params = [];
-    if ($f !== '') {
+    if ($f === 'card_review') {
+        $where .= ' AND attention=%s';
+        $params[] = brb_stripe_review_mark();
+    } elseif ($f !== '') {
         $where .= ' AND status=%s';
         $params[] = $f;
     }
@@ -323,7 +326,7 @@ function brb_admin_list() {
     echo '<label for="brb-q">Search <input id="brb-q" name="q" value="' . esc_attr($q) . '" placeholder="Name, email, phone, or BR-#"></label> ';
     echo '<button class="button">Search</button></form>';
     echo '<p style="margin-top:12px">';
-    $filters = ['' => 'All', 'review' => 'Pending review', 'approved' => 'Approved, deposit due', 'deposit_paid' => 'Deposit paid', 'paid' => 'Paid in full', 'declined' => 'Declined', 'cancelled' => 'Cancelled', 'expired' => 'Expired'];
+    $filters = ['' => 'All', 'review' => 'Pending review', 'approved' => 'Approved, deposit due', 'deposit_paid' => 'Deposit paid', 'paid' => 'Paid in full', 'declined' => 'Declined', 'cancelled' => 'Cancelled', 'expired' => 'Expired', 'card_review' => 'Needs staff review'];
     foreach ($filters as $k => $l) {
         $url = brb_admin_list_query(['status' => $k, 'q' => $q, 'orderby' => $orderby, 'order' => $order]);
         printf('<a class="button%s" href="%s">%s</a> ', $f === $k ? ' button-primary' : '', esc_url($url), esc_html($l));
@@ -363,6 +366,9 @@ function brb_admin_list() {
                 $others[] = brb_ref((object) ['id' => $other]);
             }
             if ($others) $dup_note = '<br><strong class="brb-dup">Same guest and day as ' . esc_html(implode(', ', $others)) . '</strong>';
+        }
+        if ((string) ($b->attention ?? '') === brb_stripe_review_mark()) {
+            $dup_note .= '<br><strong class="brb-review">Needs staff review — payment received for an unavailable date</strong>';
         }
         printf(
             '<tr><th scope="row" class="check-column"><input type="checkbox" class="brb-row-check" name="booking_ids[]" value="%d" aria-label="%s"></th><td>%s</td><td>%s</td><td>%s<br><small>%s %s</small></td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td><span class="brb-badge %s">%s</span></td><td>%s</td><td><a class="button button-small" href="%s">Open</a></td></tr>',
@@ -562,7 +568,17 @@ function brb_admin_detail($id) {
         echo '<div class="notice notice-warning"><p>Open to the public. Staff review: all events must be free to attend. The Boardroom does not host concerts or ticketed shows.</p></div>';
     }
     if (!empty($b->attention)) {
-        echo '<div class="notice notice-warning"><p>' . esc_html($b->attention) . '</p></div>';
+        echo '<div class="notice notice-error"><p><strong>' . esc_html($b->attention) . '</strong></p>';
+        if ((string) $b->attention === brb_stripe_review_mark()) {
+            $review_pay = brb_stripe_review_rows((int) $b->id);
+            $review_pay = $review_pay ? $review_pay[0] : null;
+            echo '<p>' . esc_html(brb_stripe_review_steps()) . '</p>';
+            if ($review_pay) {
+                $review_url = brb_stripe_dashboard_url($review_pay->stripe_id, $review_pay->stripe_session);
+                echo '<p><a href="' . esc_url($review_url) . '" target="_blank" rel="noopener">Open this payment in the Stripe dashboard</a></p>';
+            }
+        }
+        echo '</div>';
     }
     $card_rows = array_filter(brb_payments($b->id), function ($p) {
         return ($p->method ?? '') === 'card';

@@ -539,6 +539,153 @@ try {
         remove_all_filters('pre_http_request');
     }
 
+    $taken_day = brb_now()->modify('+41 days')->format('Y-m-d');
+    $taken_guest = brb_process_public_booking([
+        'date' => $taken_day,
+        'type' => 'day',
+        'days' => 1,
+        'guests' => 4,
+        'name' => 'Stripe Taken',
+        'email' => 'stripe-taken@example.com',
+        'phone' => '555-0141',
+        'policy' => '1', 'waiver' => '1',
+        'event_type' => 'other',
+        'public_event' => 'no',
+        'free_admission' => '1',
+        'alcohol' => 'no',
+        'end_time' => '21:00',
+        'host_age' => 'age_25',
+        'event_about' => 'A date that gets taken before card payment.',
+    ]);
+    $blocker_day = brb_now()->modify('+42 days')->format('Y-m-d');
+    $blocker = brb_process_public_booking([
+        'date' => $blocker_day,
+        'type' => 'day',
+        'days' => 1,
+        'guests' => 4,
+        'name' => 'Stripe Blocker',
+        'email' => 'stripe-blocker@example.com',
+        'phone' => '555-0142',
+        'policy' => '1', 'waiver' => '1',
+        'event_type' => 'other',
+        'public_event' => 'no',
+        'free_admission' => '1',
+        'alcohol' => 'no',
+        'end_time' => '21:00',
+        'host_age' => 'age_25',
+        'event_about' => 'The booking that already has the date.',
+    ]);
+    brb_t(!is_wp_error($taken_guest) && $taken_guest && !is_wp_error($blocker) && $blocker, 'a guest booking and a blocking booking can be created');
+    if (!is_wp_error($taken_guest) && $taken_guest && !is_wp_error($blocker) && $blocker) {
+        $created_ids[] = (int) $taken_guest->id;
+        $created_ids[] = (int) $blocker->id;
+        $wpdb->update(brb_table(), ['walkthrough_done' => 1], ['id' => (int) $taken_guest->id]);
+        $taken_guest = brb_approve_booking($taken_guest->id);
+        $taken_guest = !is_wp_error($taken_guest) ? brb_set_agreed_price($taken_guest->id, 100) : $taken_guest;
+        $wpdb->update(brb_table(), [
+            'start_dt' => $taken_guest->start_dt,
+            'end_dt' => $taken_guest->end_dt,
+            'status' => 'paid',
+            'price_set' => 1,
+            'total' => '100.00',
+            'amount_paid' => '100.00',
+        ], ['id' => (int) $blocker->id]);
+        $taken_guest = brb_booking($taken_guest->id);
+        brb_t(brb_date_taken($taken_guest), 'the guest date is taken by the other paid booking');
+        $http_calls = 0;
+        add_filter('pre_http_request', function () use (&$http_calls) {
+            $http_calls++;
+            return new WP_Error('http', 'Stripe should not be called');
+        });
+        $blocked_session = brb_stripe_create_session($taken_guest);
+        remove_all_filters('pre_http_request');
+        $blocked_row = brb_booking($taken_guest->id);
+        brb_t(is_wp_error($blocked_session) && $blocked_session->get_error_code() === 'busy' && $blocked_session->get_error_message() === 'That date is no longer available. Please contact the venue.' && $http_calls === 0, 'checkout is not created when the date is taken, and the guest is told to contact the venue');
+        brb_t($blocked_row && strpos((string) $blocked_row->attention, 'No Stripe session was created') !== false && strpos((string) $blocked_row->audit_log, 'No Stripe session was created') !== false, 'the blocked checkout is recorded on the booking');
+        ob_start();
+        brb_view_pay($taken_guest->token, brb_pay_signature($taken_guest->token));
+        $pay_html = ob_get_clean();
+        brb_t(strpos($pay_html, 'That date is no longer available. Please contact the venue.') !== false && strpos($pay_html, 'Continue to card payment') === false, 'the pay page tells the guest the date is unavailable and does not offer checkout');
+
+        $paid_before = (float) $taken_guest->amount_paid;
+        $status_before = (string) $taken_guest->status;
+        $GLOBALS['brb_mails'] = [];
+        $review_session = [
+            'id' => 'cs_test_taken',
+            'payment_status' => 'paid',
+            'amount_total' => 36050,
+            'payment_intent' => 'pi_test_taken',
+            'metadata' => [
+                'booking_id' => (string) $taken_guest->id,
+                'token' => $taken_guest->token,
+                'base_cents' => '35000',
+                'fee_cents' => '1050',
+                'damage_cents' => '25000',
+            ],
+        ];
+        $review_body = wp_json_encode(['id' => 'evt_taken', 'type' => 'checkout.session.completed', 'data' => ['object' => $review_session]]);
+        $review_res = brb_test_post($review_body, $whsec);
+        $review_booking = brb_booking($taken_guest->id);
+        $review_rows = $wpdb->get_results($wpdb->prepare('SELECT * FROM ' . brb_pay_table() . ' WHERE booking_id=%d', (int) $taken_guest->id));
+        $guest_mail = false;
+        $staff_mail = null;
+        foreach ($GLOBALS['brb_mails'] as $m) {
+            if (stripos((string) $m['to'], 'stripe-taken@example.com') !== false) $guest_mail = true;
+            if (stripos((string) $m['subject'], 'Needs staff review - payment received for unavailable date') !== false) $staff_mail = $m;
+        }
+        brb_t($review_res->get_status() === 200 && $review_booking && $review_booking->status === $status_before && abs((float) $review_booking->amount_paid - $paid_before) < 0.001, 'a paid webhook for a taken date is saved and does not apply the payment');
+        brb_t($review_booking && (string) $review_booking->attention === 'needs staff review - payment received for unavailable date', 'the booking is marked needs staff review - payment received for unavailable date');
+        brb_t(count($review_rows) === 1 && $review_rows[0]->method === 'card_review' && $review_rows[0]->stripe_id === 'pi_test_taken' && $review_rows[0]->stripe_session === 'cs_test_taken', 'the Stripe payment and session ids are stored without counting as an applied card payment');
+        brb_t($staff_mail && !$guest_mail && strpos((string) $staff_mail['message'], 'dashboard.stripe.com') !== false && strpos((string) $staff_mail['message'], 'Do not refund this from the website') !== false, 'staff are emailed the Stripe dashboard link and the guest is not emailed');
+        $mail_count = count($GLOBALS['brb_mails']);
+        $again_res = brb_test_post($review_body, $whsec);
+        $again_rows = $wpdb->get_results($wpdb->prepare('SELECT id FROM ' . brb_pay_table() . ' WHERE booking_id=%d', (int) $taken_guest->id));
+        brb_t($again_res->get_status() === 200 && count($again_rows) === 1 && count($GLOBALS['brb_mails']) === $mail_count, 'a repeated webhook for the same payment does not create a second record or email');
+
+        $cancelled = brb_booking($taken_guest->id);
+        $wpdb->update(brb_table(), ['status' => 'cancelled', 'attention' => ''], ['id' => (int) $cancelled->id]);
+        $GLOBALS['brb_mails'] = [];
+        $cancel_session = $review_session;
+        $cancel_session['id'] = 'cs_test_cancelled';
+        $cancel_session['payment_intent'] = 'pi_test_cancelled';
+        $cancel_body = wp_json_encode(['id' => 'evt_cancelled', 'type' => 'checkout.session.completed', 'data' => ['object' => $cancel_session]]);
+        $cancel_res = brb_test_post($cancel_body, $whsec);
+        $cancel_booking = brb_booking($cancelled->id);
+        $cancel_guest_mail = false;
+        foreach ($GLOBALS['brb_mails'] as $m) {
+            if (stripos((string) $m['to'], 'stripe-taken@example.com') !== false) $cancel_guest_mail = true;
+        }
+        brb_t($cancel_res->get_status() === 200 && $cancel_booking && $cancel_booking->status === 'cancelled' && (string) $cancel_booking->attention === 'needs staff review - payment received for unavailable date' && !$cancel_guest_mail, 'a payment for a cancelled booking is held for staff review and the guest is not emailed');
+
+        $GLOBALS['brb_mails'] = [];
+        $orphan_session = $review_session;
+        $orphan_session['id'] = 'cs_test_orphan';
+        $orphan_session['payment_intent'] = 'pi_test_orphan';
+        $orphan_session['metadata']['booking_id'] = '987654321';
+        $orphan_session['metadata']['token'] = 'missing';
+        $orphan_body = wp_json_encode(['id' => 'evt_orphan', 'type' => 'checkout.session.completed', 'data' => ['object' => $orphan_session]]);
+        $orphan_res = brb_test_post($orphan_body, $whsec);
+        $orphan = $wpdb->get_row($wpdb->prepare('SELECT * FROM ' . brb_pay_table() . ' WHERE stripe_session=%s', 'cs_test_orphan'));
+        brb_t($orphan_res->get_status() === 200 && $orphan && (int) $orphan->booking_id === 0 && $orphan->method === 'card_review' && $orphan->stripe_id === 'pi_test_orphan', 'a payment with no booking is stored as an orphan record and acknowledged');
+
+        if ($admin) {
+            ob_start();
+            brb_stripe_review_notice();
+            $notice = ob_get_clean();
+            brb_t(strpos($notice, 'needs staff review - payment received for unavailable date') !== false && strpos($notice, 'dashboard.stripe.com/test/payments/pi_test_cancelled') !== false && strpos($notice, 'dashboard.stripe.com/test/payments/pi_test_orphan') !== false && strpos($notice, 'Do not refund this from the website') !== false && strpos($notice, 'status=card_review') !== false, 'the admin notice names the review, the recovery steps, and the Stripe payment');
+            $_GET = ['status' => 'card_review'];
+            ob_start();
+            brb_admin_list();
+            $list = ob_get_clean();
+            $_GET = [];
+            brb_t(strpos($list, 'Needs staff review') !== false && strpos($list, 'BR-' . (int) $taken_guest->id) !== false && strpos($list, 'payment received for an unavailable date') !== false, 'the bookings list can filter to payments that need staff review');
+            ob_start();
+            brb_admin_detail((int) $taken_guest->id);
+            $detail = ob_get_clean();
+            brb_t(strpos($detail, 'needs staff review - payment received for unavailable date') !== false && strpos($detail, 'dashboard.stripe.com/test/payments/pi_test_cancelled') !== false && strpos($detail, 'Do not refund this from the website') !== false, 'the booking screen shows the recovery steps and the Stripe payment');
+        }
+    }
+
     brb_test_env('BRB_STRIPE_SECRET_KEY', null);
     $disabled_again = brb_stripe_create_session($priced);
     brb_t(is_wp_error($disabled_again) && $disabled_again->get_error_code() === 'stripe' && brb_pay_link(brb_booking($priced->id)) === '', 'clearing the secret key disables online payment again');
@@ -554,8 +701,11 @@ try {
         $wpdb->query("DELETE FROM " . brb_pay_table() . " WHERE booking_id IN ($in)");
         $wpdb->query("DELETE FROM " . brb_table() . " WHERE id IN ($in)");
     }
-    $wpdb->query($wpdb->prepare('DELETE FROM ' . brb_pay_table() . ' WHERE booking_id IN (SELECT id FROM ' . brb_table() . ' WHERE email=%s)', 'stripe-flow@example.com'));
-    $wpdb->query($wpdb->prepare('DELETE FROM ' . brb_table() . ' WHERE email=%s', 'stripe-flow@example.com'));
+    $wpdb->query("DELETE FROM " . brb_pay_table() . " WHERE method='card_review' AND booking_id=0 AND stripe_session LIKE 'cs_test_%'");
+    foreach (['stripe-flow@example.com', 'stripe-taken@example.com', 'stripe-blocker@example.com'] as $stripe_email) {
+        $wpdb->query($wpdb->prepare('DELETE FROM ' . brb_pay_table() . ' WHERE booking_id IN (SELECT id FROM ' . brb_table() . ' WHERE email=%s)', $stripe_email));
+        $wpdb->query($wpdb->prepare('DELETE FROM ' . brb_table() . ' WHERE email=%s', $stripe_email));
+    }
     if ($snapshot !== false && $snapshot !== null) update_option('brb_settings', $snapshot);
     else delete_option('brb_settings');
 }

@@ -545,6 +545,7 @@ function brb_report_build($start, $end) {
     $by_month = [];
     $grouped = [];
     foreach ((array) $payments as $p) {
+        if ((string) ($p->method ?? '') === 'card_review') continue;
         $grouped[(int) $p->booking_id][] = $p;
         $amount = (float) $p->amount;
         $gross += $amount;
