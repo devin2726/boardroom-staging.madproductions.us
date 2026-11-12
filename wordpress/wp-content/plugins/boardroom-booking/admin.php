@@ -53,18 +53,22 @@ function brb_posted_guest_mail($default_subject, $default_body) {
     $args = [];
     if (array_key_exists('email_subject', $_POST)) $args['subject'] = wp_unslash($_POST['email_subject']);
     if (array_key_exists('email_body', $_POST)) $args['body'] = wp_unslash($_POST['email_body']);
-    list($subject, $body) = brb_custom_guest_mail($args, $default_subject, $default_body);
-    if (array_key_exists('email_body', $_POST) && brb_sanitize_guest_body(wp_unslash($_POST['email_body'])) === '') {
-        return new WP_Error('mail', 'The email cannot be empty.');
+    $mail = brb_custom_guest_mail($args, $default_subject, $default_body);
+    if (is_wp_error($mail)) return $mail;
+    list($subject, $body) = $mail;
+    if (array_key_exists('email_body', $_POST)) {
+        $posted_body = brb_sanitize_guest_body(wp_unslash($_POST['email_body']));
+        if (is_wp_error($posted_body)) return $posted_body;
+        if ($posted_body === '') return new WP_Error('mail', 'The email cannot be empty.');
     }
     return ['subject' => $subject, 'body' => $body];
 }
 function brb_admin_email_fields($prefix, $intro, $subject, $body) {
     echo '<p>' . esc_html($intro) . '</p>';
     echo '<p><label for="' . esc_attr($prefix . '-subject') . '">Subject<br>';
-    echo '<input type="text" class="large-text brb-email-subject" name="email_subject" id="' . esc_attr($prefix . '-subject') . '" value="' . esc_attr($subject) . '"></label></p>';
+    echo '<input type="text" class="large-text brb-email-subject" name="email_subject" id="' . esc_attr($prefix . '-subject') . '" value="' . esc_attr($subject) . '" maxlength="200"></label></p>';
     echo '<p><label for="' . esc_attr($prefix . '-preview') . '">Email<br>';
-    echo '<textarea class="large-text brb-email-body" name="email_body" id="' . esc_attr($prefix . '-preview') . '" rows="16">' . esc_textarea($body) . '</textarea></label></p>';
+    echo '<textarea class="large-text brb-email-body" name="email_body" id="' . esc_attr($prefix . '-preview') . '" rows="16" maxlength="10000">' . esc_textarea($body) . '</textarea></label></p>';
     echo '<textarea class="brb-email-default-subject" hidden disabled>' . esc_textarea($subject) . '</textarea>';
     echo '<textarea class="brb-email-default-body" hidden disabled>' . esc_textarea($body) . '</textarea>';
     echo '<p><button type="button" class="button brb-email-reset">Reset to default</button></p>';

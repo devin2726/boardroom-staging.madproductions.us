@@ -164,7 +164,7 @@ try {
         ob_start();
         brb_admin_detail((int) $mail_b->id);
         ob_end_clean();
-        brb_t(strpos($mail_html, esc_textarea(brb_price_guest_body($mail_b))) !== false && strpos($mail_html, 'name="email_body"') !== false && strpos($mail_html, 'name="email_subject"') !== false && strpos($mail_html, 'Reset to default') !== false && strpos($mail_html, 'name="email_guest" value="1"') !== false && strpos($mail_html, 'Don\'t email') !== false && count($GLOBALS['brb_mails']) === $shown, 'the price preview is an editable email with Send and Don\'t email, and opening it sends nothing');
+        brb_t(strpos($mail_html, esc_textarea(brb_price_guest_body($mail_b))) !== false && strpos($mail_html, 'name="email_body"') !== false && strpos($mail_html, 'name="email_subject"') !== false && strpos($mail_html, 'maxlength="200"') !== false && strpos($mail_html, 'maxlength="10000"') !== false && strpos($mail_html, 'Reset to default') !== false && strpos($mail_html, 'name="email_guest" value="1"') !== false && strpos($mail_html, 'Don\'t email') !== false && count($GLOBALS['brb_mails']) === $shown, 'the price preview is an editable email with Send and Don\'t email, and opening it sends nothing');
         $wpdb->update(brb_table(), ['walkthrough_done' => 1], ['id' => (int) $mail_b->id]);
         $mail_b = brb_booking($mail_b->id);
         ob_start();
@@ -320,7 +320,38 @@ try {
             }
             brb_t($guest_mail && $guest_mail['subject'] === $price_subject && $guest_mail['message'] === $price_body && $sent_price['body'] === $price_body, 'the price email send uses the edited subject and body');
             $scrubbed = brb_sanitize_guest_body("Hello <script>alert(1)</script>\nNext line");
-            brb_t(strpos($scrubbed, '<script>') === false && strpos($scrubbed, 'Hello') !== false && strpos($scrubbed, "\n") !== false, 'guest email bodies are sanitized as plain text and keep newlines');
+            brb_t(!is_wp_error($scrubbed) && strpos($scrubbed, '<script>') === false && strpos($scrubbed, 'Hello') !== false && strpos($scrubbed, "\n") !== false, 'guest email bodies are sanitized as plain text and keep newlines');
+
+            $kept_post = $_POST;
+            $_POST['email_subject'] = str_repeat('A', 201);
+            $_POST['email_body'] = 'Hello';
+            $over_subject = brb_posted_guest_mail('Default subject', 'Default body');
+            $subject_san = brb_sanitize_guest_subject(str_repeat('A', 201));
+            brb_t(is_wp_error($over_subject) && is_wp_error($subject_san) && strpos($over_subject->get_error_message(), '200') !== false && strpos($subject_san->get_error_message(), '200') !== false, 'a subject over 200 characters is rejected with a clear error and is not truncated');
+
+            $_POST['email_subject'] = str_repeat('A', 200);
+            $_POST['email_body'] = str_repeat('B', 10001);
+            $over_body = brb_posted_guest_mail('Default subject', 'Default body');
+            $body_san = brb_sanitize_guest_body(str_repeat('B', 10001));
+            brb_t(is_wp_error($over_body) && is_wp_error($body_san) && strpos($over_body->get_error_message(), '10,000') !== false && strpos($body_san->get_error_message(), '10,000') !== false, 'a body over 10,000 characters is rejected with a clear error and is not truncated');
+
+            $_POST['email_subject'] = str_repeat('A', 200);
+            $_POST['email_body'] = str_repeat('B', 10000);
+            $ok_mail = brb_posted_guest_mail('Default subject', 'Default body');
+            brb_t(!is_wp_error($ok_mail) && $ok_mail['subject'] === str_repeat('A', 200) && $ok_mail['body'] === str_repeat('B', 10000), 'a 200-character subject and a 10,000-character body are accepted');
+
+            $cr_subject = brb_sanitize_guest_subject("Hello\r\nWorld\nAgain");
+            brb_t(!is_wp_error($cr_subject) && strpos($cr_subject, "\r") === false && strpos($cr_subject, "\n") === false && strpos($cr_subject, 'Hello') !== false && strpos($cr_subject, 'World') !== false && strpos($cr_subject, 'Again') !== false, 'the subject sanitizer strips CR and LF');
+            $_POST['email_subject'] = "Line one\r\nLine two";
+            $_POST['email_body'] = 'Hello';
+            $posted_cr = brb_posted_guest_mail('Default subject', 'Default body');
+            brb_t(!is_wp_error($posted_cr) && strpos($posted_cr['subject'], "\r") === false && strpos($posted_cr['subject'], "\n") === false && strpos($posted_cr['subject'], 'Line one') !== false && strpos($posted_cr['subject'], 'Line two') !== false, 'a posted subject has CR and LF stripped');
+
+            $GLOBALS['brb_mails'] = [];
+            $mail_before = count($GLOBALS['brb_mails']);
+            $blocked_price = brb_send_price_email($price_edit, str_repeat('A', 201), 'Hello');
+            brb_t(is_wp_error($blocked_price) && count($GLOBALS['brb_mails']) === $mail_before, 'an over-length subject is not sent');
+            $_POST = $kept_post;
         } else {
             brb_t(false, 'a booking can be created for an edited price email');
         }
