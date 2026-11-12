@@ -1997,6 +1997,13 @@ function brb_date_taken($b) {
     $e = new DateTimeImmutable($b->end_dt, brb_tz());
     return !brb_is_free($s, $e, (int) $b->id);
 }
+function brb_blocking_booking_for_range($s, $e) {
+    global $wpdb;
+    list($block, $args) = brb_blocking_sql();
+    $sql = 'SELECT * FROM ' . brb_table() . " WHERE start_dt < %s AND end_dt > %s AND $block ORDER BY id ASC LIMIT 1";
+    $params = array_merge([$e->format('Y-m-d H:i:s'), $s->format('Y-m-d H:i:s')], $args);
+    return $wpdb->get_row($wpdb->prepare($sql, $params));
+}
 function brb_range_has_booking($s, $e, $exclude_id = 0) {
     global $wpdb;
     list($block, $args) = brb_blocking_sql();
@@ -3590,6 +3597,7 @@ function brb_enqueue_public_calendar() {
 }
 add_action('wp_enqueue_scripts', function () {
     if (function_exists('is_front_page') && is_front_page()) brb_enqueue_public_calendar();
+    if (function_exists('is_singular') && is_singular('post')) brb_enqueue_public_calendar();
 }, 20);
 function brb_public_date_is_open($ymd) {
     $ymd = (string) $ymd;

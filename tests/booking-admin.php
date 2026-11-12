@@ -335,6 +335,63 @@ try {
         brb_t($newer !== false && $older !== false && $newer < $older, 'edit history is newest first');
         brb_t(strpos($history_html, '&lt;script&gt;') !== false && strpos($history_html, '<script>alert(1)</script>') === false, 'edit history escapes its text');
     }
+
+    $taken_day = brb_now()->modify('+40 days')->format('Y-m-d');
+    $taken = brb_admin_case('admin-taken@example.com', $taken_day, 'Taken Guest');
+    brb_t($taken && !is_wp_error($taken), 'a booking exists so its date can be taken');
+    if ($taken && !is_wp_error($taken)) {
+        $created_ids[] = (int) $taken->id;
+        $wpdb->update(brb_table(), ['status' => 'deposit_paid'], ['id' => (int) $taken->id]);
+        $before = (int) $wpdb->get_var('SELECT COUNT(*) FROM ' . brb_table());
+        $mails_before = count($GLOBALS['brb_mails']);
+        $_POST = [
+            'action' => 'brb_manual',
+            'source' => 'phone',
+            'date' => $taken_day,
+            'type' => 'day',
+            'guests' => '12',
+            'name' => 'Rejected Guest',
+            'email' => 'admin-rejected@example.com',
+            'phone' => '555-0199',
+            'notes' => 'Please keep this note',
+            'agreed_price' => '',
+            '_wpnonce' => wp_create_nonce('brb_manual'),
+            '_wp_http_referer' => '/wp-admin/admin.php?page=brb-new',
+        ];
+        $_REQUEST = $_POST;
+        $redirect = '';
+        $catch = function ($location) use (&$redirect) {
+            $redirect = (string) $location;
+            throw new RuntimeException('redirect');
+        };
+        add_filter('wp_redirect', $catch, 1);
+        try {
+            do_action('admin_post_brb_manual');
+        } catch (RuntimeException $e) {
+            if ($e->getMessage() !== 'redirect') throw $e;
+        }
+        remove_filter('wp_redirect', $catch, 1);
+        $after = (int) $wpdb->get_var('SELECT COUNT(*) FROM ' . brb_table());
+        $new_mails = 0;
+        foreach (array_slice($GLOBALS['brb_mails'], $mails_before) as $mail) {
+            if (stripos((string) ($mail['to'] ?? ''), 'admin-rejected@example.com') !== false) $new_mails++;
+        }
+        $_GET = [
+            'page' => 'brb-new',
+            'brb_note' => brb_ref($taken) . ' saved as pending review (Phone). The date is not held. The guest was emailed.',
+        ];
+        ob_start();
+        brb_admin_new();
+        $form = ob_get_clean();
+        $_POST = [];
+        $_GET = [];
+        $_REQUEST = [];
+        brb_t(strpos($redirect, 'page=brb-new') !== false && strpos($redirect, 'brb_note') === false, 'a taken date stays on the add-booking screen');
+        brb_t($after === $before && $new_mails === 0, 'a taken date does not create a booking or send email');
+        brb_t(strpos($form, 'That date is already taken (' . brb_ref($taken) . '). No booking was created and no email was sent.') !== false, 'the taken-date error names the existing booking');
+        brb_t(strpos($form, 'saved as pending review') === false && strpos($form, 'The guest was emailed') === false, 'a rejection does not keep the previous success notice');
+        brb_t(strpos($form, 'value="' . $taken_day . '"') !== false && strpos($form, 'value="Rejected Guest"') !== false && strpos($form, 'admin-rejected@example.com') !== false && strpos($form, 'Please keep this note') !== false && strpos($form, 'value="12"') !== false, 'the add-booking form keeps the entered values');
+    }
 } finally {
     if ($created_ids) {
         $in = implode(',', array_map('intval', $created_ids));
@@ -342,7 +399,7 @@ try {
         $wpdb->query("DELETE FROM " . brb_line_table() . " WHERE booking_id IN ($in)");
         $wpdb->query("DELETE FROM " . brb_table() . " WHERE id IN ($in)");
     }
-    foreach (['admin-money@example.com', 'admin-card@example.com', 'admin-mail@example.com', 'admin-save@example.com', 'admin-decline@example.com', 'admin-quiet@example.com', 'admin-vague@example.com', 'admin-delete@example.com', 'admin-paid-delete@example.com', 'admin-spam@example.com', 'admin-history@example.com'] as $email) {
+    foreach (['admin-money@example.com', 'admin-card@example.com', 'admin-mail@example.com', 'admin-save@example.com', 'admin-decline@example.com', 'admin-quiet@example.com', 'admin-vague@example.com', 'admin-delete@example.com', 'admin-paid-delete@example.com', 'admin-spam@example.com', 'admin-history@example.com', 'admin-taken@example.com', 'admin-rejected@example.com'] as $email) {
         $wpdb->query($wpdb->prepare('DELETE FROM ' . brb_pay_table() . ' WHERE booking_id IN (SELECT id FROM ' . brb_table() . ' WHERE email=%s)', $email));
         $wpdb->query($wpdb->prepare('DELETE FROM ' . brb_line_table() . ' WHERE booking_id IN (SELECT id FROM ' . brb_table() . ' WHERE email=%s)', $email));
         $wpdb->query($wpdb->prepare('DELETE FROM ' . brb_table() . ' WHERE email=%s', $email));

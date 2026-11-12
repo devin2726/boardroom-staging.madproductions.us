@@ -311,7 +311,10 @@ add_action('admin_post_brb_manual', function () {
         'host_age' => $screen['host_age'],
         'event_about' => $about,
     ], $source, !$take);
-    if (is_wp_error($b)) brb_admin_back(0, $b->get_error_message(), 'brb-new');
+    if (is_wp_error($b)) {
+        if ($b->get_error_code() === 'busy') brb_admin_new_reject($post, $r);
+        brb_admin_back(0, $b->get_error_message(), 'brb-new');
+    }
     if ($take) {
         $pay = brb_record_payment(
             $b->id,
@@ -852,30 +855,98 @@ function brb_admin_detail($id) {
     echo '</div>';
 }
 
+function brb_new_form_key() {
+    return 'brb_new_form_' . get_current_user_id();
+}
+function brb_new_form_defaults() {
+    return [
+        'error' => '',
+        'source' => 'phone',
+        'date' => brb_now()->modify('+3 days')->format('Y-m-d'),
+        'guests' => '10',
+        'name' => '',
+        'email' => '',
+        'phone' => '',
+        'notes' => '',
+        'agreed_price' => '',
+        'override_notice' => '',
+        'take_check' => '',
+        'amount' => '',
+        'check_number' => '',
+        'received_on' => brb_now()->format('Y-m-d'),
+        'pay_notes' => '',
+    ];
+}
+function brb_new_form_state_from_post($post, $error) {
+    $state = brb_new_form_defaults();
+    $state['error'] = (string) $error;
+    $state['source'] = sanitize_text_field($post['source'] ?? 'phone');
+    $state['date'] = sanitize_text_field($post['date'] ?? '');
+    $state['guests'] = (string) max(0, (int) ($post['guests'] ?? 0));
+    $state['name'] = sanitize_text_field($post['name'] ?? '');
+    $state['email'] = sanitize_email($post['email'] ?? '');
+    $state['phone'] = sanitize_text_field($post['phone'] ?? '');
+    $state['notes'] = sanitize_textarea_field($post['notes'] ?? '');
+    $state['agreed_price'] = sanitize_text_field($post['agreed_price'] ?? '');
+    $state['override_notice'] = empty($post['override_notice']) ? '' : '1';
+    $state['take_check'] = empty($post['take_check']) ? '' : '1';
+    $state['amount'] = sanitize_text_field($post['amount'] ?? '');
+    $state['check_number'] = sanitize_text_field($post['check_number'] ?? '');
+    $state['received_on'] = sanitize_text_field($post['received_on'] ?? '');
+    $state['pay_notes'] = sanitize_textarea_field($post['pay_notes'] ?? '');
+    return $state;
+}
+function brb_admin_taken_message($r) {
+    $holder = brb_blocking_booking_for_range($r['s'], $r['e']);
+    $ref = $holder ? brb_ref($holder) : '';
+    if ($ref !== '') return 'That date is already taken (' . $ref . '). No booking was created and no email was sent.';
+    return 'That date is already taken. No booking was created and no email was sent.';
+}
+function brb_admin_new_reject($post, $r) {
+    set_transient(brb_new_form_key(), brb_new_form_state_from_post($post, brb_admin_taken_message($r)), 5 * MINUTE_IN_SECONDS);
+    wp_safe_redirect(admin_url('admin.php?page=brb-new'));
+    exit;
+}
+function brb_admin_new_note_is_stale_success($note) {
+    $note = (string) $note;
+    return strpos($note, 'saved as pending review') !== false || strpos($note, 'The guest was emailed') !== false;
+}
 function brb_admin_new() {
     if (!current_user_can('manage_options')) return;
     $o = brb_opt();
+    $state = get_transient(brb_new_form_key());
+    if (!is_array($state)) $state = [];
+    delete_transient(brb_new_form_key());
+    $v = array_merge(brb_new_form_defaults(), $state);
+    $error = (string) ($v['error'] ?? '');
     echo '<div class="wrap"><h1>Add booking</h1>';
-    brb_admin_note();
+    if ($error !== '') echo '<div class="notice notice-error"><p>' . esc_html($error) . '</p></div>';
+    $note = isset($_GET['brb_note']) ? (string) wp_unslash($_GET['brb_note']) : '';
+    if (!($error !== '' && brb_admin_new_note_is_stale_success($note))) brb_admin_note();
     echo '<p>Use this for a phone call or a walk-in. A request does not hold the date. The date is reserved once a deposit is recorded.</p>';
     echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="max-width:720px"><input type="hidden" name="action" value="brb_manual">';
     wp_nonce_field('brb_manual');
+    $sources = ['phone' => 'Phone', 'walk-in' => 'Walk-in', 'online' => 'Online'];
     echo '<table class="form-table">';
-    echo '<tr><th>Source</th><td><select name="source"><option value="phone">Phone</option><option value="walk-in">Walk-in</option><option value="online">Online</option></select></td></tr>';
-    echo '<tr><th><label for="date">Date</label></th><td><input type="date" name="date" id="date" required value="' . esc_attr(brb_now()->modify('+3 days')->format('Y-m-d')) . '"></td></tr>';
+    echo '<tr><th>Source</th><td><select name="source">';
+    foreach ($sources as $value => $label) {
+        echo '<option value="' . esc_attr($value) . '"' . selected($v['source'], $value, false) . '>' . esc_html($label) . '</option>';
+    }
+    echo '</select></td></tr>';
+    echo '<tr><th><label for="date">Date</label></th><td><input type="date" name="date" id="date" required value="' . esc_attr($v['date']) . '"></td></tr>';
     echo '<tr><th>Type</th><td>Full day, 10:00 AM to 11:30 PM<input type="hidden" name="type" value="day"></td></tr>';
-    echo '<tr><th><label for="guests">Estimated Guests</label></th><td><input type="number" name="guests" id="guests" min="1" max="' . (int) $o['max_guests'] . '" value="10"></td></tr>';
-    echo '<tr><th><label for="name">Name</label></th><td><input name="name" id="name" class="regular-text" required></td></tr>';
-    echo '<tr><th><label for="email">Email</label></th><td><input type="email" name="email" id="email" class="regular-text" required></td></tr>';
-    echo '<tr><th><label for="phone">Phone</label></th><td><input name="phone" id="phone" class="regular-text"></td></tr>';
-    echo '<tr><th><label for="notes">Notes</label></th><td><textarea name="notes" id="notes" rows="3" class="large-text"></textarea></td></tr>';
-    echo '<tr><th><label for="agreed_price">Agreed price ($)</label></th><td><input name="agreed_price" id="agreed_price" type="number" step="0.01" min="0"> <span class="description">Leave blank to save a pending request with the price to be confirmed. Required if you record a check now. ' . esc_html(brb_price_sentence()) . '</span></td></tr>';
-    echo '<tr><th>Minimum notice</th><td><label><input type="checkbox" name="override_notice" value="1"> Staff override: allow a start inside the ' . (int) brb_notice_hours() . '-hour notice. The public form cannot do this.</label></td></tr>';
-    echo '<tr><th>Check now</th><td><label><input type="checkbox" name="take_check" value="1"> Record a check with this booking</label></td></tr>';
-    echo '<tr><th><label for="amount">Check amount</label></th><td><input name="amount" id="amount" type="number" step="0.01" min="0"></td></tr>';
-    echo '<tr><th><label for="check_number">Check number</label></th><td><input name="check_number" id="check_number" class="regular-text"></td></tr>';
-    echo '<tr><th><label for="received_on">Date received</label></th><td><input type="date" name="received_on" id="received_on" value="' . esc_attr(brb_now()->format('Y-m-d')) . '"></td></tr>';
-    echo '<tr><th><label for="pay_notes">Check notes</label></th><td><textarea name="pay_notes" id="pay_notes" rows="2" class="large-text"></textarea></td></tr>';
+    echo '<tr><th><label for="guests">Estimated Guests</label></th><td><input type="number" name="guests" id="guests" min="1" max="' . (int) $o['max_guests'] . '" value="' . esc_attr($v['guests']) . '"></td></tr>';
+    echo '<tr><th><label for="name">Name</label></th><td><input name="name" id="name" class="regular-text" required value="' . esc_attr($v['name']) . '"></td></tr>';
+    echo '<tr><th><label for="email">Email</label></th><td><input type="email" name="email" id="email" class="regular-text" required value="' . esc_attr($v['email']) . '"></td></tr>';
+    echo '<tr><th><label for="phone">Phone</label></th><td><input name="phone" id="phone" class="regular-text" value="' . esc_attr($v['phone']) . '"></td></tr>';
+    echo '<tr><th><label for="notes">Notes</label></th><td><textarea name="notes" id="notes" rows="3" class="large-text">' . esc_textarea($v['notes']) . '</textarea></td></tr>';
+    echo '<tr><th><label for="agreed_price">Agreed price ($)</label></th><td><input name="agreed_price" id="agreed_price" type="number" step="0.01" min="0" value="' . esc_attr($v['agreed_price']) . '"> <span class="description">Leave blank to save a pending request with the price to be confirmed. Required if you record a check now. ' . esc_html(brb_price_sentence()) . '</span></td></tr>';
+    echo '<tr><th>Minimum notice</th><td><label><input type="checkbox" name="override_notice" value="1"' . checked($v['override_notice'], '1', false) . '> Staff override: allow a start inside the ' . (int) brb_notice_hours() . '-hour notice. The public form cannot do this.</label></td></tr>';
+    echo '<tr><th>Check now</th><td><label><input type="checkbox" name="take_check" value="1"' . checked($v['take_check'], '1', false) . '> Record a check with this booking</label></td></tr>';
+    echo '<tr><th><label for="amount">Check amount</label></th><td><input name="amount" id="amount" type="number" step="0.01" min="0" value="' . esc_attr($v['amount']) . '"></td></tr>';
+    echo '<tr><th><label for="check_number">Check number</label></th><td><input name="check_number" id="check_number" class="regular-text" value="' . esc_attr($v['check_number']) . '"></td></tr>';
+    echo '<tr><th><label for="received_on">Date received</label></th><td><input type="date" name="received_on" id="received_on" value="' . esc_attr($v['received_on']) . '"></td></tr>';
+    echo '<tr><th><label for="pay_notes">Check notes</label></th><td><textarea name="pay_notes" id="pay_notes" rows="2" class="large-text">' . esc_textarea($v['pay_notes']) . '</textarea></td></tr>';
     echo '</table><p><button class="button button-primary">Save booking</button></p></form></div>';
 }
 

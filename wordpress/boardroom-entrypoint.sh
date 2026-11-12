@@ -18,6 +18,10 @@ post_start() {
   rm -rf "$WP_DIR/wp-content/themes/boardroom" "$WP_DIR/wp-content/plugins/boardroom-booking"
   cp -a /usr/src/boardroom/wp-content/themes/boardroom "$WP_DIR/wp-content/themes/"
   cp -a /usr/src/boardroom/wp-content/plugins/boardroom-booking "$WP_DIR/wp-content/plugins/"
+  if [ -d /usr/src/boardroom/wp-content/plugins/wordpress-seo ]; then
+    rm -rf "$WP_DIR/wp-content/plugins/wordpress-seo"
+    cp -a /usr/src/boardroom/wp-content/plugins/wordpress-seo "$WP_DIR/wp-content/plugins/"
+  fi
   [ -d /usr/src/boardroom/wp-content/uploads ] && cp -an /usr/src/boardroom/wp-content/uploads/. "$WP_DIR/wp-content/uploads/"
   chown -R www-data:www-data "$WP_DIR/wp-content"
   WP="wp --path=$WP_DIR --allow-root --skip-themes --skip-plugins"
@@ -65,6 +69,12 @@ post_start() {
     echo "[boardroom] search indexing on"
   fi
   $WP rewrite flush --hard >/dev/null 2>&1 || true
+  # Yoast is copied from the image above. Activate it, and install the pinned release only if that copy is missing.
+  if ! wp --path="$WP_DIR" --allow-root plugin is-active wordpress-seo >/dev/null 2>&1; then
+    wp --path="$WP_DIR" --allow-root plugin activate wordpress-seo >/dev/null 2>&1 \
+      || wp --path="$WP_DIR" --allow-root plugin install wordpress-seo --version=28.8 --activate >/dev/null 2>&1 \
+      || echo "[boardroom] Yoast SEO could not be activated"
+  fi
   # Load the booking plugin so its upgrade runs (adds columns, keeps saved options). Does not import or reset the database.
   BRB_VER_NOW=$(wp --path="$WP_DIR" --allow-root eval 'echo get_option("brb_version");' 2>/dev/null || true)
   echo "[boardroom] booking version ${BRB_VER_NOW:-unknown}"

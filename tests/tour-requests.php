@@ -12,7 +12,7 @@ $GLOBALS['brb_ok'] = 0;
 function brb_test_jsonld_blocks($html) {
     $blocks = [];
     $valid = true;
-    if (!preg_match_all('#<script type="application/ld\+json">(.*?)</script>#s', (string) $html, $found) || !$found[1]) {
+    if (!preg_match_all('#<script\b[^>]*type="application/ld\+json"[^>]*>(.*?)</script>#s', (string) $html, $found) || !$found[1]) {
         return ['blocks' => [], 'valid' => false];
     }
     foreach ($found[1] as $raw) {
@@ -27,6 +27,24 @@ function brb_test_jsonld_type($parsed, $type) {
         if (is_array($block) && ($block['@type'] ?? '') === $type) return $block;
     }
     return null;
+}
+function brb_test_tag_count($html, $pattern) {
+    preg_match_all($pattern, (string) $html, $found);
+    return count($found[0]);
+}
+function brb_test_schema_types($parsed) {
+    $types = [];
+    $walk = function ($node) use (&$walk, &$types) {
+        if (!is_array($node)) return;
+        if (isset($node['@type'])) {
+            foreach ((array) $node['@type'] as $type) $types[] = (string) $type;
+        }
+        foreach ($node as $child) {
+            if (is_array($child)) $walk($child);
+        }
+    };
+    foreach ($parsed['blocks'] as $block) $walk($block);
+    return $types;
 }
 function brb_t($cond, $msg) {
     if ($cond) {
@@ -559,6 +577,37 @@ try {
     brb_t($holiday_query->have_posts() && count($holiday_descs[0]) === 1 && $holiday_text === $holiday_desc, 'the holiday page prints one meta description with the requested sentence');
     brb_t(strpos($holiday_title, 'Holiday Party Venue Quad Cities: A Mid-November Planning Guide') !== false && strpos($holiday_title, 'Planning a holiday party') === false, 'the holiday page keeps its own title');
     brb_t($holiday_blocks['valid'], 'holiday page JSON-LD blocks parse');
+    brb_t(defined('WPSEO_VERSION'), 'Yoast SEO is active');
+    foreach (['home' => $home_head, 'faq' => $faq_head, 'holiday' => $holiday_head] as $label => $head_html) {
+        brb_t(brb_test_tag_count($head_html, '/<title\b/') === 1, $label . ' has one title tag');
+        brb_t(brb_test_tag_count($head_html, '/<meta name="description"/') === 1, $label . ' has one meta description');
+        brb_t(brb_test_tag_count($head_html, '/<link rel="canonical"/') === 1, $label . ' has one canonical');
+        brb_t(brb_test_tag_count($head_html, '/<meta property="og:title"/') === 1, $label . ' has one Open Graph title');
+        brb_t(brb_test_tag_count($head_html, '/<meta property="og:description"/') === 1, $label . ' has one Open Graph description');
+        brb_t(stripos($head_html, 'noindex') === false, $label . ' is not marked noindex on production');
+    }
+    $home_types = brb_test_schema_types($home_blocks);
+    $faq_types = brb_test_schema_types($faq_blocks);
+    $holiday_types = brb_test_schema_types($holiday_blocks);
+    brb_t(count(array_keys($home_types, 'EventVenue', true)) === 1 && !in_array('Organization', $home_types, true) && !in_array('LocalBusiness', $home_types, true) && !in_array('FAQPage', $home_types, true), 'the homepage schema has one EventVenue and no Organization or LocalBusiness');
+    brb_t(count(array_keys($faq_types, 'EventVenue', true)) === 1 && count(array_keys($faq_types, 'FAQPage', true)) === 1 && !in_array('Organization', $faq_types, true) && !in_array('LocalBusiness', $faq_types, true), 'the FAQ schema keeps one EventVenue and one FAQPage');
+    brb_t(count(array_keys($holiday_types, 'EventVenue', true)) === 1 && !in_array('Organization', $holiday_types, true) && !in_array('aggregateRating', $holiday_types, true), 'the holiday page schema does not add another venue or a rating');
+    brb_t(strpos($home_head, '"telephone"') === false && strpos($faq_head, '"telephone"') === false && strpos($holiday_head, '"telephone"') === false && strpos($home_head, 'aggregateRating') === false && strpos($faq_head, 'aggregateRating') === false, 'Yoast schema does not add a telephone or an aggregate rating');
+    $footer_src = file_get_contents(get_stylesheet_directory() . '/footer.php');
+    $header_src = file_get_contents(get_stylesheet_directory() . '/header.php');
+    brb_t(is_string($footer_src) && strpos($footer_src, 'class="legal-links"') !== false && strpos($footer_src, 'href="https://boardroomqc.com/blog/"') !== false && strpos($footer_src, '>Resources</a>') !== false, 'the footer has a Resources link in the footer link style');
+    brb_t(is_string($header_src) && strpos($header_src, 'Resources') === false && strpos($footer_src, 'theme_location\' => \'primary\'') === false, 'Resources is not added to the main menu');
+    $single_src = file_get_contents(get_stylesheet_directory() . '/single.php');
+    $post_id = wp_insert_post([
+        'post_type' => 'post',
+        'post_status' => 'publish',
+        'post_title' => 'A future party note',
+        'post_content' => '<p>Bring your own playlist.</p>',
+    ], true);
+    $post_block = function_exists('br_post_booking_html') ? br_post_booking_html() : '';
+    brb_t(is_string($single_src) && strpos($single_src, 'the_content') !== false && strpos($single_src, 'br_post_booking_html') !== false && strpos($single_src, 'br_post_booking_html') > strpos($single_src, 'the_content'), 'the single post template puts the booking block after the content');
+    brb_t(!is_wp_error($post_id) && strpos($post_block, 'id="brb-cal"') !== false && strpos($post_block, 'class="btn"') !== false && strpos($post_block, 'href="https://boardroomqc.com/reserve-the-boardroom-quad-cities/"') !== false && strpos($post_block, '>Book Now</a>') !== false && strpos($post_block, '$') === false && stripos($post_block, 'price') === false, 'a single post shows the existing calendar and Book Now without a price');
+    if (!is_wp_error($post_id) && $post_id) wp_delete_post((int) $post_id, true);
     $wp_query = $saved_query;
     $wp_the_query = $saved_the;
     if ($holiday_made) wp_delete_post($holiday_made, true);
