@@ -236,7 +236,7 @@ try {
     $pay_more = brb_chat_reply('yes', [['role' => 'user', 'text' => 'How do I pay the deposit?']]);
     brb_t(strpos($pay_more, '60 or more days before the event') !== false && strpos($pay_more, 'less than 60 days before the event') !== false && strpos($pay_more, '2212') === false && strpos($pay_more, 'not a binding commitment') === false, 'the deposit follow-up includes the cancellation window');
     $checks = brb_chat_reply('Where do I mail a check?');
-    brb_t(strpos($checks, '2220 37th Street, Moline, IL 61265') !== false && strpos($checks, 'Mad Productions') !== false && strpos($checks, 'The Boardroom') !== false && strpos($checks, '2212') === false, 'a check question names The Boardroom');
+    brb_t(strpos($checks, '2220 37th Street, Moline, IL 61265') !== false && strpos($checks, 'payable to Boardroom QC LLC') !== false && strpos($checks, 'Mad Productions') === false && strpos($checks, 'The Boardroom') !== false && strpos($checks, '2212') === false, 'a check question names The Boardroom and Boardroom QC LLC as payee');
 
     putenv('BRB_STRIPE_SECRET_KEY=sk_test_ZZZexamplekey');
     $_ENV['BRB_STRIPE_SECRET_KEY'] = 'sk_test_ZZZexamplekey';

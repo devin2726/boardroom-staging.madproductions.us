@@ -2,7 +2,7 @@
 
 WordPress site for The Boardroom event space, deployed with Docker Compose (WordPress + MariaDB). The custom theme is `boardroom` (black and gold, EB Garamond). The custom plugin is `boardroom-booking`.
 
-Guests **save a date on the website and mail or drop off a check**. The site does not take payment itself. The venue is 2220 37th Street, Moline, IL 61265. Checks go to Mad Productions at The Boardroom, 2220 37th Street, Moline, IL 61265.
+Guests **save a date on the website and mail or drop off a check**. The site does not take payment itself. The venue is 2220 37th Street, Moline, IL 61265. Checks are payable to Boardroom QC LLC at The Boardroom, 2220 37th Street, Moline, IL 61265.
 
 Contact is one form on `/contact/`: name, email, message, and optional preferred dates. There is no topic menu and no time field. It does not hold a date. Bookings → Inquiries lists those messages. The notification subject is “New contact inquiry”. The Contact page also shows the venue address, `boardroomqc@gmail.com`, a Google Map that loads on its own, and the directions link. The privacy page says this site sets no advertising, analytics, or tracking cookies of its own, and that the embedded map may set cookies from Google. There is no cookie banner.
 

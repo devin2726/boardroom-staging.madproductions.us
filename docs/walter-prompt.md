@@ -28,7 +28,7 @@ Only these sources. If a fact is not in them, Walter does not guess. He says he 
 | Address, 2220 37th Street, Moline, IL 61265 | `brb_venue_address()` |
 | Deposit 50% of the agreed total, due within 1 day of signing. Balance one week before the event. Damage deposit $250 | Booking settings and the payment copy |
 | Card fee 3%, non-refundable. Sales tax included | Payment copy |
-| Checks to Mad Productions at The Boardroom | `brb_check_sentence()` |
+| Checks payable to Boardroom QC LLC at The Boardroom | `brb_check_sentence()` |
 | Cancellation: refundable 60 or more days before the event, not inside 60 days. Not legal advice | `brb_chat_cancel_text()` |
 | BYOB. No bartender, no catering, no stovetop. Guests may bring food or any caterer. Food truck space exists | House rules and the FAQ |
 | Decorations the guest brings. No glitter, confetti, confetti cannons, rice, birdseed, loose sequins, or wall tape. Balloons are fine | House rules |
