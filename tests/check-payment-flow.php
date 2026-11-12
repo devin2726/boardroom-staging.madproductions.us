@@ -1225,6 +1225,28 @@ try {
         $mail_before = count($GLOBALS['brb_mails']);
         $removed_n = brb_bulk_delete_bookings([(string) $bulk_a->id, 0, 'nope', $bulk_a->id]);
         brb_t($removed_n === 0 && brb_booking($bulk_a->id) && brb_payments($bulk_a->id) !== [] && brb_lines($bulk_a->id) !== [] && brb_booking($bulk_b->id) && count($GLOBALS['brb_mails']) === $mail_before && $start && $end && !brb_is_free($start, $end), 'bulk delete does not remove a booking that has a recorded payment, and the date stays reserved');
+        $unpaid_day = brb_now()->modify('+43 days')->format('Y-m-d');
+        $unpaid = brb_process_public_booking([
+            'date' => $unpaid_day,
+            'type' => 'day',
+            'days' => 1,
+            'guests' => 4,
+            'name' => 'Bulk Unpaid',
+            'email' => 'flow-test@example.com',
+            'policy' => '1', 'waiver' => '1',
+        ] + brb_screen());
+        if ($unpaid && !is_wp_error($unpaid)) {
+            $created_ids[] = (int) $unpaid->id;
+            $wpdb->update(brb_table(), ['walkthrough_done' => 1], ['id' => (int) $unpaid->id]);
+            $unpaid = brb_approve_booking($unpaid->id, false);
+            $unpaid_start = !is_wp_error($unpaid) ? new DateTimeImmutable($unpaid->start_dt, brb_tz()) : null;
+            $unpaid_end = !is_wp_error($unpaid) ? new DateTimeImmutable($unpaid->end_dt, brb_tz()) : null;
+            $unpaid_mails = count($GLOBALS['brb_mails']);
+            $removed_unpaid = (!is_wp_error($unpaid) && $unpaid) ? brb_bulk_delete_bookings([(string) $unpaid->id, $unpaid->id]) : 0;
+            brb_t(!is_wp_error($unpaid) && $unpaid && !brb_booking_has_recorded_payment($unpaid) && $removed_unpaid === 1 && !brb_booking($unpaid->id) && brb_booking($bulk_a->id) && brb_booking($bulk_b->id) && $unpaid_start && $unpaid_end && brb_is_free($unpaid_start, $unpaid_end) && count($GLOBALS['brb_mails']) === $unpaid_mails, 'bulk delete removes only the selected unpaid booking, leaves the others, and frees its date');
+        } else {
+            brb_t(false, 'bulk delete removes only the selected unpaid booking, leaves the others, and frees its date');
+        }
         $still_open = brb_process_public_booking([
             'date' => brb_now()->modify('+42 days')->format('Y-m-d'),
             'type' => 'day',

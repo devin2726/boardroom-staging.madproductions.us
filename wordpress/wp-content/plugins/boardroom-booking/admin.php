@@ -532,7 +532,7 @@ function brb_admin_card_payment($b) {
     $link = brb_pay_link($b);
     $blockers = brb_pay_link_blockers($b);
     echo '<h2>Card payment (Stripe)</h2>';
-    echo '<p>' . esc_html('Approving the request emails the guest a Stripe pay link automatically. Use this button to resend it.') . '</p>';
+    echo '<p>' . esc_html('The pay link is part of the Approve email preview and is sent only if staff choose Send. Use this button to resend it.') . '</p>';
     if ($link !== '') {
         $due = brb_amount_due_now($b);
         $base_cents = brb_cents_from_amount($due);
@@ -766,7 +766,7 @@ function brb_admin_detail($id) {
         echo '<input type="hidden" name="action" value="brb_approve"><input type="hidden" name="booking" value="' . (int) $b->id . '">';
         wp_nonce_field('brb_approve');
         echo '<p>This is the exact approval email. Nothing is approved or emailed until you choose Send or Don\'t email.</p>';
-        echo '<pre class="brb-audit">' . esc_html(brb_approve_guest_body($b)) . '</pre>';
+        echo '<pre class="brb-audit">' . esc_html(brb_approve_preview_body($b)) . '</pre>';
         echo '<p><button class="button button-primary" name="email_guest" value="1">Send</button> ';
         echo '<button class="button" name="email_guest" value="0">Don\'t email</button></p></form></details>';
     }

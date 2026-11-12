@@ -170,7 +170,7 @@ try {
         ob_start();
         brb_admin_detail((int) $mail_b->id);
         $approve_html = ob_get_clean();
-        brb_t(strpos($approve_html, 'name="action" value="brb_approve"') !== false && strpos($approve_html, esc_html(brb_approve_guest_body($mail_b))) !== false && strpos($approve_html, '>Send<') !== false && strpos($approve_html, 'Don\'t email') !== false, 'Approve opens a preview with Send and Don\'t email');
+        brb_t(strpos($approve_html, 'name="action" value="brb_approve"') !== false && strpos($approve_html, esc_html(brb_approve_preview_body($mail_b))) !== false && strpos($approve_html, '>Send<') !== false && strpos($approve_html, 'Don\'t email') !== false, 'Approve opens a preview with Send and Don\'t email');
         $pay_preview = brb_preview_payment_message($mail_b, 200, '44', brb_now()->format('Y-m-d'), 'Preview', 'check');
         $GLOBALS['brb_mails'] = [];
         $recorded = brb_record_payment($mail_b->id, 200, '44', brb_now()->format('Y-m-d'), 'Preview', false, 'check', ['notify' => true]);

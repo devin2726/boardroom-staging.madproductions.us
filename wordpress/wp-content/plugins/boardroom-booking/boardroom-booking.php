@@ -2767,6 +2767,11 @@ function brb_approve_guest_body($b) {
     })));
     return brb_guest_hello_line() . "\n\nYour request is approved.\n\n" . brb_guest_review_line() . "\n\n" . $guest_facts . "\n\n" . brb_guest_out_line() . "\n" . brb_guest_free_line() . "\n\nWhen: " . brb_when($b) . "\n" . brb_event_type_line($b) . "Estimated Guests: {$b->guests}\nReference: {$ref}\n\nView your booking: " . brb_guest_link($b) . "\n\n" . brb_checklist_plain();
 }
+function brb_approve_preview_body($b) {
+    $preview = clone $b;
+    if (in_array((string) $preview->status, ['review', 'pending'], true)) $preview->status = 'approved';
+    return brb_approve_guest_body($preview);
+}
 function brb_send_approve_email($b) {
     $ref = brb_ref($b);
     $facts = implode("\n\n", brb_payment_lines($b));
