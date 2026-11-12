@@ -2,11 +2,11 @@
 /**
  * Plugin Name: Boardroom Booking
  * Description: Self-hosted direct booking for The Boardroom — full-day blocks, availability calendar, agreed prices, approval before payment, blackout dates, and emails.
- * Version: 2.5.68
+ * Version: 2.5.70
  * Author: Boardroom QC LLC
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.5.68');
+define('BRB_VER', '2.5.70');
 function brb_reserve_explainer_steps() {
     return [
         'Pick a date. Prices are on the calendar.',
@@ -1436,7 +1436,9 @@ function brb_scrub_public_copy() {
     }
 }
 // 2.5.68: Boardroom QC LLC is the only entity named in public copy. The other
-// entities appear only in the Released Parties definition in Rental Agreement section 5.
+// entities appear only in the Released Parties definitions in Rental Agreement section 5
+// and (2.5.70) the Terms section 5 summary. Both pages are rebuilt from code by
+// brb_install_legal_pages() before this scrub runs, so the scrub skips them.
 function brb_other_entity_pattern() {
     return '/(?<![\w.\/@-])mad\s+(productions|rentals)\b/i';
 }
@@ -1465,14 +1467,17 @@ function brb_scrub_other_entities_deep($v) {
 function brb_scrub_other_entity_copy() {
     global $wpdb;
     $like = ['%mad productions%', '%mad rentals%'];
-    $agreement = get_page_by_path('rental-agreement');
-    $skip = $agreement ? (int) $agreement->ID : 0;
+    $skip = [];
+    foreach (['rental-agreement', 'terms'] as $legal_slug) {
+        $legal_page = get_page_by_path($legal_slug);
+        if ($legal_page) $skip[] = (int) $legal_page->ID;
+    }
     $rows = $wpdb->get_results($wpdb->prepare(
         "SELECT ID, post_title, post_content, post_excerpt FROM {$wpdb->posts} WHERE post_type IN ('page','post') AND post_status IN ('publish','draft','pending','private','future') AND (LOWER(post_content) LIKE %s OR LOWER(post_content) LIKE %s OR LOWER(post_title) LIKE %s OR LOWER(post_title) LIKE %s OR LOWER(post_excerpt) LIKE %s OR LOWER(post_excerpt) LIKE %s)",
         $like[0], $like[1], $like[0], $like[1], $like[0], $like[1]
     ));
     foreach ((array) $rows as $p) {
-        if ((int) $p->ID === $skip) continue;
+        if (in_array((int) $p->ID, $skip, true)) continue;
         $fields = [];
         foreach (['post_title', 'post_content', 'post_excerpt'] as $f) {
             $next = brb_scrub_other_entities((string) $p->$f);
