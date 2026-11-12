@@ -2,11 +2,11 @@
 /**
  * Plugin Name: Boardroom Booking
  * Description: Self-hosted direct booking for The Boardroom — full-day blocks, availability calendar, agreed prices, approval before payment, blackout dates, and emails.
- * Version: 2.5.58
+ * Version: 2.5.59
  * Author: Mad Productions
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.5.58');
+define('BRB_VER', '2.5.59');
 function brb_reserve_explainer_steps() {
     return [
         'Pick a date. Prices are on the calendar.',
@@ -109,7 +109,16 @@ function brb_whole_money($n) {
     if (abs($n - round($n)) < 0.001) return '$' . number_format((float) round($n), 0);
     return brb_money($n);
 }
-function brb_ref($b) { return 'BR-' . (int) $b->id; }
+function brb_ref($b) {
+    $id = is_object($b) ? (int) ($b->id ?? 0) : (int) $b;
+    return (brb_is_production() ? 'BR-' : 'BR-S') . $id;
+}
+function brb_ref_id($query) {
+    $query = trim((string) $query);
+    if (preg_match('/^BR-S(\d+)$/i', $query, $m)) return (int) $m[1];
+    if (preg_match('/^BR-(\d+)$/i', $query, $m)) return (int) $m[1];
+    return 0;
+}
 function brb_price_sentence() {
     $start = brb_whole_money(brb_opt('starting_price'));
     return 'Pricing from ' . $start . ' per day, final price confirmed based on date, guest count and features.';
@@ -2083,9 +2092,145 @@ function brb_preview_lines($q, DateTimeImmutable $start) {
     ];
 }
 
-function brb_is_production() {
-    return strtolower(brb_env('BRB_ENV')) === 'production';
+function brb_host_name($host) {
+    $host = strtolower(trim((string) $host));
+    $host = rtrim($host, '.');
+    $host = (string) preg_replace('/:\d+$/', '', $host);
+    return rtrim($host, '.');
 }
+function brb_is_live_host($host) {
+    $host = brb_host_name($host);
+    return $host === 'boardroomqc.com' || $host === 'www.boardroomqc.com';
+}
+function brb_is_staging_host($host) {
+    return brb_host_name($host) === 'boardroom-staging.madproductions.us';
+}
+function brb_request_host() {
+    $raw = '';
+    if (!empty($_SERVER['HTTP_HOST']) && is_string($_SERVER['HTTP_HOST'])) $raw = $_SERVER['HTTP_HOST'];
+    elseif (!empty($_SERVER['SERVER_NAME']) && is_string($_SERVER['SERVER_NAME'])) $raw = $_SERVER['SERVER_NAME'];
+    return brb_host_name($raw);
+}
+function brb_home_host() {
+    if (!function_exists('home_url')) return '';
+    return brb_host_name((string) wp_parse_url(home_url(), PHP_URL_HOST));
+}
+function brb_is_nonproduction_env() {
+    return in_array(strtolower(brb_env('BRB_ENV')), ['staging', 'dev', 'test'], true);
+}
+function brb_is_production() {
+    static $checking = false;
+    if ($checking) return !brb_is_nonproduction_env();
+    $checking = true;
+    $request = brb_request_host();
+    $home = brb_home_host();
+    $checking = false;
+    // The public production host wins over any BRB_ENV value.
+    if (brb_is_live_host($request) || brb_is_live_host($home)) return true;
+    // The known staging host wins too, including over BRB_ENV=production.
+    // That hostname is publicly reachable, so an explicit production flag there
+    // would mint real-looking refs and send unmarked mail again.
+    if (brb_is_staging_host($request) || brb_is_staging_host($home)) return false;
+    return !brb_is_nonproduction_env();
+}
+function brb_live_book_url() {
+    return 'https://boardroomqc.com/book/';
+}
+function brb_staging_guest_message() {
+    return 'This is a staging site, not the real Boardroom. Please book at https://boardroomqc.com/book/.';
+}
+function brb_public_writes_open() {
+    if (brb_is_production()) return true;
+    return is_user_logged_in() && current_user_can('manage_options');
+}
+function brb_staging_guest_notice_html() {
+    $url = brb_live_book_url();
+    return '<div class="brb-staging-notice" role="status"><p>This is a staging site, not the real Boardroom. Please book at <a href="' . esc_url($url) . '">https://boardroomqc.com/book/</a>.</p></div>';
+}
+function brb_staging_banner() {
+    if (brb_is_production()) return;
+    echo '<div class="brb-staging-banner" role="status">STAGING - not the real site</div>';
+}
+function brb_staging_banner_css() {
+    if (brb_is_production()) return;
+    echo '<style>.brb-staging-banner{position:sticky;top:0;z-index:100000;background:#8f1d1d;color:#fff;text-align:center;font:700 16px/1.4 system-ui,sans-serif;padding:12px 16px;letter-spacing:.03em}.brb-staging-notice{background:#fdecec;border-left:4px solid #8f1d1d;padding:14px 16px;margin:0 0 16px}.brb-staging-notice p{margin:0}.brb-staging-notice a{font-weight:700}</style>';
+}
+add_action('wp_head', 'brb_staging_banner_css', 1);
+add_action('admin_head', 'brb_staging_banner_css', 1);
+add_action('wp_body_open', 'brb_staging_banner', 1);
+add_action('in_admin_header', 'brb_staging_banner', 1);
+function brb_staging_robots_txt($output, $public) {
+    unset($public);
+    if (brb_is_production()) return $output;
+    if (!preg_match('/^Disallow:\s*\/\s*$/m', (string) $output)) {
+        $output = rtrim((string) $output) . "\nDisallow: /\n";
+    }
+    return $output;
+}
+add_filter('robots_txt', 'brb_staging_robots_txt', 99, 2);
+function brb_is_stripe_webhook_request() {
+    $uri = (string) ($_SERVER['REQUEST_URI'] ?? '');
+    $path = (string) parse_url($uri, PHP_URL_PATH);
+    if (preg_match('#/wp-json/brb/v1/stripe-webhook/?$#', $path)) return true;
+    $route = '';
+    if (isset($_GET['rest_route']) && is_string($_GET['rest_route'])) $route = $_GET['rest_route'];
+    if ($route === '') {
+        $query = (string) parse_url($uri, PHP_URL_QUERY);
+        if ($query !== '') {
+            $qs = [];
+            parse_str($query, $qs);
+            if (isset($qs['rest_route']) && is_string($qs['rest_route'])) $route = $qs['rest_route'];
+        }
+    }
+    return '/' . trim($route, '/') === '/brb/v1/stripe-webhook';
+}
+function brb_staging_basic_exempt() {
+    if (brb_is_production()) return true;
+    if ((defined('DOING_CRON') && DOING_CRON) || (function_exists('wp_doing_cron') && wp_doing_cron())) return true;
+    $uri = (string) ($_SERVER['REQUEST_URI'] ?? '');
+    if (strpos($uri, 'wp-cron.php') !== false) return true;
+    if (brb_is_stripe_webhook_request()) return true;
+    if (is_user_logged_in() && current_user_can('manage_options')) return true;
+    return false;
+}
+function brb_staging_basic_configured() {
+    return brb_env('BRB_STAGING_USER') !== '' && brb_env('BRB_STAGING_PASS') !== '';
+}
+function brb_staging_basic_presented() {
+    $user = (string) ($_SERVER['PHP_AUTH_USER'] ?? '');
+    $pass = (string) ($_SERVER['PHP_AUTH_PW'] ?? '');
+    if ($user === '' && $pass === '') {
+        $header = (string) ($_SERVER['HTTP_AUTHORIZATION'] ?? ($_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? ''));
+        if (stripos($header, 'basic ') === 0) {
+            $decoded = base64_decode(substr($header, 6), true);
+            if (is_string($decoded) && strpos($decoded, ':') !== false) {
+                [$user, $pass] = explode(':', $decoded, 2);
+            }
+        }
+    }
+    return [(string) $user, (string) $pass];
+}
+function brb_staging_basic_credentials_match() {
+    [$given_user, $given_pass] = brb_staging_basic_presented();
+    $user = brb_env('BRB_STAGING_USER');
+    $pass = brb_env('BRB_STAGING_PASS');
+    return hash_equals($user, $given_user) && hash_equals($pass, $given_pass);
+}
+function brb_staging_basic_auth() {
+    if (defined('WP_CLI') && WP_CLI) return;
+    if (PHP_SAPI === 'cli') return;
+    if (brb_staging_basic_exempt()) return;
+    if (!brb_staging_basic_configured()) return;
+    if (brb_staging_basic_credentials_match()) return;
+    if (!headers_sent()) {
+        header('WWW-Authenticate: Basic realm="Staging"');
+        header('HTTP/1.1 401 Unauthorized');
+        header('Content-Type: text/plain; charset=UTF-8');
+    }
+    echo "This staging site is private.\n";
+    exit;
+}
+add_action('init', 'brb_staging_basic_auth', 1);
 function brb_search_indexing_allowed() {
     if (brb_is_production()) return true;
     return brb_env('DISCOURAGE_SEARCH') === '0';
@@ -2271,6 +2416,16 @@ function brb_admin_email_notice() {
     if ($html !== '') echo $html;
 }
 add_action('admin_notices', 'brb_admin_email_notice');
+function brb_mail_subject($subject) {
+    $subject = str_replace(["\r", "\n"], '', (string) $subject);
+    if (brb_is_production()) return $subject;
+    if (preg_match('/^\[STAGING\](?:\s|$)/', $subject)) return $subject;
+    return '[STAGING] ' . $subject;
+}
+add_filter('wp_mail', function ($atts) {
+    if (is_array($atts) && array_key_exists('subject', $atts)) $atts['subject'] = brb_mail_subject($atts['subject']);
+    return $atts;
+});
 function brb_mail($to, $subject, $body, $reply = '', $from = '', $cc = []) {
     $to = sanitize_email($to);
     if (!$to || !is_email($to)) return false;
@@ -2564,6 +2719,7 @@ function brb_insert_booking($r, $q, $guest, $source = 'online', $notify = true) 
     return $result;
 }
 function brb_process_public_booking($post) {
+    if (!brb_public_writes_open()) return new WP_Error('staging', brb_staging_guest_message());
     if (empty($post['policy'])) return new WP_Error('policy', 'Please agree to the Terms, the Rental Agreement and the Privacy Policy.');
     $r = brb_build_range($post);
     if (is_wp_error($r)) return $r;
@@ -3023,6 +3179,7 @@ function brb_handle_addon() {
 }
 function brb_view_select() {
     brb_steps(0);
+    if (!brb_public_writes_open()) echo brb_staging_guest_notice_html();
     $notice = brb_notice_hours();
     ?>
     <div class="brb-grid">
@@ -3077,6 +3234,9 @@ function brb_view_quote() {
         <?php endif; ?>
         <a href="<?php echo esc_url(strtok($_SERVER['REQUEST_URI'] ?? brb_book_url(), '?')); ?>">← Change date</a>
       </div>
+      <?php if (!brb_public_writes_open()): ?>
+      <div class="brb-card brb-guest"><?php echo brb_staging_guest_notice_html(); ?></div>
+      <?php else: ?>
       <form class="brb-card brb-guest" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
         <h3>Guest details</h3>
         <input type="hidden" name="action" value="brb_book"><?php wp_nonce_field('brb_book', '_brb');
@@ -3093,6 +3253,7 @@ function brb_view_quote() {
         <div class="brb-field"><label class="brb-check"><input type="checkbox" name="policy" value="1" required><span class="brb-check-copy"><strong>I agree</strong><span class="brb-callout">I agree to the <a href="<?php echo esc_url(home_url('/terms/')); ?>" target="_blank" rel="noopener">Terms</a>, the <a href="<?php echo esc_url(home_url('/rental-agreement/')); ?>" target="_blank" rel="noopener">Rental Agreement</a> and the <a href="<?php echo esc_url(home_url('/privacy/')); ?>" target="_blank" rel="noopener">Privacy Policy</a>.</span></span></label></div>
         <button class="brb-btn" type="submit">Submit request</button>
       </form>
+      <?php endif; ?>
     </div>
     <?php
 }

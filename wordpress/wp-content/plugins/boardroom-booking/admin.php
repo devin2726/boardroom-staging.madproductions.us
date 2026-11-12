@@ -286,9 +286,8 @@ function brb_admin_list() {
         $like = '%' . $wpdb->esc_like($q) . '%';
         $where .= ' AND (name LIKE %s OR email LIKE %s OR phone LIKE %s';
         array_push($params, $like, $like, $like);
-        $ref_id = 0;
-        if (preg_match('/^BR-(\d+)$/i', $q, $m)) $ref_id = (int) $m[1];
-        elseif (ctype_digit($q)) $ref_id = (int) $q;
+        $ref_id = brb_ref_id($q);
+        if ($ref_id <= 0 && ctype_digit($q)) $ref_id = (int) $q;
         if ($ref_id > 0) {
             $where .= ' OR id=%d';
             $params[] = $ref_id;
@@ -361,7 +360,7 @@ function brb_admin_list() {
             $others = [];
             foreach ($dup_map[(int) $b->id] as $other) {
                 if ($other === (int) $b->id) continue;
-                $others[] = 'BR-' . $other;
+                $others[] = brb_ref((object) ['id' => $other]);
             }
             if ($others) $dup_note = '<br><strong class="brb-dup">Same guest and day as ' . esc_html(implode(', ', $others)) . '</strong>';
         }

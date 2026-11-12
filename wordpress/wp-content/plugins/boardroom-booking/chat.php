@@ -1962,6 +1962,7 @@ function brb_chat_thanks() {
 
 function brb_chat_save_lead($input) {
     if (!is_array($input)) $input = [];
+    if (!brb_public_writes_open()) return new WP_Error('staging', brb_staging_guest_message());
     if (trim((string) ($input['company'] ?? '')) !== '') {
         return ['ok' => true, 'stored' => false, 'message' => brb_chat_thanks()];
     }
@@ -2172,18 +2173,23 @@ function brb_chat_markup($mode = 'float', $details_target = '') {
         echo '</div></div>';
     }
     echo '<form class="brb-chat-ask"><label class="brb-chat-sr" for="brb-chat-input">Your question</label><input id="brb-chat-input" class="brb-chat-input" type="text" maxlength="500" autocomplete="off" placeholder="' . esc_attr($placeholder) . '"><button type="submit" class="brb-chat-send" aria-label="Send">' . brb_chat_arrow() . '</button></form>';
-    if (!$inline) echo '<button type="button" class="brb-chat-lead-toggle" aria-expanded="false" aria-controls="brb-chat-lead">Leave your details</button>';
-    echo '<form class="brb-chat-lead" id="brb-chat-lead" hidden>';
-    echo '<p class="brb-chat-hp" aria-hidden="true"><label>Company<input name="company" tabindex="-1" autocomplete="off"></label></p>';
-    echo '<label>Name*<input name="name" maxlength="190" autocomplete="name" required></label>';
-    echo '<label>Email*<input type="email" name="email" maxlength="190" autocomplete="email" required></label>';
-    echo '<label>Phone (optional)<input name="phone" maxlength="50" autocomplete="tel"></label>';
-    echo '<label>Event date<input type="date" name="event_date"></label>';
-    echo '<label>Guests (80)<input type="number" name="guests" min="1" max="200"></label>';
-    echo '<label>Short note<textarea name="note" rows="3" maxlength="1000"></textarea></label>';
-    echo '<label class="brb-chat-consent"><input type="checkbox" name="consent" value="1" required> A team member will reply using this info</label>';
-    echo '<p class="brb-chat-lead-actions"><button type="button" class="brb-chat-lead-cancel">Cancel</button><button type="submit" class="brb-chat-send">Send to the team</button></p>';
-    echo '</form></div>';
+    if (function_exists('brb_public_writes_open') && !brb_public_writes_open()) {
+        echo brb_staging_guest_notice_html();
+    } else {
+        if (!$inline) echo '<button type="button" class="brb-chat-lead-toggle" aria-expanded="false" aria-controls="brb-chat-lead">Leave your details</button>';
+        echo '<form class="brb-chat-lead" id="brb-chat-lead" hidden>';
+        echo '<p class="brb-chat-hp" aria-hidden="true"><label>Company<input name="company" tabindex="-1" autocomplete="off"></label></p>';
+        echo '<label>Name*<input name="name" maxlength="190" autocomplete="name" required></label>';
+        echo '<label>Email*<input type="email" name="email" maxlength="190" autocomplete="email" required></label>';
+        echo '<label>Phone (optional)<input name="phone" maxlength="50" autocomplete="tel"></label>';
+        echo '<label>Event date<input type="date" name="event_date"></label>';
+        echo '<label>Guests (80)<input type="number" name="guests" min="1" max="200"></label>';
+        echo '<label>Short note<textarea name="note" rows="3" maxlength="1000"></textarea></label>';
+        echo '<label class="brb-chat-consent"><input type="checkbox" name="consent" value="1" required> A team member will reply using this info</label>';
+        echo '<p class="brb-chat-lead-actions"><button type="button" class="brb-chat-lead-cancel">Cancel</button><button type="submit" class="brb-chat-send">Send to the team</button></p>';
+        echo '</form>';
+    }
+    echo '</div>';
     if ($inline) echo '</div>';
     echo '<noscript><p><a href="' . esc_url(home_url('/contact/')) . '">Contact form</a></p></noscript>';
     echo '</section></div>';

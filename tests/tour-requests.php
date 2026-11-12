@@ -33,7 +33,10 @@ $created = [];
 $snapshot = get_option('brb_settings');
 
 try {
-    brb_t(get_option('brb_version') === '2.5.58', 'plugin storage version is 2.5.58');
+    brb_t(get_option('brb_version') === '2.5.59', 'plugin storage version is 2.5.59');
+    putenv('BRB_ENV=production');
+    $_ENV['BRB_ENV'] = 'production';
+    $_SERVER['BRB_ENV'] = 'production';
     brb_t($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', brb_tour_table())) === brb_tour_table(), 'inquiry table still exists');
     $cols = $wpdb->get_col('SHOW COLUMNS FROM ' . brb_tour_table(), 0);
     brb_t(in_array('phone', $cols, true) && in_array('topic', $cols, true) && in_array('preferred', $cols, true), 'topic and preferred were added and phone was kept');

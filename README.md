@@ -65,7 +65,7 @@ Outbound mail uses SMTP only when `BRB_SMTP_USER` and `BRB_SMTP_PASS` are set on
 
 Online card payment uses Stripe Checkout only when `BRB_STRIPE_SECRET_KEY` is set. Also set `BRB_STRIPE_WEBHOOK_SECRET` for `POST /wp-json/brb/v1/stripe-webhook`. `BRB_STRIPE_PUBLISHABLE_KEY` is passed through and is not used for hosted Checkout. Do not commit the keys. Guests can pay by check or in person, or by card with a processing fee (default 3%) that is not part of the booking balance.
 
-Search indexing follows `BRB_ENV` and `DISCOURAGE_SEARCH`. Indexing is on when `BRB_ENV=production` or `DISCOURAGE_SEARCH=0`. Anything else, including both unset, sets `blog_public=0` (noindex). Staging leaves `BRB_ENV` unset and keeps the default `DISCOURAGE_SEARCH=1`.
+Search indexing follows `BRB_ENV` and `DISCOURAGE_SEARCH`. The site is production unless `BRB_ENV` is exactly `staging`, `dev`, or `test` (any case, surrounding space ignored). Empty, missing, and misspelled values are production and are indexed. A request whose host, or whose `home_url()` host, is `boardroomqc.com` or `www.boardroomqc.com` is always production. The host `boardroom-staging.madproductions.us` is non-production even when `BRB_ENV` is empty or set to `production`. Staging must set `BRB_ENV=staging` and keeps the default `DISCOURAGE_SEARCH=1`, which sets `blog_public=0` (noindex). `DISCOURAGE_SEARCH=0` allows indexing on staging.
 
 ## Production
 
@@ -81,7 +81,9 @@ Indexing is applied on container start and again on each WordPress request.
 
 | Variable | Production | If unset |
 |---|---|---|
-| `BRB_ENV` | `production` | not production; stays noindex unless `DISCOURAGE_SEARCH=0` |
+| `BRB_ENV` | `production` | treated as production: indexed, refs stay `BR-<id>`, public submits are accepted. Staging must set `staging` (or `dev` / `test`). Those values stay noindex unless `DISCOURAGE_SEARCH=0`, use `BR-S<id>`, refuse logged-out booking, contact, and chat-lead submits, and prefix mail subjects with `[STAGING]`. `boardroomqc.com` is always production. |
+| `BRB_STAGING_USER` | leave empty | with `BRB_STAGING_PASS`, non-production asks for HTTP basic auth |
+| `BRB_STAGING_PASS` | leave empty | no basic auth unless both this and `BRB_STAGING_USER` are set |
 | `DISCOURAGE_SEARCH` | `0` | defaults to `1` (noindex) |
 | `WP_HOME` | `https://boardroomqc.com` | local default `http://localhost:8080` via `SERVICE_FQDN_WORDPRESS` |
 | `WP_SITEURL` | `https://boardroomqc.com` | follows `WP_HOME` |
@@ -111,7 +113,7 @@ Indexing is applied on container start and again on each WordPress request.
 | `BRB_STRIPE_WEBHOOK_SECRET` | webhook signing secret | webhooks are rejected |
 | `BRB_STRIPE_PUBLISHABLE_KEY` | publishable key | passed through; hosted Checkout does not use it |
 
-`docker-compose.yml` passes `BRB_ENV`, `WP_SITEURL`, `DISCOURAGE_SEARCH`, and the eight `WORDPRESS_*` key and salt variables into the wordpress container. Staging can leave `BRB_ENV`, `WP_SITEURL`, and the salts empty.
+`docker-compose.yml` passes `BRB_ENV` through with an empty default, which means production, because production uses the same file. The staging Coolify app must set `BRB_ENV=staging` in that app's own environment variables. Production sets `BRB_ENV=production`. Salts can stay empty outside production.
 
 Local test:
 

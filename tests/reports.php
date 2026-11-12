@@ -183,8 +183,9 @@ try {
     delete_option('brb_ga_credentials');
 
     $saved_env = getenv('BRB_ENV');
-    putenv('BRB_ENV');
-    unset($_ENV['BRB_ENV'], $_SERVER['BRB_ENV']);
+    putenv('BRB_ENV=staging');
+    $_ENV['BRB_ENV'] = 'staging';
+    $_SERVER['BRB_ENV'] = 'staging';
     $settings = brb_opt();
     $settings['ga_measurement_id'] = 'G-TEST123';
     update_option('brb_settings', $settings);

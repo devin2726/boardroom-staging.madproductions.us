@@ -182,6 +182,7 @@
     return function () { window.scrollTo(x, y); };
   }
   function showLead() {
+    if (!lead) return;
     var restore = keepWindow();
     lead.hidden = false;
     if (leadToggle) leadToggle.setAttribute('aria-expanded', 'true');
@@ -190,6 +191,7 @@
     restore();
   }
   function hideLead() {
+    if (!lead) return;
     var restore = keepWindow();
     lead.hidden = true;
     if (leadToggle) leadToggle.setAttribute('aria-expanded', 'false');
@@ -228,7 +230,7 @@
     else if (input) focusEl(input);
   });
   if (closeBtn) closeBtn.addEventListener('click', closePanel);
-  leadToggle.addEventListener('click', function () {
+  if (leadToggle) leadToggle.addEventListener('click', function () {
     if (root.classList.contains('brb-chat-hold')) return;
     var formSelector = leadToggle.getAttribute('data-brb-scroll-form');
     if (leadToggle.tagName === 'A' && !formSelector) return;
@@ -247,6 +249,7 @@
       rootEl.style.scrollBehavior = prev;
       return;
     }
+    if (!lead) return;
     if (lead.hidden) showLead();
     else hideLead();
   });
@@ -438,7 +441,7 @@
       grab.addEventListener('pointerup', up);
     });
   }
-  lead.addEventListener('submit', function (e) {
+  if (lead) lead.addEventListener('submit', function (e) {
     e.preventDefault();
     var data = new FormData(lead);
     var payload = {
