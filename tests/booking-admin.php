@@ -164,13 +164,13 @@ try {
         ob_start();
         brb_admin_detail((int) $mail_b->id);
         ob_end_clean();
-        brb_t(strpos($mail_html, esc_html(brb_price_guest_body($mail_b))) !== false && strpos($mail_html, 'name="email_guest" value="1"') !== false && strpos($mail_html, 'Don\'t email') !== false && count($GLOBALS['brb_mails']) === $shown, 'the price preview is on the page and opening it sends nothing');
+        brb_t(strpos($mail_html, esc_textarea(brb_price_guest_body($mail_b))) !== false && strpos($mail_html, 'name="email_body"') !== false && strpos($mail_html, 'name="email_subject"') !== false && strpos($mail_html, 'Reset to default') !== false && strpos($mail_html, 'name="email_guest" value="1"') !== false && strpos($mail_html, 'Don\'t email') !== false && count($GLOBALS['brb_mails']) === $shown, 'the price preview is an editable email with Send and Don\'t email, and opening it sends nothing');
         $wpdb->update(brb_table(), ['walkthrough_done' => 1], ['id' => (int) $mail_b->id]);
         $mail_b = brb_booking($mail_b->id);
         ob_start();
         brb_admin_detail((int) $mail_b->id);
         $approve_html = ob_get_clean();
-        brb_t(strpos($approve_html, 'name="action" value="brb_approve"') !== false && strpos($approve_html, esc_html(brb_approve_preview_body($mail_b))) !== false && strpos($approve_html, '>Send<') !== false && strpos($approve_html, 'Don\'t email') !== false, 'Approve opens a preview with Send and Don\'t email');
+        brb_t(strpos($approve_html, 'name="action" value="brb_approve"') !== false && strpos($approve_html, esc_textarea(brb_approve_preview_body($mail_b))) !== false && strpos($approve_html, 'name="email_body"') !== false && strpos($approve_html, 'Reset to default') !== false && strpos($approve_html, '>Send<') !== false && strpos($approve_html, 'Don\'t email') !== false, 'Approve opens an editable email with Send and Don\'t email');
         $pay_preview = brb_preview_payment_message($mail_b, 200, '44', brb_now()->format('Y-m-d'), 'Preview', 'check');
         $GLOBALS['brb_mails'] = [];
         $recorded = brb_record_payment($mail_b->id, 200, '44', brb_now()->format('Y-m-d'), 'Preview', false, 'check', ['notify' => true]);
@@ -179,7 +179,7 @@ try {
             if (stripos($m['to'], 'admin-mail@example.com') !== false && stripos($m['subject'], 'receipt') !== false) $receipt = $m;
         }
         brb_t(!is_wp_error($pay_preview) && $receipt && $receipt['message'] === $pay_preview['body'], 'the payment preview matches the receipt that Send delivers');
-        brb_t(strpos($approve_html, 'name="action" value="brb_payment"') !== false && strpos($approve_html, 'id="brb-payment-preview"') !== false, 'Record payment shows the receipt preview before Send');
+        brb_t(strpos($approve_html, 'name="action" value="brb_payment"') !== false && strpos($approve_html, 'id="brb-payment-preview"') !== false && strpos($approve_html, 'name="email_body"') !== false && strpos($approve_html, 'Reset to default') !== false, 'Record payment shows an editable receipt before Send');
     } else {
         brb_t(false, 'a booking can be created for the email previews');
     }
@@ -220,7 +220,7 @@ try {
         ob_start();
         brb_admin_detail((int) $decline_b->id);
         $decline_html = ob_get_clean();
-        brb_t(strpos($decline_html, 'Decline and send email') !== false && strpos($decline_html, 'Decline without emailing') !== false && strpos($decline_html, 'does not meet our event rules or the date is not available') !== false && strpos($decline_html, 'value="' . $alt . '"') !== false && strpos($decline_html, 'Flag as spam/joke') !== false, 'Decline opens the message form, free dates, the email preview, and the spam action');
+        brb_t(strpos($decline_html, 'Decline and send email') !== false && strpos($decline_html, 'Decline without emailing') !== false && strpos($decline_html, 'does not meet our event rules or the date is not available') !== false && strpos($decline_html, 'name="email_body"') !== false && strpos($decline_html, 'Reset to default') !== false && strpos($decline_html, 'value="' . $alt . '"') !== false && strpos($decline_html, 'Flag as spam/joke') !== false, 'Decline opens the message form, free dates, an editable email, and the spam action');
         $GLOBALS['brb_mails'] = [];
         $bad = brb_decline_booking($decline_b->id, ['send' => true, 'dates' => ['1999-01-01']]);
         brb_t(is_wp_error($bad) && brb_booking($decline_b->id)->status === 'review' && $GLOBALS['brb_mails'] === [], 'a date that is not free is rejected and nothing is emailed');
@@ -242,6 +242,89 @@ try {
         $url = brb_reserve_date_url($alt);
         brb_t($guest_mail && strpos($guest_mail['message'], 'does not meet our event rules or the date is not available') === false && strpos($guest_mail['message'], 'Saturday is open.') !== false && strpos($guest_mail['message'], $url) !== false && strpos($guest_mail['message'], $alt) !== false, 'a decline with a message replaces the vague line with the message, the date, and a reserve link');
         brb_t(!is_wp_error($sent) && strpos((string) $sent->audit_log, 'Saturday is open.') !== false && strpos((string) $sent->audit_log, $alt) !== false && strpos((string) $sent->audit_log, 'guest email sent') !== false, 'the decline message and suggested date are in the audit log');
+
+        $edit_day = brb_now()->modify('+44 days')->format('Y-m-d');
+        $edit_b = brb_admin_case('admin-edit-mail@example.com', $edit_day, 'Edit Mail Guest');
+        if ($edit_b && !is_wp_error($edit_b)) {
+            $created_ids[] = (int) $edit_b->id;
+            $wpdb->update(brb_table(), ['walkthrough_done' => 1], ['id' => (int) $edit_b->id]);
+            $GLOBALS['brb_mails'] = [];
+            $custom_subject = 'Custom approval subject';
+            $custom_body = "Hello,\nThis is an edited approval email.";
+            $approved = brb_approve_booking($edit_b->id, true, ['subject' => $custom_subject, 'body' => $custom_body]);
+            $guest_mail = null;
+            foreach ($GLOBALS['brb_mails'] as $m) {
+                if (stripos($m['to'], 'admin-edit-mail@example.com') !== false) $guest_mail = $m;
+            }
+            $approved_log = !is_wp_error($approved) ? (string) $approved->audit_log : '';
+            brb_t(!is_wp_error($approved) && $guest_mail && $guest_mail['subject'] === $custom_subject && $guest_mail['message'] === $custom_body, 'approving with an edited email sends the edited subject and body');
+            brb_t(strpos($approved_log, $custom_subject) !== false && strpos($approved_log, 'This is an edited approval email.') !== false, 'the approval audit log stores the sent email text');
+
+            $GLOBALS['brb_mails'] = [];
+            $receipt_subject = 'Custom receipt subject';
+            $receipt_body = "Hello,\nThis is an edited receipt.";
+            $paid = brb_record_payment($approved->id, 50, '55', brb_now()->format('Y-m-d'), 'Edited', false, 'check', [
+                'notify' => true,
+                'subject' => $receipt_subject,
+                'body' => $receipt_body,
+            ]);
+            $receipt = null;
+            foreach ($GLOBALS['brb_mails'] as $m) {
+                if (stripos($m['to'], 'admin-edit-mail@example.com') !== false) $receipt = $m;
+            }
+            $pay_log = !is_wp_error($paid) ? (string) $paid->audit_log : '';
+            brb_t(!is_wp_error($paid) && $receipt && $receipt['subject'] === $receipt_subject && $receipt['message'] === $receipt_body, 'recording a payment with an edited receipt sends the edited text');
+            brb_t(strpos($pay_log, $receipt_subject) !== false && strpos($pay_log, 'This is an edited receipt.') !== false, 'the payment audit log stores the sent receipt text');
+        } else {
+            brb_t(false, 'a booking can be created for an edited guest email');
+        }
+
+        $decline_edit_day = brb_now()->modify('+46 days')->format('Y-m-d');
+        $decline_edit = brb_admin_case('admin-edit-decline@example.com', $decline_edit_day, 'Edit Decline Guest');
+        if ($decline_edit && !is_wp_error($decline_edit) && $alt !== '') {
+            $created_ids[] = (int) $decline_edit->id;
+            $GLOBALS['brb_mails'] = [];
+            $decline_subject = 'Custom decline subject';
+            $decline_body = "Hello,\nThis date is not available after all.";
+            $declined = brb_decline_booking($decline_edit->id, [
+                'send' => true,
+                'message' => 'Please pick another day.',
+                'dates' => [$alt],
+                'subject' => $decline_subject,
+                'body' => $decline_body,
+            ]);
+            $guest_mail = null;
+            foreach ($GLOBALS['brb_mails'] as $m) {
+                if (stripos($m['to'], 'admin-edit-decline@example.com') !== false) $guest_mail = $m;
+            }
+            $decline_log = !is_wp_error($declined) ? (string) $declined->audit_log : '';
+            brb_t(!is_wp_error($declined) && $declined->status === 'declined' && $guest_mail && $guest_mail['subject'] === $decline_subject && $guest_mail['message'] === $decline_body, 'declining with an edited email sends the edited refusal text, not the generated default');
+            brb_t(strpos($decline_log, $decline_subject) !== false && strpos($decline_log, 'This date is not available after all.') !== false && strpos($decline_log, 'Please pick another day.') !== false, 'the decline audit log stores the sent email text');
+        } else {
+            brb_t(false, 'a booking can be created for an edited decline email');
+        }
+
+        $GLOBALS['brb_mails'] = [];
+        $price_day = brb_now()->modify('+48 days')->format('Y-m-d');
+        $price_edit = brb_admin_case('admin-edit-price@example.com', $price_day, 'Edit Price Guest');
+        if ($price_edit && !is_wp_error($price_edit)) {
+            $created_ids[] = (int) $price_edit->id;
+            $price_edit = brb_set_agreed_price($price_edit->id, 500, false);
+            $GLOBALS['brb_mails'] = [];
+            $price_subject = 'Custom price subject';
+            $price_body = "Hello,\nThe price is ready to review.";
+            $sent_price = brb_send_price_email($price_edit, $price_subject, $price_body);
+            $guest_mail = null;
+            foreach ($GLOBALS['brb_mails'] as $m) {
+                if (stripos($m['to'], 'admin-edit-price@example.com') !== false) $guest_mail = $m;
+            }
+            brb_t($guest_mail && $guest_mail['subject'] === $price_subject && $guest_mail['message'] === $price_body && $sent_price['body'] === $price_body, 'the price email send uses the edited subject and body');
+            $scrubbed = brb_sanitize_guest_body("Hello <script>alert(1)</script>\nNext line");
+            brb_t(strpos($scrubbed, '<script>') === false && strpos($scrubbed, 'Hello') !== false && strpos($scrubbed, "\n") !== false, 'guest email bodies are sanitized as plain text and keep newlines');
+        } else {
+            brb_t(false, 'a booking can be created for an edited price email');
+        }
+
         $vague_day = brb_now()->modify('+42 days')->format('Y-m-d');
         $vague = brb_admin_case('admin-vague@example.com', $vague_day, 'Vague Guest');
         if ($vague && !is_wp_error($vague)) {

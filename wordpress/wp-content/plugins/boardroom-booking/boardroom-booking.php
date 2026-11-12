@@ -2,11 +2,11 @@
 /**
  * Plugin Name: Boardroom Booking
  * Description: Self-hosted direct booking for The Boardroom — full-day blocks, availability calendar, agreed prices, approval before payment, blackout dates, and emails.
- * Version: 2.5.62
+ * Version: 2.5.64
  * Author: Mad Productions
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.5.62');
+define('BRB_VER', '2.5.64');
 function brb_reserve_explainer_steps() {
     return [
         'Pick a date. Prices are on the calendar.',
@@ -2844,6 +2844,29 @@ function brb_free_full_days($from_ymd, $to_ymd, $exclude_id = 0) {
     }
     return $free;
 }
+function brb_price_guest_subject($b) {
+    return 'Your Boardroom price is confirmed (' . brb_ref($b) . ')';
+}
+function brb_approve_guest_subject($b) {
+    return 'Your Boardroom request is approved (' . brb_ref($b) . ')';
+}
+function brb_decline_guest_subject($b) {
+    return 'Your Boardroom request was declined (' . brb_ref($b) . ')';
+}
+function brb_sanitize_guest_subject($subject) {
+    return sanitize_text_field((string) $subject);
+}
+function brb_sanitize_guest_body($body) {
+    return sanitize_textarea_field((string) $body);
+}
+function brb_custom_guest_mail($args, $default_subject, $default_body) {
+    if (!is_array($args)) $args = [];
+    $subject = array_key_exists('subject', $args) ? brb_sanitize_guest_subject($args['subject']) : $default_subject;
+    $body = array_key_exists('body', $args) ? brb_sanitize_guest_body($args['body']) : $default_body;
+    if ($subject === '') $subject = $default_subject;
+    if ($body === '') $body = $default_body;
+    return [$subject, $body];
+}
 function brb_approve_guest_body($b) {
     $ref = brb_ref($b);
     $guest_facts = implode("\n\n", array_values(array_filter(brb_payment_lines($b), function ($line) {
@@ -2856,18 +2879,18 @@ function brb_approve_preview_body($b) {
     if (in_array((string) $preview->status, ['review', 'pending'], true)) $preview->status = 'approved';
     return brb_approve_guest_body($preview);
 }
-function brb_send_approve_email($b) {
+function brb_send_approve_email($b, $subject = '', $body = '') {
     $ref = brb_ref($b);
     $facts = implode("\n\n", brb_payment_lines($b));
-    $body = brb_approve_guest_body($b);
-    brb_mail($b->email, 'Your Boardroom request is approved (' . $ref . ')', $body, brb_guest_reply_to());
+    list($subject, $body) = brb_custom_guest_mail(['subject' => $subject, 'body' => $body], brb_approve_guest_subject($b), brb_approve_guest_body($b));
+    brb_mail($b->email, $subject, $body, brb_guest_reply_to());
     $staff = "Request approved.\n\n{$facts}\n\nWhen: " . brb_when($b) . "\n" . brb_event_type_line($b) . "Estimated Guests: {$b->guests}\nReference: {$ref}\n\n" . admin_url('admin.php?page=brb&booking=' . (int) $b->id) . "\n";
     brb_mail_staff('Request approved ' . $ref . ' – ' . $b->name, $staff, $b->email);
 }
-function brb_send_decline_email($b, $message = '', $dates = []) {
+function brb_send_decline_email($b, $message = '', $dates = [], $subject = '', $body = '') {
     $ref = brb_ref($b);
-    $body = brb_decline_guest_body($b, $message, $dates);
-    brb_mail($b->email, 'Your Boardroom request was declined (' . $ref . ')', $body, brb_guest_reply_to());
+    list($subject, $body) = brb_custom_guest_mail(['subject' => $subject, 'body' => $body], brb_decline_guest_subject($b), brb_decline_guest_body($b, $message, $dates));
+    brb_mail($b->email, $subject, $body, brb_guest_reply_to());
     $staff = "Request declined.\n\n{$ref}, " . brb_when($b) . "\nThe date is not reserved.\n\n" . brb_deposit_line() . "\n";
     $message = trim((string) $message);
     if ($message !== '') $staff .= "\nMessage to the guest:\n" . $message . "\n";
@@ -2988,8 +3011,11 @@ function brb_payment_guest_message($b, $amount, $check_number, $method = 'check'
     $body = brb_guest_hello_line() . "\n\nHere is your receipt.\n\n" . brb_receipt_block($b, $amount, $method, $received_on) . "\n\n{$check}\n\n{$follow}\n\n" . brb_event_type_line($b) . "Estimated Guests: {$b->guests}\n\nView your booking: " . brb_guest_link($b) . "\n";
     return ['subject' => $subject, 'admin_subject' => $admin_subject, 'body' => $body];
 }
-function brb_send_payment_email($b, $amount, $check_number, $method = 'check', $payment = null) {
+function brb_send_payment_email($b, $amount, $check_number, $method = 'check', $payment = null, $mail = []) {
     $message = brb_payment_guest_message($b, $amount, $check_number, $method, $payment);
+    list($subject, $body) = brb_custom_guest_mail($mail, $message['subject'], $message['body']);
+    $message['subject'] = $subject;
+    $message['body'] = $body;
     brb_send_receipt_copies($b, $message['subject'], $message['admin_subject'], $message['body']);
     return $message;
 }
@@ -3239,8 +3265,15 @@ function brb_record_payment($booking_id, $amount, $check_number, $received_on, $
         $notes = trim($notes . ' Refundable damage deposit ' . brb_money($split['damage']) . '.');
         $wpdb->update(brb_pay_table(), ['notes' => $notes], ['id' => $pay_id]);
     }
-    if ($notify) brb_send_payment_email($b, $amount, $check_number, $method);
-    brb_audit_append((int) $b->id, 'recorded ' . brb_pay_method_label($method) . ' payment ' . brb_money($amount) . '; status from "' . $before_status . '" to "' . brb_status_label($b->status) . '"; guest email ' . ($notify ? 'sent' : 'skipped'));
+    $mail = [];
+    if (array_key_exists('subject', $extra)) $mail['subject'] = $extra['subject'];
+    if (array_key_exists('body', $extra)) $mail['body'] = $extra['body'];
+    if ($notify) {
+        $sent = brb_send_payment_email($b, $amount, $check_number, $method, null, $mail);
+        brb_audit_append((int) $b->id, 'recorded ' . brb_pay_method_label($method) . ' payment ' . brb_money($amount) . '; status from "' . $before_status . '" to "' . brb_status_label($b->status) . '"; guest email sent; subject: "' . $sent['subject'] . '"; body: "' . $sent['body'] . '"');
+    } else {
+        brb_audit_append((int) $b->id, 'recorded ' . brb_pay_method_label($method) . ' payment ' . brb_money($amount) . '; status from "' . $before_status . '" to "' . brb_status_label($b->status) . '"; guest email skipped');
+    }
     if (!$paid_before && in_array($b->status, ['deposit_paid', 'paid', 'confirmed'], true)) brb_event_hit('deposit_paid');
     return brb_booking($b->id);
 }
@@ -3296,11 +3329,12 @@ function brb_price_guest_body($b) {
     $body .= 'When: ' . brb_when($b) . "\n" . brb_event_type_line($b) . "Estimated Guests: {$b->guests}\nReference: {$ref}\n\nView your booking: " . brb_guest_link($b) . "\n";
     return $body;
 }
-function brb_send_price_email($b) {
+function brb_send_price_email($b, $subject = '', $body = '') {
     $ref = brb_ref($b);
-    $body = brb_price_guest_body($b);
-    brb_mail($b->email, 'Your Boardroom price is confirmed (' . $ref . ')', $body, brb_guest_reply_to());
+    list($subject, $body) = brb_custom_guest_mail(['subject' => $subject, 'body' => $body], brb_price_guest_subject($b), brb_price_guest_body($b));
+    brb_mail($b->email, $subject, $body, brb_guest_reply_to());
     brb_mail_staff('Price set for ' . $ref . ' – ' . $b->name, $body . "\n" . admin_url('admin.php?page=brb&booking=' . (int) $b->id) . "\n", $b->email);
+    return ['subject' => $subject, 'body' => $body];
 }
 function brb_extend_hold($booking_id, $hours) {
     unset($booking_id, $hours);
@@ -3385,7 +3419,7 @@ function brb_save_booking_changes($booking_id, $input) {
     }
     return brb_booking($booking_id);
 }
-function brb_approve_booking($booking_id, $notify = true) {
+function brb_approve_booking($booking_id, $notify = true, $mail = []) {
     global $wpdb;
     $b = brb_booking($booking_id);
     if (!$b) return new WP_Error('missing', 'Booking not found.');
@@ -3403,8 +3437,14 @@ function brb_approve_booking($booking_id, $notify = true) {
     $wpdb->update(brb_table(), ['status' => 'approved', 'hold_until' => null], ['id' => (int) $b->id]);
     $wpdb->query("SELECT RELEASE_LOCK('brb_book')");
     $b = brb_booking($b->id);
-    if ($notify) brb_send_approve_email($b);
-    brb_audit_append((int) $b->id, 'status from "' . $before_status . '" to "' . brb_status_label('approved') . '"; guest email ' . ($notify ? 'sent' : 'skipped'));
+    if ($notify) {
+        $mail = is_array($mail) ? $mail : [];
+        list($subject, $body) = brb_custom_guest_mail($mail, brb_approve_guest_subject($b), brb_approve_guest_body($b));
+        brb_send_approve_email($b, $subject, $body);
+        brb_audit_append((int) $b->id, 'status from "' . $before_status . '" to "' . brb_status_label('approved') . '"; guest email sent; subject: "' . $subject . '"; body: "' . $body . '"');
+    } else {
+        brb_audit_append((int) $b->id, 'status from "' . $before_status . '" to "' . brb_status_label('approved') . '"; guest email skipped');
+    }
     return brb_booking($b->id);
 }
 function brb_decline_booking($booking_id, $args = []) {
@@ -3427,11 +3467,16 @@ function brb_decline_booking($booking_id, $args = []) {
     }
     $wpdb->update(brb_table(), $fields, ['id' => (int) $b->id]);
     $b = brb_booking($b->id);
-    if ($send) brb_send_decline_email($b, $message, $checked);
     $note = 'status from "' . $before_status . '" to "' . brb_status_label('declined') . '"';
     $note .= '; message: ' . ($message === '' ? '(none)' : '"' . brb_audit_clean($message) . '"');
     $note .= '; suggested dates: ' . ($checked ? implode(', ', $checked) : '(none)');
-    $note .= '; guest email ' . ($send ? 'sent' : 'skipped');
+    if ($send) {
+        list($subject, $body) = brb_custom_guest_mail($args, brb_decline_guest_subject($b), brb_decline_guest_body($b, $message, $checked));
+        brb_send_decline_email($b, $message, $checked, $subject, $body);
+        $note .= '; guest email sent; subject: "' . $subject . '"; body: "' . $body . '"';
+    } else {
+        $note .= '; guest email skipped';
+    }
     brb_audit_append((int) $b->id, $note);
     return brb_booking($b->id);
 }
