@@ -2,11 +2,11 @@
 /**
  * Plugin Name: Boardroom Booking
  * Description: Self-hosted direct booking for The Boardroom — full-day blocks, availability calendar, agreed prices, approval before payment, blackout dates, and emails.
- * Version: 2.5.65
- * Author: Mad Productions
+ * Version: 2.5.68
+ * Author: Boardroom QC LLC
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.5.65');
+define('BRB_VER', '2.5.68');
 function brb_reserve_explainer_steps() {
     return [
         'Pick a date. Prices are on the calendar.',
@@ -1435,6 +1435,72 @@ function brb_scrub_public_copy() {
         if ($changed) update_option('brb_settings', $o);
     }
 }
+// 2.5.68: Boardroom QC LLC is the only entity named in public copy. The other
+// entities appear only in the Released Parties definition in Rental Agreement section 5.
+function brb_other_entity_pattern() {
+    return '/(?<![\w.\/@-])mad\s+(productions|rentals)\b/i';
+}
+function brb_scrub_other_entities($c) {
+    $c = (string) $c;
+    if (!preg_match(brb_other_entity_pattern(), $c)) return $c;
+    $q = '(?:"|&quot;|&#8220;|&#8221;|\x{201C}|\x{201D})';
+    $list = '/(?:Boardroom QC LLC,\s*)?Mad\s+Rentals(?:,?\s*LLC)?,?\s*and\s+Mad\s+Productions(?:,?\s*LLC)?,?\s*and each of their members and managers(?:\s*\(collectively, the ' . $q . 'Released Parties' . $q . '\))?/iu';
+    $next = preg_replace($list, 'the Released Parties (as defined in Section 5 of the Rental Agreement)', $c);
+    if (is_string($next)) $c = $next;
+    $next = preg_replace('/(?<![\w.\/@-])mad\s+(?:productions|rentals),?\s*(?:LLC|L\.L\.C\.)/i', 'Boardroom QC LLC', $c);
+    if (is_string($next)) $c = $next;
+    $next = preg_replace(brb_other_entity_pattern(), 'Boardroom QC LLC', $c);
+    if (is_string($next)) $c = $next;
+    $next = preg_replace('/Boardroom QC LLC(?:,?\s*(?:and\s+)?Boardroom QC LLC)+/', 'Boardroom QC LLC', $c);
+    if (is_string($next)) $c = $next;
+    return $c;
+}
+function brb_scrub_other_entities_deep($v) {
+    if (is_string($v)) return brb_scrub_other_entities($v);
+    if (is_array($v)) {
+        foreach ($v as $k => $item) $v[$k] = brb_scrub_other_entities_deep($item);
+    }
+    return $v;
+}
+function brb_scrub_other_entity_copy() {
+    global $wpdb;
+    $like = ['%mad productions%', '%mad rentals%'];
+    $agreement = get_page_by_path('rental-agreement');
+    $skip = $agreement ? (int) $agreement->ID : 0;
+    $rows = $wpdb->get_results($wpdb->prepare(
+        "SELECT ID, post_title, post_content, post_excerpt FROM {$wpdb->posts} WHERE post_type IN ('page','post') AND post_status IN ('publish','draft','pending','private','future') AND (LOWER(post_content) LIKE %s OR LOWER(post_content) LIKE %s OR LOWER(post_title) LIKE %s OR LOWER(post_title) LIKE %s OR LOWER(post_excerpt) LIKE %s OR LOWER(post_excerpt) LIKE %s)",
+        $like[0], $like[1], $like[0], $like[1], $like[0], $like[1]
+    ));
+    foreach ((array) $rows as $p) {
+        if ((int) $p->ID === $skip) continue;
+        $fields = [];
+        foreach (['post_title', 'post_content', 'post_excerpt'] as $f) {
+            $next = brb_scrub_other_entities((string) $p->$f);
+            if ($next !== (string) $p->$f) $fields[$f] = $next;
+        }
+        if ($fields) {
+            $wpdb->update($wpdb->posts, $fields, ['ID' => (int) $p->ID]);
+            clean_post_cache((int) $p->ID);
+        }
+    }
+    $metas = $wpdb->get_results($wpdb->prepare(
+        "SELECT meta_id, post_id, meta_value FROM {$wpdb->postmeta} WHERE meta_key LIKE %s AND (LOWER(meta_value) LIKE %s OR LOWER(meta_value) LIKE %s)",
+        $wpdb->esc_like('_yoast_wpseo_') . '%', $like[0], $like[1]
+    ));
+    foreach ((array) $metas as $m) {
+        $next = brb_scrub_other_entities((string) $m->meta_value);
+        if ($next !== (string) $m->meta_value) {
+            $wpdb->update($wpdb->postmeta, ['meta_value' => $next], ['meta_id' => (int) $m->meta_id]);
+            wp_cache_delete((int) $m->post_id, 'post_meta');
+        }
+    }
+    foreach (['brb_settings', 'blogname', 'blogdescription', 'wpseo_titles', 'wpseo_social'] as $opt) {
+        $v = get_option($opt, null);
+        if ($v === null) continue;
+        $next = brb_scrub_other_entities_deep($v);
+        if ($next !== $v) update_option($opt, $next);
+    }
+}
 function brb_maybe_upgrade() {
     if (get_option('brb_version') === BRB_VER) return;
     if (!brb_install_tables()) return;
@@ -1450,6 +1516,7 @@ function brb_maybe_upgrade() {
     brb_install_legal_pages();
     brb_backfill_line_items();
     brb_install_checklist_page();
+    brb_scrub_other_entity_copy();
     brb_install_report_tables();
     brb_ensure_tour_on_contact();
     brb_import_named_blackouts();
