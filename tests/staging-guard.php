@@ -56,6 +56,48 @@ function brb_guard_post($email, $date) {
         'event_about' => 'A private dinner for family.',
     ];
 }
+function brb_guard_yoast_robots_sample() {
+    // The block Yoast 28.8 appends at priority 99999 when nothing overrides it.
+    return "User-agent: *\nDisallow:\n\n# START YOAST BLOCK\n# ---------------------------\nUser-agent: *\nDisallow:\n\nSitemap: https://boardroom-staging.madproductions.us/sitemap_index.xml\n# ---------------------------\n# END YOAST BLOCK";
+}
+function brb_guard_robots_clean($txt) {
+    return !preg_match('/^Disallow:\s*$/m', (string) $txt)
+        && stripos((string) $txt, 'Sitemap:') === false
+        && stripos((string) $txt, 'YOAST') === false;
+}
+function brb_guard_clear_yoast_page() {
+    if (!function_exists('YoastSEO')) return;
+    try {
+        $memo = YoastSEO()->classes->get('Yoast\WP\SEO\Memoizers\Meta_Tags_Context_Memoizer');
+        $memo->clear_for_current_page();
+        $memo->clear();
+    } catch (\Throwable $e) {
+        unset($e);
+    }
+}
+function brb_guard_front_head() {
+    global $wp_query, $wp_the_query;
+    $saved_query = $wp_query;
+    $saved_the = $wp_the_query;
+    $front_id = (int) get_option('page_on_front');
+    $q = $front_id ? new WP_Query(['page_id' => $front_id]) : new WP_Query(['post_type' => 'page', 'pagename' => 'home']);
+    $wp_query = $q;
+    $wp_the_query = $q;
+    // A real request syncs blog_public on init for its own environment.
+    brb_apply_search_visibility();
+    brb_guard_clear_yoast_page();
+    ob_start();
+    do_action('wp_head');
+    $head = ob_get_clean();
+    brb_guard_clear_yoast_page();
+    $wp_query = $saved_query;
+    $wp_the_query = $saved_the;
+    return $head;
+}
+function brb_guard_robots_meta($head) {
+    preg_match_all('/<meta name=["\']robots["\'] content=["\']([^"\']*)["\']/', (string) $head, $m);
+    return $m[1];
+}
 function brb_guard_open_date($start) {
     for ($i = $start; $i < $start + 40; $i++) {
         $try = brb_now()->modify('+' . $i . ' days')->format('Y-m-d');
@@ -67,6 +109,7 @@ function brb_guard_open_date($start) {
 
 global $wpdb;
 $saved_env = getenv('BRB_ENV');
+$saved_blog_public = get_option('blog_public');
 $saved_user = getenv('BRB_STAGING_USER');
 $saved_pass = getenv('BRB_STAGING_PASS');
 $previous_user = get_current_user_id();
@@ -237,6 +280,47 @@ try {
 
     $robots = apply_filters('robots_txt', "User-agent: *\nDisallow: /wp-admin/\n", true);
     brb_t((bool) preg_match('/^Disallow:\s*\/\s*$/m', $robots), 'staging robots.txt disallows the whole site');
+    $staging_robots = "User-agent: *\nDisallow: /\n";
+    $ours_at = has_filter('robots_txt', 'brb_staging_robots_txt');
+    brb_t(is_int($ours_at) && $ours_at >= 100000, 'the staging robots.txt filter runs at priority 100000 or later');
+    $yoast_at = false;
+    if (function_exists('YoastSEO')) {
+        try {
+            $yoast_at = has_filter('robots_txt', [YoastSEO()->classes->get('Yoast\WP\SEO\Integrations\Front_End\Robots_Txt_Integration'), 'filter_robots']);
+        } catch (\Throwable $e) {
+            $yoast_at = false;
+        }
+    }
+    brb_t(defined('WPSEO_VERSION') && is_int($yoast_at) && is_int($ours_at) && $ours_at > $yoast_at, 'Yoast filter_robots is active and the staging filter runs after it');
+    foreach ([true, false, '1', '0'] as $robots_public) {
+        $robots_full = apply_filters('robots_txt', "User-agent: *\nDisallow: /wp-admin/\nAllow: /wp-admin/admin-ajax.php\n", $robots_public);
+        brb_t($robots_full === $staging_robots, 'staging robots.txt after Yoast is exactly Disallow: / (public=' . var_export($robots_public, true) . ')');
+        brb_t(brb_guard_robots_clean($robots_full), 'staging robots.txt after Yoast has no empty Disallow, Sitemap, or Yoast block (public=' . var_export($robots_public, true) . ')');
+    }
+    brb_t(brb_staging_robots_txt(brb_guard_yoast_robots_sample(), '1') === $staging_robots, 'a Yoast-style block with an empty Disallow and a Sitemap is replaced on staging');
+    $stg_robots = apply_filters('wpseo_robots_array', ['index' => 'index', 'follow' => 'follow', 'max-snippet' => 'max-snippet:-1', 'max-image-preview' => 'max-image-preview:large', 'max-video-preview' => 'max-video-preview:-1']);
+    brb_t(is_array($stg_robots) && ($stg_robots['index'] ?? '') === 'noindex' && ($stg_robots['follow'] ?? '') === 'nofollow' && !isset($stg_robots['max-snippet']) && !isset($stg_robots['max-image-preview']) && !isset($stg_robots['max-video-preview']), 'staging Yoast robots array is noindex, nofollow');
+    $stg_head = brb_guard_front_head();
+    $stg_meta = brb_guard_robots_meta($stg_head);
+    brb_t(count($stg_meta) === 1 && $stg_meta[0] === 'noindex, nofollow', 'staging homepage head with Yoast has one robots meta: noindex, nofollow (got ' . implode(' | ', $stg_meta) . ')');
+    // DISCOURAGE_SEARCH=0 leaves blog_public on, so only the Yoast filter keeps staging out of search.
+    $saved_discourage = getenv('DISCOURAGE_SEARCH');
+    putenv('DISCOURAGE_SEARCH=0');
+    $_ENV['DISCOURAGE_SEARCH'] = '0';
+    $_SERVER['DISCOURAGE_SEARCH'] = '0';
+    $stg_open_head = brb_guard_front_head();
+    $stg_open_public = (string) get_option('blog_public');
+    if (is_string($saved_discourage)) {
+        putenv('DISCOURAGE_SEARCH=' . $saved_discourage);
+        $_ENV['DISCOURAGE_SEARCH'] = $saved_discourage;
+        $_SERVER['DISCOURAGE_SEARCH'] = $saved_discourage;
+    } else {
+        putenv('DISCOURAGE_SEARCH');
+        unset($_ENV['DISCOURAGE_SEARCH'], $_SERVER['DISCOURAGE_SEARCH']);
+    }
+    brb_apply_search_visibility();
+    $stg_open_meta = brb_guard_robots_meta($stg_open_head);
+    brb_t($stg_open_public === '1' && count($stg_open_meta) === 1 && $stg_open_meta[0] === 'noindex, nofollow', 'staging with blog_public on and Yoast active is still noindex, nofollow (got ' . implode(' | ', $stg_open_meta) . ')');
     ob_start();
     brb_staging_banner();
     $banner = ob_get_clean();
@@ -290,6 +374,13 @@ try {
     brb_t(brb_staging_basic_exempt(), 'production does not ask for staging basic auth');
     $robots_live = apply_filters('robots_txt', "User-agent: *\nDisallow: /wp-admin/\n", true);
     brb_t(!preg_match('/^Disallow:\s*\/\s*$/m', $robots_live), 'production robots.txt is not forced to disallow the whole site');
+    brb_t($robots_live !== "User-agent: *\nDisallow: /\n" && brb_staging_robots_txt($robots_live, true) === $robots_live, 'production robots.txt is left exactly as Yoast and WordPress built it');
+    brb_t(brb_staging_robots_txt(brb_guard_yoast_robots_sample(), '1') === brb_guard_yoast_robots_sample(), 'production keeps the Yoast block untouched');
+    $live_robots = apply_filters('wpseo_robots_array', ['index' => 'noindex', 'follow' => 'nofollow', 'max-snippet' => 'max-snippet:-1']);
+    brb_t(is_array($live_robots) && ($live_robots['index'] ?? '') === 'index' && ($live_robots['follow'] ?? '') === 'follow' && ($live_robots['max-snippet'] ?? '') === 'max-snippet:-1', 'production Yoast robots array stays index, follow');
+    $live_head = brb_guard_front_head();
+    $live_meta = brb_guard_robots_meta($live_head);
+    brb_t(count($live_meta) === 1 && strpos($live_meta[0], 'index, follow') === 0 && stripos($live_meta[0], 'noindex') === false && stripos($live_meta[0], 'nofollow') === false, 'production homepage head with Yoast is index, follow (got ' . implode(' | ', $live_meta) . ')');
     ob_start();
     brb_staging_banner();
     $live_banner = ob_get_clean();
@@ -327,6 +418,7 @@ try {
     }
     wp_set_current_user($previous_user);
     brb_guard_env(is_string($saved_env) ? $saved_env : '');
+    update_option('blog_public', $saved_blog_public);
     brb_guard_pair(is_string($saved_user) ? $saved_user : '', is_string($saved_pass) ? $saved_pass : '');
     unset($_SERVER['PHP_AUTH_USER'], $_SERVER['PHP_AUTH_PW']);
     echo "\n{$GLOBALS['brb_ok']} passed, {$GLOBALS['brb_fail']} failed\n";

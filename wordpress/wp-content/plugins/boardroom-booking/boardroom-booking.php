@@ -2349,15 +2349,21 @@ add_action('wp_head', 'brb_staging_banner_css', 1);
 add_action('admin_head', 'brb_staging_banner_css', 1);
 add_action('wp_body_open', 'brb_staging_banner', 1);
 add_action('in_admin_header', 'brb_staging_banner', 1);
-function brb_staging_robots_txt($output, $public) {
+// Staging and other non-production hosts serve one fixed robots.txt that blocks
+// the whole site. It runs after Yoast's filter_robots (priority 99999), which
+// otherwise appends its own block with an empty "Disallow:" and a Sitemap line.
+function brb_staging_robots_body() {
+    return "User-agent: *\nDisallow: /\n";
+}
+function brb_staging_robots_priority() {
+    return 100000;
+}
+function brb_staging_robots_txt($output, $public = null) {
     unset($public);
     if (brb_is_production()) return $output;
-    if (!preg_match('/^Disallow:\s*\/\s*$/m', (string) $output)) {
-        $output = rtrim((string) $output) . "\nDisallow: /\n";
-    }
-    return $output;
+    return brb_staging_robots_body();
 }
-add_filter('robots_txt', 'brb_staging_robots_txt', 99, 2);
+add_filter('robots_txt', 'brb_staging_robots_txt', brb_staging_robots_priority(), 2);
 function brb_is_stripe_webhook_request() {
     $uri = (string) ($_SERVER['REQUEST_URI'] ?? '');
     $path = (string) parse_url($uri, PHP_URL_PATH);

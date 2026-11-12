@@ -562,7 +562,17 @@ add_filter('wpseo_schema_graph', function ($graph) {
 });
 add_filter('wpseo_robots_array', function ($robots) {
     if (!is_array($robots)) return $robots;
-    if (!function_exists('brb_is_production') || !brb_is_production()) return $robots;
+    if (!function_exists('brb_is_production')) return $robots;
+    if (!brb_is_production()) {
+        // Staging and other non-production hosts are never indexed, whatever
+        // Yoast or blog_public say.
+        // Preview limits only matter for indexed pages, so drop them here like
+        // Yoast does for its own noindex pages.
+        unset($robots['max-snippet'], $robots['max-image-preview'], $robots['max-video-preview']);
+        $robots['index'] = 'noindex';
+        $robots['follow'] = 'nofollow';
+        return $robots;
+    }
     $robots['index'] = 'index';
     if (($robots['follow'] ?? '') === 'nofollow') $robots['follow'] = 'follow';
     return $robots;
