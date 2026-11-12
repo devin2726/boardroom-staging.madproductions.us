@@ -1048,6 +1048,18 @@ try {
     $entity_opt['pay_instructions'] = '';
     update_option('brb_settings', $entity_opt);
     if (!is_wp_error($stale_id) && $stale_id) wp_delete_post((int) $stale_id, true);
+    $rentals_id = wp_insert_post(['post_type' => 'post', 'post_status' => 'publish', 'post_title' => 'Keys from Mad Rentals LLC', 'post_name' => 'entity-scrub-rentals-probe', 'post_excerpt' => 'Mad Rentals LLC handles keys.', 'post_content' => '<p>Pick up keys from Mad Rentals LLC before your event.</p>'], true);
+    if (!is_wp_error($rentals_id) && $rentals_id) update_post_meta((int) $rentals_id, '_yoast_wpseo_metadesc', 'Keys from Mad Rentals LLC.');
+    brb_scrub_other_entity_copy();
+    $rentals = (!is_wp_error($rentals_id) && $rentals_id) ? get_post((int) $rentals_id) : null;
+    $rentals_text = $rentals ? $rentals->post_title . ' ' . $rentals->post_excerpt . ' ' . $rentals->post_content . ' ' . (string) get_post_meta((int) $rentals_id, '_yoast_wpseo_metadesc', true) : '';
+    brb_t($rentals && !preg_match($other_entity, $rentals_text) && strpos($rentals->post_content, 'Pick up keys from Boardroom QC LLC') !== false && $rentals->post_title === 'Keys from Boardroom QC LLC' && $rentals->post_excerpt === 'Boardroom QC LLC handles keys.', 'the upgrade cleans a saved post that names only Mad Rentals LLC (title, excerpt, content and Yoast description)');
+    if (!is_wp_error($rentals_id) && $rentals_id) wp_delete_post((int) $rentals_id, true);
+    $rentals_title_id = wp_insert_post(['post_type' => 'post', 'post_status' => 'draft', 'post_title' => 'Mad Rentals LLC update', 'post_name' => 'entity-scrub-rentals-title-probe', 'post_excerpt' => 'From Mad Rentals LLC.', 'post_content' => '<p>No entity named in the body.</p>'], true);
+    brb_scrub_other_entity_copy();
+    $rentals_title = (!is_wp_error($rentals_title_id) && $rentals_title_id) ? get_post((int) $rentals_title_id) : null;
+    brb_t($rentals_title && $rentals_title->post_title === 'Boardroom QC LLC update' && $rentals_title->post_excerpt === 'From Boardroom QC LLC.', 'the upgrade cleans Mad Rentals LLC from a saved title and excerpt even when the body names no entity');
+    if (!is_wp_error($rentals_title_id) && $rentals_title_id) wp_delete_post((int) $rentals_title_id, true);
     $agreement_after = get_page_by_path('rental-agreement');
     brb_t($agreement_after && substr_count(html_entity_decode((string) $agreement_after->post_content, ENT_QUOTES), 'Mad Productions LLC') === 1, 'the entity scrub leaves the section 5 Released Parties definition in the stored agreement');
     $contact = get_page_by_path('contact');

@@ -1468,8 +1468,8 @@ function brb_scrub_other_entity_copy() {
     $agreement = get_page_by_path('rental-agreement');
     $skip = $agreement ? (int) $agreement->ID : 0;
     $rows = $wpdb->get_results($wpdb->prepare(
-        "SELECT ID, post_title, post_content, post_excerpt FROM {$wpdb->posts} WHERE post_type IN ('page','post') AND post_status IN ('publish','draft','pending','private','future') AND (LOWER(post_content) LIKE %s OR LOWER(post_content) LIKE %s OR LOWER(post_title) LIKE %s OR LOWER(post_excerpt) LIKE %s)",
-        $like[0], $like[1], $like[0], $like[0]
+        "SELECT ID, post_title, post_content, post_excerpt FROM {$wpdb->posts} WHERE post_type IN ('page','post') AND post_status IN ('publish','draft','pending','private','future') AND (LOWER(post_content) LIKE %s OR LOWER(post_content) LIKE %s OR LOWER(post_title) LIKE %s OR LOWER(post_title) LIKE %s OR LOWER(post_excerpt) LIKE %s OR LOWER(post_excerpt) LIKE %s)",
+        $like[0], $like[1], $like[0], $like[1], $like[0], $like[1]
     ));
     foreach ((array) $rows as $p) {
         if ((int) $p->ID === $skip) continue;
