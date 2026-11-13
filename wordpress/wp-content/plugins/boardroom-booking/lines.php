@@ -248,6 +248,12 @@ function brb_checkout_lines($b) {
     $damage_cents = 0;
     $deposit_left = max(0, round((float) $b->deposit_due - (float) $b->amount_paid, 2));
     $damage_left = brb_damage_left($b);
+    if ($deposit_left > 0.009 && brb_price_is_set($b)) {
+        // Reserve stage: the same deposit and damage figures as the admin Money box.
+        $money = brb_booking_money($b);
+        $deposit_left = (float) $money['deposit_left'];
+        $damage_left = (float) $money['damage_left'];
+    }
     if ($deposit_left > 0.009) {
         $o = brb_opt();
         $name = 'Deposit';

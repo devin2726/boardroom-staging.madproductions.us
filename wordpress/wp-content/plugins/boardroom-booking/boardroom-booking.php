@@ -2,11 +2,11 @@
 /**
  * Plugin Name: Boardroom Booking
  * Description: Self-hosted direct booking for The Boardroom — full-day blocks, availability calendar, agreed prices, approval before payment, blackout dates, and emails.
- * Version: 2.5.76
+ * Version: 2.5.77
  * Author: Boardroom QC LLC
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.5.76');
+define('BRB_VER', '2.5.77');
 function brb_reserve_explainer_steps() {
     return [
         'Pick a date. Prices are on the calendar.',
@@ -2216,6 +2216,13 @@ function brb_payment_lines($b) {
         $deposit_left = max(0, round((float) $b->deposit_due - (float) $b->amount_paid, 2));
         $damage_left = brb_damage_left($b);
         $due_now = round(brb_amount_to_bring($b) + $damage_left, 2);
+        if ($deposit_left > 0.009) {
+            // Reserve stage: same figures as the admin Money box.
+            $money = brb_booking_money($b);
+            $deposit_left = (float) $money['deposit_left'];
+            $damage_left = (float) $money['damage_left'];
+            $due_now = (float) $money['due_now'];
+        }
         $lines[] = brb_check_sentence('a check for ' . brb_money($due_now));
         $lines[] = brb_appointment_line();
         $lines[] = 'Write booking reference ' . $ref . ' on the memo line.';
@@ -2342,6 +2349,36 @@ function brb_booking_money($b) {
         'card_fee' => $card_fee,
         'rows' => $rows,
     ];
+}
+/**
+ * Guest-facing money rows. Every value comes from brb_booking_money(), the
+ * same helper behind the admin Money box, so guests see the same Rental,
+ * Refundable damage deposit, Due now to reserve, and Balance figures.
+ * Pass ['paid' => true] to add what has been paid toward the rental.
+ */
+function brb_guest_money_rows($b, $opts = []) {
+    $m = brb_booking_money($b);
+    if (!$m['priced']) return ['Price' => 'Price to be confirmed'];
+    $rows = ['Rental' => $m['rows']['Rental']];
+    if (!empty($opts['paid'])) $rows['Paid'] = brb_money(round((float) $b->amount_paid, 2));
+    $rows['Refundable damage deposit'] = $m['rows']['Refundable damage deposit'];
+    $rows['Due now to reserve'] = $m['rows']['Due now to reserve'];
+    $rows['Balance'] = $m['rows']['Balance'];
+    $due = (string) $m['rows']['Balance due'];
+    if ($due !== '' && $due !== 'Price to be confirmed') $rows['Balance due'] = $due;
+    return $rows;
+}
+function brb_guest_money_text($b, $opts = []) {
+    $out = [];
+    foreach (brb_guest_money_rows($b, $opts) as $label => $value) $out[] = $label . ': ' . $value;
+    return implode("\n", $out);
+}
+function brb_guest_money_html($b, $opts = []) {
+    $html = '<ul class="brb-money">';
+    foreach (brb_guest_money_rows($b, $opts) as $label => $value) {
+        $html .= '<li><strong>' . esc_html($label) . ':</strong> ' . esc_html($value) . '</li>';
+    }
+    return $html . '</ul>';
 }
 function brb_date_hold_state($b) {
     $status = (string) ($b->status ?? '');
@@ -2773,7 +2810,8 @@ function brb_send_request_emails($b) {
     $screen = implode("\n", brb_screening_lines($b));
     $facts = brb_approval_line() . "\n\n" . brb_request_open_line() . "\n\n" . brb_reserved_line() . "\n\n" . brb_deposit_line() . "\n\n" . brb_not_held_line();
     $detail = "When: " . brb_when($b) . "\n" . brb_event_type_line($b) . "Estimated Guests: {$b->guests}\n" . ($screen !== '' ? $screen . "\n" : '') . "Price: {$price}\n";
-    $body = brb_guest_hello_line() . "\n\n" . brb_guest_review_line() . "\n\n{$detail}\n" . brb_no_overnight_line() . "\n" . brb_guest_out_line() . "\n" . brb_guest_free_line() . "\n" . brb_hours_line() . "\n\nCancellation policy:\n{$o['policy']}\n\nView your request: " . brb_guest_link($b) . "\n";
+    $guest_detail = brb_price_is_set($b) ? str_replace("Price: {$price}\n", brb_guest_money_text($b) . "\n", $detail) : $detail;
+    $body = brb_guest_hello_line() . "\n\n" . brb_guest_review_line() . "\n\n{$guest_detail}\n" . brb_no_overnight_line() . "\n" . brb_guest_out_line() . "\n" . brb_guest_free_line() . "\n" . brb_hours_line() . "\n\nCancellation policy:\n{$o['policy']}\n\nView your request: " . brb_guest_link($b) . "\n";
     brb_mail($b->email, 'We received your Boardroom request (' . $ref . ')', $body, brb_guest_reply_to());
     $admin = "A new request is pending review. The date is not held.\n\nReference: {$ref}\nWhen: " . brb_when($b) . "\nGuest: {$b->name}\nEmail: {$b->email}\nPhone: {$b->phone}\n" . brb_event_type_line($b) . "Guests: {$b->guests}\n" . ($screen !== '' ? $screen . "\n" : '') . "Price: {$price}\nSource: " . brb_source_label($b->source) . "\nNotes: {$b->notes}\n\n" . admin_url('admin.php?page=brb&booking=' . (int) $b->id) . "\n";
     brb_mail_staff('Request pending review ' . $ref . ' – ' . $b->name, $admin, $b->email);
@@ -2994,7 +3032,7 @@ function brb_approve_guest_body($b) {
     $guest_facts = implode("\n\n", array_values(array_filter(brb_payment_lines($b), function ($line) {
         return !in_array($line, [brb_not_held_line(), brb_reserved_line(), brb_approval_line(), brb_request_open_line()], true);
     })));
-    return brb_guest_hello_line() . "\n\nYour request is approved.\n\n" . brb_guest_review_line() . "\n\n" . $guest_facts . "\n\n" . brb_guest_out_line() . "\n" . brb_guest_free_line() . "\n\nWhen: " . brb_when($b) . "\n" . brb_event_type_line($b) . "Estimated Guests: {$b->guests}\nReference: {$ref}\n\nView your booking: " . brb_guest_link($b) . "\n\n" . brb_checklist_plain();
+    return brb_guest_hello_line() . "\n\nYour request is approved.\n\n" . brb_guest_review_line() . "\n\n" . brb_guest_money_text($b) . "\n\n" . $guest_facts . "\n\n" . brb_guest_out_line() . "\n" . brb_guest_free_line() . "\n\nWhen: " . brb_when($b) . "\n" . brb_event_type_line($b) . "Estimated Guests: {$b->guests}\nReference: {$ref}\n\nView your booking: " . brb_guest_link($b) . "\n\n" . brb_checklist_plain();
 }
 function brb_approve_preview_body($b) {
     $preview = clone $b;
@@ -3461,8 +3499,7 @@ function brb_set_agreed_price($booking_id, $amount, $notify = true) {
 }
 function brb_price_guest_body($b) {
     $ref = brb_ref($b);
-    $bring = brb_money(brb_amount_to_bring($b));
-    $body = brb_guest_hello_line() . "\n\nThe price for your Boardroom date is confirmed.\n\nAgreed price: " . brb_money($b->total) . "\nDeposit: {$bring}\n\n" . brb_guest_review_line() . "\n\n";
+    $body = brb_guest_hello_line() . "\n\nThe price for your Boardroom date is confirmed.\n\n" . brb_guest_money_text($b) . "\n\n" . brb_guest_review_line() . "\n\n";
     if (in_array($b->status, ['approved', 'held', 'deposit_paid'], true)) {
         $body .= implode("\n\n", brb_payment_lines($b)) . "\n\n";
     } else {
@@ -3992,22 +4029,11 @@ function brb_view_confirmation($token) {
         echo esc_html($summary);
       ?></p>
       <?php if ($priced): ?>
-      <p>Total <?php echo esc_html(brb_money($b->total)); ?> · Paid <?php echo esc_html(brb_money($b->amount_paid)); ?> · Balance <?php echo esc_html(brb_money(max(0, $paid_off))); ?></p>
+      <?php echo brb_guest_money_html($b, ['paid' => true]); ?>
       <?php
-        $damage_due = round((float) ($b->damage_deposit ?? 0), 2);
-        $damage_got = round((float) ($b->damage_paid ?? 0), 2);
         $card_fee = 0.0;
         foreach ($recorded as $pay) {
             if (($pay->method ?? '') === 'card') $card_fee += (float) ($pay->fee ?? 0);
-        }
-        if ($damage_due > 0.009) {
-            if ($damage_got + 0.009 >= $damage_due) {
-                echo '<p>The refundable damage deposit of ' . esc_html(brb_money($damage_due)) . ' was received.</p>';
-            } elseif ($damage_got > 0.009) {
-                echo '<p>The refundable damage deposit of ' . esc_html(brb_money($damage_due)) . ' is partly paid. ' . esc_html(brb_money(max(0, round($damage_due - $damage_got, 2)))) . ' is still due.</p>';
-            } else {
-                echo '<p>The refundable damage deposit of ' . esc_html(brb_money($damage_due)) . ' is still due.</p>';
-            }
         }
         if ($card_fee > 0.009) {
             echo '<p>The card processing fee of ' . esc_html(brb_money($card_fee)) . ' was charged separately and is not part of this balance.</p>';
