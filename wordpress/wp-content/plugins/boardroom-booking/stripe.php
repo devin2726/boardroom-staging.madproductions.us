@@ -49,7 +49,13 @@ function brb_card_fee_cents($base_cents, $percent = null) {
 function brb_amount_due_now($b) {
     if (!$b || !brb_price_is_set($b)) return 0.0;
     if (!in_array($b->status, ['approved', 'held', 'deposit_paid'], true)) return 0.0;
-    $due = round((float) brb_amount_to_bring($b) + brb_damage_left($b), 2);
+    $money = brb_booking_money($b);
+    if ((float) $money['deposit_left'] > 0.009) {
+        // Reserve stage: the admin Money box "Due now to reserve" figure.
+        $due = (float) $money['due_now'];
+    } else {
+        $due = round((float) brb_amount_to_bring($b) + brb_damage_left($b), 2);
+    }
     return $due > 0.009 ? $due : 0.0;
 }
 function brb_pay_signature($token) {

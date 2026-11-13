@@ -454,8 +454,8 @@ try {
         brb_t(abs(brb_amount_due_now($deposit_paid) - 100) < 0.001, 'after the deposit the next card amount is the remaining balance');
         $_GET = ['br_token' => $second_booking->token, 'card' => 'pending'];
         $after_card = do_shortcode('[boardroom_booking]');
-        brb_t(strpos($after_card, 'Total $200.00') !== false && strpos($after_card, 'Paid $100.00') !== false && strpos($after_card, 'Balance $100.00') !== false, 'the card return page keeps the rental total, paid amount, and balance');
-        brb_t(strpos($after_card, 'The refundable damage deposit of $250.00 was received.') !== false && strpos($after_card, 'is still due') === false, 'the card return page says the refundable damage deposit was received');
+        brb_t(strpos($after_card, '<strong>Rental:</strong> $200.00') !== false && strpos($after_card, '<strong>Paid:</strong> $100.00') !== false && strpos($after_card, '<strong>Balance:</strong> $100.00') !== false, 'the card return page keeps the rental total, paid amount, and balance');
+        brb_t(strpos($after_card, '<strong>Refundable damage deposit:</strong> $250.00 paid') !== false && strpos($after_card, 'unpaid') === false && strpos($after_card, '<strong>Due now to reserve:</strong> Deposit received') !== false, 'the card return page says the refundable damage deposit was received');
         brb_t(strpos($after_card, 'The card processing fee of $10.50 was charged separately and is not part of this balance.') !== false, 'the card return page says the card fee was charged separately');
         brb_t(strpos($after_card, 'the receipt is sent when the payment is confirmed') !== false, 'a deposit that is not the full rental still shows the card confirmation note');
         ob_start();
