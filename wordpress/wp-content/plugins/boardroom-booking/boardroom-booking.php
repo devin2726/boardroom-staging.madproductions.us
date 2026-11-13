@@ -62,6 +62,8 @@ require_once __DIR__ . '/stripe.php';
 require_once __DIR__ . '/chat.php';
 require_once __DIR__ . '/lines.php';
 require_once __DIR__ . '/reports.php';
+require_once __DIR__ . '/llms.php';
+require_once __DIR__ . '/followup.php';
 define('BRB_URL', plugin_dir_url(__FILE__));
 
 function brb_table() { global $wpdb; return $wpdb->prefix . 'br_bookings'; }
@@ -1004,6 +1006,8 @@ function brb_install_tables() {
     brb_ensure_column($t, 'checklist_reminded', 'datetime NULL DEFAULT NULL');
     brb_ensure_column($t, 'damage_paid', 'decimal(10,2) NOT NULL DEFAULT 0.00');
     brb_ensure_column($t, 'damage_refunded', 'tinyint(1) NOT NULL DEFAULT 0');
+    // Staff follow-up log (followup.php). Separate from status and audit_log.
+    brb_ensure_column($t, 'follow_up_log', 'longtext NULL');
     brb_install_line_table();
     brb_install_hold_table();
     $p = brb_pay_table();

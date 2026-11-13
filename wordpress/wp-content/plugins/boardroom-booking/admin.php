@@ -644,11 +644,12 @@ function brb_admin_list() {
         elseif ($orderby === 'status') $key = strtolower((string) ($item['status'] ?? ''));
         elseif ($orderby === 'total') $key = $item['total'];
         elseif ($orderby === 'paid') $key = $item['amount_paid'];
+        elseif ($orderby === 'followup') $key = ($item['kind'] ?? '') === 'booking' ? brb_followup_sort_key($item['row']) : '';
         else $key = (string) ($item['start_dt'] ?? '');
         $keyed[] = [$item, $key, $i];
     }
     usort($keyed, function ($a, $b) use ($dir, $orderby) {
-        $money = in_array($orderby, ['total', 'paid', 'id'], true);
+        $money = in_array($orderby, ['total', 'paid', 'id', 'followup'], true);
         $cal_a = $a[0]['kind'] === 'calendar' && $money;
         $cal_b = $b[0]['kind'] === 'calendar' && $money;
         if ($cal_a && $cal_b) return $a[2] <=> $b[2];
@@ -708,14 +709,14 @@ function brb_admin_list() {
         echo '</div></div>';
     };
     $nav('top');
-    $head = '<tr><td class="manage-column column-cb check-column"><input type="checkbox" class="brb-select-all" aria-label="Select all bookings"></td><th>' . $sort_link('id', '#') . '</th><th>' . $sort_link('when', 'When') . '</th><th>' . $sort_link('guest', 'Guest') . '</th><th>' . $sort_link('source', 'Source') . '</th><th>' . $sort_link('total', 'Total') . '</th><th>' . $sort_link('paid', 'Paid') . '</th><th>Balance</th><th>' . $sort_link('status', 'Status') . '</th><th>Reserved</th><th></th></tr>';
+    $head = '<tr><td class="manage-column column-cb check-column"><input type="checkbox" class="brb-select-all" aria-label="Select all bookings"></td><th>' . $sort_link('id', '#') . '</th><th>' . $sort_link('when', 'When') . '</th><th>' . $sort_link('guest', 'Guest') . '</th><th>' . $sort_link('source', 'Source') . '</th><th>' . $sort_link('total', 'Total') . '</th><th>' . $sort_link('paid', 'Paid') . '</th><th>Balance</th><th>' . $sort_link('status', 'Status') . '</th><th>' . $sort_link('followup', 'Follow-up') . '</th><th>Reserved</th><th></th></tr>';
     echo '<table class="widefat"><thead>' . $head . '</thead><tbody>';
-    if (!$display) echo '<tr><td colspan="11">' . esc_html($kind === 'calendar' ? 'No calendar entries.' : 'No bookings yet.') . '</td></tr>';
+    if (!$display) echo '<tr><td colspan="12">' . esc_html($kind === 'calendar' ? 'No calendar entries.' : 'No bookings yet.') . '</td></tr>';
     foreach ($display as $item) {
         if (($item['kind'] ?? '') === 'calendar') {
             $guest = !empty($item['hide_name']) ? 'Date block' : (string) $item['name'];
             printf(
-                '<tr class="brb-cal-list-row"><th scope="row" class="check-column"></th><td>—</td><td><a href="%s">%s</a></td><td><a href="%s">%s</a></td><td>%s</td><td>—</td><td>—</td><td>—</td><td><span class="brb-badge">%s</span></td><td>Yes</td><td></td></tr>',
+                '<tr class="brb-cal-list-row"><th scope="row" class="check-column"></th><td>—</td><td><a href="%s">%s</a></td><td><a href="%s">%s</a></td><td>%s</td><td>—</td><td>—</td><td>—</td><td><span class="brb-badge">%s</span></td><td>—</td><td>Yes</td><td></td></tr>',
                 esc_url($item['href']),
                 esc_html(brb_admin_list_calendar_when($item['start_dt'], $item['end_dt'])),
                 esc_url($item['href']),
@@ -746,7 +747,7 @@ function brb_admin_list() {
             $dup_note .= '<br><strong class="brb-review">Needs staff review — payment received for an unavailable date</strong>';
         }
         printf(
-            '<tr><th scope="row" class="check-column"><input type="checkbox" class="brb-row-check" name="booking_ids[]" value="%d" aria-label="%s"></th><td>%s</td><td>%s</td><td>%s<br><small>%s %s</small></td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td><span class="brb-badge %s">%s</span></td><td>%s</td><td><a class="button button-small" href="%s">Open</a></td></tr>',
+            '<tr><th scope="row" class="check-column"><input type="checkbox" class="brb-row-check" name="booking_ids[]" value="%d" aria-label="%s"></th><td>%s</td><td>%s</td><td>%s<br><small>%s %s</small></td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td><span class="brb-badge %s">%s</span></td><td>%s</td><td>%s</td><td><a class="button button-small" href="%s">Open</a></td></tr>',
             (int) $b->id,
             esc_attr('Select ' . brb_ref($b)),
             esc_html(brb_ref($b)),
@@ -760,6 +761,7 @@ function brb_admin_list() {
             esc_html($set ? brb_money($balance) : 'Price to be confirmed'),
             esc_attr($b->status),
             esc_html(brb_status_label($b->status)),
+            brb_followup_list_cell($b),
             esc_html($until),
             esc_url(admin_url('admin.php?page=brb&booking=' . (int) $b->id))
         );
@@ -905,6 +907,7 @@ function brb_admin_detail($id) {
         echo '</td></tr>';
     }
     echo '</tbody></table>';
+    echo brb_followup_box_html($b);
     $money = brb_booking_money($b);
     echo '<h2>Money</h2><table class="widefat" style="max-width:760px"><tbody>';
     foreach ($money['rows'] as $label => $val) {
