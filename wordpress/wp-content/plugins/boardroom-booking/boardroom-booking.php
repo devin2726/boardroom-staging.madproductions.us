@@ -2,11 +2,11 @@
 /**
  * Plugin Name: Boardroom Booking
  * Description: Self-hosted direct booking for The Boardroom — full-day blocks, availability calendar, agreed prices, approval before payment, blackout dates, and emails.
- * Version: 2.5.74
+ * Version: 2.5.75
  * Author: Boardroom QC LLC
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.5.74');
+define('BRB_VER', '2.5.75');
 function brb_reserve_explainer_steps() {
     return [
         'Pick a date. Prices are on the calendar.',
@@ -62,6 +62,7 @@ require_once __DIR__ . '/stripe.php';
 require_once __DIR__ . '/chat.php';
 require_once __DIR__ . '/lines.php';
 require_once __DIR__ . '/reports.php';
+require_once __DIR__ . '/llms.php';
 define('BRB_URL', plugin_dir_url(__FILE__));
 
 function brb_table() { global $wpdb; return $wpdb->prefix . 'br_bookings'; }
