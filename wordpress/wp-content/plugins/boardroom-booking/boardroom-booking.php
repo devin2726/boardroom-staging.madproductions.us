@@ -62,6 +62,7 @@ require_once __DIR__ . '/stripe.php';
 require_once __DIR__ . '/chat.php';
 require_once __DIR__ . '/lines.php';
 require_once __DIR__ . '/reports.php';
+require_once __DIR__ . '/llms.php';
 require_once __DIR__ . '/followup.php';
 define('BRB_URL', plugin_dir_url(__FILE__));
 
