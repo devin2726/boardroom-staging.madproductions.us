@@ -3,7 +3,7 @@ add_action('after_setup_theme', function () {
     add_theme_support('title-tag'); add_theme_support('post-thumbnails'); add_theme_support('custom-logo');
     register_nav_menus(['primary' => 'Primary', 'footer' => 'Footer']);
 });
-function br_ver() { return '1.2.47'; }
+function br_ver() { return '1.2.48'; }
 add_action('wp_enqueue_scripts', function () {
     wp_enqueue_style('boardroom', get_stylesheet_uri(), [], br_ver());
     wp_enqueue_script('boardroom', get_template_directory_uri() . '/assets/site.js', [], br_ver(), true);
@@ -431,11 +431,15 @@ function br_seo_pages() {
         'rental-checklist' => ['title' => 'Rental Checklist | The Boardroom, ' . $place, 'description' => 'What to do before and after an event at The Boardroom in Moline, IL, including setup, cleanup, and house rules.'],
         'contact' => ['title' => 'Contact The Boardroom | ' . $place, 'description' => 'Email boardroomqc@gmail.com or use the contact form to ask about The Boardroom in Moline, IL.'],
         'gallery' => ['title' => 'Photo Gallery | The Boardroom, ' . $place, 'description' => 'Photos of The Boardroom, a party and event venue in Moline, IL, in the Quad Cities.'],
+        'blog' => ['title' => 'Event Planning Tips & Guides | The Boardroom, Moline IL', 'description' => 'Event planning tips and guides from The Boardroom in Moline, IL: party checklists, timelines, budgets, and venue advice for hosts across the Quad Cities.'],
         'holiday-party-venue-quad-cities' => ['title' => '', 'description' => 'Planning a holiday party in the Quad Cities? The Boardroom in Moline, IL hosts up to 80 guests. See open dates and pricing on our calendar.'],
     ];
 }
 function br_seo_key() {
-    if (is_front_page() || is_home()) return 'home';
+    if (is_front_page()) return 'home';
+    // The posts page (/blog/) is is_home() but not the front page. It gets
+    // its own title and description instead of the homepage's.
+    if (is_home()) return 'blog';
     $post = get_queried_object();
     $slug = ($post && isset($post->post_name)) ? (string) $post->post_name : '';
     $pages = br_seo_pages();
@@ -450,9 +454,36 @@ function br_seo_row() {
     $pages = br_seo_pages();
     return $pages[$key] ?? null;
 }
+function br_seo_url($key) {
+    if ($key === 'home') return home_url('/');
+    if ($key === 'blog') {
+        $blog_id = (int) get_option('page_for_posts');
+        $link = $blog_id ? get_permalink($blog_id) : '';
+        return $link ? $link : home_url('/blog/');
+    }
+    return home_url('/' . $key . '/');
+}
+// The post or page whose own Yoast fields apply to this request: the posts
+// page on /blog/, or the queried post on a single post.
+function br_yoast_own_id() {
+    if (is_front_page()) return 0;
+    if (is_home()) return (int) get_option('page_for_posts');
+    if (function_exists('is_singular') && is_singular('post')) return (int) get_queried_object_id();
+    return 0;
+}
+function br_yoast_own_meta($field) {
+    $id = br_yoast_own_id();
+    if (!$id) return '';
+    return trim((string) get_post_meta($id, '_yoast_wpseo_' . $field, true));
+}
 function br_yoast_document_title($fallback) {
+    // A title typed into Yoast for /blog/ or a blog post wins; Yoast already
+    // put it in $fallback.
+    if (br_yoast_own_meta('title') !== '') return $fallback;
     $row = br_seo_row();
     if ($row && ($row['title'] ?? '') !== '') return $row['title'];
+    // Blog posts keep Yoast's own title (its post title template).
+    if (function_exists('is_singular') && is_singular('post')) return $fallback;
     $post = get_queried_object();
     if ($post && !empty($post->post_title) && ($row || (function_exists('is_singular') && is_singular()))) {
         return $post->post_title . ' – ' . get_bloginfo('name', 'display');
@@ -460,6 +491,7 @@ function br_yoast_document_title($fallback) {
     return $fallback;
 }
 function br_yoast_meta_description($fallback) {
+    if (br_yoast_own_meta('metadesc') !== '') return $fallback;
     $row = br_seo_row();
     if ($row && ($row['description'] ?? '') !== '') return $row['description'];
     return $fallback;
@@ -526,7 +558,7 @@ add_action('wp_head', function () {
     if ($description === '') return;
     echo '<meta name="description" content="' . esc_attr($description) . '">' . "\n";
     if (($row['title'] ?? '') === '') return;
-    $url = $key === 'home' ? home_url('/') : home_url('/' . $key . '/');
+    $url = br_seo_url($key);
     $image = br_share_image();
     echo '<meta property="og:type" content="website">' . "\n";
     echo '<meta property="og:title" content="' . esc_attr($row['title']) . '">' . "\n";

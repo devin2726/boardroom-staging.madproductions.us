@@ -70,7 +70,7 @@ $created = [];
 $snapshot = get_option('brb_settings');
 
 try {
-    brb_t(get_option('brb_version') === '2.5.73', 'plugin storage version is 2.5.73');
+    brb_t(get_option('brb_version') === '2.5.74', 'plugin storage version is 2.5.74');
     putenv('BRB_ENV=production');
     $_ENV['BRB_ENV'] = 'production';
     $_SERVER['BRB_ENV'] = 'production';
@@ -395,6 +395,8 @@ try {
     $saved_the = $wp_the_query;
     foreach (br_seo_pages() as $slug => $seo) {
         if (($seo['title'] ?? '') === '') continue;
+        // /blog/ is the posts page, not a plain page; tests/blog-seo.php covers it.
+        if ($slug === 'blog') continue;
         if ($slug === 'home') {
             $front = (int) get_option('page_on_front');
             $q = $front ? new WP_Query(['page_id' => $front]) : new WP_Query(['post_type' => 'page', 'pagename' => 'home']);
