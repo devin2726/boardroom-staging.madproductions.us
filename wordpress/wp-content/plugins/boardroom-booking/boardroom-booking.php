@@ -2,11 +2,11 @@
 /**
  * Plugin Name: Boardroom Booking
  * Description: Self-hosted direct booking for The Boardroom — full-day blocks, availability calendar, agreed prices, approval before payment, blackout dates, and emails.
- * Version: 2.5.72
+ * Version: 2.5.73
  * Author: Boardroom QC LLC
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.5.72');
+define('BRB_VER', '2.5.73');
 function brb_reserve_explainer_steps() {
     return [
         'Pick a date. Prices are on the calendar.',
@@ -179,7 +179,7 @@ function brb_defaults() {
         'mail_from' => 'boardroomqc@gmail.com',
         'mail_from_name' => 'The Boardroom',
         'mail_reply_to' => 'boardroomqc@gmail.com',
-        'inquiry_cc' => 'contiveros8@gmail.com',
+        'inquiry_cc' => '',
         'ga_measurement_id' => '',
         'ga_property_id' => '',
         'weekly_summary' => '0',
@@ -1527,6 +1527,7 @@ function brb_maybe_upgrade() {
     brb_import_named_blackouts();
     brb_refresh_checklist_copy();
     brb_migrate_book_slug();
+    brb_drop_blocked_inquiry_cc();
     wp_clear_scheduled_hook('brb_cron_expire');
     update_option('brb_version', BRB_VER);
 }
@@ -2579,26 +2580,39 @@ function brb_gmail_compose_url($booking) {
         . '&su=' . rawurlencode(brb_guest_email_subject($booking))
         . '&body=' . rawurlencode(brb_guest_email_body($booking));
 }
+function brb_blocked_inquiry_cc() {
+    return 'contiveros8@gmail.com';
+}
+function brb_is_blocked_inquiry_cc($email) {
+    return strcasecmp(sanitize_email((string) $email), brb_blocked_inquiry_cc()) === 0;
+}
 function brb_inquiry_cc_list() {
-    return brb_parse_email_list(brb_opt('inquiry_cc'))['valid'];
+    $out = [];
+    foreach (brb_parse_email_list(brb_opt('inquiry_cc'))['valid'] as $one) {
+        if (brb_is_blocked_inquiry_cc($one)) continue;
+        $out[] = $one;
+    }
+    return $out;
 }
-function brb_ensure_inquiry_cc() {
-    if (get_option('brb_inquiry_cc_seeded') === '1') return;
-    $email = 'contiveros8@gmail.com';
+function brb_drop_blocked_inquiry_cc() {
     $stored = get_option('brb_settings', []);
-    if (!is_array($stored)) $stored = [];
-    $current = (string) ($stored['inquiry_cc'] ?? '');
-    $have = false;
+    if (!is_array($stored) || !array_key_exists('inquiry_cc', $stored)) return;
+    $current = (string) $stored['inquiry_cc'];
+    $kept = [];
+    $found = false;
     foreach (brb_parse_email_list($current)['valid'] as $one) {
-        if (strcasecmp($one, $email) === 0) $have = true;
+        if (brb_is_blocked_inquiry_cc($one)) {
+            $found = true;
+            continue;
+        }
+        $kept[] = $one;
     }
-    if (!$have) {
-        $stored['inquiry_cc'] = trim($current) === '' ? $email : rtrim($current) . "\n" . $email;
-        update_option('brb_settings', $stored);
-    }
-    update_option('brb_inquiry_cc_seeded', '1');
+    if (!$found && stripos($current, brb_blocked_inquiry_cc()) === false) return;
+    $stored['inquiry_cc'] = implode("\n", $kept);
+    update_option('brb_settings', $stored);
+    if (get_option('brb_inquiry_cc_seeded', null) !== null) delete_option('brb_inquiry_cc_seeded');
 }
-add_action('init', 'brb_ensure_inquiry_cc', 30);
+
 function brb_smtp_config() {
     $user = brb_env('BRB_SMTP_USER');
     $pass = brb_env('BRB_SMTP_PASS');
@@ -2706,14 +2720,14 @@ add_filter('wp_mail', function ($atts) {
 });
 function brb_mail($to, $subject, $body, $reply = '', $from = '', $cc = []) {
     $to = sanitize_email($to);
-    if (!$to || !is_email($to)) return false;
+    if (!$to || !is_email($to) || brb_is_blocked_inquiry_cc($to)) return false;
     if (!$from || !is_email($from)) $from = brb_mail_from_address();
     $headers = ['Content-Type: text/plain; charset=UTF-8'];
     $headers[] = 'From: ' . brb_mail_from_name() . ' <' . $from . '>';
     if ($reply && is_email($reply)) $headers[] = 'Reply-To: ' . $reply;
     foreach ((array) $cc as $copy) {
         $copy = sanitize_email($copy);
-        if (is_email($copy) && strcasecmp($copy, $to) !== 0) $headers[] = 'Cc: ' . $copy;
+        if (is_email($copy) && strcasecmp($copy, $to) !== 0 && !brb_is_blocked_inquiry_cc($copy)) $headers[] = 'Cc: ' . $copy;
     }
     return wp_mail($to, $subject, $body, $headers);
 }
