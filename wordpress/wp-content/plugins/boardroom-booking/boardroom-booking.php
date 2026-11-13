@@ -2,11 +2,11 @@
 /**
  * Plugin Name: Boardroom Booking
  * Description: Self-hosted direct booking for The Boardroom — full-day blocks, availability calendar, agreed prices, approval before payment, blackout dates, and emails.
- * Version: 2.5.77
+ * Version: 2.5.78
  * Author: Boardroom QC LLC
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.5.77');
+define('BRB_VER', '2.5.78');
 function brb_reserve_explainer_steps() {
     return [
         'Pick a date. Prices are on the calendar.',
@@ -717,7 +717,7 @@ function brb_checklist_default() {
         'Tickets, cover charges, paid admission, door fees, and ticket or merchandise sales aren\'t allowed either.',
         'Vaping leaves a residue. All smoking is outside.',
         'Balloons are fine, no glitter.',
-        'Please clean up and take the garbage to the dumpster.',
+        'Please clean up, bag the garbage and take it to the dumpster, and take all decorations and belongings with you. Cleanup we have to do or hire out comes out of the damage deposit.',
         'Renters insurance covering your event is required. We may ask for proof before giving you access.',
         'Vendors (caterer, DJ, bartender) send proof of insurance at least 7 days before.',
         'The minimum host age is 25.',
@@ -736,6 +736,9 @@ function brb_checklist_policy_text($text) {
         }
         if ($line === 'If you paid the damage deposit by card, it is refunded to the same card after the event once the space is checked.') {
             $line = 'The damage deposit is refunded after the event, once the space is checked, by your original payment method: through Stripe for card payments (less the card processing fee) or by check.';
+        }
+        if ($line === 'Please clean up and take the garbage to the dumpster.') {
+            $line = 'Please clean up, bag the garbage and take it to the dumpster, and take all decorations and belongings with you. Cleanup we have to do or hire out comes out of the damage deposit.';
         }
         if (strpos($line, 'The stovetop cannot be used.') !== false) {
             $line = str_replace('The stovetop cannot be used.', 'The microwave, blender and food warmers are fine. The stovetops and oven can\'t be used.', $line);
@@ -1199,8 +1202,8 @@ function brb_faq_markup() {
 <details><summary>What is the cancellation policy?</summary><p>If we receive written cancellation 60 or more days before the event, the deposit is refundable, less any non-refundable processing charges (including the 3% card processing fee) and costs already incurred. It is not refundable if cancellation is received less than 60 days before the event. See the <a href="/terms/">Rental Terms</a>. If a summary and the signed agreement differ, the signed agreement controls.</p></details>
 <details><summary>What if there is bad weather?</summary><p>If we have to cancel because of severe weather or another emergency outside our control, such as a severe storm, a snowstorm, or a power outage, the payment is refundable. A personal issue, such as a flat tire, is not refundable.</p></details>
 <details><summary>What happens if something gets damaged?</summary><p>The damage deposit covers cleaning and damage. Anything beyond that deposit may be charged. See the <a href="/terms/">Terms</a>.</p></details>
-<details><summary>Is there a damage deposit?</summary><p>The refundable damage deposit is a flat $250. It is charged with the booking deposit and mainly covers cleaning. A dumpster is on site. After the event, once the space is checked, it's refunded by your original payment method: through Stripe for card payments (less the card processing fee) or by check.</p></details>
-<details><summary>What are our responsibilities before we leave?</summary><p>Please leave it like you got it. Clean and tidy the space, and take the garbage out. Another event is often booked the following day, and a ready room lets the next hosts begin on time.</p></details>
+<details><summary>Is there a damage deposit?</summary><p>The refundable damage deposit is a flat $250. It is charged with the booking deposit and mainly covers cleaning. A dumpster is on site. After the event, once the space is checked, it's refunded by your original payment method: through Stripe for card payments (less the card processing fee) or by check. If the space needs a cleaning crew, trash or debris removal, or pickup of items left behind, those costs come out of the deposit, and anything beyond it may be charged.</p></details>
+<details><summary>What are our responsibilities before we leave?</summary><p>Please leave it like you got it. Clean and tidy the space, and take the garbage out. Bag the trash for the dumpster, take your decorations and belongings with you, and wipe up any spills. Another event is often booked the following day, and a ready room lets the next hosts begin on time.</p></details>
 
 <h2>Facilities</h2>
 <details><summary>Is parking available?</summary><p>Yes. Free parking on premises, with space for 40 to 50 cars.</p></details>
