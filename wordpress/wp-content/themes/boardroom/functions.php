@@ -3,7 +3,7 @@ add_action('after_setup_theme', function () {
     add_theme_support('title-tag'); add_theme_support('post-thumbnails'); add_theme_support('custom-logo');
     register_nav_menus(['primary' => 'Primary', 'footer' => 'Footer']);
 });
-function br_ver() { return '1.2.48'; }
+function br_ver() { return '1.2.49'; }
 add_action('wp_enqueue_scripts', function () {
     wp_enqueue_style('boardroom', get_stylesheet_uri(), [], br_ver());
     wp_enqueue_script('boardroom', get_template_directory_uri() . '/assets/site.js', [], br_ver(), true);
@@ -424,13 +424,13 @@ function br_seo_pages() {
     return [
         'home' => ['title' => 'The Boardroom | ' . $place, 'description' => 'The Boardroom is a party and event venue in Moline, IL, in the Quad Cities. Prices show on the calendar; nothing is charged until we approve your request.'],
         'reserve-the-boardroom-quad-cities' => ['title' => 'Book The Boardroom | ' . $place, 'description' => 'Request a date at The Boardroom in Moline. The price shows on the calendar. Nothing is charged until we approve the booking and email a payment link. Pay 50% plus the $250 damage deposit.'],
-        'faq' => ['title' => 'FAQ | The Boardroom, ' . $place, 'description' => 'Answers about booking, hours, food, BYOB, capacity, and cancellation at The Boardroom in Moline, IL.'],
+        'faq' => ['title' => 'FAQ | The Boardroom, ' . $place, 'description' => 'Answers about booking, hours, BYOB, food, capacity (up to 80 guests), and cancellation at The Boardroom, a party and event venue in Moline, IL.'],
         'terms' => ['title' => 'Rental Terms | The Boardroom, ' . $place, 'description' => 'Plain-language rental terms for The Boardroom in Moline, IL. The signed rental agreement controls if they differ.'],
         'privacy' => ['title' => 'Privacy Policy | The Boardroom, ' . $place, 'description' => 'How The Boardroom in Moline, IL uses booking and contact details. We do not sell your information.'],
         'rental-agreement' => ['title' => 'Rental Agreement | The Boardroom, ' . $place, 'description' => 'The facility event space rental agreement for The Boardroom at 2220 37th Street, Moline, IL.'],
         'rental-checklist' => ['title' => 'Rental Checklist | The Boardroom, ' . $place, 'description' => 'What to do before and after an event at The Boardroom in Moline, IL, including setup, cleanup, and house rules.'],
-        'contact' => ['title' => 'Contact The Boardroom | ' . $place, 'description' => 'Email boardroomqc@gmail.com or use the contact form to ask about The Boardroom in Moline, IL.'],
-        'gallery' => ['title' => 'Photo Gallery | The Boardroom, ' . $place, 'description' => 'Photos of The Boardroom, a party and event venue in Moline, IL, in the Quad Cities.'],
+        'contact' => ['title' => 'Contact The Boardroom | ' . $place, 'description' => 'Questions about The Boardroom, a party and event venue at 2220 37th Street in Moline, IL? Email boardroomqc@gmail.com or use the contact form.'],
+        'gallery' => ['title' => 'Photo Gallery | The Boardroom, ' . $place, 'description' => 'See photos of The Boardroom, a party and event venue in Moline, IL (Quad Cities) for birthdays, showers, holiday parties, and meetings of up to 80 guests.'],
         'blog' => ['title' => 'Event Planning Tips & Guides | The Boardroom, Moline IL', 'description' => 'Event planning tips and guides from The Boardroom in Moline, IL: party checklists, timelines, budgets, and venue advice for hosts across the Quad Cities.'],
         'holiday-party-venue-quad-cities' => ['title' => '', 'description' => 'Planning a holiday party in the Quad Cities? The Boardroom in Moline, IL hosts up to 80 guests. See open dates and pricing on our calendar.'],
     ];
