@@ -2,11 +2,11 @@
 /**
  * Plugin Name: Boardroom Booking
  * Description: Self-hosted direct booking for The Boardroom — full-day blocks, availability calendar, agreed prices, approval before payment, blackout dates, and emails.
- * Version: 2.5.77
+ * Version: 2.5.79
  * Author: Boardroom QC LLC
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.5.77');
+define('BRB_VER', '2.5.79');
 function brb_reserve_explainer_steps() {
     return [
         'Pick a date. Prices are on the calendar.',
@@ -153,7 +153,7 @@ function brb_defaults() {
         'deposit_type' => 'percent',
         'deposit_pct' => '50',
         'deposit_fixed' => '0',
-        'balance_due_days' => '2',
+        'balance_due_days' => '7',
         'addon_price' => '500',
         'damage_deposit_amount' => '250',
         'max_guests' => '200',
@@ -1378,7 +1378,7 @@ function brb_refresh_faq() {
         'Is smoking allowed?' => 'No smoking or vaping.',
         'Can I bring a pet?' => 'Service animals only. No pets.',
         'Can I bring my own food?' => 'Yes. You can bring your own food. We have warmers and buffet-style warmers, but the stovetop can\'t be used. You can also have it catered by any caterer. The Boardroom does not provide catering.',
-        'When is the balance due?' => 'The remaining balance is due the week of the event, no later than 48 hours before.',
+        'When is the balance due?' => 'The remaining balance is due no later than one week before the event.',
         'Is there a refrigerator or ice?' => 'Yes. There is a refrigerator and an ice machine.',
         'Who is on site during an event?' => 'No one is on site during events. Our connected offices are available on demand if something is needed. Cell numbers are given when the contract is signed, and they are not listed on this site.',
         'Is there a private entrance?' => 'There is one main entrance. A back entrance can be used for a surprise guest when it is arranged ahead of time with our team.',
