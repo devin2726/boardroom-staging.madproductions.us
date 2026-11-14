@@ -108,7 +108,7 @@ if ($admin) wp_set_current_user($admin->ID);
 
 try {
     brb_t((bool) $admin && current_user_can('manage_options'), 'an administrator is available for the bookings list');
-    brb_t(get_option('brb_version') === '2.5.77', 'plugin storage version is 2.5.77');
+    brb_t(get_option('brb_version') === '2.5.79', 'plugin storage version is 2.5.79');
     brb_install_hold_table();
 
     $today = brb_now()->setTime(0, 0);

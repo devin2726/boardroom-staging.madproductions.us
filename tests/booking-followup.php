@@ -72,7 +72,7 @@ $kept_get = $_GET;
 $kept_post = $_POST;
 $kept_request = $_REQUEST;
 try {
-    brb_t(get_option('brb_version') === '2.5.77', 'plugin storage version is 2.5.77');
+    brb_t(get_option('brb_version') === '2.5.79', 'plugin storage version is 2.5.79');
     $col = $wpdb->get_var($wpdb->prepare('SHOW COLUMNS FROM `' . brb_table() . '` LIKE %s', 'follow_up_log'));
     brb_t((bool) $col, 'the upgrade adds the follow_up_log column to the bookings table');
 
