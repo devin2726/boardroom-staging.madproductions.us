@@ -1888,11 +1888,14 @@ function brb_admin_settings() {
             $raw = wp_unslash($_POST[$k]);
             if ($k === 'tour_email') {
                 $email = sanitize_email($raw);
-                $new[$k] = is_email($email) ? $email : $defaults['tour_email'];
+                $new[$k] = is_email($email) && !brb_is_blocked_email($email) ? $email : $defaults['tour_email'];
             } else {
                 $new[$k] = in_array($k, ['policy', 'blackouts', 'pay_instructions', 'checklist', 'admin_email', 'inquiry_cc', 'weekly_summary_emails'], true)
                     ? sanitize_textarea_field($raw)
                     : sanitize_text_field($raw);
+                if (in_array($k, ['admin_email', 'inquiry_cc', 'weekly_summary_emails'], true)) {
+                    $new[$k] = brb_strip_blocked_text($new[$k])[0];
+                }
             }
         }
         $new['mode'] = 'day';

@@ -2,11 +2,11 @@
 /**
  * Plugin Name: Boardroom Booking
  * Description: Self-hosted direct booking for The Boardroom — full-day blocks, availability calendar, agreed prices, approval before payment, blackout dates, and emails.
- * Version: 2.5.77
+ * Version: 2.5.80
  * Author: Boardroom QC LLC
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.5.77');
+define('BRB_VER', '2.5.80');
 function brb_reserve_explainer_steps() {
     return [
         'Pick a date. Prices are on the calendar.',
@@ -1531,7 +1531,7 @@ function brb_maybe_upgrade() {
     brb_import_named_blackouts();
     brb_refresh_checklist_copy();
     brb_migrate_book_slug();
-    brb_drop_blocked_inquiry_cc();
+    brb_drop_blocked_emails();
     wp_clear_scheduled_hook('brb_cron_expire');
     update_option('brb_version', BRB_VER);
 }
@@ -2621,38 +2621,122 @@ function brb_gmail_compose_url($booking) {
         . '&su=' . rawurlencode(brb_guest_email_subject($booking))
         . '&body=' . rawurlencode(brb_guest_email_body($booking));
 }
+// Addresses that must never receive any Boardroom email, until Max says
+// otherwise. contiveros8 since 2.5.73; stephens818 since 2.5.80 (Nov 14, 2026).
 function brb_blocked_inquiry_cc() {
-    return 'contiveros8@gmail.com';
+    return ['contiveros8@gmail.com', 'stephens818@gmail.com'];
+}
+function brb_blocked_emails() {
+    return array_map('strtolower', brb_blocked_inquiry_cc());
+}
+function brb_is_blocked_email($email) {
+    $email = strtolower(trim(sanitize_email((string) $email)));
+    return $email !== '' && in_array($email, brb_blocked_emails(), true);
 }
 function brb_is_blocked_inquiry_cc($email) {
-    return strcasecmp(sanitize_email((string) $email), brb_blocked_inquiry_cc()) === 0;
+    return brb_is_blocked_email($email);
 }
-function brb_inquiry_cc_list() {
+// Drop blocked addresses from a list of addresses.
+function brb_without_blocked($list) {
     $out = [];
-    foreach (brb_parse_email_list(brb_opt('inquiry_cc'))['valid'] as $one) {
-        if (brb_is_blocked_inquiry_cc($one)) continue;
+    foreach ((array) $list as $one) {
+        if (brb_is_blocked_email($one)) continue;
         $out[] = $one;
     }
-    return $out;
+    return array_values($out);
 }
-function brb_drop_blocked_inquiry_cc() {
-    $stored = get_option('brb_settings', []);
-    if (!is_array($stored) || !array_key_exists('inquiry_cc', $stored)) return;
-    $current = (string) $stored['inquiry_cc'];
-    $kept = [];
-    $found = false;
-    foreach (brb_parse_email_list($current)['valid'] as $one) {
-        if (brb_is_blocked_inquiry_cc($one)) {
-            $found = true;
-            continue;
-        }
-        $kept[] = $one;
+function brb_inquiry_cc_list() {
+    return brb_without_blocked(brb_parse_email_list(brb_opt('inquiry_cc'))['valid']);
+}
+// Remove blocked addresses from a stored list setting. Returns [new text, changed].
+function brb_strip_blocked_text($raw) {
+    $raw = (string) $raw;
+    $hit = false;
+    foreach (brb_blocked_emails() as $bad) {
+        if (stripos($raw, $bad) !== false) $hit = true;
     }
-    if (!$found && stripos($current, brb_blocked_inquiry_cc()) === false) return;
-    $stored['inquiry_cc'] = implode("\n", $kept);
-    update_option('brb_settings', $stored);
+    if (!$hit) return [$raw, false];
+    $kept = brb_without_blocked(brb_parse_email_list($raw)['valid']);
+    return [implode("\n", $kept), true];
+}
+// Upgrade: drop every blocked address from every saved recipient setting.
+// Idempotent; other addresses are kept.
+function brb_drop_blocked_emails() {
+    $stored = get_option('brb_settings', []);
+    if (!is_array($stored)) return;
+    $changed = false;
+    foreach (['inquiry_cc', 'admin_email', 'weekly_summary_emails', 'tour_email'] as $key) {
+        if (!array_key_exists($key, $stored)) continue;
+        list($next, $hit) = brb_strip_blocked_text($stored[$key]);
+        if (!$hit) continue;
+        if ($key === 'tour_email') {
+            $first = brb_parse_email_list($next)['valid'][0] ?? '';
+            $next = is_email($first) ? $first : 'boardroomqc@gmail.com';
+        }
+        $stored[$key] = $next;
+        $changed = true;
+    }
+    if ($changed) update_option('brb_settings', $stored);
     if (get_option('brb_inquiry_cc_seeded', null) !== null) delete_option('brb_inquiry_cc_seeded');
 }
+function brb_drop_blocked_inquiry_cc() {
+    brb_drop_blocked_emails();
+}
+// Send layer: whatever path calls wp_mail, blocked addresses are removed from
+// To and from every To/Cc/Bcc/Reply-To header. A message left with no To is
+// not sent (pre_wp_mail below).
+function brb_mail_strip_blocked_atts($atts) {
+    if (!is_array($atts)) return $atts;
+    // Leave untouched mail exactly as it was (types and formatting).
+    $scan = strtolower(wp_json_encode([$atts['to'] ?? '', $atts['headers'] ?? '']));
+    $hit = false;
+    foreach (brb_blocked_emails() as $bad) {
+        if (strpos($scan, $bad) !== false) $hit = true;
+    }
+    if (!$hit) return $atts;
+    $to = $atts['to'] ?? [];
+    $to_was_string = !is_array($to);
+    $list = is_array($to) ? $to : explode(',', (string) $to);
+    $keep = [];
+    foreach ($list as $one) {
+        $one = trim((string) $one);
+        if ($one === '') continue;
+        $addr = preg_match('/<([^>]+)>/', $one, $m) ? $m[1] : $one;
+        if (brb_is_blocked_email($addr)) continue;
+        $keep[] = $one;
+    }
+    $atts['to'] = $to_was_string ? implode(', ', $keep) : $keep;
+    $headers = $atts['headers'] ?? [];
+    $was_string = !is_array($headers);
+    $lines = $was_string ? preg_split("/\r\n|\n|\r/", (string) $headers) : $headers;
+    $out = [];
+    foreach ((array) $lines as $line) {
+        $line = (string) $line;
+        if (preg_match('/^\s*(to|cc|bcc|reply-to)\s*:\s*(.*)$/i', $line, $m)) {
+            $parts = [];
+            foreach (explode(',', $m[2]) as $one) {
+                $one = trim($one);
+                if ($one === '') continue;
+                $addr = preg_match('/<([^>]+)>/', $one, $mm) ? $mm[1] : $one;
+                if (brb_is_blocked_email($addr)) continue;
+                $parts[] = $one;
+            }
+            if (!$parts) continue;
+            $line = $m[1] . ': ' . implode(', ', $parts);
+        }
+        if (trim($line) === '') continue;
+        $out[] = $line;
+    }
+    $atts['headers'] = $was_string ? implode("\r\n", $out) : $out;
+    return $atts;
+}
+add_filter('wp_mail', 'brb_mail_strip_blocked_atts', PHP_INT_MAX);
+add_filter('pre_wp_mail', function ($pre, $atts) {
+    if ($pre !== null) return $pre;
+    $to = is_array($atts) ? ($atts['to'] ?? []) : [];
+    $to = is_array($to) ? array_filter(array_map('trim', $to), 'strlen') : array_filter(array_map('trim', explode(',', (string) $to)), 'strlen');
+    return $to ? $pre : false;
+}, 0, 2);
 
 function brb_smtp_config() {
     $user = brb_env('BRB_SMTP_USER');
@@ -2718,10 +2802,10 @@ function brb_admin_emails() {
         }
     }
     $out = [];
-    foreach ($parsed['valid'] as $email) $out[strtolower($email)] = $email;
+    foreach (brb_without_blocked($parsed['valid']) as $email) $out[strtolower($email)] = $email;
     if (!$out) {
         $fallback = sanitize_email((string) get_option('admin_email'));
-        if (is_email($fallback)) $out[strtolower($fallback)] = $fallback;
+        if (is_email($fallback) && !brb_is_blocked_email($fallback)) $out[strtolower($fallback)] = $fallback;
     }
     return array_values($out);
 }
@@ -2761,14 +2845,14 @@ add_filter('wp_mail', function ($atts) {
 });
 function brb_mail($to, $subject, $body, $reply = '', $from = '', $cc = []) {
     $to = sanitize_email($to);
-    if (!$to || !is_email($to) || brb_is_blocked_inquiry_cc($to)) return false;
+    if (!$to || !is_email($to) || brb_is_blocked_email($to)) return false;
     if (!$from || !is_email($from)) $from = brb_mail_from_address();
     $headers = ['Content-Type: text/plain; charset=UTF-8'];
     $headers[] = 'From: ' . brb_mail_from_name() . ' <' . $from . '>';
-    if ($reply && is_email($reply)) $headers[] = 'Reply-To: ' . $reply;
+    if ($reply && is_email($reply) && !brb_is_blocked_email($reply)) $headers[] = 'Reply-To: ' . $reply;
     foreach ((array) $cc as $copy) {
         $copy = sanitize_email($copy);
-        if (is_email($copy) && strcasecmp($copy, $to) !== 0 && !brb_is_blocked_inquiry_cc($copy)) $headers[] = 'Cc: ' . $copy;
+        if (is_email($copy) && strcasecmp($copy, $to) !== 0 && !brb_is_blocked_email($copy)) $headers[] = 'Cc: ' . $copy;
     }
     return wp_mail($to, $subject, $body, $headers);
 }
