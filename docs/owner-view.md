@@ -1,4 +1,4 @@
-# Owner bookings view: `[brb_owner_view]` (plugin 2.5.78)
+# Owner bookings view: `[brb_owner_view]` (plugin 2.5.79)
 
 A read-only, phone-first bookings calendar for the owner. Planned page: `/admin-calendar/` (created later in wp-admin, not by this PR).
 
@@ -9,9 +9,11 @@ A read-only, phone-first bookings calendar for the owner. Planned page: `/admin-
   - Held: a "Hold, unpaid" calendar hold.
   - Blocked: a blackout date or a "Blocked" calendar hold (`brb_date_status()`, the same block data the admin calendar uses).
   - Free: none of the above. A blue dot means a request is in review (it does not reserve the date).
-- Tapping a day jumps to that day's cards: time, status, name, phone (tel: link), email (mailto: link), event type, guest count, planned end time, ref, "About the event" and booking notes.
-- An upcoming list (today onward) below the calendar.
-- Never shown: cancelled, declined, expired or spam requests; deleted bookings; prices or payment amounts; any calendar hold's name or notes (holds show only Held, Reserved or Date block).
+- Tapping a day jumps to that day's cards. Since 2.5.79 each card shows everything the wp-admin Bookings screens show:
+  - Bookings: ref, when, name, phone (tel:), email (mailto:), estimated guests, event type, free admission, alcohol, private/public, planned end time, host age bracket, source, walk-through, setup/takedown day, date hold state, requested time, attention flag, about the event, notes; the Money box (rental, refundable damage deposit, due now to reserve, balance, balance due, card fee), paid toward rental, subtotal/cleaning/tax when set, charge lines, payments recorded (date, amount, method, fee, check number, Stripe id, notes), follow-up log, and edit history.
+  - Calendar holds: type (Reserved, paid elsewhere/cash; Hold, unpaid; Blocked), name, from/to, added time, notes. Blackout dates show as "Blocked (blackout date)" with the name when there is one.
+- An upcoming list (today onward); tap a line to open the full card. Requests in review are included with a "Pending review" badge.
+- Never shown: cancelled, declined, expired or spam requests; deleted bookings; door, lock, gate, keypad, alarm or other entry codes. On any line that mentions a code word, digit runs are replaced with "[code hidden]".
 
 ## On the page
 No "Protected: " prefix on the title, and no Ask Walter chat (the plugin skips the chat assets and bubble; the theme footer button is hidden). Past days are dimmed.
