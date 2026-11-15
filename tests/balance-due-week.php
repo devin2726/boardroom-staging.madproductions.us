@@ -1,6 +1,6 @@
 <?php
 /**
- * Balance due one week (7 days) before the event everywhere (2.5.80).
+ * Balance due one week (7 days) before the event everywhere (2.5.81).
  * The defaults and the FAQ "add if missing" fallback no longer carry the
  * old 48-hour balance wording. The 48-hour minimum booking notice is a
  * separate rule and stays.
@@ -24,7 +24,7 @@ if (!function_exists('brb_t')) {
 global $wpdb;
 $kept_show = $wpdb->hide_errors();
 try {
-    brb_t(get_option('brb_version') === '2.5.80', 'plugin storage version is 2.5.80');
+    brb_t(get_option('brb_version') === '2.5.81', 'plugin storage version is 2.5.81');
     $d = brb_defaults();
     brb_t(isset($d['balance_due_days']) && (string) $d['balance_due_days'] === '7', 'defaults: balance_due_days is 7');
     brb_t(isset($d['min_notice_hours']) && (string) $d['min_notice_hours'] === '48', 'defaults: the separate 48-hour booking notice is unchanged');
