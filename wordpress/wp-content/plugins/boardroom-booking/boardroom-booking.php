@@ -2,11 +2,11 @@
 /**
  * Plugin Name: Boardroom Booking
  * Description: Self-hosted direct booking for The Boardroom — full-day blocks, availability calendar, agreed prices, approval before payment, blackout dates, and emails.
- * Version: 2.5.80
+ * Version: 2.5.81
  * Author: Boardroom QC LLC
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.5.80');
+define('BRB_VER', '2.5.81');
 function brb_reserve_explainer_steps() {
     return [
         'Pick a date. Prices are on the calendar.',
@@ -64,6 +64,7 @@ require_once __DIR__ . '/lines.php';
 require_once __DIR__ . '/reports.php';
 require_once __DIR__ . '/llms.php';
 require_once __DIR__ . '/followup.php';
+require_once __DIR__ . '/owner-view.php';
 define('BRB_URL', plugin_dir_url(__FILE__));
 
 function brb_table() { global $wpdb; return $wpdb->prefix . 'br_bookings'; }
@@ -2622,7 +2623,7 @@ function brb_gmail_compose_url($booking) {
         . '&body=' . rawurlencode(brb_guest_email_body($booking));
 }
 // Addresses that must never receive any Boardroom email, until Max says
-// otherwise. contiveros8 since 2.5.73; stephens818 since 2.5.80 (Nov 14, 2026).
+// otherwise. contiveros8 since 2.5.73; stephens818 since 2.5.81 (Nov 14, 2026).
 function brb_blocked_inquiry_cc() {
     return ['contiveros8@gmail.com', 'stephens818@gmail.com'];
 }

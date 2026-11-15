@@ -2196,8 +2196,13 @@ function brb_chat_markup($mode = 'float', $details_target = '') {
     return ob_get_clean();
 }
 
+function brb_chat_hidden_here() {
+    // The owner bookings view ([brb_owner_view]) is a private page: no Walter there.
+    return function_exists('brb_ov_current_is_owner_page') && brb_ov_current_is_owner_page();
+}
 add_action('wp_enqueue_scripts', function () {
     if (is_admin()) return;
+    if (brb_chat_hidden_here()) return;
     wp_enqueue_style('brb-chat', BRB_URL . 'assets/chat.css', [], BRB_VER);
     wp_enqueue_script('brb-chat', BRB_URL . 'assets/chat.js', [], BRB_VER, true);
     wp_localize_script('brb-chat', 'BRB_CHAT', [
@@ -2215,5 +2220,6 @@ function brb_chat_page_is_inline() {
 add_action('wp_footer', function () {
     if (is_admin()) return;
     if (brb_chat_page_is_inline()) return;
+    if (brb_chat_hidden_here()) return;
     echo brb_chat_markup();
 });
