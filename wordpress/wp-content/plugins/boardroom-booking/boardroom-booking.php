@@ -64,6 +64,7 @@ require_once __DIR__ . '/lines.php';
 require_once __DIR__ . '/reports.php';
 require_once __DIR__ . '/llms.php';
 require_once __DIR__ . '/followup.php';
+require_once __DIR__ . '/owner-view.php';
 define('BRB_URL', plugin_dir_url(__FILE__));
 
 function brb_table() { global $wpdb; return $wpdb->prefix . 'br_bookings'; }
