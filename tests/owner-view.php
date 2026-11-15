@@ -91,10 +91,10 @@ try {
     $d = function ($n) use ($m) { return $m->format('Y-m-') . sprintf('%02d', $n); };
     $past = $today->modify('-40 days')->format('Y-m-d');
 
-    $made_b[] = $approved = brb_ov_t_insert($d(5), 'Fake Approved Person', 'approved', ['phone' => '(309) 555-0101', 'guests' => 45, 'event_type' => 'graduation', 'end_time' => '21:00', 'event_about' => "Grad party\nwith cake", 'notes' => "Bring <b>tables</b> & chairs\nDoor code is 4821 for the side door", 'source' => 'phone', 'alcohol' => 'yes', 'public_event' => 'no', 'host_age' => 'age_25', 'walkthrough_done' => 1, 'free_admission' => '1', 'setup_addon' => 1, 'attention' => 'FAKE-ATTENTION-FLAG', 'balance_due_on' => $d(1), 'audit_log' => "2026-11-01 9:00 AM America/Chicago — Fake Staff: FAKE-AUDIT-LINE\n2026-11-02 9:00 AM America/Chicago — Fake Staff: lockbox 9911 set", 'follow_up_log' => wp_json_encode([['status' => 'contacted', 'date' => '2026-11-03', 'by' => 'Fake Staff', 'note' => 'FAKE-FOLLOWUP-NOTE']])]);
+    $made_b[] = $approved = brb_ov_t_insert($d(5), 'Fake Approved Person', 'approved', ['phone' => '(309) 555-0101', 'guests' => 45, 'event_type' => 'graduation', 'end_time' => '21:00', 'event_about' => "Grad party\nwith cake\nGarage code:\n\t8644", 'notes' => "Bring <b>tables</b> & chairs\nDoor code is 4821 for the side door\nBack door code:\n8642", 'source' => 'phone', 'alcohol' => 'yes', 'public_event' => 'no', 'host_age' => 'age_25', 'walkthrough_done' => 1, 'free_admission' => '1', 'setup_addon' => 1, 'attention' => 'FAKE-ATTENTION-FLAG', 'balance_due_on' => $d(1), 'audit_log' => "2026-11-01 9:00 AM America/Chicago — Fake Staff: FAKE-AUDIT-LINE\n2026-11-02 9:00 AM America/Chicago — Fake Staff: lockbox 9911 set", 'follow_up_log' => wp_json_encode([['status' => 'contacted', 'date' => '2026-11-03', 'by' => 'Fake Staff', 'note' => "FAKE-FOLLOWUP-NOTE\nLockbox:\n8645"]])]);
     if ($approved) {
         brb_insert_line($approved, 'Fake rental line', 977.77, 'rental', 0, 10);
-        $wpdb->insert(brb_pay_table(), ['booking_id' => $approved, 'amount' => '488.88', 'check_number' => '1042', 'received_on' => $d(1), 'notes' => 'FAKE-PAY-NOTE; keypad 3344', 'method' => 'check', 'fee' => '0.00', 'created' => current_time('mysql', true)]);
+        $wpdb->insert(brb_pay_table(), ['booking_id' => $approved, 'amount' => '488.88', 'check_number' => '1042', 'received_on' => $d(1), 'notes' => "FAKE-PAY-NOTE; keypad 3344\nGate code:\n8646", 'method' => 'check', 'fee' => '0.00', 'created' => current_time('mysql', true)]);
     }
     $made_b[] = brb_ov_t_insert($d(8), 'Fake Review Person', 'review', ['phone' => '309-555-0102']);
     $made_b[] = brb_ov_t_insert($d(18), 'Fake Cancelled Person', 'cancelled');
@@ -105,7 +105,7 @@ try {
     $made_b[] = brb_ov_t_insert($d(9), 'Fake Spam Person', 'spam');
     $made_b[] = brb_ov_t_insert($d(10), '<script>alert("x")</script>Evil "Name"', 'approved', ['phone' => '<img src=x onerror=alert(1)>', 'email' => 'bad"@example.com', 'event_about' => '<iframe src="//x"></iframe>']);
     $made_b[] = brb_ov_t_insert($past, 'Fake Past Person', 'paid');
-    $made_h[] = brb_ov_t_hold($d(12), 'Fake Hold Name', 'hold', "FAKE-HOLD-NOTE-1\nGate code 5521");
+    $made_h[] = brb_ov_t_hold($d(12), 'Fake Hold Name', 'hold', "FAKE-HOLD-NOTE-1\nGate code 5521\nNotes\nDoor:\n8647");
     $made_h[] = brb_ov_t_hold($d(22), 'Fake Reserved Name', 'reserved', 'FAKE-HOLD-NOTE-2');
     $made_h[] = brb_ov_t_hold($d(24), 'Fake Block Name', 'blocked', 'FAKE-HOLD-NOTE-3');
     $opt = is_array($snapshot) ? $snapshot : [];
@@ -181,12 +181,45 @@ try {
     }
     brb_t(strpos($html, 'Fake Review Person') !== false && strpos($html, 'Pending review') !== false, 'requests in review are shown with a badge');
     // Entry codes are never shown.
-    foreach (['4821', '5521', '9911', '3344'] as $code) {
+    foreach (['4821', '5521', '9911', '3344', '8642', '8644', '8645', '8646', '8647'] as $code) {
         brb_t(strpos($all_out, $code) === false, "entry code redacted: $code");
     }
     brb_t(substr_count($all_out, '[code hidden]') >= 4, 'redacted codes are marked [code hidden]');
     brb_t(brb_ov_redact_codes('Call 309-555-0100 after 5') === 'Call 309-555-0100 after 5', 'phone numbers on lines without a code word stay');
     brb_t(brb_ov_redact_codes('Bring 8 tables') === 'Bring 8 tables', 'ordinary notes are unchanged');
+    // Codes on the line after the keyword, in every multi-line field (fake codes 8642-8647).
+    brb_t(strpos($html, 'Back door code:<br />' . "\n" . '[code hidden]') !== false, 'booking notes: next-line code hidden');
+    brb_t(strpos($html, 'Garage code:<br />' . "\n\t" . '[code hidden]') !== false, 'event about: next-line code hidden');
+    brb_t(strpos($html, 'Lockbox:<br />' . "\n" . '[code hidden]') !== false, 'follow-up notes: next-line code hidden');
+    brb_t(strpos($html, 'Gate code:<br />' . "\n" . '[code hidden]') !== false, 'payment notes: next-line code hidden');
+    brb_t(strpos($html, 'Door:<br />' . "\n" . '[code hidden]') !== false, 'hold notes: next-line code hidden');
+    brb_t(strpos($html, '2026-11-02 9:00 AM America/Chicago') !== false && strpos($html, 'lockbox [code hidden] set') !== false, 'history line keeps its date and time, only the code is hidden');
+    $redact_cases = [
+        "Door code:\n4821" => "Door code:\n[code hidden]",
+        "code:\n\t9988" => "code:\n\t[code hidden]",
+        "Notes\nDoor:\n9988" => "Notes\nDoor:\n[code hidden]",
+        "Notes\r\n\r\nGate code\r\n\r\n  5521\r\n\r\nThanks" => "Notes\r\n\r\nGate code\r\n\r\n  [code hidden]\r\n\r\nThanks",
+        'key is 1234' => 'key is [code hidden]',
+        'Password 9876' => 'Password [code hidden]',
+        'Unlock with 4455' => 'Unlock with [code hidden]',
+        'door_code: 1234' => 'door_code: [code hidden]',
+        'entry_code=1234' => 'entry_code=[code hidden]',
+        '{"door_code":"4821"}' => '{"door_code":"[code hidden]"}',
+        'Gate code 12' => 'Gate code [code hidden]',
+        'Door code: ABCD' => 'Door code: [code hidden]',
+        "Password:\ntango" => "Password:\n[code hidden]",
+        'Smart lock code A1B2C3' => 'Smart lock code [code hidden]',
+        'Door code is 4 8 2 1' => 'Door code is [code hidden]',
+        'Paid $500 cash; keypad 3344 on Nov 15, 2026' => 'Paid $500 cash; keypad [code hidden] on Nov 15, 2026',
+        '2026-11-02 9:00 AM America/Chicago — Fake Staff: lockbox 9911 set' => '2026-11-02 9:00 AM America/Chicago — Fake Staff: lockbox [code hidden] set',
+        'Event 2026-12-06 11/15/2026, entry 6:30 PM' => 'Event 2026-12-06 11/15/2026, entry 6:30 PM',
+        'Code: none yet' => 'Code: none yet',
+        'monkey 1234' => 'monkey 1234',
+        "a\n\nb\r\n\r\nc\n\n\n" => "a\n\nb\r\n\r\nc\n\n\n",
+    ];
+    foreach ($redact_cases as $in => $want) {
+        brb_t(brb_ov_redact_codes($in) === $want, 'redact: ' . str_replace(["\r", "\n", "\t"], ['\\r', '\\n', '\\t'], $in));
+    }
     $up_all = substr($html_now, (int) strpos($html_now, '<h3>Upcoming</h3>'));
     brb_t(strpos($up_all, '<details>') !== false && strpos($up_all, 'Fake Hold Name') !== false && strpos($up_all, '$977.77') !== false, 'upcoming list expands to the full cards');
     $past_re = '/class="[^"]*\\bbrb-ov-past\\b/';

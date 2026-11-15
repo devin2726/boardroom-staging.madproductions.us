@@ -202,22 +202,59 @@ function brb_ov_time_span($start_dt, $end_dt) {
     return $span;
 }
 /**
- * Door, lock, gate, keypad and similar entry codes are never shown, even when
- * someone typed one into a notes field. On any line that mentions a code word,
- * every run of 3+ digits (or a digit-bearing token) is replaced.
+ * Door, lock, gate, keypad, password and similar entry codes are never shown,
+ * even when someone typed one into a notes field. Works on the whole field, so
+ * a code on the line after its keyword ("Door code:\n4821") is caught too.
+ *  - Any code word, then separators, spaces, line breaks or a few filler words
+ *    ("is", "with", "to"), then a token with 2+ digits: the token is hidden.
+ *  - A strong code word (code, passcode, password, pin, combo) followed by
+ *    ":", "=" or "is", then a letter-only word: that word is hidden.
+ *  - On any line that mentions a code word, every other run of 3+ digits (or a
+ *    digit-bearing token) is hidden too.
+ * Dates, times and dollar amounts are never treated as codes, and the original
+ * line breaks are kept exactly. Underscored keys (door_code, entry_code=) and
+ * JSON ("door_code":"4821") count as code words.
  */
 function brb_ov_redact_codes($text) {
     $text = (string) $text;
     if ($text === '') return '';
-    $words = '/\\b(door|doors|lock|locks|lockbox|lock\\s*box|keypad|key\\s*pad|keybox|key\\s*box|smart\\s*lock|deadbolt|gate|garage|alarm|access|entry|entrance|code|codes|passcode|pass\\s*code|pin|combo|combination)\\b/i';
-    $lines = preg_split('/(\\r\\n|\\n|\\r)/', $text);
-    foreach ($lines as &$line) {
-        if (!preg_match($words, $line)) continue;
-        $line = preg_replace('/(?<![A-Za-z0-9])[#*]?[A-Za-z]{0,3}\\d[\\dA-Za-z#*\\-]{2,}[#*]?(?![A-Za-z0-9])/', '[code hidden]', $line);
-        $line = preg_replace('/(?<![A-Za-z0-9])\\d(?:[\\s\\-]?\\d){2,}(?![A-Za-z0-9])/', '[code hidden]', $line);
-    }
-    unset($line);
-    return implode("\n", $lines);
+    $weak = 'doors?|locks?|lock\\s*box(?:es)?|keypads?|key\\s*pad|keybox|key\\s*box|keys?|keycode|smart\\s*lock|deadbolt|gates?|garage|alarm|access|entry|entrance|unlock(?:s|ed|ing)?';
+    $strong = 'codes?|passcodes?|pass\\s*code|passwords?|pass\\s*word|passwd|passkey|pins?|combo|combination';
+    $kw = '(?<![A-Za-z])(?:' . $strong . '|' . $weak . ')(?![A-Za-z])';
+    $hide = "\x02";
+    // Keep dates, times and money out of reach.
+    $kept = [];
+    $keep = function ($m) use (&$kept) {
+        $kept[] = $m[0];
+        return "\x01" . (count($kept) - 1) . "\x01";
+    };
+    $text = preg_replace_callback('/\\$\\s?\\d[\\d,]*(?:\\.\\d+)?/', $keep, $text);
+    $text = preg_replace_callback('/(?<![A-Za-z0-9])(?:\\d{4}-\\d{1,2}-\\d{1,2}(?:[T ]\\d{1,2}:\\d{2}(?::\\d{2})?)?|\\d{1,2}\\/\\d{1,2}\\/\\d{2,4})(?![A-Za-z0-9])/', $keep, $text);
+    $text = preg_replace_callback('/(?<![A-Za-z0-9:])\\d{1,2}:\\d{2}(?::\\d{2})?(?:\\s?[AaPp]\\.?[Mm]\\.?(?![A-Za-z]))?(?![0-9:])/', $keep, $text);
+    $text = preg_replace_callback('/(?<![A-Za-z])(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)[a-z]*\\.?\\s+\\d{1,2}(?:st|nd|rd|th)?(?:,?\\s+\\d{4})?(?![0-9])/', $keep, $text);
+    // Placeholders hide their digits as \x01N\x01; shield them from the digit rules.
+    $text = preg_replace_callback("/\x01(\\d+)\x01/", function ($m) {
+        return "\x01" . strtr($m[1], '0123456789', 'abcdefghij') . "\x01";
+    }, $text);
+    // 1) code word ... next token with 2+ digits, across line breaks.
+    $gap = '(?:[\\s:=#"\'_.,;()\\[\\]{}<>*\\-]|(?<![A-Za-z])(?:is|are|was|be|set|to|with|number|num|no)(?![A-Za-z]))*';
+    $text = preg_replace_callback('/' . $kw . $gap . '\\K[#*]?[A-Za-z]{0,4}\\d(?:[A-Za-z0-9#*]|-(?=[A-Za-z0-9])|[ ](?=\\d))*/i', function ($m) use ($hide) {
+        return preg_match_all('/\\d/', $m[0]) >= 2 ? $hide : $m[0];
+    }, $text);
+    // 2) strong code word ":" / "=" / "is" then a letter-only code.
+    $stop = '(?:the|a|an|on|in|at|by|for|from|and|or|not|no|none|tbd|same|below|above|attached|sent|given|inside|outside|yes|hidden)(?![A-Za-z])';
+    $text = preg_replace('/(?<![A-Za-z])(?:' . $strong . ')(?![A-Za-z])["\'\\]\\s_]*(?:[:=]|(?<![A-Za-z])is(?![A-Za-z]))[\\s"\']*\\K(?!' . $stop . ')(?<![A-Za-z0-9\\x01])[A-Za-z]{2,}(?![A-Za-z0-9\\x01])/i', $hide, $text);
+    // 3) any other digit run on a line that mentions a code word.
+    $text = preg_replace_callback('/[^\\r\\n]+/', function ($m) use ($kw, $hide) {
+        $line = $m[0];
+        if (!preg_match('/' . $kw . '/i', $line)) return $line;
+        $line = preg_replace('/(?<![A-Za-z0-9])[#*]?[A-Za-z]{0,3}\\d[\\dA-Za-z#*\\-]{2,}[#*]?(?![A-Za-z0-9])/', $hide, $line);
+        return preg_replace('/(?<![A-Za-z0-9])\\d(?:[\\s\\-]?\\d){2,}(?![A-Za-z0-9])/', $hide, $line);
+    }, $text);
+    $text = preg_replace_callback("/\x01([a-j]+)\x01/", function ($m) use ($kept) {
+        return $kept[(int) strtr($m[1], 'abcdefghij', '0123456789')];
+    }, $text);
+    return str_replace($hide, '[code hidden]', $text);
 }
 function brb_ov_text_block($text) {
     $text = trim(brb_ov_redact_codes((string) $text));
