@@ -1,6 +1,6 @@
 <?php
 /**
- * Blocked addresses (2.5.81): contiveros8@gmail.com and stephens818@gmail.com
+ * Blocked addresses (2.5.82): contiveros8@gmail.com and stephens818@gmail.com
  * never receive any Boardroom email. Every recipient list, staff copies
  * (including the price email's), CC/BCC/Reply-To headers, raw wp_mail calls,
  * the settings save, and the upgrade all drop them. Mail is intercepted;
@@ -48,7 +48,7 @@ $saved_opt = get_option('brb_settings');
 $saved_wp_admin = get_option('admin_email');
 $created = [];
 try {
-    brb_t(get_option('brb_version') === '2.5.81', 'plugin storage version is 2.5.81');
+    brb_t(get_option('brb_version') === '2.5.82', 'plugin storage version is 2.5.82');
     $list = brb_blocked_inquiry_cc();
     brb_t(is_array($list) && in_array('contiveros8@gmail.com', $list, true) && in_array('stephens818@gmail.com', $list, true), 'the blocklist holds contiveros8@gmail.com and stephens818@gmail.com');
     brb_t(brb_is_blocked_email('Stephens818@Gmail.com') && brb_is_blocked_email(' contiveros8@gmail.com ') && !brb_is_blocked_email('devin2726@gmail.com') && !brb_is_blocked_email(''), 'blocked check is case-insensitive and leaves other addresses alone');
