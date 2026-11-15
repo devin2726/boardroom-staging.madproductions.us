@@ -1,6 +1,6 @@
 <?php
 /**
- * Rental Terms and Rental Agreement cleanup and damage deposit clauses (2.5.78).
+ * Rental Terms and Rental Agreement cleanup and damage deposit clauses (2.5.79).
  * The renter cleans up. Boardroom QC LLC may keep the $250 damage deposit for
  * cleaning crews, trash or item pickup, and labor, with an itemized statement
  * and the refund within 7 days. The deposit is not a cap. Section 3 no longer
@@ -36,7 +36,7 @@ function brb_tc_between($text, $start, $end) {
 global $wpdb;
 $kept_show = $wpdb->hide_errors();
 try {
-    brb_t(get_option('brb_version') === '2.5.78', 'plugin storage version is 2.5.78');
+    brb_t(get_option('brb_version') === '2.5.79', 'plugin storage version is 2.5.79');
 
     $terms_src = brb_tc_plain(brb_terms_html());
     $terms_page = get_page_by_path('terms');
