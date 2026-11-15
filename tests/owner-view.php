@@ -3,7 +3,8 @@
  * [brb_owner_view] read-only owner calendar. Run with wp eval-file.
  * Fake data only. Password guard, calendar day status from real block data,
  * day cards, upcoming list, no past/closed rows, escaping, no mutation links,
- * no prices, no hold notes, no mail, no writes, and the privacy filters
+ * every admin-screen field (money, payments, charges, follow-up, history, hold
+ * names and notes), entry codes redacted, no mail, no writes, and the privacy filters
  * (robots, no-store, sitemaps, search, feeds, REST, oEmbed, page lists).
  */
 if (!defined('ABSPATH')) exit;
@@ -79,8 +80,8 @@ $snapshot = get_option('brb_settings');
 $made_b = []; $made_h = []; $made_p = [];
 $unlock = function () { return false; };
 try {
-    brb_t(get_option('brb_version') === '2.5.79', 'plugin storage version is 2.5.79');
-    brb_t(BRB_VER === '2.5.79', 'BRB_VER is 2.5.79');
+    brb_t(get_option('brb_version') === '2.5.80', 'plugin storage version is 2.5.80');
+    brb_t(BRB_VER === '2.5.80', 'BRB_VER is 2.5.80');
     brb_t(shortcode_exists('brb_owner_view'), 'the [brb_owner_view] shortcode is registered');
 
     $tz = brb_tz();
@@ -90,7 +91,11 @@ try {
     $d = function ($n) use ($m) { return $m->format('Y-m-') . sprintf('%02d', $n); };
     $past = $today->modify('-40 days')->format('Y-m-d');
 
-    $made_b[] = $approved = brb_ov_t_insert($d(5), 'Fake Approved Person', 'approved', ['phone' => '(309) 555-0101', 'guests' => 45, 'event_type' => 'graduation', 'end_time' => '21:00', 'event_about' => "Grad party\nwith cake", 'notes' => 'Bring <b>tables</b> & chairs']);
+    $made_b[] = $approved = brb_ov_t_insert($d(5), 'Fake Approved Person', 'approved', ['phone' => '(309) 555-0101', 'guests' => 45, 'event_type' => 'graduation', 'end_time' => '21:00', 'event_about' => "Grad party\nwith cake\nGarage code:\n\t8644", 'notes' => "Bring <b>tables</b> & chairs\nDoor code is 4821 for the side door\nBack door code:\n8642", 'source' => 'phone', 'alcohol' => 'yes', 'public_event' => 'no', 'host_age' => 'age_25', 'walkthrough_done' => 1, 'free_admission' => '1', 'setup_addon' => 1, 'attention' => 'FAKE-ATTENTION-FLAG', 'balance_due_on' => $d(1), 'audit_log' => "2026-11-01 9:00 AM America/Chicago — Fake Staff: FAKE-AUDIT-LINE\n2026-11-02 9:00 AM America/Chicago — Fake Staff: lockbox 9911 set", 'follow_up_log' => wp_json_encode([['status' => 'contacted', 'date' => '2026-11-03', 'by' => 'Fake Staff', 'note' => "FAKE-FOLLOWUP-NOTE\nLockbox:\n8645"]])]);
+    if ($approved) {
+        brb_insert_line($approved, 'Fake rental line', 977.77, 'rental', 0, 10);
+        $wpdb->insert(brb_pay_table(), ['booking_id' => $approved, 'amount' => '488.88', 'check_number' => '1042', 'received_on' => $d(1), 'notes' => "FAKE-PAY-NOTE; keypad 3344\nGate code:\n8646", 'method' => 'check', 'fee' => '0.00', 'created' => current_time('mysql', true)]);
+    }
     $made_b[] = brb_ov_t_insert($d(8), 'Fake Review Person', 'review', ['phone' => '309-555-0102']);
     $made_b[] = brb_ov_t_insert($d(18), 'Fake Cancelled Person', 'cancelled');
     $made_b[] = brb_ov_t_insert($d(20), 'Fake Paid Person', 'paid');
@@ -100,9 +105,9 @@ try {
     $made_b[] = brb_ov_t_insert($d(9), 'Fake Spam Person', 'spam');
     $made_b[] = brb_ov_t_insert($d(10), '<script>alert("x")</script>Evil "Name"', 'approved', ['phone' => '<img src=x onerror=alert(1)>', 'email' => 'bad"@example.com', 'event_about' => '<iframe src="//x"></iframe>']);
     $made_b[] = brb_ov_t_insert($past, 'Fake Past Person', 'paid');
-    $made_h[] = brb_ov_t_hold($d(12), 'Fake Hold Name', 'hold', 'SECRET-HOLD-NOTE-1');
-    $made_h[] = brb_ov_t_hold($d(22), 'Fake Reserved Name', 'reserved', 'SECRET-HOLD-NOTE-2');
-    $made_h[] = brb_ov_t_hold($d(24), 'Fake Block Name', 'blocked', 'SECRET-HOLD-NOTE-3');
+    $made_h[] = brb_ov_t_hold($d(12), 'Fake Hold Name', 'hold', "FAKE-HOLD-NOTE-1\nGate code 5521\nNotes\nDoor:\n8647");
+    $made_h[] = brb_ov_t_hold($d(22), 'Fake Reserved Name', 'reserved', 'FAKE-HOLD-NOTE-2');
+    $made_h[] = brb_ov_t_hold($d(24), 'Fake Block Name', 'blocked', 'FAKE-HOLD-NOTE-3');
     $opt = is_array($snapshot) ? $snapshot : [];
     $opt['blackouts'] = $d(15);
     update_option('brb_settings', $opt);
@@ -161,11 +166,62 @@ try {
     brb_t(strpos($html, '<img src=x') === false && strpos($html, '<iframe') === false, 'phone and description HTML are escaped');
     brb_t(strpos($html, 'mailto:bad') === false, 'an invalid email gets no mailto link');
     $all_out = $html . $html_now;
-    brb_t(strpos($all_out, 'SECRET-HOLD-NOTE') === false, 'calendar hold notes are never shown');
-    foreach (['Fake Hold Name', 'Fake Reserved Name', 'Fake Block Name'] as $hn) {
-        brb_t(strpos($all_out, $hn) === false, "hold name never appears: $hn");
+    foreach (['Fake Hold Name', 'Fake Reserved Name', 'Fake Block Name', 'FAKE-HOLD-NOTE-1', 'FAKE-HOLD-NOTE-2', 'FAKE-HOLD-NOTE-3'] as $hn) {
+        brb_t(strpos($html, $hn) !== false, "hold name/notes shown: $hn");
     }
-    brb_t(strpos($html, '>Held</span>') !== false && strpos($html, '>Reserved</span>') !== false && strpos($html, '>Date block</span>') !== false, 'holds show only their status label: Held, Reserved, Date block');
+    brb_t(strpos($html, '>Hold, unpaid</span>') !== false && strpos($html, '>Reserved, paid elsewhere/cash</span>') !== false && strpos($html, '>Blocked</span>') !== false, 'holds use the admin calendar labels');
+    brb_t(strpos($html, 'Blocked (blackout date)') !== false, 'blackout dates are listed');
+    // Every admin booking-screen field.
+    foreach (['Ref' => 'BR-', 'Source' => '<dd>Phone</dd>', 'Alcohol' => '<dt>Alcohol served</dt><dd>Yes</dd>', 'Private' => '<dt>Private, invitation-only</dt><dd>Yes</dd>', 'Host age' => '<dt>Host age bracket</dt><dd>25 or older</dd>', 'Free admission' => '<dt>Free admission</dt><dd>Acknowledged</dd>', 'Walk-through' => '<dt>Walk-through</dt><dd>Completed</dd>', 'Setup day' => '<dt>Setup day</dt><dd>Added</dd>', 'Takedown' => '<dt>Takedown day</dt><dd>No</dd>', 'Date hold' => 'Held after approval', 'Attention' => 'FAKE-ATTENTION-FLAG', 'Follow-up' => 'FAKE-FOLLOWUP-NOTE', 'Follow-up summary' => 'Contacted', 'Edit history' => 'FAKE-AUDIT-LINE', 'When' => '(full day)', 'Requested' => '<dt>Requested</dt>'] as $what => $needle) {
+        brb_t(strpos($html, $needle) !== false, "admin field shown: $what");
+    }
+    // Money, charges and payments.
+    foreach (['Rental' => '<dt>Rental</dt><dd>$977.77</dd>', 'Due now' => '<dt>Due now to reserve</dt>', 'Balance' => '<dt>Balance</dt>', 'Balance due' => '<dt>Balance due</dt>', 'Damage deposit' => '<dt>Refundable damage deposit</dt>', 'Paid' => '<dt>Paid toward rental</dt>', 'Charge line' => 'Fake rental line', 'Payment amount' => '$488.88', 'Check number' => 'check #1042', 'Payment note' => 'FAKE-PAY-NOTE'] as $what => $needle) {
+        brb_t(strpos($html, $needle) !== false, "money shown: $what");
+    }
+    brb_t(strpos($html, 'Fake Review Person') !== false && strpos($html, 'Pending review') !== false, 'requests in review are shown with a badge');
+    // Entry codes are never shown.
+    foreach (['4821', '5521', '9911', '3344', '8642', '8644', '8645', '8646', '8647'] as $code) {
+        brb_t(strpos($all_out, $code) === false, "entry code redacted: $code");
+    }
+    brb_t(substr_count($all_out, '[code hidden]') >= 4, 'redacted codes are marked [code hidden]');
+    brb_t(brb_ov_redact_codes('Call 309-555-0100 after 5') === 'Call 309-555-0100 after 5', 'phone numbers on lines without a code word stay');
+    brb_t(brb_ov_redact_codes('Bring 8 tables') === 'Bring 8 tables', 'ordinary notes are unchanged');
+    // Codes on the line after the keyword, in every multi-line field (fake codes 8642-8647).
+    brb_t(strpos($html, 'Back door code:<br />' . "\n" . '[code hidden]') !== false, 'booking notes: next-line code hidden');
+    brb_t(strpos($html, 'Garage code:<br />' . "\n\t" . '[code hidden]') !== false, 'event about: next-line code hidden');
+    brb_t(strpos($html, 'Lockbox:<br />' . "\n" . '[code hidden]') !== false, 'follow-up notes: next-line code hidden');
+    brb_t(strpos($html, 'Gate code:<br />' . "\n" . '[code hidden]') !== false, 'payment notes: next-line code hidden');
+    brb_t(strpos($html, 'Door:<br />' . "\n" . '[code hidden]') !== false, 'hold notes: next-line code hidden');
+    brb_t(strpos($html, '2026-11-02 9:00 AM America/Chicago') !== false && strpos($html, 'lockbox [code hidden] set') !== false, 'history line keeps its date and time, only the code is hidden');
+    $redact_cases = [
+        "Door code:\n4821" => "Door code:\n[code hidden]",
+        "code:\n\t9988" => "code:\n\t[code hidden]",
+        "Notes\nDoor:\n9988" => "Notes\nDoor:\n[code hidden]",
+        "Notes\r\n\r\nGate code\r\n\r\n  5521\r\n\r\nThanks" => "Notes\r\n\r\nGate code\r\n\r\n  [code hidden]\r\n\r\nThanks",
+        'key is 1234' => 'key is [code hidden]',
+        'Password 9876' => 'Password [code hidden]',
+        'Unlock with 4455' => 'Unlock with [code hidden]',
+        'door_code: 1234' => 'door_code: [code hidden]',
+        'entry_code=1234' => 'entry_code=[code hidden]',
+        '{"door_code":"4821"}' => '{"door_code":"[code hidden]"}',
+        'Gate code 12' => 'Gate code [code hidden]',
+        'Door code: ABCD' => 'Door code: [code hidden]',
+        "Password:\ntango" => "Password:\n[code hidden]",
+        'Smart lock code A1B2C3' => 'Smart lock code [code hidden]',
+        'Door code is 4 8 2 1' => 'Door code is [code hidden]',
+        'Paid $500 cash; keypad 3344 on Nov 15, 2026' => 'Paid $500 cash; keypad [code hidden] on Nov 15, 2026',
+        '2026-11-02 9:00 AM America/Chicago — Fake Staff: lockbox 9911 set' => '2026-11-02 9:00 AM America/Chicago — Fake Staff: lockbox [code hidden] set',
+        'Event 2026-12-06 11/15/2026, entry 6:30 PM' => 'Event 2026-12-06 11/15/2026, entry 6:30 PM',
+        'Code: none yet' => 'Code: none yet',
+        'monkey 1234' => 'monkey 1234',
+        "a\n\nb\r\n\r\nc\n\n\n" => "a\n\nb\r\n\r\nc\n\n\n",
+    ];
+    foreach ($redact_cases as $in => $want) {
+        brb_t(brb_ov_redact_codes($in) === $want, 'redact: ' . str_replace(["\r", "\n", "\t"], ['\\r', '\\n', '\\t'], $in));
+    }
+    $up_all = substr($html_now, (int) strpos($html_now, '<h3>Upcoming</h3>'));
+    brb_t(strpos($up_all, '<details>') !== false && strpos($up_all, 'Fake Hold Name') !== false && strpos($up_all, '$977.77') !== false, 'upcoming list expands to the full cards');
     $past_re = '/class="[^"]*\\bbrb-ov-past\\b/';
     brb_t(!preg_match($past_re, $html) && (preg_match($past_re, $html_now) || brb_now()->format('j') === '1'), 'past days are dimmed (this month), future months have none');
     // Day status from the plugin's block data.
@@ -185,7 +241,7 @@ try {
     $up = substr($html_now, (int) strpos($html_now, '<h3>Upcoming</h3>'));
     $p1 = strpos($up, 'Fake Approved Person'); $p2 = strpos($up, 'Fake Paid Person'); $p3 = strpos($up, 'Fake Deposit Person');
     brb_t($p1 !== false && $p2 !== false && $p3 !== false && $p1 < $p2 && $p2 < $p3, 'upcoming list is sorted by date');
-    // No mutation, no prices.
+    // No mutation.
     foreach (['<form', 'wp-admin', 'admin-post', 'admin-ajax', '_wpnonce', 'br_token', 'br_pay', 'action=', 'method="post"', '<button', '<input'] as $bad) {
         brb_t(stripos($html . $html_now, $bad) === false, "no mutation surface: no $bad");
     }
@@ -194,7 +250,6 @@ try {
         return !preg_match('/^(#brb-ov-d-\d{4}-\d{2}-\d{2}|tel:[0-9+]+|mailto:[^"]+|https?:\/\/[^"]*[?&](amp;|#038;)?brb_ov_m=\d{4}-\d{2}(#brb-ov-d-\d{4}-\d{2}-\d{2})?)$/', html_entity_decode($u));
     });
     brb_t(!$bad_links, 'only links are day anchors, tel:, mailto: and month navigation');
-    brb_t(strpos($html . $html_now, '$') === false && strpos($html . $html_now, '977') === false && strpos($html . $html_now, '488') === false, 'no prices or amounts are shown');
     brb_t(stripos($html . $html_now, 'air' . 'bnb') === false, 'no rental-platform name in the output');
     brb_t($before === $after, 'rendering writes nothing to bookings, holds, payments or settings');
     brb_t($GLOBALS['brb_ov_mail'] === $mail_before, 'rendering sends no email');
@@ -285,7 +340,7 @@ try {
     brb_t($GLOBALS['brb_ov_mail'] === 0, 'no email at any point in this test');
 } finally {
     remove_filter('post_password_required', $unlock, 999);
-    foreach ($made_b as $id) if ($id) $wpdb->delete(brb_table(), ['id' => $id], ['%d']);
+    foreach ($made_b as $id) if ($id) { $wpdb->delete(brb_pay_table(), ['booking_id' => $id], ['%d']); $wpdb->delete(brb_line_table(), ['booking_id' => $id], ['%d']); $wpdb->delete(brb_table(), ['id' => $id], ['%d']); }
     foreach ($made_h as $id) if ($id) $wpdb->delete(brb_hold_table(), ['id' => $id], ['%d']);
     foreach ($made_p as $id) if ($id) wp_delete_post($id, true);
     if ($snapshot === false) delete_option('brb_settings'); else update_option('brb_settings', $snapshot);

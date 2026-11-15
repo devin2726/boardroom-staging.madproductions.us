@@ -20,8 +20,9 @@
  *   no-store/private, kept out of the core and Yoast sitemaps, site search,
  *   feeds, oEmbed and automatic page lists. Menus: never add the page to a
  *   menu (see docs/owner-view.md).
- * - No prices or payment amounts are shown. Calendar holds show only their
- *   status (Held, Reserved, Date block), never their name or notes.
+ * - It shows what the wp-admin Bookings screens show (booking details, money,
+ *   charges, payments, follow-up, edit history; hold names and notes), except
+ *   door, lock and other entry codes, which are always redacted.
  * - On the page: no "Protected: " title prefix and no Ask Walter chat.
  */
 if (!defined('ABSPATH')) exit;
@@ -77,7 +78,7 @@ function brb_ov_bookings_between($from, $to) {
     global $wpdb;
     $closed = "'" . implode("','", brb_ov_closed_statuses()) . "'";
     return (array) $wpdb->get_results($wpdb->prepare(
-        'SELECT id, mode, start_dt, end_dt, guests, name, email, phone, notes, status, event_type, end_time, event_about FROM ' . brb_table() . " WHERE start_dt < %s AND end_dt > %s AND status NOT IN ($closed) ORDER BY start_dt ASC, id ASC LIMIT 500",
+        'SELECT * FROM ' . brb_table() . " WHERE start_dt < %s AND end_dt > %s AND status NOT IN ($closed) ORDER BY start_dt ASC, id ASC LIMIT 500",
         $to,
         $from
     ));
@@ -109,51 +110,72 @@ function brb_ov_badge_class($status) {
     if (in_array($status, ['approved', 'held'], true)) return 'approved';
     return 'review';
 }
-/** Calendar hold status label. Holds never show a name or notes. */
+/** Calendar hold label, the same wording as the admin calendar. */
 function brb_ov_hold_label($type) {
-    $map = ['hold' => 'Held', 'reserved' => 'Reserved', 'blocked' => 'Date block'];
-    return $map[$type] ?? 'Date block';
+    $types = brb_hold_types();
+    return $types[$type] ?? $types['blocked'];
 }
 function brb_ov_hold_type($raw) {
     return isset(brb_hold_types()[(string) $raw]) ? (string) $raw : 'blocked';
 }
-/** Calendar holds/blocks for one day: status and time only. */
+function brb_ov_hold_item($h) {
+    $type = brb_ov_hold_type($h->hold_type ?? '');
+    return [
+        'id' => (int) ($h->id ?? 0),
+        'label' => brb_ov_hold_label($type),
+        'type' => $type,
+        'name' => (string) ($h->name ?? ''),
+        'notes' => (string) ($h->notes ?? ''),
+        'start_dt' => (string) $h->start_dt,
+        'end_dt' => (string) $h->end_dt,
+        'created' => (string) ($h->created ?? ''),
+    ];
+}
+function brb_ov_blackout_item($ymd) {
+    $named = function_exists('brb_named_blackout_map') ? brb_named_blackout_map() : [];
+    return [
+        'id' => 0,
+        'label' => 'Blocked (blackout date)',
+        'type' => 'blocked',
+        'name' => (string) ($named[$ymd] ?? ''),
+        'notes' => '',
+        'start_dt' => $ymd . ' 00:00:00',
+        'end_dt' => $ymd . ' 23:59:00',
+        'created' => '',
+    ];
+}
+/** Calendar holds/blocks for one day: everything the admin hold editor shows. */
 function brb_ov_day_holds($ymd) {
     $out = [];
-    if (in_array($ymd, brb_blackouts(), true)) {
-        $out[] = ['label' => 'Date block', 'type' => 'blocked', 'start_dt' => $ymd . ' 00:00:00', 'end_dt' => $ymd . ' 23:59:00'];
-    }
+    if (in_array($ymd, brb_blackouts(), true)) $out[] = brb_ov_blackout_item($ymd);
     foreach (brb_holds_touching_day($ymd) as $h) {
-        $type = brb_ov_hold_type($h->hold_type);
-        $out[] = ['label' => brb_ov_hold_label($type), 'type' => $type, 'start_dt' => $h->start_dt, 'end_dt' => $h->end_dt];
+        $full = brb_hold((int) $h->id);
+        $out[] = brb_ov_hold_item($full ?: $h);
     }
     return $out;
 }
 /** Upcoming bookings and holds from today on, sorted by start. */
-function brb_ov_upcoming_items($limit = 200) {
+function brb_ov_upcoming_items($limit = 300) {
     global $wpdb;
     $today = brb_now()->setTime(0, 0)->format('Y-m-d H:i:s');
     $far = '9999-12-31 00:00:00';
     $items = [];
-    $active = brb_ov_bookings_between($today, $far);
-    foreach ($active as $b) {
-        $items[] = ['kind' => 'booking', 'start_dt' => $b->start_dt, 'end_dt' => $b->end_dt, 'name' => (string) $b->name, 'status' => (string) $b->status, 'label' => brb_status_label($b->status)];
+    foreach (brb_ov_bookings_between($today, $far) as $b) {
+        $items[] = ['kind' => 'booking', 'start_dt' => $b->start_dt, 'name' => (string) $b->name, 'status' => (string) $b->status, 'label' => brb_status_label($b->status), 'row' => $b];
     }
     $holds = (array) $wpdb->get_results($wpdb->prepare(
-        'SELECT id, hold_type, start_dt, end_dt FROM ' . brb_hold_table() . ' WHERE end_dt > %s ORDER BY start_dt ASC, id ASC LIMIT 500',
+        'SELECT * FROM ' . brb_hold_table() . ' WHERE end_dt > %s ORDER BY start_dt ASC, id ASC LIMIT 500',
         $today
     ));
     foreach ($holds as $h) {
-        $overlap = false;
-        foreach ($active as $b) if ($b->start_dt < $h->end_dt && $b->end_dt > $h->start_dt) { $overlap = true; break; }
-        if ($overlap) continue;
-        $type = brb_ov_hold_type($h->hold_type);
-        $items[] = ['kind' => 'hold', 'start_dt' => $h->start_dt, 'end_dt' => $h->end_dt, 'name' => '', 'status' => $type, 'label' => brb_ov_hold_label($type)];
+        $it = brb_ov_hold_item($h);
+        $items[] = ['kind' => 'hold', 'start_dt' => $it['start_dt'], 'name' => $it['name'], 'status' => $it['type'], 'label' => $it['label'], 'row' => $it];
     }
     $todayYmd = substr($today, 0, 10);
     foreach (brb_blackouts() as $ymd) {
         if ($ymd < $todayYmd) continue;
-        $items[] = ['kind' => 'hold', 'start_dt' => $ymd . ' 00:00:00', 'end_dt' => $ymd . ' 23:59:00', 'name' => '', 'status' => 'blocked', 'label' => 'Date block'];
+        $it = brb_ov_blackout_item($ymd);
+        $items[] = ['kind' => 'hold', 'start_dt' => $it['start_dt'], 'name' => $it['name'], 'status' => 'blocked', 'label' => $it['label'], 'row' => $it];
     }
     usort($items, function ($a, $b) { return strcmp($a['start_dt'], $b['start_dt']); });
     return array_slice($items, 0, $limit);
@@ -179,9 +201,67 @@ function brb_ov_time_span($start_dt, $end_dt) {
     }
     return $span;
 }
+/**
+ * Door, lock, gate, keypad, password and similar entry codes are never shown,
+ * even when someone typed one into a notes field. Works on the whole field, so
+ * a code on the line after its keyword ("Door code:\n4821") is caught too.
+ *  - Any code word, then separators, spaces, line breaks or a few filler words
+ *    ("is", "with", "to"), then a token with 2+ digits: the token is hidden.
+ *  - A strong code word (code, passcode, password, pin, combo) followed by
+ *    ":", "=" or "is", then a letter-only word: that word is hidden.
+ *  - On any line that mentions a code word, every other run of 3+ digits (or a
+ *    digit-bearing token) is hidden too.
+ * Dates, times and dollar amounts are never treated as codes, and the original
+ * line breaks are kept exactly. Underscored keys (door_code, entry_code=) and
+ * JSON ("door_code":"4821") count as code words.
+ */
+function brb_ov_redact_codes($text) {
+    $text = (string) $text;
+    if ($text === '') return '';
+    $weak = 'doors?|locks?|lock\\s*box(?:es)?|keypads?|key\\s*pad|keybox|key\\s*box|keys?|keycode|smart\\s*lock|deadbolt|gates?|garage|alarm|access|entry|entrance|unlock(?:s|ed|ing)?';
+    $strong = 'codes?|passcodes?|pass\\s*code|passwords?|pass\\s*word|passwd|passkey|pins?|combo|combination';
+    $kw = '(?<![A-Za-z])(?:' . $strong . '|' . $weak . ')(?![A-Za-z])';
+    $hide = "\x02";
+    // Keep dates, times and money out of reach.
+    $kept = [];
+    $keep = function ($m) use (&$kept) {
+        $kept[] = $m[0];
+        return "\x01" . (count($kept) - 1) . "\x01";
+    };
+    $text = preg_replace_callback('/\\$\\s?\\d[\\d,]*(?:\\.\\d+)?/', $keep, $text);
+    $text = preg_replace_callback('/(?<![A-Za-z0-9])(?:\\d{4}-\\d{1,2}-\\d{1,2}(?:[T ]\\d{1,2}:\\d{2}(?::\\d{2})?)?|\\d{1,2}\\/\\d{1,2}\\/\\d{2,4})(?![A-Za-z0-9])/', $keep, $text);
+    $text = preg_replace_callback('/(?<![A-Za-z0-9:])\\d{1,2}:\\d{2}(?::\\d{2})?(?:\\s?[AaPp]\\.?[Mm]\\.?(?![A-Za-z]))?(?![0-9:])/', $keep, $text);
+    $text = preg_replace_callback('/(?<![A-Za-z])(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)[a-z]*\\.?\\s+\\d{1,2}(?:st|nd|rd|th)?(?:,?\\s+\\d{4})?(?![0-9])/', $keep, $text);
+    // Placeholders hide their digits as \x01N\x01; shield them from the digit rules.
+    $text = preg_replace_callback("/\x01(\\d+)\x01/", function ($m) {
+        return "\x01" . strtr($m[1], '0123456789', 'abcdefghij') . "\x01";
+    }, $text);
+    // 1) code word ... next token with 2+ digits, across line breaks.
+    $gap = '(?:[\\s:=#"\'_.,;()\\[\\]{}<>*\\-]|(?<![A-Za-z])(?:is|are|was|be|set|to|with|number|num|no)(?![A-Za-z]))*';
+    $text = preg_replace_callback('/' . $kw . $gap . '\\K[#*]?[A-Za-z]{0,4}\\d(?:[A-Za-z0-9#*]|-(?=[A-Za-z0-9])|[ ](?=\\d))*/i', function ($m) use ($hide) {
+        return preg_match_all('/\\d/', $m[0]) >= 2 ? $hide : $m[0];
+    }, $text);
+    // 2) strong code word ":" / "=" / "is" then a letter-only code.
+    $stop = '(?:the|a|an|on|in|at|by|for|from|and|or|not|no|none|tbd|same|below|above|attached|sent|given|inside|outside|yes|hidden)(?![A-Za-z])';
+    $text = preg_replace('/(?<![A-Za-z])(?:' . $strong . ')(?![A-Za-z])["\'\\]\\s_]*(?:[:=]|(?<![A-Za-z])is(?![A-Za-z]))[\\s"\']*\\K(?!' . $stop . ')(?<![A-Za-z0-9\\x01])[A-Za-z]{2,}(?![A-Za-z0-9\\x01])/i', $hide, $text);
+    // 3) any other digit run on a line that mentions a code word.
+    $text = preg_replace_callback('/[^\\r\\n]+/', function ($m) use ($kw, $hide) {
+        $line = $m[0];
+        if (!preg_match('/' . $kw . '/i', $line)) return $line;
+        $line = preg_replace('/(?<![A-Za-z0-9])[#*]?[A-Za-z]{0,3}\\d[\\dA-Za-z#*\\-]{2,}[#*]?(?![A-Za-z0-9])/', $hide, $line);
+        return preg_replace('/(?<![A-Za-z0-9])\\d(?:[\\s\\-]?\\d){2,}(?![A-Za-z0-9])/', $hide, $line);
+    }, $text);
+    $text = preg_replace_callback("/\x01([a-j]+)\x01/", function ($m) use ($kept) {
+        return $kept[(int) strtr($m[1], 'abcdefghij', '0123456789')];
+    }, $text);
+    return str_replace($hide, '[code hidden]', $text);
+}
 function brb_ov_text_block($text) {
-    $text = trim((string) $text);
+    $text = trim(brb_ov_redact_codes((string) $text));
     return $text === '' ? '' : nl2br(esc_html($text));
+}
+function brb_ov_inline($text) {
+    return esc_html(brb_ov_redact_codes((string) $text));
 }
 function brb_ov_month_url($ym, $anchor = '') {
     $base = get_permalink();
@@ -192,31 +272,115 @@ function brb_ov_month_url($ym, $anchor = '') {
 
 /* ---------- rendering ---------- */
 
+function brb_ov_rows_html($rows) {
+    $h = '<dl class="brb-ov-dl">';
+    foreach ($rows as $label => $val) {
+        if ($val === null || $val === '') continue;
+        $h .= '<dt>' . esc_html($label) . '</dt><dd>' . $val . '</dd>';
+    }
+    return $h . '</dl>';
+}
 function brb_ov_render_booking_card($b) {
     $badge = brb_ov_badge_class($b->status);
     $h = '<article class="brb-ov-card">';
     $h .= '<div class="brb-ov-card-top"><span class="brb-ov-time">' . esc_html(brb_ov_time_span($b->start_dt, $b->end_dt)) . '</span>';
     $h .= '<span class="brb-ov-badge brb-ov-badge-' . esc_attr($badge) . '">' . esc_html(brb_status_label($b->status)) . '</span></div>';
-    $h .= '<h4 class="brb-ov-name">' . esc_html((string) $b->name) . '</h4>';
-    $h .= '<dl class="brb-ov-dl">';
+    $h .= '<h4 class="brb-ov-name">' . brb_ov_inline($b->name) . '</h4>';
+
+    // Contact and event: the admin booking screen's detail rows, in its order.
+    $rows = [];
+    $rows['Ref'] = esc_html(brb_ref($b));
+    $rows['When'] = esc_html(brb_when($b));
     $tel = brb_ov_tel_href($b->phone ?? '');
-    if ($tel !== '') $h .= '<dt>Phone</dt><dd><a href="' . esc_url($tel, ['tel']) . '">' . esc_html((string) $b->phone) . '</a></dd>';
+    $phone = trim((string) ($b->phone ?? ''));
+    $rows['Phone'] = $phone === '' ? '' : ($tel !== '' ? '<a href="' . esc_url($tel, ['tel']) . '">' . esc_html($phone) . '</a>' : esc_html($phone));
     $email = trim((string) ($b->email ?? ''));
     if ($email !== '' && is_email($email) && sanitize_email($email) === $email) {
-        $h .= '<dt>Email</dt><dd><a href="' . esc_url('mailto:' . $email, ['mailto']) . '">' . esc_html($email) . '</a></dd>';
-    } elseif ($email !== '') {
-        $h .= '<dt>Email</dt><dd>' . esc_html($email) . '</dd>';
+        $rows['Email'] = '<a href="' . esc_url('mailto:' . $email, ['mailto']) . '">' . esc_html($email) . '</a>';
+    } else {
+        $rows['Email'] = esc_html($email);
     }
+    $rows['Estimated guests'] = esc_html((string) (int) $b->guests);
     $type = brb_event_type_label($b->event_type ?? '');
-    if ($type !== '') $h .= '<dt>Event</dt><dd>' . esc_html($type) . '</dd>';
-    $h .= '<dt>Guests</dt><dd>' . esc_html((string) (int) $b->guests) . '</dd>';
-    if (trim((string) ($b->end_time ?? '')) !== '') $h .= '<dt>Planned end</dt><dd>' . esc_html(brb_end_time_label($b->end_time)) . '</dd>';
-    $h .= '<dt>Ref</dt><dd>' . esc_html(brb_ref($b)) . '</dd>';
-    $h .= '</dl>';
+    $rows['Event type'] = esc_html($type);
+    $rows['Free admission'] = (($b->free_admission ?? '') === '1') ? 'Acknowledged' : '—';
+    $alcohol = brb_yes_no_label($b->alcohol ?? '');
+    $rows['Alcohol served'] = esc_html($alcohol);
+    if (($b->public_event ?? '') === 'no') $rows['Private, invitation-only'] = 'Yes';
+    elseif (($b->public_event ?? '') === 'yes') $rows['Private, invitation-only'] = 'No, it is open to the public';
+    if (trim((string) ($b->end_time ?? '')) !== '') $rows['Planned end time'] = esc_html(brb_end_time_label($b->end_time));
+    $rows['Host age bracket'] = esc_html(brb_host_age_label($b->host_age ?? ''));
+    $rows['Source'] = esc_html(brb_source_label($b->source ?? ''));
+    $rows['Walk-through'] = !empty($b->walkthrough_done) ? 'Completed' : 'Not yet';
+    $rows['Setup day'] = !empty($b->setup_addon) ? 'Added' : 'No';
+    $rows['Takedown day'] = !empty($b->takedown_addon) ? 'Added' : 'No';
+    $rows['Date hold'] = esc_html(brb_date_hold_state($b));
+    $created = brb_format_utc_mysql($b->created ?? '');
+    $rows['Requested'] = esc_html($created);
+    $h .= brb_ov_rows_html($rows);
+    if (!empty($b->attention)) $h .= '<p class="brb-ov-attn">' . brb_ov_inline($b->attention) . '</p>';
     $about = brb_ov_text_block($b->event_about ?? '');
     if ($about !== '') $h .= '<div class="brb-ov-note"><strong>About the event</strong><p>' . $about . '</p></div>';
     $notes = brb_ov_text_block($b->notes ?? '');
     if ($notes !== '') $h .= '<div class="brb-ov-note"><strong>Notes</strong><p>' . $notes . '</p></div>';
+
+    // Money: the admin Money box, charges, and payments recorded.
+    $money = brb_booking_money($b);
+    $m = [];
+    foreach ($money['rows'] as $label => $val) $m[$label] = esc_html((string) $val);
+    $m['Paid toward rental'] = esc_html(brb_money(round((float) $b->amount_paid, 2)));
+    if (brb_price_is_set($b) && ((float) $b->cleaning > 0.009 || (float) $b->tax > 0.009)) {
+        $m['Subtotal'] = esc_html(brb_money($b->subtotal));
+        $m['Cleaning'] = esc_html(brb_money($b->cleaning));
+        $m['Tax'] = esc_html(brb_money($b->tax));
+    }
+    $h .= '<div class="brb-ov-sec"><strong>Money</strong>' . brb_ov_rows_html($m);
+    $lines = brb_lines($b->id);
+    if ($lines) {
+        $cov = brb_line_coverage($b);
+        $h .= '<p class="brb-ov-mini">Charges</p><ul class="brb-ov-lines">';
+        foreach ($lines as $line) {
+            $state = brb_line_state_text($cov[(int) $line->id]['paid'] ?? 0, $cov[(int) $line->id]['amount'] ?? $line->amount);
+            $h .= '<li><span>' . brb_ov_inline($line->label) . ($state !== '' ? ' <em>(' . esc_html($state) . ')</em>' : '') . '</span><span>' . esc_html(brb_money($line->amount)) . '</span></li>';
+        }
+        $h .= '</ul><p class="brb-ov-mini">Guest total ' . esc_html(brb_money(brb_nonrefundable_total($b->id))) . ' · Refundable damage deposit ' . esc_html(brb_money(brb_booking_damage_figure($b))) . '</p>';
+    }
+    $pays = brb_payments($b->id);
+    $h .= '<p class="brb-ov-mini">Payments recorded</p>';
+    if (!$pays) {
+        $h .= '<p class="brb-ov-none">No payments recorded yet.</p>';
+    } else {
+        $h .= '<ul class="brb-ov-lines">';
+        foreach ($pays as $p) {
+            $bits = [brb_pay_method_label($p->method ?? 'check')];
+            if ((float) ($p->fee ?? 0) > 0.009) $bits[] = 'fee ' . brb_money($p->fee);
+            if (trim((string) $p->check_number) !== '') $bits[] = 'check #' . $p->check_number;
+            if (trim((string) ($p->stripe_id ?? '')) !== '') $bits[] = 'Stripe ' . $p->stripe_id;
+            $h .= '<li><span>' . esc_html((string) $p->received_on) . ' · ' . esc_html(implode(' · ', $bits));
+            if (trim((string) $p->notes) !== '') $h .= '<br><small>' . brb_ov_text_block($p->notes) . '</small>';
+            $h .= '</span><span>' . esc_html(brb_money($p->amount)) . '</span></li>';
+        }
+        $h .= '</ul>';
+    }
+    $h .= '</div>';
+
+    // Staff follow-up log and edit history (read-only).
+    $fu = function_exists('brb_followup_entries') ? brb_followup_entries($b) : [];
+    if ($fu) {
+        $h .= '<div class="brb-ov-sec"><strong>Follow-up</strong><ul class="brb-ov-hist">';
+        foreach ($fu as $e) {
+            $h .= '<li>' . esc_html(brb_followup_summary($e));
+            if (trim((string) ($e['note'] ?? '')) !== '') $h .= '<br><small>' . brb_ov_text_block($e['note']) . '</small>';
+            $h .= '</li>';
+        }
+        $h .= '</ul></div>';
+    }
+    $hist = brb_audit_entries($b->audit_log ?? '');
+    if ($hist) {
+        $h .= '<details class="brb-ov-sec"><summary>Edit history (' . (int) count($hist) . ')</summary><ol class="brb-ov-hist">';
+        foreach ($hist as $line) $h .= '<li>' . brb_ov_inline($line) . '</li>';
+        $h .= '</ol></details>';
+    }
     $h .= '</article>';
     return $h;
 }
@@ -224,6 +388,16 @@ function brb_ov_render_hold_card($hold) {
     $h = '<article class="brb-ov-card brb-ov-card-hold brb-ov-hold-' . esc_attr($hold['type']) . '">';
     $h .= '<div class="brb-ov-card-top"><span class="brb-ov-time">' . esc_html(brb_ov_time_span($hold['start_dt'], $hold['end_dt'])) . '</span>';
     $h .= '<span class="brb-ov-badge brb-ov-badge-' . esc_attr($hold['type']) . '">' . esc_html($hold['label']) . '</span></div>';
+    if ($hold['name'] !== '') $h .= '<h4 class="brb-ov-name">' . brb_ov_inline($hold['name']) . '</h4>';
+    $rows = [
+        'Calendar entry' => esc_html($hold['label']),
+        'From' => esc_html(brb_format_local_mysql($hold['start_dt'])),
+        'To' => esc_html(brb_format_local_mysql($hold['end_dt'])),
+        'Added' => esc_html(brb_format_utc_mysql($hold['created'] ?? '')),
+    ];
+    $h .= brb_ov_rows_html($rows);
+    $notes = brb_ov_text_block($hold['notes'] ?? '');
+    if ($notes !== '') $h .= '<div class="brb-ov-note"><strong>Notes</strong><p>' . $notes . '</p></div>';
     $h .= '</article>';
     return $h;
 }
@@ -262,6 +436,11 @@ function brb_ov_css() {
         . '.brb-ov-list{list-style:none;margin:0;padding:0}.brb-ov-list li{border-bottom:1px solid #eee}'
         . '.brb-ov-list a{display:flex;justify-content:space-between;gap:.5rem;padding:.55rem 0;text-decoration:none;color:inherit;flex-wrap:wrap}'
         . '.brb-ov-none{color:#666}'
+        . '.brb-ov-list summary{display:flex;justify-content:space-between;gap:.5rem;padding:.6rem 0;cursor:pointer;flex-wrap:wrap;list-style:none}.brb-ov-list summary::-webkit-details-marker{display:none}'
+        . '.brb-ov-sec{margin-top:.6rem;padding-top:.5rem;border-top:1px dashed #ddd;font-size:.92rem}.brb-ov-sec summary{cursor:pointer;font-weight:600}'
+        . '.brb-ov-mini{margin:.5rem 0 .2rem;font-weight:600;font-size:.85rem;color:#444}'
+        . '.brb-ov-lines{list-style:none;margin:0;padding:0}.brb-ov-lines li{display:flex;justify-content:space-between;gap:.5rem;padding:.2rem 0;border-bottom:1px solid #f0f0f0}'
+        . '.brb-ov-hist{margin:.3rem 0 0;padding-left:1.1rem;font-size:.85rem}.brb-ov-attn{background:#fdecea;color:#8e1b10;padding:.4rem .6rem;border-radius:6px;font-weight:600}'
         . '</style>';
 }
 function brb_ov_swipe_js() {
@@ -334,7 +513,7 @@ function brb_ov_render() {
     }
     if (!$any) $h .= '<p class="brb-ov-none">Nothing on the calendar this month.</p>';
 
-    $h .= '<h3>Upcoming</h3>';
+    $h .= '<h3>Upcoming</h3><p class="brb-ov-sub">Tap a line to see everything.</p>';
     $items = brb_ov_upcoming_items();
     if (!$items) {
         $h .= '<p class="brb-ov-none">No upcoming bookings or holds.</p>';
@@ -342,10 +521,10 @@ function brb_ov_render() {
         $h .= '<ul class="brb-ov-list">';
         foreach ($items as $it) {
             $s = new DateTimeImmutable($it['start_dt'], $tz);
-            $ymd = $s->format('Y-m-d');
-            if ($ymd < $today) $ymd = $today;
             $badge = $it['kind'] === 'booking' ? brb_ov_badge_class($it['status']) : $it['status'];
-            $h .= '<li><a href="' . esc_url(brb_ov_month_url(substr($ymd, 0, 7), 'brb-ov-d-' . $ymd)) . '"><span>' . esc_html($s->format('D, M j, Y')) . ($it['name'] !== '' ? ' · ' . esc_html($it['name']) : '') . '</span><span class="brb-ov-badge brb-ov-badge-' . esc_attr($badge) . '">' . esc_html($it['label']) . '</span></a></li>';
+            $h .= '<li><details><summary><span>' . esc_html($s->format('D, M j, Y')) . ($it['name'] !== '' ? ' · ' . brb_ov_inline($it['name']) : '') . '</span><span class="brb-ov-badge brb-ov-badge-' . esc_attr($badge) . '">' . esc_html($it['label']) . '</span></summary>';
+            $h .= $it['kind'] === 'booking' ? brb_ov_render_booking_card($it['row']) : brb_ov_render_hold_card($it['row']);
+            $h .= '</details></li>';
         }
         $h .= '</ul>';
     }
