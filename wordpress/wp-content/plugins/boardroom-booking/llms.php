@@ -23,7 +23,7 @@ function brb_llms_txt_body() {
         '## Links',
         '',
         '- [Book a date](' . $site . '/reserve-the-boardroom-quad-cities/): pick a date and see the price on the calendar',
-        '- [FAQ](' . $site . '/faq/): booking, hours, food, BYOB, capacity, and cancellation',
+        '- [FAQ](' . $site . '/faq/): booking, hours, food and drink, capacity, and cancellation',
         '- [Contact](' . $site . '/contact/): questions for the team',
         '- [Gallery](' . $site . '/gallery/): photos of the space',
     ];

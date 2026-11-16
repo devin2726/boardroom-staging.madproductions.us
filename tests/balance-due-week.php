@@ -1,6 +1,6 @@
 <?php
 /**
- * Balance due one week (7 days) before the event everywhere (2.5.81).
+ * Balance due 7 days before the event everywhere (2.5.81).
  * The defaults and the FAQ "add if missing" fallback no longer carry the
  * old 48-hour balance wording. The 48-hour minimum booking notice is a
  * separate rule and stays.
@@ -30,13 +30,13 @@ try {
     brb_t(isset($d['min_notice_hours']) && (string) $d['min_notice_hours'] === '48', 'defaults: the separate 48-hour booking notice is unchanged');
 
     $src = (string) file_get_contents(WP_PLUGIN_DIR . '/boardroom-booking/boardroom-booking.php');
-    brb_t(strpos($src, "'When is the balance due?' => 'The remaining balance is due no later than one week before the event.',") !== false, 'FAQ fallback: the balance answer is one week before the event');
+    brb_t(strpos($src, "'When is the balance due?' => 'The remaining balance is due no later than 7 days before the event.',") !== false, 'FAQ fallback: the balance answer is 7 days before the event');
     brb_t(strpos($src, "'When is the balance due?' => 'The remaining balance is due the week of the event, no later than 48 hours before.'") === false, 'FAQ fallback: the 48-hour balance answer is gone');
 
     // The fallback map sits after an early return in brb_refresh_faq(), so it is
     // checked as source text. The FAQ markup itself must agree with it.
     $faq = brb_faq_markup();
-    brb_t(strpos($faq, 'no later than one week before') !== false && strpos($faq, 'no later than 48 hours before') === false, 'FAQ markup: balance one week before, no 48-hour balance wording');
+    brb_t(strpos($faq, 'no later than 7 days before') !== false && strpos($faq, 'no later than one week before') === false && strpos($faq, 'no later than 48 hours before') === false, 'FAQ markup: balance 7 days before, no one-week or 48-hour balance wording');
     brb_t(strpos($faq, 'at least 48 hours') !== false, 'FAQ markup: the separate 48-hour booking notice stays');
 } finally {
     $wpdb->show_errors($kept_show);

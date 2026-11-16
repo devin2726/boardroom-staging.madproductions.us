@@ -306,7 +306,12 @@ function brb_payment_link_body($b) {
     if ($fee_cents > 0) $lines .= 'Card processing fee (' . brb_fee_percent_label() . '): ' . brb_money($fee_cents / 100) . "\n";
     $lines .= 'Total charged to your card: ' . brb_money(($charge['base_cents'] + $fee_cents) / 100) . "\n\n";
     if ($url !== '') $lines .= "Pay online: " . $url . "\n\n";
-    $lines .= "The refundable damage deposit is separate from the 50% that holds the date, and it is charged with that deposit. The card processing fee applies to both and is not part of the booking balance. You can still pay by check or in person.\n";
+    // 2.5.80: the damage deposit sentence shows only when this charge includes one (optional invoice item).
+    if ((int) $charge['damage_cents'] > 0) {
+        $lines .= "The refundable damage deposit is separate from the 50% that holds the date, and it is charged with that deposit. The card processing fee applies to both and is not part of the booking balance. You can still pay by check or in person.\n";
+    } else {
+        $lines .= "The card processing fee is not part of the booking balance. You can still pay by check or in person.\n";
+    }
     return $lines;
 }
 function brb_send_payment_link($booking_id) {
