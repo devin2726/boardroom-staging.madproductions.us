@@ -37,6 +37,9 @@ try {
     brb_t(BRB_VER === '2.5.80' && version_compare(BRB_VER, '2.5.79', '>') && version_compare(BRB_VER, '2.5.81', '<'), 'plugin version is 2.5.80, after live 2.5.79 and before 2.5.81');
     brb_t(function_exists('br_ver') && br_ver() === '1.2.50' && strpos((string) file_get_contents(get_template_directory() . '/style.css', false, null, 0, 400), 'Version: 1.2.50') !== false, 'theme version is 1.2.50 (after open PR #93 at 1.2.49) in br_ver() and style.css');
 
+    $seo_check = br_seo_pages();
+    brb_t($seo_check['faq']['description'] === 'Answers about booking, hours, food and drink, capacity (up to 80 guests), and cancellation at The Boardroom, a party and event venue in Moline, IL.' && strlen($seo_check['faq']['description']) === 147, 'FAQ meta description is the approved 147-character text');
+    brb_t($seo_check['contact']['description'] === 'Questions about The Boardroom, a party and event venue at 2220 37th Street in Moline, IL? Email boardroomqc@gmail.com or use the contact form.' && $seo_check['gallery']['description'] === 'See photos of The Boardroom, a party and event venue in Moline, IL (Quad Cities) for birthdays, showers, holiday parties, and meetings of up to 80 guests.', 'Contact and Gallery meta descriptions match PR #93');
     // ---- rendered public strings
     $checklist_saved = brb_opt();
     $old_checklist = $checklist_saved;
