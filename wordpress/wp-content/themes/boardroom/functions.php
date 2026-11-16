@@ -3,7 +3,7 @@ add_action('after_setup_theme', function () {
     add_theme_support('title-tag'); add_theme_support('post-thumbnails'); add_theme_support('custom-logo');
     register_nav_menus(['primary' => 'Primary', 'footer' => 'Footer']);
 });
-function br_ver() { return '1.2.48'; }
+function br_ver() { return '1.2.49'; }
 add_action('wp_enqueue_scripts', function () {
     wp_enqueue_style('boardroom', get_stylesheet_uri(), [], br_ver());
     wp_enqueue_script('boardroom', get_template_directory_uri() . '/assets/site.js', [], br_ver(), true);
@@ -423,8 +423,8 @@ function br_seo_pages() {
     $place = 'Party & Event Venue in Moline, IL (Quad Cities)';
     return [
         'home' => ['title' => 'The Boardroom | ' . $place, 'description' => 'The Boardroom is a party and event venue in Moline, IL, in the Quad Cities. Prices show on the calendar; nothing is charged until we approve your request.'],
-        'reserve-the-boardroom-quad-cities' => ['title' => 'Book The Boardroom | ' . $place, 'description' => 'Request a date at The Boardroom in Moline. The price shows on the calendar. Nothing is charged until we approve the booking and email a payment link. Pay 50% plus the $250 damage deposit.'],
-        'faq' => ['title' => 'FAQ | The Boardroom, ' . $place, 'description' => 'Answers about booking, hours, food, BYOB, capacity, and cancellation at The Boardroom in Moline, IL.'],
+        'reserve-the-boardroom-quad-cities' => ['title' => 'Book The Boardroom | ' . $place, 'description' => 'Request a date at The Boardroom in Moline. The price shows on the calendar. Nothing is charged until we approve the booking and email a payment link. Pay a 50% deposit; the balance is due 7 days before.'],
+        'faq' => ['title' => 'FAQ | The Boardroom, ' . $place, 'description' => 'Answers about booking, hours, food and drink, capacity, and cancellation at The Boardroom in Moline, IL.'],
         'terms' => ['title' => 'Rental Terms | The Boardroom, ' . $place, 'description' => 'Plain-language rental terms for The Boardroom in Moline, IL. The signed rental agreement controls if they differ.'],
         'privacy' => ['title' => 'Privacy Policy | The Boardroom, ' . $place, 'description' => 'How The Boardroom in Moline, IL uses booking and contact details. We do not sell your information.'],
         'rental-agreement' => ['title' => 'Rental Agreement | The Boardroom, ' . $place, 'description' => 'The facility event space rental agreement for The Boardroom at 2220 37th Street, Moline, IL.'],

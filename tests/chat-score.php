@@ -45,12 +45,12 @@ function brb_chat_topic_spec($topic) {
         'nonprofit' => ['facts' => ['nonprofit or military discounts'], 'lead' => true, 'money' => 'none'],
         'deposit' => ['facts' => ['50% of the agreed total'], 'money' => 'none', 'forbid' => ['not a binding commitment']],
         'deposit_when' => ['facts' => ['50% of the agreed total', '1 day', 'signing'], 'money' => 'none'],
-        'balance' => ['facts' => ['one week before'], 'money' => 'none'],
+        'balance' => ['facts' => ['7 days before'], 'money' => 'none', 'forbid' => ['one week']],
         'pay_methods' => ['facts' => ['check', 'in person', 'card'], 'money' => 'none'],
-        'cash_check' => ['facts' => ['2220 37th Street, Moline, IL 61265', 'Boardroom QC LLC', 'The Boardroom'], 'money' => 'none', 'checks' => true],
+        'cash_check' => ['facts' => ['2212 37th Street, Moline, IL 61265', 'Boardroom QC LLC', 'the office'], 'money' => 'none', 'checks' => true],
         'card_fee' => ['facts' => ['3%', 'card'], 'any' => [['non-refundable', "isn't refundable"]], 'money' => 'none'],
-        'cleaning' => ['facts' => ['damage deposit', '$250', 'cleaning'], 'money' => 'damage'],
-        'security' => ['facts' => ['damage deposit', '$250'], 'money' => 'damage'],
+        'cleaning' => ['facts' => ['cleaning fee', 'dirty or damaged'], 'money' => 'none', 'forbid' => ['$250']],
+        'security' => ['facts' => ['cleaning fee', 'dirty or damaged'], 'money' => 'none', 'forbid' => ['$250']],
         'tax' => ['exact' => 'Sales tax is included in the price.', 'money' => 'none'],
         'receipt' => ['facts' => ['Card payments get an emailed receipt', 'invoice or receipt for any payment on request'], 'money' => 'none'],
         'tax_receipt' => ['facts' => ['Sales tax is included in the price.', 'Card payments get an emailed receipt'], 'money' => 'none'],
@@ -89,9 +89,9 @@ function brb_chat_topic_spec($topic) {
         'food' => ['facts_i' => ['own food', 'warmers', 'stovetop', 'any caterer', 'doesn\'t provide catering'], 'money' => 'none'],
         'kitchen' => ['facts' => ['stovetop'], 'any' => [["can't be used", 'not permitted', 'may not be used', 'No cooking']], 'money' => 'none'],
         'fridge' => ['facts' => ['refrigerator', 'ice machine'], 'money' => 'none'],
-        'alcohol' => ['facts' => ['BYOB', 'Want more details?'], 'money' => 'none', 'phone' => 'never', 'forbid' => ['liquor license', 'Liquor-Licensing']],
-        'serve_alcohol' => ['facts' => ["don't supply", 'BYOB', 'Want more details?'], 'money' => 'none', 'phone' => 'never', 'forbid' => ['$50', 'Yes. BYOB']],
-        'bar' => ['facts' => ['bar area', 'ice machine', 'BYOB', 'Want more details?'], 'money' => 'none', 'phone' => 'never', 'forbid' => ['$50']],
+        'alcohol' => ['facts' => ['bring their own food and drink', 'Want more details?'], 'money' => 'none', 'phone' => 'never', 'forbid' => ['liquor license', 'Liquor-Licensing', 'BYOB']],
+        'serve_alcohol' => ['facts' => ["don't supply", 'bring their own food and drink', 'Want more details?'], 'money' => 'none', 'phone' => 'never', 'forbid' => ['$50', 'BYOB']],
+        'bar' => ['facts' => ['bar area', 'ice machine', 'bring their own food and drink', 'Want more details?'], 'money' => 'none', 'phone' => 'never', 'forbid' => ['$50', 'BYOB']],
         'plates' => ['facts' => ['bring your own plates'], 'money' => 'none'],
         'tables' => ['facts' => ['Tables and chairs', 'not set up', 'Staff cannot set the room up'], 'money' => 'none'],
         'setup_help' => ['facts' => ['No. Guests set up', 'Staff cannot set the room up'], 'money' => 'none', 'forbid' => ['extra fee']],
@@ -115,13 +115,13 @@ function brb_chat_topic_spec($topic) {
         'rules' => ['facts' => ['No overnight stays', 'no cooking', '11:30 PM', 'no tickets', '80', 'Want more details?'], 'money' => 'none', 'phone' => 'never', 'forbid' => ['$50', 'midnight', '90 or more days']],
         'cleanup' => ['facts' => ['leave it like you got it', 'garbage'], 'money' => 'none'],
         'smoke' => ['facts' => ['outside only', 'Vaping'], 'money' => 'none'],
-        'pets' => ['facts' => ['Service animals only', 'No pets'], 'money' => 'none'],
+        'pets' => ['facts' => ['Pets are not permitted', 'Service animals as defined by the ADA'], 'money' => 'none', 'forbid' => ['Service animals only']],
         'cameras' => ['facts' => ['security cameras'], 'money' => 'none'],
         'noise' => ['facts' => ['quiet after 11:30 PM'], 'money' => 'none'],
-        'insurance' => ['facts' => ['renters insurance', 'proof', 'event liability', 'liquor liability', '7 days before'], 'money' => 'none'],
+        'insurance' => ['facts' => ['$1,000,000 per occurrence', '$2,000,000', 'liquor liability', '7 days before'], 'money' => 'none', 'forbid' => ['renters insurance']],
         'agreement' => ['facts' => ['rental agreement', '/terms/'], 'money' => 'none'],
         'onsite' => ['facts' => ['No one is on site', 'connected offices', 'contract is signed'], 'money' => 'none'],
-        'damage' => ['facts' => ['damage deposit covers cleaning and damage', 'may be charged', 'Terms'], 'money' => 'damage'],
+        'damage' => ['facts' => ['responsible for the cost of any damage', 'cleaning fee', 'Terms'], 'money' => 'none', 'forbid' => ['$250']],
         'contact' => ['facts' => ['boardroomqc@gmail.com', 'no phone number', '2220 37th Street, Moline, IL 61265'], 'lead' => true, 'money' => 'none', 'phone' => 'never', 'forbid' => ['2212']],
         'phone' => ['facts' => ['boardroomqc@gmail.com', 'no phone number', '2220 37th Street, Moline, IL 61265'], 'lead' => true, 'money' => 'none', 'phone' => 'never', 'forbid' => ['2212', '309']],
         'person' => ['facts' => ['Contact form', 'boardroomqc@gmail.com', 'contract is signed'], 'money' => 'none', 'phone' => 'never'],
@@ -164,7 +164,8 @@ function brb_chat_topic_spec($topic) {
 }
 
 function brb_chat_allowed_money($spec, $question) {
-    $allowed = [];
+    // 2.5.80: the insurance limits are a published rule, not a price, so any answer may state them.
+    $allowed = ['$1,000,000' => true, '$2,000,000' => true];
     if ($spec['money'] === 'damage' || $spec['money'] === 'addon') {
         if ($spec['money'] === 'damage') {
             $allowed['$250'] = true;

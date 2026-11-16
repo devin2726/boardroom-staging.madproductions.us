@@ -2,18 +2,18 @@
 /**
  * Plugin Name: Boardroom Booking
  * Description: Self-hosted direct booking for The Boardroom — full-day blocks, availability calendar, agreed prices, approval before payment, blackout dates, and emails.
- * Version: 2.5.79
+ * Version: 2.5.80
  * Author: Boardroom QC LLC
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.5.79');
+define('BRB_VER', '2.5.80');
 function brb_reserve_explainer_steps() {
     return [
         'Pick a date. Prices are on the calendar.',
         'Send a request. No charge yet.',
         'We approve it and email a payment link.',
-        'Within 1 day of signing, pay 50% of the invoice. That deposit holds the date. The $250 refundable damage deposit is separate.',
-        'Pay the rest a week before your event.',
+        'Within 1 day of signing, pay 50% of the invoice. That booking deposit holds the date.',
+        'Pay the remaining balance no later than 7 days before your event.',
     ];
 }
 define('BRB_BOOK_SLUG', 'reserve-the-boardroom-quad-cities');
@@ -168,7 +168,7 @@ function brb_defaults() {
         'tour_email' => 'boardroomqc@gmail.com',
         'payee' => 'Boardroom QC LLC',
         'venue_address' => BRB_VENUE_ADDRESS,
-        'pay_location' => BRB_VENUE_ADDRESS,
+        'pay_location' => BRB_CHECK_ADDRESS,
         'pay_hours' => '',
         'pay_instructions' => '',
         'card_fee_percent' => '3',
@@ -207,7 +207,7 @@ function brb_venue_address() {
 }
 function brb_check_address() {
     $v = trim((string) brb_opt('pay_location'));
-    return $v !== '' ? $v : BRB_VENUE_ADDRESS;
+    return $v !== '' ? $v : BRB_CHECK_ADDRESS;
 }
 function brb_guest_payee() {
     $payee = trim((string) brb_opt('payee'));
@@ -216,7 +216,9 @@ function brb_guest_payee() {
 }
 function brb_check_sentence($item = 'checks') {
     $place = brb_check_address();
-    if ($place === brb_venue_address()) $place = 'The Boardroom, ' . $place;
+    // 2.5.80: checks go to the office at 2212 (Nov 16, 2026 Terms and Rental Agreement). The venue is 2220.
+    if ($place === BRB_CHECK_ADDRESS) $place = 'the office, ' . $place;
+    elseif ($place === brb_venue_address()) $place = 'The Boardroom, ' . $place;
     return 'Mail or drop off ' . $item . ' payable to ' . brb_guest_payee() . ' at ' . $place . '.';
 }
 function brb_appointment_line() {
@@ -567,10 +569,11 @@ function brb_price_range_sentence() {
     return 'The price for a date is on the calendar. Your exact price is confirmed by email.';
 }
 function brb_damage_card_refund_line() {
-    return 'If you paid the damage deposit by card, it is refunded through Stripe, less the card processing fee, after the event once the space is checked.';
+    return 'If a damage deposit was paid by card, it is refunded through Stripe, less the card processing fee, after the event once the space is checked.';
 }
+// 2.5.80: public cleaning and damage rule (Nov 16, 2026 Terms and Rental Agreement). No flat deposit amount.
 function brb_damage_public_line() {
-    return 'The refundable damage deposit is a flat $250. It is charged with the booking deposit and mainly covers cleaning. A dumpster is on site. It is refunded through Stripe, less the card processing fee, after the event once the space is checked.';
+    return 'A cleaning fee may be applied if the space is left dirty or damaged. The renter is still responsible for the cost of any damage. A dumpster is on site.';
 }
 function brb_first_payment_parts($rental = 1400.0) {
     $rental = round((float) $rental, 2);
@@ -591,8 +594,11 @@ function brb_first_payment_parts($rental = 1400.0) {
     ];
 }
 function brb_first_payment_sentence() {
+    // 2.5.80: public example shows the 50% booking deposit only. Any damage line on a
+    // real booking is shown from that booking's own figures, never from this example.
     $ex = brb_first_payment_parts(1400);
-    return 'Your first payment is 50% of the rental plus the ' . brb_whole_money($ex['damage']) . ' refundable damage deposit; card payments add a 3% fee. For example, on a ' . brb_whole_money($ex['rental']) . ' rental the first card payment is ' . brb_whole_money($ex['deposit']) . ' + ' . brb_whole_money($ex['damage']) . ' = ' . brb_whole_money($ex['base']) . ', plus a 3% fee of ' . brb_money($ex['fee']) . ', for ' . brb_money($ex['card']) . '.';
+    $fee_cents = brb_card_fee_cents(brb_cents_from_amount($ex['deposit']));
+    return 'Your first payment is the 50% booking deposit; card payments add a 3% fee. For example, on a ' . brb_whole_money($ex['rental']) . ' rental the booking deposit is ' . brb_whole_money($ex['deposit']) . ', plus a 3% card fee of ' . brb_money($fee_cents / 100) . ', for ' . brb_money(($ex['deposit'] * 100 + $fee_cents) / 100) . ' by card.';
 }
 function brb_deposit_bullets() {
     return [
@@ -612,8 +618,8 @@ function brb_how_booking_works_steps() {
         'Pick your date. The price shows right on the calendar.',
         'Send your request. Nothing is charged yet.',
         'We review it. Once it\'s approved, we\'ll email you a payment link.',
-        'Lock in your date. Pay 50% of the rental plus the $250 refundable damage deposit by card (3% fee) or check, and agree to the Terms and Rental Agreement.',
-        'You\'re booked! Pay the balance by check or card no later than one week before your event. Your status link stays with your booking, and we\'ll send a checklist reminder about a week before your event.',
+        'Lock in your date. Pay the 50% booking deposit by card (3% fee) or check, and agree to the Terms and Rental Agreement.',
+        'You\'re booked! Pay the balance by check or card no later than 7 days before your event. Your status link stays with your booking, and we\'ll send a checklist reminder about 7 days before your event.',
     ];
 }
 function brb_how_booking_works_html() {
@@ -621,15 +627,15 @@ function brb_how_booking_works_html() {
         'Prices on the Calendar',
         'No Charge to Request',
         '50% Holds Your Date',
-        '$250 Refundable Damage Deposit',
-        'Balance Due 1 Week Before',
+        'Balance Due 7 Days Before',
+        'Book 48 Hours Ahead',
     ], 0) : '';
     return '<section class="brb-how"><h2>Pick a Date</h2>' . $facts . '</section>';
 }
 function brb_book_policy_html() {
     $sections = [
-        ['Pricing', 'Full days start at $850. The price for a date is on the calendar, and we confirm the final price by email.'],
-        ['Payment', 'To hold your date, pay 50% of the rental plus a $250 refundable damage deposit. Card payments add a 3% fee. The damage deposit is refunded after the event, once the space is checked.'],
+        ['Pricing', 'Full days are $850 Sunday through Thursday and $1,400 Friday and Saturday. The price for a date is on the calendar, and we confirm the final price by email. Card payments add a 3% processing fee.'],
+        ['Payment', 'To hold your date, pay a 50% booking deposit. The remaining balance is due no later than 7 days before your event. Card payments add a 3% fee. A cleaning fee may be applied if the space is left dirty or damaged, and the renter is still responsible for the cost of any damage.'],
         ['Cancellation', 'If you cancel in writing 60 or more days before the event, your 50% payment is refunded, less the 3% card fee and any costs already incurred. Cancellations made less than 60 days out are not refunded.'],
     ];
     $html = '<section class="brb-book-policy">';
@@ -693,20 +699,32 @@ function brb_guest_out_line() {
 function brb_guest_free_line() {
     return 'Events are free to attend: no tickets, no cover charge, no paid admission, no door fees, and no ticket or merchandise sales. A band or live music is welcome when guests are not charged for the event.';
 }
+// 2.5.80: no "BYOB" wording (Nov 16, 2026 Terms and Rental Agreement).
 function brb_byob_line() {
-    return 'BYOB is allowed.';
+    return 'Guests are welcome to bring their own food and drink.';
+}
+function brb_alcohol_liability_line() {
+    return 'If alcohol is served, liquor liability coverage is also required.';
+}
+function brb_insurance_rule_line() {
+    return 'Every event needs liability insurance of at least $1,000,000 per occurrence and $2,000,000 in the aggregate. If alcohol is served, $1,000,000 in liquor liability is also required. Proof is due 7 days before the event.';
+}
+function brb_pet_rule_line() {
+    return 'Pets are not permitted. Service animals as defined by the ADA are welcome and must remain leashed or under the handler\'s control at all times. Emotional support animals and pets are not service animals. Renter is responsible for any damage or cleanup caused by an animal.';
+}
+function brb_cleaning_fee_line() {
+    return 'A cleaning fee may be applied if the space is left dirty or damaged.';
 }
 function brb_checklist_default() {
     return implode("\n", [
         'Sign the rental agreement.',
         'The deposit is received and approved.',
-        'The balance is due no later than one week before the event.',
-        'The refundable damage deposit is a flat $250. It is charged with the booking deposit and returned if the room is left as you found it.',
-        'The damage deposit is refunded after the event, once the space is checked, by your original payment method: through Stripe for card payments (less the card processing fee) or by check.',
+        'The balance is due no later than 7 days before the event.',
+        brb_cleaning_fee_line() . ' You are still responsible for the cost of any damage.',
         'Setup is the morning of the event. Setup can begin at 8:00 AM.',
         'Everyone is out by 11:30 PM.',
         'All events are free to attend: no tickets, no cover charge, and no sales.',
-        brb_byob_line(),
+        brb_byob_line() . ' ' . brb_alcohol_liability_line(),
         'Bring your own plates, cups, and utensils. Buffet pans and serving spoons are available. The microwave, blender and food warmers are fine. The stovetops and oven can\'t be used.',
         'Not allowed: Confetti, confetti cannons, rice, birdseed, or loose sequins.',
         'Not allowed: Wall tape.',
@@ -716,11 +734,12 @@ function brb_checklist_default() {
         'Not allowed: Weapons, except as the law allows.',
         'Not allowed: Anything that creates a big mess, a fire or safety risk, a nuisance, or a disturbance.',
         'Tickets, cover charges, paid admission, door fees, and ticket or merchandise sales aren\'t allowed either.',
-        'Vaping leaves a residue. All smoking is outside.',
+        'No smoking or vaping inside. Smoking is outside only.',
         'Balloons are fine, no glitter.',
         'Please clean up and take the garbage to the dumpster.',
-        'Renters insurance covering your event is required. We may ask for proof before giving you access.',
+        brb_insurance_rule_line(),
         'Vendors (caterer, DJ, bartender) send proof of insurance at least 7 days before.',
+        brb_pet_rule_line(),
         'The minimum host age is 25.',
     ]);
 }
@@ -732,12 +751,21 @@ function brb_checklist_policy_text($text) {
         if ($line === '') continue;
         if (strpos($line, 'Optional setup or takedown day add-ons') === 0) continue;
         if ($line === 'The space is quiet after 11:30 PM, and nothing is outdoors.') continue;
-        if ($line === 'Consider your own renters or event insurance.') {
-            $line = 'Renters insurance covering your event is required. We may ask for proof before giving you access.';
+        // 2.5.80: stored checklist lines from older versions are mapped to the Nov 16, 2026 rules.
+        if ($line === 'Consider your own renters or event insurance.' || stripos($line, 'renters insurance') !== false) {
+            $line = brb_insurance_rule_line();
         }
-        if ($line === 'If you paid the damage deposit by card, it is refunded to the same card after the event once the space is checked.') {
-            $line = 'The damage deposit is refunded after the event, once the space is checked, by your original payment method: through Stripe for card payments (less the card processing fee) or by check.';
+        if (stripos($line, 'damage deposit') !== false) {
+            if (stripos($line, 'flat $') === false) continue;
+            $line = brb_cleaning_fee_line() . ' You are still responsible for the cost of any damage.';
         }
+        if (preg_match('/\bBYOB\b/i', $line)) {
+            $line = brb_byob_line() . ' ' . brb_alcohol_liability_line();
+        }
+        if ($line === brb_byob_line()) $line = brb_byob_line() . ' ' . brb_alcohol_liability_line();
+        $line = str_ireplace(['no later than one week before', 'no later than a week before'], 'no later than 7 days before', $line);
+        if ($line === 'Vaping leaves a residue. All smoking is outside.') $line = 'No smoking or vaping inside. Smoking is outside only.';
+        if (stripos($line, 'Service animals only') !== false) $line = brb_pet_rule_line();
         if (strpos($line, 'The stovetop cannot be used.') !== false) {
             $line = str_replace('The stovetop cannot be used.', 'The microwave, blender and food warmers are fine. The stovetops and oven can\'t be used.', $line);
         }
@@ -749,7 +777,7 @@ function brb_checklist_policy_text($text) {
         $inserted = false;
         foreach ($lines as $line) {
             $next[] = $line;
-            if (!$inserted && strpos($line, 'Renters insurance covering your event is required') === 0) {
+            if (!$inserted && strpos($line, 'Every event needs liability insurance') === 0) {
                 $next[] = 'Vendors (caterer, DJ, bartender) send proof of insurance at least 7 days before.';
                 $inserted = true;
             }
@@ -762,7 +790,10 @@ function brb_checklist_policy_text($text) {
 function brb_checklist_text() {
     $text = trim((string) brb_opt('checklist'));
     if ($text === '') $text = brb_checklist_default();
-    return brb_checklist_policy_text($text);
+    $text = brb_checklist_policy_text($text);
+    // 2.5.80: a stored checklist without the pet line gets the ADA rule once.
+    if (stripos($text, 'Service animals as defined by the ADA') === false) $text = rtrim($text) . "\n" . brb_pet_rule_line();
+    return $text;
 }
 function brb_checklist_lines() {
     $lines = [];
@@ -1102,8 +1133,14 @@ function brb_migrate_settings() {
     if (!is_email($tour_email)) $merged['tour_email'] = $defaults['tour_email'];
     else $merged['tour_email'] = $tour_email;
     $location = trim((string) ($merged['pay_location'] ?? ''));
-    if ($location === '' || stripos($location, '[VERIFY]') !== false || stripos($location, '2212 47') !== false || $location === BRB_CHECK_ADDRESS) {
-        $merged['pay_location'] = BRB_VENUE_ADDRESS;
+    // 2.5.80: checks go to the office at 2212 37th Street (Nov 16, 2026 Terms and Rental Agreement).
+    // A stored 2212 37th Street value is kept and is never rewritten to the venue address.
+    // The venue address (the old default) is moved to the office once, when upgrading from before 2.5.80.
+    $from = (string) get_option('brb_version', '');
+    if ($location === '' || stripos($location, '[VERIFY]') !== false || stripos($location, '2212 47') !== false) {
+        $merged['pay_location'] = BRB_CHECK_ADDRESS;
+    } elseif ($location === BRB_VENUE_ADDRESS && ($from === '' || version_compare($from, '2.5.80', '<'))) {
+        $merged['pay_location'] = BRB_CHECK_ADDRESS;
     }
     $venue = trim((string) ($stored['venue_address'] ?? ''));
     if ($venue === '' || stripos($venue, '[VERIFY]') !== false || stripos($venue, '2212 47') !== false || $venue === BRB_CHECK_ADDRESS) {
@@ -1115,16 +1152,23 @@ function brb_migrate_settings() {
     }
     $old_balance = 'The invoice notes require full payment 30 days before the event.';
     $week_balance = 'The remaining balance is due the week of the event, no later than 48 hours before the event.';
-    $one_week = 'The remaining balance is due no later than one week before the event.';
+    $one_week = 'The remaining balance is due no later than 7 days before the event.';
     $policy = (string) ($merged['policy'] ?? '');
     if (strpos($policy, $old_balance) !== false) $policy = str_replace($old_balance, $one_week, $policy);
     if (strpos($policy, $week_balance) !== false) $policy = str_replace($week_balance, $one_week, $policy);
     $policy = str_replace(
         'Mail or drop off checks payable to Mad Productions at 2212 37th Street, Moline, IL 61265.',
-        'Mail or drop off checks payable to Boardroom QC LLC at The Boardroom, 2220 37th Street, Moline, IL 61265.',
+        'Make checks payable to Boardroom QC LLC. Mail or drop off checks at the office: 2212 37th Street, Moline, IL 61265.',
         $policy
     );
     $policy = str_replace('checks payable to Mad Productions at The Boardroom, ', 'checks payable to Boardroom QC LLC at The Boardroom, ', $policy);
+    // 2.5.80: a stored summary moves to the Nov 16, 2026 wording: checks to the office at 2212, balance 7 days before.
+    $policy = str_replace(
+        'Mail or drop off checks payable to Boardroom QC LLC at The Boardroom, ' . BRB_VENUE_ADDRESS . '.',
+        'Make checks payable to Boardroom QC LLC. Mail or drop off checks at the office: ' . BRB_CHECK_ADDRESS . '.',
+        $policy
+    );
+    $policy = str_replace('no later than one week before the event', 'no later than 7 days before the event', $policy);
     $merged['policy'] = $policy;
     if (!isset($stored['policy']) || brb_policy_needs_refresh($stored['policy'])) {
         $merged['policy'] = brb_cancellation_summary();
@@ -1158,18 +1202,17 @@ function brb_migrate_prices() {
     // Rows that already have a calculated total keep it. New saves store zero until staff set a price.
     $wpdb->query("UPDATE $t SET price_set = 1 WHERE price_set = 0 AND total > 0.009");
 }
-// [CONFIRM with Chris] Guests out by 11:30 PM. No smoking or vaping. Service animals only.
+// 2.5.80: FAQ follows the Nov 16, 2026 Terms and Rental Agreement (out by 11:30 PM, no smoking or vaping inside, ADA service-animal rule).
 function brb_faq_markup() {
     $html = <<<'HTML'
 <h2>Booking and dates</h2>
 <details><summary>How do I book?</summary><p>We'd love to host you. Pick your date on the <a href="/reserve-the-boardroom-quad-cities/">Book</a> page. The price shows right on the calendar. Send a request. Nothing is charged yet. Once it's approved, we'll email you a payment link. Your date is reserved once your deposit is received and approved by the Boardroom. A request does not hold the date. Bookings need at least 48 hours' notice.</p></details>
 <details><summary>How booking works</summary><p>HOW_STEPS</p></details>
-<details><summary>Are overnight stays allowed?</summary><p>No overnight stays. The Boardroom is an event space only.</p></details>
 <details><summary>What dates are open?</summary><p>Use the calendar on the <a href="/reserve-the-boardroom-quad-cities/">Book</a> page, or ask us about a date. We'll tell you if it looks open.</p></details>
 <details><summary>Can I rent for a few hours?</summary><p>Each booking is one full day, 10:00 AM to 11:30 PM, with setup from 8:00 AM. Half-day and hourly rentals aren't offered.</p></details>
 
 <h2>Pricing and payment</h2>
-<details><summary>How do I pay?</summary><p>After we approve the request, pay by check or in person, or online by card with a 3% processing fee. Mail or drop off checks payable to Boardroom QC LLC at The Boardroom, 2220 37th Street, Moline, IL 61265. We don't keep set hours. We meet on demand and set a time together, by appointment. The deposit (50% of the agreed total) holds the date. The balance is due no later than one week before the event. Sales tax is included in the price. The card processing fee is non-refundable.</p></details>
+<details><summary>How do I pay?</summary><p>After we approve the request, pay by check or in person, or online by card with a 3% processing fee. Mail or drop off checks payable to Boardroom QC LLC at the office, 2212 37th Street, Moline, IL 61265. We don't keep set hours. We meet on demand and set a time together, by appointment. The deposit (50% of the agreed total) holds the date. The balance is due no later than 7 days before the event. Sales tax is included in the price. The card processing fee is non-refundable.</p></details>
 <details><summary>Can I get an invoice or a receipt?</summary><p>Yes. Card payments get an emailed receipt, and we can provide an invoice or receipt for any payment on request.</p></details>
 <details><summary>Is sales tax included?</summary><p>Sales tax is included in the price.</p></details>
 
@@ -1182,7 +1225,7 @@ function brb_faq_markup() {
 <h2>Food and drink</h2>
 <details><summary>Can I bring my own food?</summary><p>Yes. We provide the space; you bring the food. You can use the microwave, blender, food warmers and the bar area. The stovetops and oven can't be used. You can also have it catered by any caterer. The Boardroom does not provide catering.</p></details>
 <details><summary>Do I need to bring plates and utensils?</summary><p>Yes. Bring your own plates, cups and utensils. Buffet pans and serving spoons are available.</p></details>
-<details><summary>Can we bring our own drinks?</summary><p>Yes. There's a bar area and an ice machine, and there are no taps. BYOB is allowed.</p></details>
+<details><summary>Can we bring our own drinks?</summary><p>Yes. Guests are welcome to bring their own food and drink. There's a bar area and an ice machine, and there are no taps. If alcohol is served, liquor liability coverage is also required.</p></details>
 <details><summary>Is there a refrigerator or ice?</summary><p>Yes. There is a refrigerator and an ice machine.</p></details>
 
 <h2>Rules</h2>
@@ -1192,15 +1235,15 @@ function brb_faq_markup() {
 <details><summary>Can we have a band?</summary><p>Yes. Guests may have a band or live music, as long as they are not charging for the event.</p></details>
 <details><summary>Can I hold a vendor market or sell items?</summary><p>No. All events are free to attend. There are no merchandise sales and no ticket sales.</p></details>
 <details><summary>What decorations are allowed?</summary><p>You may bring and put up your own decorations. Balloons are fine. No wall tape, glitter or confetti. Confetti cannons, rice, birdseed, and loose sequins aren't allowed. The space doesn't come decorated, though Christmas decorations are up in December.</p></details>
-<details><summary>Do I need insurance?</summary><p>Yes. You must carry renters insurance that covers your event, and we may ask for proof before giving you access. We also recommend event liability insurance, plus liquor liability if alcohol is served. Vendors (caterer, DJ, bartender) must send proof of insurance at least 7 days before.</p></details>
-<details><summary>Is smoking allowed?</summary><p>All smoking, including cigars and cigarettes, is outside only. Vaping leaves a residue and can affect the damage deposit.</p></details>
-<details><summary>Can I bring a pet?</summary><p>Service animals only. No pets.</p></details>
+<details><summary>Do I need insurance?</summary><p>Yes. Every event needs liability insurance of at least $1,000,000 per occurrence and $2,000,000 in the aggregate. If alcohol is served, $1,000,000 in liquor liability is also required. Proof is due 7 days before the event. Vendors (caterer, DJ, bartender) must send proof of insurance at least 7 days before.</p></details>
+<details><summary>Is smoking allowed?</summary><p>No smoking or vaping inside. All smoking, including cigars and cigarettes, is outside only. Vaping leaves a residue, and a cleaning fee may be applied if the space is left dirty or damaged.</p></details>
+<details><summary>Can I bring a pet?</summary><p>Pets are not permitted. Service animals as defined by the ADA are welcome and must remain leashed or under the handler's control at all times. Emotional support animals and pets are not service animals. Renter is responsible for any damage or cleanup caused by an animal.</p></details>
 
 <h2>Policies and cancellation</h2>
 <details><summary>What is the cancellation policy?</summary><p>If we receive written cancellation 60 or more days before the event, the deposit is refundable, less any non-refundable processing charges (including the 3% card processing fee) and costs already incurred. It is not refundable if cancellation is received less than 60 days before the event. See the <a href="/terms/">Rental Terms</a>. If a summary and the signed agreement differ, the signed agreement controls.</p></details>
 <details><summary>What if there is bad weather?</summary><p>If we have to cancel because of severe weather or another emergency outside our control, such as a severe storm, a snowstorm, or a power outage, the payment is refundable. A personal issue, such as a flat tire, is not refundable.</p></details>
-<details><summary>What happens if something gets damaged?</summary><p>The damage deposit covers cleaning and damage. Anything beyond that deposit may be charged. See the <a href="/terms/">Terms</a>.</p></details>
-<details><summary>Is there a damage deposit?</summary><p>The refundable damage deposit is a flat $250. It is charged with the booking deposit and mainly covers cleaning. A dumpster is on site. After the event, once the space is checked, it's refunded by your original payment method: through Stripe for card payments (less the card processing fee) or by check.</p></details>
+<details><summary>What happens if something gets damaged?</summary><p>The renter is responsible for the cost of any damage. A cleaning fee may be applied if the space is left dirty or damaged, and it is not a cap on what is owed. See the <a href="/terms/">Terms</a>.</p></details>
+<details><summary>Is there a cleaning fee?</summary><p>A cleaning fee may be applied if the space is left dirty or damaged. A dumpster is on site. Please leave it like you got it and take the garbage out.</p></details>
 <details><summary>What are our responsibilities before we leave?</summary><p>Please leave it like you got it. Clean and tidy the space, and take the garbage out. Another event is often booked the following day, and a ready room lets the next hosts begin on time.</p></details>
 
 <h2>Facilities</h2>
@@ -1209,7 +1252,6 @@ function brb_faq_markup() {
 <details><summary>Who is on site during an event?</summary><p>No one is on site during events. Our connected offices are available on demand if something is needed. Cell numbers are given when the contract is signed, and they are not listed on this site.</p></details>
 <details><summary>Is there a private entrance?</summary><p>There is a private main entrance. A back entrance can be used for a surprise guest when it is arranged ahead of time with our team.</p></details>
 <details><summary>Is the space accessible?</summary><p>Yes. The space is handicapped accessible.</p></details>
-<details><summary>If I pay the damage deposit by card, how is it returned?</summary><p>After the event, once the space is checked, it's refunded by your original payment method: through Stripe for card payments (less the card processing fee) or by check.</p></details>
 HTML;
     return str_replace('HOW_STEPS', implode(' ', brb_how_booking_works_steps()), $html);
 }
@@ -1219,10 +1261,10 @@ function brb_patch_faq_drinks() {
     if (!$page) return;
     $c = (string) $page->post_content;
     $replacements = [
-        'The Boardroom has a BYOB bar and ice machine. <span class="placeholder">PLACEHOLDER: alcohol rules / age policy — owner to confirm.</span>' => 'The Boardroom has a bar area and an ice machine. No cooking is allowed in the venue. The stove top may not be used. Food warmers (for keeping prepared food warm) and the bar area may be used. There are no taps. Draft taps are not available. BYOB is allowed. Guests are responsible for obtaining any permit or license the City of Moline requires for alcohol at their event. Please check with the City of Moline: <a href="https://moline.il.us/244/Liquor-Licensing">https://moline.il.us/244/Liquor-Licensing</a> (City Clerk, 309-524-2004). See the <a href="/terms/">Rental Terms</a>.',
-        'The Boardroom has a bar area and an ice machine. Do not use the stove top. Food warmers and the bar area may be used. Draft taps are not available. BYOB is allowed, and the renter must obtain a one-day liquor license. See the' => 'The Boardroom has a bar area and an ice machine. No cooking is allowed in the venue. The stove top may not be used. Food warmers (for keeping prepared food warm) and the bar area may be used. There are no taps. Draft taps are not available. BYOB is allowed. Guests are responsible for obtaining any permit or license the City of Moline requires for alcohol at their event. Please check with the City of Moline: <a href="https://moline.il.us/244/Liquor-Licensing">https://moline.il.us/244/Liquor-Licensing</a> (City Clerk, 309-524-2004). See the',
-        'The Boardroom has a bar area and an ice machine. Do not use the stove top. Food warmers and the bar area may be used. Draft taps are not available. BYOB is allowed. Guests are responsible for obtaining any permit or license the City of Moline requires for alcohol at their event. Please check with the City of Moline: <a href="https://moline.il.us/244/Liquor-Licensing">https://moline.il.us/244/Liquor-Licensing</a> (City Clerk, 309-524-2004). See the' => 'The Boardroom has a bar area and an ice machine. No cooking is allowed in the venue. The stove top may not be used. Food warmers (for keeping prepared food warm) and the bar area may be used. There are no taps. Draft taps are not available. BYOB is allowed. Guests are responsible for obtaining any permit or license the City of Moline requires for alcohol at their event. Please check with the City of Moline: <a href="https://moline.il.us/244/Liquor-Licensing">https://moline.il.us/244/Liquor-Licensing</a> (City Clerk, 309-524-2004). See the',
-        'BYOB is allowed, and the renter must obtain a one-day liquor license. See the' => 'BYOB is allowed. Guests are responsible for obtaining any permit or license the City of Moline requires for alcohol at their event. Please check with the City of Moline: <a href="https://moline.il.us/244/Liquor-Licensing">https://moline.il.us/244/Liquor-Licensing</a> (City Clerk, 309-524-2004). See the',
+        'The Boardroom has a BYOB bar and ice machine. <span class="placeholder">PLACEHOLDER: alcohol rules / age policy — owner to confirm.</span>' => 'The Boardroom has a bar area and an ice machine. No cooking is allowed in the venue. The stove top may not be used. Food warmers (for keeping prepared food warm) and the bar area may be used. There are no taps. Draft taps are not available. Guests are welcome to bring their own food and drink. Guests are responsible for obtaining any permit or license the City of Moline requires for alcohol at their event. Please check with the City of Moline: <a href="https://moline.il.us/244/Liquor-Licensing">https://moline.il.us/244/Liquor-Licensing</a> (City Clerk, 309-524-2004). See the <a href="/terms/">Rental Terms</a>.',
+        'The Boardroom has a bar area and an ice machine. Do not use the stove top. Food warmers and the bar area may be used. Draft taps are not available. BYOB is allowed, and the renter must obtain a one-day liquor license. See the' => 'The Boardroom has a bar area and an ice machine. No cooking is allowed in the venue. The stove top may not be used. Food warmers (for keeping prepared food warm) and the bar area may be used. There are no taps. Draft taps are not available. Guests are welcome to bring their own food and drink. Guests are responsible for obtaining any permit or license the City of Moline requires for alcohol at their event. Please check with the City of Moline: <a href="https://moline.il.us/244/Liquor-Licensing">https://moline.il.us/244/Liquor-Licensing</a> (City Clerk, 309-524-2004). See the',
+        'The Boardroom has a bar area and an ice machine. Do not use the stove top. Food warmers and the bar area may be used. Draft taps are not available. Guests are welcome to bring their own food and drink. Guests are responsible for obtaining any permit or license the City of Moline requires for alcohol at their event. Please check with the City of Moline: <a href="https://moline.il.us/244/Liquor-Licensing">https://moline.il.us/244/Liquor-Licensing</a> (City Clerk, 309-524-2004). See the' => 'The Boardroom has a bar area and an ice machine. No cooking is allowed in the venue. The stove top may not be used. Food warmers (for keeping prepared food warm) and the bar area may be used. There are no taps. Draft taps are not available. Guests are welcome to bring their own food and drink. Guests are responsible for obtaining any permit or license the City of Moline requires for alcohol at their event. Please check with the City of Moline: <a href="https://moline.il.us/244/Liquor-Licensing">https://moline.il.us/244/Liquor-Licensing</a> (City Clerk, 309-524-2004). See the',
+        'BYOB is allowed, and the renter must obtain a one-day liquor license. See the' => 'Guests are welcome to bring their own food and drink. Guests are responsible for obtaining any permit or license the City of Moline requires for alcohol at their event. Please check with the City of Moline: <a href="https://moline.il.us/244/Liquor-Licensing">https://moline.il.us/244/Liquor-Licensing</a> (City Clerk, 309-524-2004). See the',
         'See our <a href="/terms-and-conditions/">Terms and Conditions</a>. <span class="placeholder">PLACEHOLDER — owner to supply.</span>' => 'See the <a href="/terms/">Rental Terms</a>. If a summary and the signed agreement differ, the signed agreement controls.',
     ];
     $next = $c;
@@ -1258,7 +1300,7 @@ function brb_refresh_checklist_copy() {
         brb_byob_line(),
         $next
     );
-    $next = str_replace('The balance is due the week of the event, no later than 48 hours before.', 'The balance is due no later than one week before the event.', $next);
+    $next = str_replace('The balance is due the week of the event, no later than 48 hours before.', 'The balance is due no later than 7 days before the event.', $next);
     $next = str_replace('It is returned within 72 hours when Venmo or PayPal is on file. A check takes 1 to 2 weeks.', 'It is refunded through Stripe, less the card processing fee, after the event once the space is checked.', $next);
     $next = str_replace('Not allowed: Glitter, confetti, confetti cannons, rice, birdseed, or loose sequins.', 'Not allowed: Confetti, confetti cannons, rice, birdseed, or loose sequins.', $next);
     $next = str_replace('Not allowed: Glitter and confetti.', 'Not allowed: Confetti, confetti cannons, rice, birdseed, or loose sequins.', $next);
@@ -1272,7 +1314,6 @@ function brb_refresh_checklist_copy() {
             'Not allowed: Weapons, except as the law allows.',
             'Not allowed: Anything that creates a big mess, a fire or safety risk, a nuisance, or a disturbance.',
             'Tickets, cover charges, paid admission, door fees, and ticket or merchandise sales aren\'t allowed either.',
-            'If you paid the damage deposit by card, it is refunded to the same card after the event once the space is checked.',
         ]);
     }
     $next = str_replace('Balloons are fine.', 'Balloons are fine, no glitter.', $next);
@@ -1336,9 +1377,9 @@ function brb_refresh_faq() {
         return;
     }
     $old_pay = 'Bring a check in person within those 48 hours.';
-    $new_pay = 'Mail or drop off checks payable to Boardroom QC LLC at The Boardroom, ' . BRB_VENUE_ADDRESS . '.';
+    $new_pay = 'Mail or drop off checks payable to Boardroom QC LLC at the office, ' . BRB_CHECK_ADDRESS . '.';
     $next = str_replace('online processing fee', 'card processing fee', str_replace($old_pay, $new_pay, $c));
-    $book = '<details><summary>How do I book and pay?</summary><p>Request a date on the <a href="/reserve-the-boardroom-quad-cities/">Book</a> page. Bookings are subject to approval, and the owner may decline any request. No payment is due until the request is approved. A request does not hold the date. Your date is reserved once your deposit is received. The deposit (50% of the agreed total) holds the date. It is refundable if the Owner receives written cancellation 60 or more days before the event, less any non-refundable processing charges (including the 3% card processing fee) and costs already incurred. It is not refundable if cancellation is received less than 60 days before the event. Pay by check or in person, or online by card with a 3% processing fee. Mail or drop off checks payable to Boardroom QC LLC at The Boardroom, ' . BRB_VENUE_ADDRESS . '. Bookings need at least 48 hours\' notice. Until we confirm your price, your confirmation says price to be confirmed. The card processing fee is non-refundable.</p></details>';
+    $book = '<details><summary>How do I book and pay?</summary><p>Request a date on the <a href="/reserve-the-boardroom-quad-cities/">Book</a> page. Bookings are subject to approval, and the owner may decline any request. No payment is due until the request is approved. A request does not hold the date. Your date is reserved once your deposit is received. The deposit (50% of the agreed total) holds the date. It is refundable if the Owner receives written cancellation 60 or more days before the event, less any non-refundable processing charges (including the 3% card processing fee) and costs already incurred. It is not refundable if cancellation is received less than 60 days before the event. Pay by check or in person, or online by card with a 3% processing fee. Mail or drop off checks payable to Boardroom QC LLC at the office, ' . BRB_CHECK_ADDRESS . '. Bookings need at least 48 hours\' notice. Until we confirm your price, your confirmation says price to be confirmed. The card processing fee is non-refundable.</p></details>';
     if (strpos($next, 'holds the date for 48 hours') !== false || strpos($next, 'held for 48 hours') !== false || strpos($next, 'Saving a date on this website holds it') !== false || strpos($next, 'non-refundable [VERIFY with attorney]') !== false || strpos($next, 'is non-refundable and holds the date') !== false) {
         $replaced = preg_replace('/<details><summary>How do I book and pay\?<\/summary>.*?<\/details>/is', $book, $next, 1);
         if (is_string($replaced)) $next = $replaced;
@@ -1367,25 +1408,25 @@ function brb_refresh_faq() {
     $hours_meet = $hours_plain . ' We don\'t keep set hours for meetings or check drop-off. We meet on demand and set a time together, by appointment.';
     if (strpos($next, $hours_meet) === false) $next = str_replace($hours_plain, $hours_meet, $next);
     $next = str_replace('Our team will reach out to schedule it.', 'We don\'t keep set hours. We meet on demand and set a time together, by appointment.', $next);
-    $next = str_replace('Mail or drop off checks payable to Mad Productions at 2212 37th Street, Moline, IL 61265. The deposit (50% of the agreed total) holds the date.', 'Mail or drop off checks payable to Boardroom QC LLC at The Boardroom, ' . BRB_VENUE_ADDRESS . '. We don\'t keep set hours. We meet on demand and set a time together, by appointment. The deposit (50% of the agreed total) holds the date.', $next);
+    $next = str_replace('Mail or drop off checks payable to Mad Productions at 2212 37th Street, Moline, IL 61265. The deposit (50% of the agreed total) holds the date.', 'Mail or drop off checks payable to Boardroom QC LLC at the office, ' . BRB_CHECK_ADDRESS . '. We don\'t keep set hours. We meet on demand and set a time together, by appointment. The deposit (50% of the agreed total) holds the date.', $next);
     $house = [
         'When does everyone have to be out?' => 'Everyone must be out of The Boardroom by 11:30 PM. This is firm, with no exceptions. Please finish in time to wrap up.',
         'What are the hours?' => 'A full day runs from 10:00 AM to 11:30 PM. We don\'t keep set hours for meetings or check drop-off. We meet on demand and set a time together, by appointment.',
         'Do I have to meet you?' => 'Yes. We meet every renter before approving a booking. It is a short, friendly visit to talk through your plans and the house rules. We don\'t keep set hours. We meet on demand and set a time together, by appointment.',
         'What if there is bad weather?' => 'Bad weather or an emergency out of our control, such as a hurricane, a snowstorm, or a power outage, is refundable. A personal issue, such as a flat tire, is not refundable.',
-        'Is there a damage deposit?' => 'The refundable damage deposit is a flat $250. It is charged with the booking deposit and mainly covers cleaning. It may be applied to excessive cleaning or garbage. A dumpster is on site. It is returned within 72 hours when Venmo or PayPal is on file. A check takes 1 to 2 weeks. No glitter. Vaping leaves a residue and can affect the deposit. All smoking, including cigars and cigarettes, is outside only.',
+        'Is there a cleaning fee?' => 'A cleaning fee may be applied if the space is left dirty or damaged. A dumpster is on site.',
         'Can we sell tickets or charge admission?' => 'No. All events must be free to attend: no tickets, no cover charge, no paid admission, no door fees, and no ticket or merchandise sales. We do not host concerts or ticketed shows.',
         'Can we have a band?' => 'Yes. Guests may have a band or live music, as long as they are not charging for the event. We do not host concerts or ticketed shows.',
-        'Is smoking allowed?' => 'No smoking or vaping.',
-        'Can I bring a pet?' => 'Service animals only. No pets.',
+        'Is smoking allowed?' => 'No smoking or vaping inside. Smoking is outside only.',
+        'Can I bring a pet?' => 'Pets are not permitted. Service animals as defined by the ADA are welcome and must remain leashed or under the handler\'s control at all times. Emotional support animals and pets are not service animals. Renter is responsible for any damage or cleanup caused by an animal.',
         'Can I bring my own food?' => 'Yes. You can bring your own food. We have warmers and buffet-style warmers, but the stovetop can\'t be used. You can also have it catered by any caterer. The Boardroom does not provide catering.',
-        'When is the balance due?' => 'The remaining balance is due the week of the event, no later than 48 hours before.',
+        'When is the balance due?' => 'The remaining balance is due no later than 7 days before the event.',
         'Is there a refrigerator or ice?' => 'Yes. There is a refrigerator and an ice machine.',
         'Who is on site during an event?' => 'No one is on site during events. Our connected offices are available on demand if something is needed. Cell numbers are given when the contract is signed, and they are not listed on this site.',
         'Is there a private entrance?' => 'There is one main entrance. A back entrance can be used for a surprise guest when it is arranged ahead of time with our team.',
         'Are balloons allowed?' => 'Yes. Balloons are fine. Wall tape is not allowed. Glitter is not allowed.',
         'Is there an age limit for hosts?' => 'The minimum host age is 25 for every booking.',
-        'What happens if something gets damaged?' => 'The damage deposit covers cleaning and damage. Anything beyond that deposit may be charged. See the Terms. Our team will go over it at the walk-through.',
+        'What happens if something gets damaged?' => 'The renter is responsible for the cost of any damage. A cleaning fee may be applied if the space is left dirty or damaged. See the Terms.',
         'Can I hold a vendor market or sell items?' => 'No. All events are free to attend. There are no merchandise sales and no ticket sales.',
         'Can I get an invoice or a receipt?' => 'Yes. Card payments get an emailed receipt, and we can provide an invoice or receipt for any payment on request.',
         'Is sales tax included?' => 'Sales tax is included in the price.',
@@ -1400,7 +1441,7 @@ function brb_refresh_faq() {
     clean_post_cache((int) $page->ID);
 }
 function brb_scrub_copy_string($c) {
-    $card = 'Pay by check or in person, or online by card with a 3% processing fee. Mail or drop off checks payable to Boardroom QC LLC at The Boardroom, ' . BRB_VENUE_ADDRESS . '. We never see or store card numbers. The deposit (50% of the agreed total) holds the date. It is refundable if the Owner receives written cancellation 60 or more days before the event, less any non-refundable processing charges (including the 3% card processing fee) and costs already incurred. It is not refundable if cancellation is received less than 60 days before the event. The card processing fee is non-refundable.';
+    $card = 'Pay by check or in person, or online by card with a 3% processing fee. Mail or drop off checks payable to Boardroom QC LLC at the office, ' . BRB_CHECK_ADDRESS . '. We never see or store card numbers. The deposit (50% of the agreed total) holds the date. It is refundable if the Owner receives written cancellation 60 or more days before the event, less any non-refundable processing charges (including the 3% card processing fee) and costs already incurred. It is not refundable if cancellation is received less than 60 days before the event. The card processing fee is non-refundable.';
     $c = preg_replace('/Payments are processed by \w+;?\s*we do not store card numbers\./i', $card, $c);
     $c = preg_replace('/This site does not process payments online and does not collect card data\./i', 'Stripe processes card payments. We never see or store card numbers.', $c);
     $c = preg_replace('/pay securely online/i', 'pay by check or in person, or online by card', $c);
@@ -1409,9 +1450,9 @@ function brb_scrub_copy_string($c) {
     $c = str_replace('online processing fee', 'card processing fee', $c);
     $c = str_replace('Sales tax is added.', 'Sales tax is included in the price.', $c);
     $c = str_replace('Sales tax is added', 'Sales tax is included in the price.', $c);
-    $c = str_replace('The damage deposit is $100 to $500 depending on event size, mainly for cleaning. It may be applied to excessive cleaning or garbage.', 'The refundable damage deposit is a flat $250. It is charged with the booking deposit and mainly covers cleaning. It may be applied to excessive cleaning or garbage.', $c);
-    $c = str_replace('The damage deposit is $100 to $500 depending on event size, mainly for cleaning.', 'The refundable damage deposit is a flat $250. It is charged with the booking deposit and mainly covers cleaning.', $c);
-    $c = str_replace('The damage deposit is $100 to $500, depending on event size, and mostly covers cleaning and garbage.', 'The refundable damage deposit is a flat $250. It is charged with the booking deposit and mostly covers cleaning and garbage.', $c);
+    $c = str_replace('The damage deposit is $100 to $500 depending on event size, mainly for cleaning. It may be applied to excessive cleaning or garbage.', 'A cleaning fee may be applied if the space is left dirty or damaged.', $c);
+    $c = str_replace('The damage deposit is $100 to $500 depending on event size, mainly for cleaning.', 'A cleaning fee may be applied if the space is left dirty or damaged.', $c);
+    $c = str_replace('The damage deposit is $100 to $500, depending on event size, and mostly covers cleaning and garbage.', 'A cleaning fee may be applied if the space is left dirty or damaged.', $c);
     $c = preg_replace('/\b(ze' . 'lle|air' . 'bnb)\b/i', '', $c);
     $c = preg_replace('/[ \t]{2,}/', ' ', $c);
     return $c;
@@ -2235,7 +2276,7 @@ function brb_payment_lines($b) {
             if ($rental_after > 0.009) {
                 $when = brb_balance_due_display($b);
                 if ($when === 'Due now') $lines[] = 'After that payment, the remaining balance of ' . brb_money($rental_after) . ' is due now.';
-                elseif ($when !== '' && $when !== 'Price to be confirmed' && $when !== 'Paid') $lines[] = 'After that payment, the remaining balance of ' . brb_money($rental_after) . ' is due no later than ' . $when . ' (one week before the event).';
+                elseif ($when !== '' && $when !== 'Price to be confirmed' && $when !== 'Paid') $lines[] = 'After that payment, the remaining balance of ' . brb_money($rental_after) . ' is due no later than ' . $when . ' (7 days before the event).';
             }
         } elseif ($damage_left > 0.009) {
             $lines[] = 'The amount due now includes the unpaid refundable damage deposit of ' . brb_money($damage_left) . ' and the remaining rental balance of ' . brb_money(brb_rental_left($b)) . '.';
@@ -2362,7 +2403,8 @@ function brb_guest_money_rows($b, $opts = []) {
     if (!$m['priced']) return ['Price' => 'Price to be confirmed'];
     $rows = ['Rental' => $m['rows']['Rental']];
     if (!empty($opts['paid'])) $rows['Paid'] = brb_money(round((float) $b->amount_paid, 2));
-    $rows['Refundable damage deposit'] = $m['rows']['Refundable damage deposit'];
+    // 2.5.80: the damage deposit row shows only when this booking has a damage line (optional invoice item).
+    if ((float) $m['damage'] > 0.009 || (float) $m['damage_paid'] > 0.009) $rows['Refundable damage deposit'] = $m['rows']['Refundable damage deposit'];
     $rows['Due now to reserve'] = $m['rows']['Due now to reserve'];
     $rows['Balance'] = $m['rows']['Balance'];
     $due = (string) $m['rows']['Balance due'];
@@ -3150,7 +3192,7 @@ function brb_payment_guest_message($b, $amount, $check_number, $method = 'check'
     if ($b->status !== 'paid') {
         $due = brb_balance_due_display($b);
         if ($due === 'Due now') $follow = 'The balance remaining is due now.';
-        elseif ($due && $due !== 'Price to be confirmed' && $due !== 'Paid') $follow = 'The balance remaining is due the week of the event, no later than ' . $due . '.';
+        elseif ($due && $due !== 'Price to be confirmed' && $due !== 'Paid') $follow = 'The balance remaining is due no later than ' . $due . ' (7 days before the event).';
         $still = round(brb_rental_left($b) + brb_damage_left($b), 2);
         if ($still > 0.009 && brb_damage_left($b) > 0.009) {
             $follow .= ' The amount still due is ' . brb_money($still) . ', including the unpaid refundable damage deposit of ' . brb_money(brb_damage_left($b)) . '.';
