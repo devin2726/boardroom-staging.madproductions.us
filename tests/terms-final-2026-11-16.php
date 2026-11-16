@@ -35,7 +35,7 @@ $saved_opt = get_option('brb_settings');
 $saved_ver = get_option('brb_version');
 try {
     brb_t(BRB_VER === '2.5.80' && version_compare(BRB_VER, '2.5.79', '>') && version_compare(BRB_VER, '2.5.81', '<'), 'plugin version is 2.5.80, after live 2.5.79 and before 2.5.81');
-    brb_t(function_exists('br_ver') && br_ver() === '1.2.49' && strpos((string) file_get_contents(get_template_directory() . '/style.css', false, null, 0, 400), 'Version: 1.2.49') !== false, 'theme version is 1.2.49 in br_ver() and style.css');
+    brb_t(function_exists('br_ver') && br_ver() === '1.2.50' && strpos((string) file_get_contents(get_template_directory() . '/style.css', false, null, 0, 400), 'Version: 1.2.50') !== false, 'theme version is 1.2.50 (after open PR #93 at 1.2.49) in br_ver() and style.css');
 
     // ---- rendered public strings
     $checklist_saved = brb_opt();
