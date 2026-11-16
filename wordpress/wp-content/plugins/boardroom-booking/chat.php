@@ -487,7 +487,7 @@ function brb_chat_chips($intent) {
         ['label' => 'Check dates', 'href' => $book . '#brb-cal'],
         ['label' => 'How much', 'question' => 'How much does it cost?'],
         ['label' => 'Deposit', 'question' => 'How much is the deposit?'],
-        ['label' => 'BYOB', 'question' => 'Can we bring alcohol?'],
+        ['label' => 'Drinks', 'question' => 'Can we bring alcohol?'],
         ['label' => 'Hours', 'question' => 'What are your hours?'],
         ['label' => 'Parking', 'question' => 'Is there parking?'],
         ['label' => 'Wi-Fi', 'question' => 'Is there Wi-Fi?'],
@@ -582,13 +582,15 @@ function brb_chat_reserved_sentence() {
     return 'A request doesn\'t hold the date. Your date is reserved once your deposit is received and approved.';
 }
 function brb_chat_insurance_sentence() {
-    return 'Yes. You must carry renters insurance that covers your event, and we may ask for proof before giving you access. We also recommend event liability insurance, plus liquor liability if alcohol is served. Vendors (caterer, DJ, bartender) must send proof of insurance at least 7 days before.';
+    return 'Yes. ' . brb_insurance_rule_line() . ' Vendors (caterer, DJ, bartender) must send proof of insurance at least 7 days before.';
 }
 function brb_chat_vendor_insurance_sentence() {
     return 'Yes. Vendors (caterer, DJ, bartender) must send proof of insurance at least 7 days before.';
 }
 function brb_chat_deposit_refund_sentence() {
-    return 'After the event, once the space is checked, it\'s refunded by your original payment method: through Stripe for card payments (less the card processing fee) or by check.';
+    // 2.5.80: no flat damage deposit in public answers (Nov 16, 2026 Terms and Rental Agreement).
+    // A booking that already has a damage deposit line is still refunded the usual way.
+    return 'If your booking included a refundable damage deposit, it\'s refunded after the event, once the space is checked, by your original payment method: through Stripe for card payments (less the card processing fee) or by check.';
 }
 function brb_chat_kitchen_no_line() {
     return 'No. The stovetops and oven can\'t be used. You can use the microwave, blender and food warmers.';
@@ -1041,12 +1043,12 @@ function brb_chat_price_for_dates($parsed) {
     return implode(' ', $lines);
 }
 
-// [CONFIRM with Chris] Guests out by 11:30 PM. No smoking or vaping. Service animals only.
+// 2.5.80: rules follow the Nov 16, 2026 Terms and Rental Agreement (out by 11:30 PM, no smoking or vaping inside, ADA service-animal rule).
 function brb_chat_rules_text() {
     $long = 'We\'d love to host you. No overnight stays. The Boardroom is an event space only. '
-        . brb_hours_line() . ' Everyone is out by 11:30 PM. Smoking is outside only. Service animals only. No pets. '
+        . brb_hours_line() . ' Everyone is out by 11:30 PM. No smoking or vaping inside. Smoking is outside only. ' . brb_pet_rule_line() . ' '
         . 'All events must be free to attend: no tickets, no cover charge, no paid admission, no door fees, and no ticket or merchandise sales. '
-        . 'You can use the microwave, blender and food warmers. The stovetops and oven can\'t be used. There are no taps. ' . brb_byob_line() . ' '
+        . 'You can use the microwave, blender and food warmers. The stovetops and oven can\'t be used. There are no taps. ' . brb_byob_line() . ' ' . brb_alcohol_liability_line() . ' '
         . 'Please take the garbage out. The room comes not set up and doesn\'t come decorated. You may bring and put up your own decorations. Glitter, confetti, confetti cannons, rice, birdseed, and loose sequins aren\'t allowed. Christmas decorations are up in December. Capacity is 80 guests. Graduation parties or open houses can go over, since guests come and go. ' . preg_replace('/^Yes\.\s+/', '', brb_chat_insurance_sentence());
     if (brb_chat_detail()) return $long;
     return 'No overnight stays and no cooking. Everyone is out by 11:30 PM, and events are free to attend, with no tickets, for 80 guests. Want more details?';
@@ -1083,7 +1085,7 @@ function brb_chat_specific_text($text) {
         $bits[] = 'The host must be 25 or older. The minimum host age is 25 for every booking.';
     }
     if (preg_match('/balance due|when is the balance|the balance|remaining balance|\bthe rest\b/', $t)) {
-        $bits[] = 'The balance is due no later than one week before the event. We\'ll confirm the amount with you.';
+        $bits[] = 'The balance is due no later than 7 days before the event. We\'ll confirm the amount with you.';
     }
     if (preg_match('/minimum notice|how far in advance|how far ahead|same day|how soon|hours\'? notice|how much notice|\btonight\b/', $t)) {
         $bits[] = 'Bookings need at least ' . brb_notice_hours() . ' hours\' notice.';
@@ -1117,8 +1119,8 @@ function brb_chat_specific_text($text) {
     if (preg_match('/cleaning fee|security deposit|damage deposit|extra for cleaning|pays for damage|who pays for damage/', $t)) {
         $refund = (bool) preg_match('/refund|get .+ back|returned|paid by check|by check|by card/', $t);
         $bits[] = brb_chat_detail() || $refund
-            ? 'The refundable damage deposit is a flat $250. It is charged with the booking deposit and mainly covers cleaning. ' . brb_chat_deposit_refund_sentence()
-            : 'The refundable damage deposit is a flat $250, and it mainly covers cleaning. Want more details?';
+            ? brb_cleaning_fee_line() . ' The renter is still responsible for the cost of any damage. ' . ($refund ? brb_chat_deposit_refund_sentence() : 'See the Terms.')
+            : brb_cleaning_fee_line() . ' Want more details?';
     }
     if (preg_match('/refrigerator|\bfridge\b|\bice\b/', $t)) {
         $bits[] = 'Yes. There is a refrigerator and an ice machine.';
@@ -1139,7 +1141,7 @@ function brb_chat_specific_text($text) {
         $bits[] = 'No. Wall tape is not allowed. Balloons are fine. Glitter is not allowed.';
     }
     if (preg_match('/damaged|gets damaged|something gets|damage deposit|who pays for damage/', $t)) {
-        $bits[] = 'The damage deposit covers cleaning and damage, and anything beyond that deposit may be charged. See the Terms.';
+        $bits[] = 'The renter is responsible for the cost of any damage. ' . brb_cleaning_fee_line() . ' See the Terms.';
     }
     if (preg_match('/vendor market|sell items|\bsell\b|merchandise/', $t) && !preg_match('/alcohol|liquor|drink|booze|beer/', $t)) {
         $bits[] = 'No. All events are free to attend. There are no merchandise sales and no ticket sales.';
@@ -1169,8 +1171,8 @@ function brb_chat_specific_text($text) {
     }
     if (preg_match('/dumpster|venmo|paypal/', $t)) {
         $bits[] = brb_chat_detail()
-            ? 'The refundable damage deposit is a flat $250. It is charged with the booking deposit and mainly covers cleaning. It may be applied to excessive cleaning or garbage. A dumpster is on site. ' . brb_chat_deposit_refund_sentence() . ' No glitter. Vaping leaves a residue and can affect the deposit. All smoking, including cigars and cigarettes, is outside only.'
-            : 'The refundable damage deposit is a flat $250, and a dumpster is on site. Want more details?';
+            ? 'A dumpster is on site. ' . brb_cleaning_fee_line() . ' No glitter. No smoking or vaping inside. All smoking, including cigars and cigarettes, is outside only.'
+            : 'A dumpster is on site. ' . brb_cleaning_fee_line() . ' Want more details?';
     }
     if (preg_match('/\bdecember\b|\bdec\b/', $t) && preg_match('/open|available|availability|dates/', $t) && !preg_match('/\d/', $t)) {
         $bits[] = brb_chat_december_open();
@@ -1198,8 +1200,8 @@ function brb_chat_specific_text($text) {
     }
     if (preg_match('/\bbar\b/', $t) && !preg_match('/bartender/', $t)) {
         $bits[] = brb_chat_detail()
-            ? 'Yes. There is a bar area and an ice machine. ' . brb_byob_line()
-            : 'Yes. There is a bar area and an ice machine. BYOB is allowed. Want more details?';
+            ? 'Yes. There is a bar area and an ice machine. ' . brb_byob_line() . ' ' . brb_alcohol_liability_line()
+            : 'Yes. There is a bar area and an ice machine. ' . brb_byob_line() . ' Want more details?';
     }
     if (preg_match('/rental agreement|sign an agreement|signed agreement|\bcontract\b/', $t)) {
         $bits[] = brb_chat_detail()
@@ -1215,12 +1217,12 @@ function brb_chat_specific_text($text) {
     elseif ($micro) $bits[] = brb_chat_kitchen_yes_line();
     if (preg_match('/sell or serve|do you sell|do u sell|\bserve alcohol\b|\bbartender\b/', $t)) {
         $bits[] = brb_chat_detail()
-            ? 'We don\'t supply food, drinks, catering, or bartending. ' . brb_byob_line()
-            : 'We don\'t supply drinks or bartending. BYOB is allowed. Want more details?';
+            ? 'We don\'t supply food, drinks, catering, or bartending. ' . brb_byob_line() . ' ' . brb_alcohol_liability_line()
+            : 'We don\'t supply drinks or bartending. ' . brb_byob_line() . ' Want more details?';
     } elseif (preg_match('/\bbyob\b|liquor|alcohol|\bdrinks?\b/', $t)) {
         $bits[] = brb_chat_detail()
-            ? 'Yes. ' . brb_byob_line() . ' Please leave it like you got it, and take the garbage out.'
-            : 'Yes, BYOB is allowed. Want more details?';
+            ? 'Yes. ' . brb_byob_line() . ' ' . brb_alcohol_liability_line() . ' Please leave it like you got it, and take the garbage out.'
+            : 'Yes. ' . brb_byob_line() . ' ' . brb_alcohol_liability_line() . ' Want more details?';
     }
     if (preg_match('/decorat/', $t)) {
         $bits[] = 'You may bring and put up your own decorations. The room doesn\'t come decorated, though Christmas decorations are up in December. Glitter, confetti, confetti cannons, rice, birdseed, and loose sequins aren\'t allowed.';
@@ -1251,10 +1253,10 @@ function brb_chat_specific_text($text) {
         $bits[] = 'Please leave it like you got it, and take the garbage out.';
     }
     if (preg_match('/smok|vap|cigar|cigarette/', $t)) {
-        $bits[] = 'All smoking, including cigars and cigarettes, is outside only. Vaping leaves a residue and can affect the damage deposit.';
+        $bits[] = 'No smoking or vaping inside. All smoking, including cigars and cigarettes, is outside only. Vaping leaves a residue, and ' . lcfirst(brb_cleaning_fee_line());
     }
     if (preg_match('/\bpets?\b|service animal|\bdogs?\b|\bcats?\b/', $t)) {
-        $bits[] = 'Service animals only. No pets.';
+        $bits[] = brb_pet_rule_line();
     }
     $guest_count = brb_chat_guest_count($t);
     $cap = function_exists('brb_public_guest_cap') ? brb_public_guest_cap() : 80;
@@ -1307,7 +1309,7 @@ function brb_chat_amenities_text() {
     $lines[] = 'The room comes not set up. No overnight stays. The Boardroom is an event space only.';
     $long = implode("\n", $lines);
     if (brb_chat_detail()) return $long;
-    return "Here's what the room includes: an 80-inch TV, pinball, pool, shuffleboard, a BYOB bar, an ice machine, a sound system, a serving kitchen with microwave, blender and food warmers (no stovetop or oven), and free parking for 40-50 cars. The room comes not set up. Want more details?";
+    return "Here's what the room includes: an 80-inch TV, pinball, pool, shuffleboard, a bar area, an ice machine, a sound system, a serving kitchen with microwave, blender and food warmers (no stovetop or oven), and free parking for 40-50 cars. The room comes not set up. Want more details?";
 }
 
 function brb_chat_asks_checks($text) {

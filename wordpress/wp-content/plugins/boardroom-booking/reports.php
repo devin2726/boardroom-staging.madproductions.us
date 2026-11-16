@@ -1154,6 +1154,7 @@ function brb_weekly_summary_body() {
 function brb_weekly_summary_send() {
     if ((string) brb_opt('weekly_summary') !== '1') return false;
     $list = brb_parse_email_list(brb_opt('weekly_summary_emails'));
+    $list['valid'] = brb_without_blocked($list['valid']);
     if (!$list['valid']) return false;
     $body = brb_weekly_summary_body();
     $sent = false;

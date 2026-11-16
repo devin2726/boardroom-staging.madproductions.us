@@ -131,7 +131,7 @@ function brb_tour_recipients() {
     $out = [];
     foreach (brb_admin_emails() as $email) $out[strtolower($email)] = $email;
     $parsed = brb_parse_email_list(brb_opt('tour_email'));
-    $tour = $parsed['valid'][0] ?? '';
+    $tour = brb_without_blocked($parsed['valid'])[0] ?? '';
     if (!is_email($tour)) $tour = 'boardroomqc@gmail.com';
     $out[strtolower($tour)] = $tour;
     return array_values($out);
