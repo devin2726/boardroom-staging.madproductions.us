@@ -2,11 +2,11 @@
 /**
  * Plugin Name: Boardroom Booking
  * Description: Self-hosted direct booking for The Boardroom — full-day blocks, availability calendar, agreed prices, approval before payment, blackout dates, and emails.
- * Version: 2.5.80
+ * Version: 2.5.83
  * Author: Boardroom QC LLC
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.5.80');
+define('BRB_VER', '2.5.83');
 function brb_reserve_explainer_steps() {
     return [
         'Pick a date. Prices are on the calendar.',
@@ -295,10 +295,38 @@ function brb_faq_schema_entities($html = null) {
     }
     return $entities;
 }
+/**
+ * Profile links for the venue schema. Only links the public site already shows
+ * may be listed here. The site links to the Google Maps listing and to no
+ * Facebook or Instagram profile, so those stay out until the site links them.
+ */
+function brb_venue_same_as() {
+    return array_values(array_unique(array_filter((array) apply_filters('brb_venue_same_as', [BRB_MAPS_URL]))));
+}
+/**
+ * The venue photo the home page shows as "The Boardroom event space with room for 80 guests".
+ * Schema.org ImageObject has no alt property, so the alt text goes in name and caption.
+ */
+function brb_venue_schema_image() {
+    $file = 'IMG_0223.jpeg';
+    $root = function_exists('get_theme_root') ? get_theme_root() : '';
+    if ($root === '' || !file_exists($root . '/boardroom/assets/img/' . $file)) return null;
+    $url = home_url('/wp-content/themes/boardroom/assets/img/' . $file);
+    return [
+        '@type' => 'ImageObject',
+        'url' => $url,
+        'contentUrl' => $url,
+        'width' => 1920,
+        'height' => 1763,
+        'name' => 'The Boardroom event space with room for 80 guests',
+        'caption' => 'The Boardroom event space with room for 80 guests',
+    ];
+}
 function brb_place_schema() {
     $data = [
         '@context' => 'https://schema.org',
-        '@type' => 'EventVenue',
+        // 2.5.83: LocalBusiness as well, so Google's Rich Results Test detects the venue. No telephone or priceRange.
+        '@type' => ['EventVenue', 'LocalBusiness'],
         'name' => 'The Boardroom',
         'legalName' => 'Boardroom QC LLC',
         'email' => 'boardroomqc@gmail.com',
@@ -318,9 +346,12 @@ function brb_place_schema() {
         'hasMap' => BRB_MAPS_URL,
         'url' => home_url('/'),
         'maximumAttendeeCapacity' => brb_public_guest_cap(),
-        'sameAs' => [BRB_MAPS_URL],
+        'sameAs' => brb_venue_same_as(),
     ];
+    $image = brb_venue_schema_image();
+    if ($image) $data['image'] = $image;
     if (brb_faq_states_event_window()) {
+        $data['openingHours'] = 'Mo-Su 10:00-23:30';
         $data['openingHoursSpecification'] = [[
             '@type' => 'OpeningHoursSpecification',
             'dayOfWeek' => ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
@@ -331,9 +362,24 @@ function brb_place_schema() {
     echo '<script type="application/ld+json">' . wp_json_encode($data, JSON_UNESCAPED_SLASHES) . "</script>\n";
 }
 add_action('wp_head', 'brb_place_schema', 20);
+/**
+ * Rendered HTML of the visible Q&A on the current page, or '' when it has none.
+ * /faq/ uses its own source. Any other single post or page qualifies only when
+ * its own content has <details><summary> Q&A blocks, so FAQPage schema is always
+ * built from text a visitor can read on that same page. Hidden FAQ is never added.
+ */
+function brb_faq_schema_html_for_request() {
+    if (is_page('faq')) return brb_faq_rendered_html();
+    if (!is_singular()) return '';
+    $post = get_queried_object();
+    if (!($post instanceof WP_Post) || post_password_required($post)) return '';
+    $raw = (string) $post->post_content;
+    if (stripos($raw, '<details') === false || stripos($raw, '<summary') === false) return '';
+    return (string) apply_filters('the_content', $raw);
+}
 function brb_faq_schema() {
-    if (!is_page('faq')) return;
-    $html = brb_faq_rendered_html();
+    $html = brb_faq_schema_html_for_request();
+    if ($html === '') return;
     $entities = brb_faq_schema_entities($html);
     if (!$entities) return;
     $data = [

@@ -24,7 +24,7 @@ function brb_test_jsonld_blocks($html) {
 }
 function brb_test_jsonld_type($parsed, $type) {
     foreach ($parsed['blocks'] as $block) {
-        if (is_array($block) && ($block['@type'] ?? '') === $type) return $block;
+        if (is_array($block) && in_array($type, (array) ($block['@type'] ?? []), true)) return $block;
     }
     return null;
 }
@@ -70,7 +70,7 @@ $created = [];
 $snapshot = get_option('brb_settings');
 
 try {
-    brb_t(get_option('brb_version') === '2.5.80', 'plugin storage version is 2.5.80');
+    brb_t(get_option('brb_version') === '2.5.83', 'plugin storage version is 2.5.83');
     putenv('BRB_ENV=production');
     $_ENV['BRB_ENV'] = 'production';
     $_SERVER['BRB_ENV'] = 'production';
@@ -591,8 +591,8 @@ try {
     $home_types = brb_test_schema_types($home_blocks);
     $faq_types = brb_test_schema_types($faq_blocks);
     $holiday_types = brb_test_schema_types($holiday_blocks);
-    brb_t(count(array_keys($home_types, 'EventVenue', true)) === 1 && !in_array('Organization', $home_types, true) && !in_array('LocalBusiness', $home_types, true) && !in_array('FAQPage', $home_types, true), 'the homepage schema has one EventVenue and no Organization or LocalBusiness');
-    brb_t(count(array_keys($faq_types, 'EventVenue', true)) === 1 && count(array_keys($faq_types, 'FAQPage', true)) === 1 && !in_array('Organization', $faq_types, true) && !in_array('LocalBusiness', $faq_types, true), 'the FAQ schema keeps one EventVenue and one FAQPage');
+    brb_t(count(array_keys($home_types, 'EventVenue', true)) === 1 && !in_array('Organization', $home_types, true) && count(array_keys($home_types, 'LocalBusiness', true)) === 1 && !in_array('FAQPage', $home_types, true), 'the homepage schema has one EventVenue (also typed LocalBusiness) and no Organization');
+    brb_t(count(array_keys($faq_types, 'EventVenue', true)) === 1 && count(array_keys($faq_types, 'FAQPage', true)) === 1 && !in_array('Organization', $faq_types, true) && count(array_keys($faq_types, 'LocalBusiness', true)) === 1, 'the FAQ schema keeps one EventVenue (also LocalBusiness) and one FAQPage');
     brb_t(count(array_keys($holiday_types, 'EventVenue', true)) === 1 && !in_array('Organization', $holiday_types, true) && !in_array('aggregateRating', $holiday_types, true), 'the holiday page schema does not add another venue or a rating');
     brb_t(strpos($home_head, '"telephone"') === false && strpos($faq_head, '"telephone"') === false && strpos($holiday_head, '"telephone"') === false && strpos($home_head, 'aggregateRating') === false && strpos($faq_head, 'aggregateRating') === false, 'Yoast schema does not add a telephone or an aggregate rating');
     $footer_src = file_get_contents(get_stylesheet_directory() . '/footer.php');
