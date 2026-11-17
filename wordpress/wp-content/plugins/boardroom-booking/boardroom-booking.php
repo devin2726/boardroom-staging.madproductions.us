@@ -325,7 +325,8 @@ function brb_venue_schema_image() {
 function brb_place_schema() {
     $data = [
         '@context' => 'https://schema.org',
-        '@type' => 'EventVenue',
+        // 2.5.83: LocalBusiness as well, so Google's Rich Results Test detects the venue. No telephone or priceRange.
+        '@type' => ['EventVenue', 'LocalBusiness'],
         'name' => 'The Boardroom',
         'legalName' => 'Boardroom QC LLC',
         'email' => 'boardroomqc@gmail.com',

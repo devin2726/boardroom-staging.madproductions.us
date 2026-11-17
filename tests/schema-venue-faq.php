@@ -36,13 +36,13 @@ function brb_sv_blocks($html) {
 }
 function brb_sv_type($blocks, $type) {
     $hits = [];
-    foreach ($blocks['data'] as $d) if (is_array($d) && ($d['@type'] ?? '') === $type) $hits[] = $d;
+    foreach ($blocks['data'] as $d) if (is_array($d) && in_array($type, (array) ($d['@type'] ?? []), true)) $hits[] = $d;
     return $hits;
 }
 function brb_sv_plugin_raw($blocks) {
     $raw = '';
     foreach ($blocks['data'] as $i => $d) {
-        if (is_array($d) && in_array($d['@type'] ?? '', ['EventVenue', 'FAQPage'], true)) $raw .= $blocks['raw'][$i];
+        if (is_array($d) && array_intersect((array) ($d['@type'] ?? []), ['EventVenue', 'FAQPage'])) $raw .= $blocks['raw'][$i];
     }
     return $raw;
 }
@@ -69,6 +69,11 @@ try {
     $venue = $venues[0] ?? [];
     $raw = brb_sv_plugin_raw($home);
     brb_t($home['valid'] && count($venues) === 1, 'every JSON-LD block is valid JSON and there is one EventVenue');
+    brb_t(($venue['@type'] ?? null) === ['EventVenue', 'LocalBusiness'] && count(brb_sv_type($home, 'LocalBusiness')) === 1, 'venue is typed EventVenue and LocalBusiness, once');
+    brb_t(($venue['url'] ?? '') === home_url('/') && is_numeric($venue['geo']['latitude'] ?? null) && is_numeric($venue['geo']['longitude'] ?? null) && ($venue['address']['@type'] ?? '') === 'PostalAddress', 'venue has url, geo, and a PostalAddress');
+    $days = $venue['openingHoursSpecification'][0]['dayOfWeek'] ?? [];
+    brb_t(count($venue['openingHoursSpecification'] ?? []) === 1 && count($days) === 7, 'openingHoursSpecification covers all 7 days');
+    brb_t(!array_key_exists('priceRange', $venue) && !array_key_exists('telephone', $venue), 'venue has no priceRange and no telephone');
     brb_t(($venue['name'] ?? '') === 'The Boardroom' && ($venue['legalName'] ?? '') === 'Boardroom QC LLC', 'venue keeps The Boardroom name and legalName Boardroom QC LLC');
     brb_t(($venue['address']['streetAddress'] ?? '') === '2220 37th Street' && ($venue['address']['postalCode'] ?? '') === '61265', 'venue address stays 2220 37th Street, Moline 61265');
     brb_t(($venue['maximumAttendeeCapacity'] ?? null) === 80, 'venue capacity is 80');
