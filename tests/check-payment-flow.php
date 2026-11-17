@@ -1152,7 +1152,7 @@ try {
         brb_t(false, 'the checklist reminder is sent about 7 days before the event');
         brb_t(false, 'the checklist reminder is sent once');
     }
-    brb_t(is_string($footer) && strpos($footer, 'https://maps.app.goo.gl/nVqUsGTcy48nPzc18') !== false && strpos($footer, 'Get directions') !== false && strpos($footer, 'footer-map') !== false, 'footer links to Google Maps');
+    brb_t(is_string($footer) && strpos($footer, 'https://www.google.com/maps/dir/?api=1&destination=2220+37th+Street%2C+Moline%2C+IL+61265') !== false && strpos($footer, 'Get directions') !== false && strpos($footer, 'target="_blank"') !== false && strpos($footer, 'rel="noopener"') !== false && strpos($footer, '<iframe') === false && strpos($footer, 'footer-map') === false, 'footer links to Google Maps directions with no map embed');
     ob_start();
     brb_place_schema();
     $schema = ob_get_clean();

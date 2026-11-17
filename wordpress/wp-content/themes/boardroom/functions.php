@@ -3,7 +3,7 @@ add_action('after_setup_theme', function () {
     add_theme_support('title-tag'); add_theme_support('post-thumbnails'); add_theme_support('custom-logo');
     register_nav_menus(['primary' => 'Primary', 'footer' => 'Footer']);
 });
-function br_ver() { return '1.2.50'; }
+function br_ver() { return '1.2.51'; }
 add_action('wp_enqueue_scripts', function () {
     wp_enqueue_style('boardroom', get_stylesheet_uri(), [], br_ver());
     wp_enqueue_script('boardroom', get_template_directory_uri() . '/assets/site.js', [], br_ver(), true);
@@ -348,8 +348,8 @@ function br_migrate_primary_menu() {
 }
 add_action('init', 'br_migrate_primary_menu', 20);
 function br_footer_map() {
-    $src = 'https://www.google.com/maps?q=2220+37th+Street,+Moline,+IL+61265&output=embed';
-    return '<iframe class="footer-map" src="' . esc_url($src) . '" loading="lazy" title="Map of The Boardroom at 2220 37th Street, Moline, IL 61265" referrerpolicy="no-referrer-when-downgrade"></iframe>';
+    $url = 'https://www.google.com/maps/dir/?api=1&destination=2220+37th+Street%2C+Moline%2C+IL+61265';
+    return '<p>2220 37th Street, Moline, IL 61265</p><p><a href="' . esc_url($url) . '" target="_blank" rel="noopener">Get directions</a></p>';
 }
 function br_public_email() {
     return 'boardroomqc@gmail.com';
