@@ -2,11 +2,11 @@
 /**
  * Plugin Name: Boardroom Booking
  * Description: Self-hosted direct booking for The Boardroom — full-day blocks, availability calendar, agreed prices, approval before payment, blackout dates, and emails.
- * Version: 2.5.80
+ * Version: 2.5.84
  * Author: Boardroom QC LLC
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.5.80');
+define('BRB_VER', '2.5.84');
 function brb_reserve_explainer_steps() {
     return [
         'Pick a date. Prices are on the calendar.',
@@ -480,6 +480,123 @@ function brb_deposit_due_amount($total) {
         return min($total, $fixed);
     }
     return $total;
+}
+
+/* ---------- 2.5.84: per-booking charge-now (deposit / pay in full / custom) ---------- */
+
+/**
+ * Stored on the booking as charge_now_mode + charge_now_value.
+ * ''        site-wide deposit (brb_settings deposit_pct, 50 today)
+ * 'full'    pay in full: deposit_due = total
+ * 'percent' custom percent of the total (1-100)
+ * 'amount'  custom dollar amount, capped at the total
+ */
+function brb_charge_now_modes() {
+    return ['', 'full', 'percent', 'amount'];
+}
+function brb_normalize_charge_now($mode, $value = 0) {
+    $mode = sanitize_key((string) $mode);
+    if ($mode === 'deposit' || $mode === 'default') $mode = '';
+    if (!in_array($mode, brb_charge_now_modes(), true)) return new WP_Error('charge_now', 'Choose Deposit, Pay in full, or a custom amount.');
+    $value = round((float) $value, 2);
+    if ($mode === '' || $mode === 'full') return ['mode' => $mode, 'value' => 0.0];
+    if ($mode === 'percent') {
+        if ($value <= 0 || $value > 100) return new WP_Error('charge_now', 'Enter a custom percent from 1 to 100.');
+        if ($value >= 100) return ['mode' => 'full', 'value' => 0.0];
+        return ['mode' => 'percent', 'value' => $value];
+    }
+    if ($value <= 0) return new WP_Error('charge_now', 'Enter a custom amount greater than $0.');
+    return ['mode' => 'amount', 'value' => $value];
+}
+function brb_charge_now_due($mode, $value, $total) {
+    $total = round((float) $total, 2);
+    if ($total <= 0) return 0.0;
+    $mode = (string) $mode;
+    $value = round((float) $value, 2);
+    if ($mode === 'full') return $total;
+    if ($mode === 'percent' && $value > 0) return round($total * min(100, $value) / 100, 2);
+    if ($mode === 'amount' && $value > 0) return min($total, $value);
+    return brb_deposit_due_amount($total);
+}
+function brb_booking_charge_now_due($b, $total) {
+    return brb_charge_now_due((string) ($b->charge_now_mode ?? ''), (float) ($b->charge_now_value ?? 0), $total);
+}
+function brb_pct_label($pct) {
+    $pct = (float) $pct;
+    return (abs($pct - round($pct)) < 0.001) ? (string) (int) round($pct) : rtrim(rtrim(number_format($pct, 2, '.', ''), '0'), '.');
+}
+function brb_site_deposit_pct() {
+    $o = brb_opt();
+    if (($o['deposit_type'] ?? '') !== 'percent') return 100.0;
+    $pct = (float) ($o['deposit_pct'] ?? 50);
+    if ($pct <= 0) $pct = 50;
+    if ($pct > 100) $pct = 100;
+    return $pct;
+}
+function brb_charge_now_label($b) {
+    $mode = (string) ($b->charge_now_mode ?? '');
+    $value = (float) ($b->charge_now_value ?? 0);
+    if ($mode === 'full') return 'Pay in full (100%)';
+    if ($mode === 'percent') return 'Custom: ' . brb_pct_label($value) . '% of the total';
+    if ($mode === 'amount') return 'Custom: ' . brb_money($value);
+    return 'Deposit ' . brb_pct_label(brb_site_deposit_pct()) . '% (site default)';
+}
+/** Name of the first card line when this booking's charge-now amount is due. */
+function brb_charge_now_line_name($b) {
+    $mode = (string) ($b->charge_now_mode ?? '');
+    if ($mode === 'full') return 'Rental, paid in full';
+    if ($mode === 'percent') return 'Deposit (' . brb_pct_label((float) $b->charge_now_value) . '%)';
+    if ($mode === 'amount') return 'Deposit';
+    $o = brb_opt();
+    if (($o['deposit_type'] ?? '') === 'percent') return 'Deposit (' . brb_pct_label(brb_site_deposit_pct()) . '%)';
+    return 'Deposit';
+}
+/** The "holds the date" sentence for one booking. Same refund rule; no terms change. */
+function brb_booking_deposit_line($b) {
+    $mode = $b ? (string) ($b->charge_now_mode ?? '') : '';
+    if ($mode === 'full') return 'Payment in full holds the date. ' . brb_deposit_refund_rule();
+    if ($mode === 'percent') return 'The deposit (' . brb_pct_label((float) $b->charge_now_value) . '% of the agreed total) holds the date. ' . brb_deposit_refund_rule();
+    if ($mode === 'amount' && brb_price_is_set($b)) return 'The deposit of ' . brb_money(min((float) $b->charge_now_value, (float) $b->total)) . ' holds the date. ' . brb_deposit_refund_rule();
+    return brb_deposit_line();
+}
+/** Read the Add booking / Approve / Charge now form fields. Returns null when not posted. */
+function brb_charge_now_from_post($post) {
+    if (!is_array($post) || !array_key_exists('charge_now', $post)) return null;
+    $choice = sanitize_key((string) $post['charge_now']);
+    if ($choice === 'deposit' || $choice === '') return brb_normalize_charge_now('');
+    if ($choice === 'full') return brb_normalize_charge_now('full');
+    if ($choice === 'custom') {
+        $unit = sanitize_key((string) ($post['charge_now_unit'] ?? 'percent'));
+        $raw = trim((string) ($post['charge_now_custom'] ?? ''));
+        if ($raw === '') return new WP_Error('charge_now', 'Enter the custom charge-now amount or percent.');
+        return brb_normalize_charge_now($unit === 'amount' ? 'amount' : 'percent', $raw);
+    }
+    return new WP_Error('charge_now', 'Choose Deposit, Pay in full, or a custom amount.');
+}
+/**
+ * Save a booking's charge-now choice and recalculate deposit_due.
+ * Only before any rental payment is recorded; after that the balance path applies.
+ */
+function brb_set_charge_now($booking_id, $mode, $value = 0, $audit = true) {
+    global $wpdb;
+    $b = brb_booking($booking_id);
+    if (!$b) return new WP_Error('missing', 'Booking not found.');
+    if (in_array((string) $b->status, ['cancelled', 'declined', 'expired', 'spam', 'paid'], true)) {
+        return new WP_Error('status', 'The charge-now choice cannot change on a ' . strtolower(brb_status_label($b->status)) . ' booking.');
+    }
+    if ((float) $b->amount_paid > 0.009) {
+        return new WP_Error('paid', 'A payment is already recorded, so the charge-now choice is locked. The rest is collected as the balance.');
+    }
+    $cn = brb_normalize_charge_now($mode, $value);
+    if (is_wp_error($cn)) return $cn;
+    $before = brb_charge_now_label($b);
+    $same = (string) ($b->charge_now_mode ?? '') === $cn['mode'] && abs((float) ($b->charge_now_value ?? 0) - $cn['value']) < 0.005;
+    if ($same) return $b;
+    $wpdb->update(brb_table(), ['charge_now_mode' => $cn['mode'], 'charge_now_value' => brb_dec($cn['value'])], ['id' => (int) $b->id]);
+    $b = brb_booking($b->id);
+    if (brb_price_is_set($b)) $b = brb_recalc_booking($b->id);
+    if ($audit) brb_audit_append((int) $b->id, 'charge now from "' . $before . '" to "' . brb_charge_now_label($b) . '"; due now ' . brb_money((float) $b->deposit_due) . '; no email sent');
+    return $b;
 }
 function brb_status_label($s) {
     $map = [
@@ -1008,6 +1125,8 @@ function brb_install_tables() {
       setup_addon tinyint(1) NOT NULL DEFAULT 0,
       takedown_addon tinyint(1) NOT NULL DEFAULT 0,
       addon_prompted tinyint(1) NOT NULL DEFAULT 0,
+      charge_now_mode varchar(10) NOT NULL DEFAULT '',
+      charge_now_value decimal(10,2) NOT NULL DEFAULT 0.00,
       created datetime NOT NULL,
       PRIMARY KEY  (id),
       KEY token (token),
@@ -1040,6 +1159,9 @@ function brb_install_tables() {
     brb_ensure_column($t, 'damage_refunded', 'tinyint(1) NOT NULL DEFAULT 0');
     // Staff follow-up log (followup.php). Separate from status and audit_log.
     brb_ensure_column($t, 'follow_up_log', 'longtext NULL');
+    // 2.5.84: per-booking charge-now choice (blank = site-wide deposit percent).
+    brb_ensure_column($t, 'charge_now_mode', "varchar(10) NOT NULL DEFAULT ''");
+    brb_ensure_column($t, 'charge_now_value', 'decimal(10,2) NOT NULL DEFAULT 0.00');
     brb_install_line_table();
     brb_install_hold_table();
     $p = brb_pay_table();
@@ -1083,7 +1205,7 @@ function brb_install_tables() {
     brb_ensure_column($p, 'fee', 'decimal(10,2) NOT NULL DEFAULT 0.00');
     brb_ensure_column($p, 'stripe_id', "varchar(80) NOT NULL DEFAULT ''");
     brb_ensure_column($p, 'stripe_session', "varchar(80) NOT NULL DEFAULT ''");
-    foreach (['deposit_due', 'amount_paid', 'source', 'hold_until', 'balance_due_on', 'price_set', 'event_type', 'public_event', 'alcohol', 'end_time', 'host_age', 'event_about', 'attention'] as $col) {
+    foreach (['deposit_due', 'amount_paid', 'source', 'hold_until', 'balance_due_on', 'price_set', 'event_type', 'public_event', 'alcohol', 'end_time', 'host_age', 'event_about', 'attention', 'charge_now_mode', 'charge_now_value'] as $col) {
         if (!$wpdb->get_var($wpdb->prepare("SHOW COLUMNS FROM `$t` LIKE %s", $col))) return false;
     }
     if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $p)) !== $p) return false;
@@ -2252,7 +2374,7 @@ function brb_payment_lines($b) {
     $lines = [];
     $lines[] = brb_not_held_line();
     $lines[] = brb_reserved_line();
-    $lines[] = brb_deposit_line();
+    $lines[] = brb_booking_deposit_line($b);
     $lines[] = brb_fee_public_line();
     if ($set) {
         $deposit_left = max(0, round((float) $b->deposit_due - (float) $b->amount_paid, 2));
@@ -2339,7 +2461,7 @@ function brb_booking_money($b) {
         $due_text = brb_money_equation($due_parts);
     } elseif ($set) {
         $due_now = 0.0;
-        $due_text = 'Deposit received';
+        $due_text = ($rental > 0.009 && $paid + 0.009 >= $rental) ? 'Paid in full' : 'Deposit received';
     } else {
         $due_text = 'Price to be confirmed';
     }
@@ -2846,7 +2968,7 @@ function brb_send_test_email() {
 function brb_guest_link($b) {
     return add_query_arg('br_token', $b->token, brb_book_url());
 }
-function brb_send_request_emails($b) {
+function brb_send_request_emails($b, $guest = true) {
     $o = brb_opt();
     $ref = brb_ref($b);
     $price = brb_price_phrase($b);
@@ -2855,7 +2977,7 @@ function brb_send_request_emails($b) {
     $detail = "When: " . brb_when($b) . "\n" . brb_event_type_line($b) . "Estimated Guests: {$b->guests}\n" . ($screen !== '' ? $screen . "\n" : '') . "Price: {$price}\n";
     $guest_detail = brb_price_is_set($b) ? str_replace("Price: {$price}\n", brb_guest_money_text($b) . "\n", $detail) : $detail;
     $body = brb_guest_hello_line() . "\n\n" . brb_guest_review_line() . "\n\n{$guest_detail}\n" . brb_no_overnight_line() . "\n" . brb_guest_out_line() . "\n" . brb_guest_free_line() . "\n" . brb_hours_line() . "\n\nCancellation policy:\n{$o['policy']}\n\nView your request: " . brb_guest_link($b) . "\n";
-    brb_mail($b->email, 'We received your Boardroom request (' . $ref . ')', $body, brb_guest_reply_to());
+    if ($guest) brb_mail($b->email, 'We received your Boardroom request (' . $ref . ')', $body, brb_guest_reply_to());
     $admin = "A new request is pending review. The date is not held.\n\nReference: {$ref}\nWhen: " . brb_when($b) . "\nGuest: {$b->name}\nEmail: {$b->email}\nPhone: {$b->phone}\n" . brb_event_type_line($b) . "Guests: {$b->guests}\n" . ($screen !== '' ? $screen . "\n" : '') . "Price: {$price}\nSource: " . brb_source_label($b->source) . "\nNotes: {$b->notes}\n\n" . admin_url('admin.php?page=brb&booking=' . (int) $b->id) . "\n";
     brb_mail_staff('Request pending review ' . $ref . ' – ' . $b->name, $admin, $b->email);
 }
@@ -3306,7 +3428,11 @@ function brb_insert_booking($r, $q, $guest, $source = 'online', $notify = true, 
             $result = new WP_Error('busy', brb_date_taken_message());
         } else {
             $token = wp_generate_password(32, false);
-            $due = brb_dec($q['due']);
+            $cn = brb_normalize_charge_now($guest['charge_now_mode'] ?? '', $guest['charge_now_value'] ?? 0);
+            if (is_wp_error($cn)) $cn = ['mode' => '', 'value' => 0.0];
+            $due_amount = (float) $q['due'];
+            if ($cn['mode'] !== '' && !empty($q['price_set'])) $due_amount = brb_charge_now_due($cn['mode'], $cn['value'], $q['total']);
+            $due = brb_dec($due_amount);
             $ok = $wpdb->insert(brb_table(), [
                 'token' => $token,
                 'mode' => $r['type'],
@@ -3337,6 +3463,8 @@ function brb_insert_booking($r, $q, $guest, $source = 'online', $notify = true, 
                 'hold_until' => null,
                 'balance_due_on' => brb_balance_due_on($r['s']),
                 'price_set' => empty($q['price_set']) ? 0 : 1,
+                'charge_now_mode' => $cn['mode'],
+                'charge_now_value' => brb_dec($cn['value']),
                 'created' => current_time('mysql', true),
             ]);
             $result = $ok ? brb_booking($wpdb->insert_id) : new WP_Error('db', 'Could not save the booking. Please try again.');
@@ -3352,7 +3480,11 @@ function brb_insert_booking($r, $q, $guest, $source = 'online', $notify = true, 
     if ($result && !is_wp_error($result)) {
         brb_report_stamp_booking($result->id);
         if ($track_submit) brb_event_hit('booking_request_submitted');
-        if ($notify) {
+        // 2.5.84: $notify === 'staff' is the Add booking "Don't email guest" choice: staff notice only.
+        if ($notify === 'staff') {
+            brb_send_request_emails($result, false);
+            brb_audit_append((int) $result->id, 'request saved; guest email skipped (staff chose Don\'t email guest); staff notified');
+        } elseif ($notify) {
             brb_send_request_emails($result);
         }
     }
@@ -3643,13 +3775,19 @@ function brb_save_booking_changes($booking_id, $input) {
     }
     return brb_booking($booking_id);
 }
-function brb_approve_booking($booking_id, $notify = true, $mail = []) {
+function brb_approve_booking($booking_id, $notify = true, $mail = [], $charge = null) {
     global $wpdb;
     $b = brb_booking($booking_id);
     if (!$b) return new WP_Error('missing', 'Booking not found.');
     if (!in_array($b->status, ['review', 'pending'], true)) return new WP_Error('status', 'Only a request that is pending review can be approved.');
     $before_status = brb_status_label($b->status);
     if (empty($b->walkthrough_done)) return new WP_Error('walkthrough', 'Mark the in-person walk-through complete before approving. Approval follows the event details, availability, and house rules.');
+    // 2.5.84: optional per-booking charge-now choice from the Approve form, saved before the email is built.
+    if (is_array($charge)) {
+        $set_charge = brb_set_charge_now($b->id, $charge['mode'] ?? '', $charge['value'] ?? 0);
+        if (is_wp_error($set_charge)) return $set_charge;
+        $b = brb_booking($b->id);
+    }
     $checked_mail = null;
     if ($notify) {
         $mail = is_array($mail) ? $mail : [];

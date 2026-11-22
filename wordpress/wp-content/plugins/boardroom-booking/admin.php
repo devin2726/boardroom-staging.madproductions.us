@@ -132,6 +132,64 @@ JS;
 }
 
 
+/**
+ * 2.5.84: charge-now radio group used on Add booking, Approve, and the booking page.
+ * Deposit (site default) / Pay in full / Custom (percent or dollars).
+ */
+function brb_admin_charge_now_fields($mode, $value, $prefix) {
+    $mode = (string) $mode;
+    $value = (float) $value;
+    $choice = $mode === '' ? 'deposit' : ($mode === 'full' ? 'full' : 'custom');
+    $unit = $mode === 'amount' ? 'amount' : 'percent';
+    $custom = (($mode === 'percent' || $mode === 'amount') && $value > 0) ? brb_dec($value) : '';
+    $pct = brb_pct_label(brb_site_deposit_pct());
+    $html = '<fieldset class="brb-charge-now" id="' . esc_attr($prefix) . '-charge-now">';
+    $html .= '<label><input type="radio" name="charge_now" value="deposit"' . checked($choice, 'deposit', false) . '> Deposit ' . esc_html($pct) . '% (site default)</label><br>';
+    $html .= '<label><input type="radio" name="charge_now" value="full"' . checked($choice, 'full', false) . '> Pay in full (100%)</label><br>';
+    $html .= '<label><input type="radio" name="charge_now" value="custom"' . checked($choice, 'custom', false) . '> Custom</label> ';
+    $html .= '<input name="charge_now_custom" type="number" step="0.01" min="0.01" style="width:8em" aria-label="Custom charge-now amount" value="' . esc_attr($custom) . '"> ';
+    $html .= '<select name="charge_now_unit" aria-label="Custom charge-now unit">';
+    $html .= '<option value="percent"' . selected($unit, 'percent', false) . '>% of the total</option>';
+    $html .= '<option value="amount"' . selected($unit, 'amount', false) . '>dollars ($)</option>';
+    $html .= '</select>';
+    $html .= '<p class="description">What the guest pays first, for this booking only. The 3% card fee is added on top. The site-wide deposit stays ' . esc_html($pct) . '%. Changing this never emails the guest.</p>';
+    return $html . '</fieldset>';
+}
+function brb_admin_charge_now_preview_clone($b, $post) {
+    $preview = clone $b;
+    $cn = brb_charge_now_from_post($post);
+    if ($cn && !is_wp_error($cn) && (float) $b->amount_paid <= 0.009) {
+        $preview->charge_now_mode = $cn['mode'];
+        $preview->charge_now_value = $cn['value'];
+        if (brb_price_is_set($preview)) {
+            $due = brb_booking_charge_now_due($preview, (float) $preview->total);
+            $preview->deposit_due = brb_dec($due);
+            $preview->amount_due = brb_dec($due);
+        }
+    }
+    return $preview;
+}
+add_action('admin_post_brb_charge_now', function () {
+    brb_admin_gate('brb_charge_now');
+    $id = (int) ($_POST['booking'] ?? 0);
+    $cn = brb_charge_now_from_post(wp_unslash($_POST));
+    if ($cn === null) brb_admin_back($id, 'Choose Deposit, Pay in full, or a custom amount.');
+    if (is_wp_error($cn)) brb_admin_back($id, $cn->get_error_message());
+    $res = brb_set_charge_now($id, $cn['mode'], $cn['value']);
+    if (is_wp_error($res)) brb_admin_back($id, $res->get_error_message());
+    $due = brb_price_is_set($res) ? ' Due now: ' . brb_money((float) $res->deposit_due) . ' plus the card fee if paid by card.' : '';
+    brb_admin_back($id, brb_ref($res) . ' charge now: ' . brb_charge_now_label($res) . '.' . $due . ' No email was sent.');
+});
+add_action('wp_ajax_brb_approve_preview', function () {
+    if (!current_user_can('manage_options')) wp_send_json_error(['message' => 'Sorry, you are not allowed to do that.'], 403);
+    check_ajax_referer('brb_approve');
+    $id = (int) ($_POST['booking'] ?? 0);
+    $b = brb_booking($id);
+    if (!$b) wp_send_json_error(['message' => 'Booking not found.'], 404);
+    $preview = brb_admin_charge_now_preview_clone($b, wp_unslash($_POST));
+    if (in_array((string) $preview->status, ['review', 'pending'], true)) $preview->status = 'approved';
+    wp_send_json_success(['subject' => brb_approve_guest_subject($preview), 'body' => brb_approve_guest_body($preview)]);
+});
 add_action('admin_post_brb_price', function () {
     brb_admin_gate('brb_price');
     $id = (int) ($_POST['booking'] ?? 0);
@@ -263,15 +321,19 @@ add_action('admin_post_brb_approve', function () {
     if ($choice !== '1' && $choice !== '0') brb_admin_back($id, 'Choose Send or Don\'t email.');
     $b = brb_booking($id);
     if (!$b) brb_admin_back(0, 'Booking not found.');
+    // 2.5.84: charge-now choice on Approve (Deposit / Pay in full / Custom).
+    $charge = brb_charge_now_from_post(wp_unslash($_POST));
+    if (is_wp_error($charge)) brb_admin_back($id, $charge->get_error_message());
+    if ($charge !== null && (float) $b->amount_paid > 0.009) $charge = null;
     $mail = [];
     if ($choice === '1') {
-        $preview = clone $b;
+        $preview = brb_admin_charge_now_preview_clone($b, wp_unslash($_POST));
         if (in_array((string) $preview->status, ['review', 'pending'], true)) $preview->status = 'approved';
         $posted = brb_posted_guest_mail(brb_approve_guest_subject($preview), brb_approve_guest_body($preview));
         if (is_wp_error($posted)) brb_admin_back($id, $posted->get_error_message());
         $mail = $posted;
     }
-    $res = brb_approve_booking($id, $choice === '1', $mail);
+    $res = brb_approve_booking($id, $choice === '1', $mail, $charge);
     if (is_wp_error($res)) brb_admin_back($id, $res->get_error_message());
     $note = brb_ref($res) . ' approved. Held after approval; reserved when the deposit is received.';
     $note .= $choice === '1' ? ' The guest was emailed.' : ' The guest was not emailed.';
@@ -404,6 +466,11 @@ add_action('admin_post_brb_manual', function () {
     if (!$name || !is_email($email)) brb_admin_back(0, 'Name and a valid email are required.', 'brb-new');
     $source = sanitize_text_field($post['source'] ?? 'phone');
     $take = !empty($post['take_check']);
+    // 2.5.84: per-booking charge now, and "Don't email guest".
+    $no_guest_mail = !empty($post['no_guest_email']);
+    $charge = brb_charge_now_from_post($post);
+    if (is_wp_error($charge)) brb_admin_back(0, $charge->get_error_message(), 'brb-new');
+    if ($charge === null) $charge = ['mode' => '', 'value' => 0.0];
     $price_raw = trim((string) ($post['agreed_price'] ?? ''));
     if ($price_raw !== '') {
         $amount = round((float) $price_raw, 2);
@@ -429,7 +496,9 @@ add_action('admin_post_brb_manual', function () {
         'end_time' => $screen['end_time'],
         'host_age' => $screen['host_age'],
         'event_about' => $about,
-    ], $source, !$take);
+        'charge_now_mode' => $charge['mode'],
+        'charge_now_value' => $charge['value'],
+    ], $source, $take ? false : ($no_guest_mail ? 'staff' : true));
     if (is_wp_error($b)) {
         if ($b->get_error_code() === 'busy') brb_admin_new_reject($post, $r);
         brb_admin_back(0, $b->get_error_message(), 'brb-new');
@@ -441,15 +510,17 @@ add_action('admin_post_brb_manual', function () {
             $post['check_number'] ?? '',
             sanitize_text_field($post['received_on'] ?? ''),
             $post['pay_notes'] ?? '',
-            true
+            true,
+            'check',
+            ['notify' => !$no_guest_mail]
         );
         if (is_wp_error($pay)) {
-            brb_send_request_emails(brb_booking($b->id));
+            brb_send_request_emails(brb_booking($b->id), !$no_guest_mail);
             brb_admin_back($b->id, 'Request saved as pending review, but the check was not recorded: ' . $pay->get_error_message());
         }
-        brb_admin_back($pay->id, brb_ref($pay) . ' saved (' . brb_source_label($source) . '). ' . brb_status_label($pay->status) . '. The guest was emailed.');
+        brb_admin_back($pay->id, brb_ref($pay) . ' saved (' . brb_source_label($source) . '). ' . brb_status_label($pay->status) . '.' . ($no_guest_mail ? ' The guest was not emailed.' : ' The guest was emailed.'));
     }
-    brb_admin_back($b->id, brb_ref($b) . ' saved as pending review (' . brb_source_label($source) . '). The date is not held. The guest was emailed.');
+    brb_admin_back($b->id, brb_ref($b) . ' saved as pending review (' . brb_source_label($source) . '). The date is not held.' . ($no_guest_mail ? ' The guest was not emailed.' : ' The guest was emailed.'));
 });
 
 function brb_admin_router() {
@@ -827,15 +898,22 @@ function brb_admin_card_payment($b) {
         $base_cents = brb_cents_from_amount($due);
         $fee_cents = brb_card_fee_cents($base_cents);
         echo '<table class="form-table"><tbody>';
+        echo '<tr><th>Charge now</th><td>' . esc_html(brb_charge_now_label($b)) . '</td></tr>';
         echo '<tr><th>Amount due now</th><td>' . esc_html(brb_money($due)) . '</td></tr>';
         echo '<tr><th>Card fee (' . esc_html(brb_fee_percent_label()) . ')</th><td>' . esc_html(brb_money($fee_cents / 100)) . '</td></tr>';
         echo '<tr><th>Card total</th><td>' . esc_html(brb_money(($base_cents + $fee_cents) / 100)) . '</td></tr>';
+        if (brb_guest_pay_full_available($b)) {
+            $full = brb_pay_choice_totals($b, 'full');
+            echo '<tr><th>Guest may pay in full</th><td>' . esc_html(brb_money($full['base_cents'] / 100) . ' + ' . brb_money($full['fee_cents'] / 100) . ' card fee = ' . brb_money($full['total_cents'] / 100)) . ' <span class="description">(choice on the pay page)</span></td></tr>';
+        }
         echo '</tbody></table>';
+        echo '<p><label for="brb-pay-link">Payment link (signed)<br><input id="brb-pay-link" class="large-text" type="text" readonly value="' . esc_attr($link) . '" onclick="this.select()"></label></p>';
+        echo '<p><button type="button" class="button" id="brb-copy-pay-link" data-target="brb-pay-link">Copy link</button> <span class="description" id="brb-copy-pay-link-status" aria-live="polite">' . esc_html('Copying the link never emails the guest. Paste it into your own text or email.') . '</span></p>';
+        echo '<script>(function(){var b=document.getElementById("brb-copy-pay-link");if(!b)return;b.addEventListener("click",function(){var i=document.getElementById(b.getAttribute("data-target"));var s=document.getElementById("brb-copy-pay-link-status");if(!i)return;i.select();var done=function(){if(s)s.textContent="Link copied. No email was sent.";};if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(i.value).then(done,function(){document.execCommand("copy");done();});}else{document.execCommand("copy");done();}});})();</script>';
         echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="max-width:640px">';
         echo '<input type="hidden" name="action" value="brb_send_pay_link"><input type="hidden" name="booking" value="' . (int) $b->id . '">';
         wp_nonce_field('brb_send_pay_link');
-        echo '<p><button class="button button-primary">Send payment link</button></p>';
-        echo '<p><label for="brb-pay-link">Payment link<br><input id="brb-pay-link" class="large-text" type="text" readonly value="' . esc_attr($link) . '"></label></p>';
+        echo '<p><button class="button button-primary">Send payment link</button> <span class="description">Optional. Emails the link to the guest.</span></p>';
         echo '</form>';
         return;
     }
@@ -910,10 +988,19 @@ function brb_admin_detail($id) {
     echo brb_followup_box_html($b);
     $money = brb_booking_money($b);
     echo '<h2>Money</h2><table class="widefat" style="max-width:760px"><tbody>';
+    echo '<tr><th style="width:280px">Charge now</th><td>' . esc_html(brb_charge_now_label($b)) . '</td></tr>';
     foreach ($money['rows'] as $label => $val) {
         echo '<tr><th style="width:280px">' . esc_html($label) . '</th><td>' . esc_html((string) $val) . '</td></tr>';
     }
     echo '</tbody></table>';
+    if (in_array((string) $b->status, ['review', 'pending', 'approved', 'held'], true) && (float) $b->amount_paid <= 0.009) {
+        echo '<details id="brb-charge-now" style="max-width:720px;margin:12px 0"><summary class="button">Change charge now</summary>';
+        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="margin-top:12px">';
+        echo '<input type="hidden" name="action" value="brb_charge_now"><input type="hidden" name="booking" value="' . (int) $b->id . '">';
+        wp_nonce_field('brb_charge_now');
+        echo brb_admin_charge_now_fields((string) ($b->charge_now_mode ?? ''), (float) ($b->charge_now_value ?? 0), 'brb-detail');
+        echo '<p><button class="button button-primary">Save charge now</button></p></form></details>';
+    }
     echo '<h2>Edit history</h2>';
     $history = brb_audit_entries($b->audit_log ?? '');
     if (!$history) {
@@ -1050,9 +1137,12 @@ function brb_admin_detail($id) {
     echo '<h2>Actions</h2><div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start">';
     if (in_array($b->status, ['review', 'pending'], true)) {
         echo '<details id="brb-approve"><summary class="button button-primary">Approve</summary>';
-        echo '<form class="brb-email-editor" method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="max-width:640px;margin-top:12px">';
+        echo '<form class="brb-email-editor" data-brb-preview="brb_approve_preview" method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="max-width:640px;margin-top:12px">';
         echo '<input type="hidden" name="action" value="brb_approve"><input type="hidden" name="booking" value="' . (int) $b->id . '">';
         wp_nonce_field('brb_approve');
+        if ((float) $b->amount_paid <= 0.009) {
+            echo '<h3>Charge now</h3>' . brb_admin_charge_now_fields((string) ($b->charge_now_mode ?? ''), (float) ($b->charge_now_value ?? 0), 'brb-approve');
+        }
         brb_admin_email_fields('brb-approve', 'This is the approval email. You can edit it before sending. Nothing is approved or emailed until you choose Send or Don\'t email.', brb_approve_guest_subject($b), brb_approve_preview_body($b));
         echo '<p><button class="button button-primary" name="email_guest" value="1">Send</button> ';
         echo '<button class="button" name="email_guest" value="0">Don\'t email</button></p></form></details>';
@@ -1158,6 +1248,10 @@ function brb_new_form_defaults() {
         'check_number' => '',
         'received_on' => brb_now()->format('Y-m-d'),
         'pay_notes' => '',
+        'charge_now' => 'deposit',
+        'charge_now_custom' => '',
+        'charge_now_unit' => 'percent',
+        'no_guest_email' => '',
     ];
 }
 function brb_new_form_state_from_post($post, $error) {
@@ -1177,6 +1271,10 @@ function brb_new_form_state_from_post($post, $error) {
     $state['check_number'] = sanitize_text_field($post['check_number'] ?? '');
     $state['received_on'] = sanitize_text_field($post['received_on'] ?? '');
     $state['pay_notes'] = sanitize_textarea_field($post['pay_notes'] ?? '');
+    $state['charge_now'] = sanitize_key($post['charge_now'] ?? 'deposit');
+    $state['charge_now_custom'] = sanitize_text_field($post['charge_now_custom'] ?? '');
+    $state['charge_now_unit'] = sanitize_key($post['charge_now_unit'] ?? 'percent') === 'amount' ? 'amount' : 'percent';
+    $state['no_guest_email'] = empty($post['no_guest_email']) ? '' : '1';
     return $state;
 }
 function brb_admin_taken_message($r) {
@@ -1224,6 +1322,9 @@ function brb_admin_new() {
     echo '<tr><th><label for="phone">Phone</label></th><td><input name="phone" id="phone" class="regular-text" value="' . esc_attr($v['phone']) . '"></td></tr>';
     echo '<tr><th><label for="notes">Notes</label></th><td><textarea name="notes" id="notes" rows="3" class="large-text">' . esc_textarea($v['notes']) . '</textarea></td></tr>';
     echo '<tr><th><label for="agreed_price">Agreed price ($)</label></th><td><input name="agreed_price" id="agreed_price" type="number" step="0.01" min="0" value="' . esc_attr($v['agreed_price']) . '"> <span class="description">Leave blank to save a pending request with the price to be confirmed. Required if you record a check now. ' . esc_html(brb_price_sentence()) . '</span></td></tr>';
+    $cn_mode = $v['charge_now'] === 'full' ? 'full' : ($v['charge_now'] === 'custom' ? ($v['charge_now_unit'] === 'amount' ? 'amount' : 'percent') : '');
+    echo '<tr><th>Charge now</th><td>' . brb_admin_charge_now_fields($cn_mode, (float) $v['charge_now_custom'], 'brb-new') . '</td></tr>';
+    echo '<tr><th>Guest email</th><td><label><input type="checkbox" name="no_guest_email" value="1"' . checked($v['no_guest_email'], '1', false) . '> Don\'t email guest</label> <span class="description">Skips the "We received your Boardroom request" email (and the check receipt, if you record a check now). Staff are still notified.</span></td></tr>';
     echo '<tr><th>Minimum notice</th><td><label><input type="checkbox" name="override_notice" value="1"' . checked($v['override_notice'], '1', false) . '> Staff override: allow a start inside the ' . (int) brb_notice_hours() . '-hour notice. The public form cannot do this.</label></td></tr>';
     echo '<tr><th>Check now</th><td><label><input type="checkbox" name="take_check" value="1"' . checked($v['take_check'], '1', false) . '> Record a check with this booking</label></td></tr>';
     echo '<tr><th><label for="amount">Check amount</label></th><td><input name="amount" id="amount" type="number" step="0.01" min="0" value="' . esc_attr($v['amount']) . '"></td></tr>';

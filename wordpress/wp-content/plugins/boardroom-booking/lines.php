@@ -128,7 +128,8 @@ function brb_recalc_booking($booking_id) {
     if (brb_price_is_set($b)) {
         $rent = brb_nonrefundable_total($b->id);
         if ($rent < 0) $rent = 0;
-        $due = brb_deposit_due_amount($rent);
+        // 2.5.84: honor the booking's own charge-now choice (pay in full, custom) so a recalc never resets it to 50%.
+        $due = brb_booking_charge_now_due($b, $rent);
         $fields['subtotal'] = brb_dec($rent);
         $fields['total'] = brb_dec($rent);
         $fields['deposit_due'] = brb_dec($due);
@@ -243,11 +244,16 @@ function brb_split_payment($b, $amount, $damage_explicit = null) {
     if ($to_rental - $rental_left > 0.009) return new WP_Error('amount', 'That amount is more than the balance of ' . brb_money($rental_left + $damage_left) . '.');
     return ['rental' => $to_rental, 'damage' => $to_damage];
 }
-function brb_checkout_lines($b) {
+/**
+ * Card lines for the next payment. $choice 'full' (2.5.84 guest Pay in full) skips the
+ * deposit stage and itemizes everything still owed: rental lines left + unpaid damage.
+ */
+function brb_checkout_lines($b, $choice = '') {
     $lines = [];
     $damage_cents = 0;
     $deposit_left = max(0, round((float) $b->deposit_due - (float) $b->amount_paid, 2));
     $damage_left = brb_damage_left($b);
+    if ($choice === 'full') $deposit_left = 0.0;
     if ($deposit_left > 0.009 && brb_price_is_set($b)) {
         // Reserve stage: the same deposit and damage figures as the admin Money box.
         $money = brb_booking_money($b);
@@ -255,15 +261,7 @@ function brb_checkout_lines($b) {
         $damage_left = (float) $money['damage_left'];
     }
     if ($deposit_left > 0.009) {
-        $o = brb_opt();
-        $name = 'Deposit';
-        if (($o['deposit_type'] ?? '') === 'percent') {
-            $pct = (float) ($o['deposit_pct'] ?? 50);
-            if ($pct <= 0) $pct = 50;
-            if ($pct > 100) $pct = 100;
-            $label = (abs($pct - round($pct)) < 0.001) ? (string) (int) round($pct) : rtrim(rtrim(number_format($pct, 2, '.', ''), '0'), '.');
-            $name = 'Deposit (' . $label . '%)';
-        }
+        $name = brb_charge_now_line_name($b);
         $lines[] = ['name' => $name, 'cents' => brb_cents_from_amount($deposit_left)];
         if ($damage_left > 0.009) {
             $damage_cents = brb_cents_from_amount($damage_left);

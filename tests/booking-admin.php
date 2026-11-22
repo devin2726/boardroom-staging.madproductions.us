@@ -2,6 +2,7 @@
 /**
  * Run inside WordPress: wp eval-file tests/booking-admin.php
  * Booking detail: decline message, money block, date hold, email previews, save, delete, spam, audit.
+ * 2.5.84: Add booking Charge now + Don't email guest, Approve charge now, Change charge now.
  */
 if (!defined('ABSPATH')) {
     fwrite(STDERR, "Load this with wp eval-file\n");
@@ -506,14 +507,131 @@ try {
         brb_t(strpos($form, 'saved as pending review') === false && strpos($form, 'The guest was emailed') === false, 'a rejection does not keep the previous success notice');
         brb_t(strpos($form, 'value="' . $taken_day . '"') !== false && strpos($form, 'value="Rejected Guest"') !== false && strpos($form, 'admin-rejected@example.com') !== false && strpos($form, 'Please keep this note') !== false && strpos($form, 'value="12"') !== false, 'the add-booking form keeps the entered values');
     }
+
+    // ---------- 2.5.84: Add booking charge now + Don't email guest; Approve and booking-page charge now ----------
+    $pif_opt = brb_opt();
+    $pif_opt['deposit_type'] = 'percent';
+    $pif_opt['deposit_pct'] = '50';
+    $pif_opt['damage_deposit_amount'] = '0';
+    update_option('brb_settings', $pif_opt);
+    $pif_sat = function ($offset) {
+        $d = brb_now()->modify('+' . (int) $offset . ' days');
+        while ($d->format('N') !== '6') $d = $d->modify('+1 day');
+        return $d->format('Y-m-d');
+    };
+    $pif_post = function ($action, $post) {
+        $_POST = $post + ['action' => $action, '_wpnonce' => wp_create_nonce($action)];
+        $_REQUEST = $_POST;
+        $where = '';
+        $catch = function ($location) use (&$where) {
+            $where = (string) $location;
+            throw new RuntimeException('redirect');
+        };
+        add_filter('wp_redirect', $catch, 1);
+        try {
+            do_action('admin_post_' . $action);
+        } catch (RuntimeException $e) {
+            if ($e->getMessage() !== 'redirect') throw $e;
+        }
+        remove_filter('wp_redirect', $catch, 1);
+        $_POST = [];
+        $_REQUEST = [];
+        return rawurldecode($where);
+    };
+    $pif_to = function ($email, $from = 0) {
+        $n = 0;
+        foreach (array_slice($GLOBALS['brb_mails'], $from) as $m) {
+            if (stripos((string) ($m['to'] ?? ''), $email) !== false) $n++;
+        }
+        return $n;
+    };
+    $pif_by_email = function ($email) use ($wpdb) {
+        return $wpdb->get_row($wpdb->prepare('SELECT * FROM ' . brb_table() . ' WHERE email=%s ORDER BY id DESC LIMIT 1', $email));
+    };
+
+    ob_start();
+    brb_admin_new();
+    $new_form = ob_get_clean();
+    brb_t(strpos($new_form, 'name="no_guest_email"') !== false && strpos($new_form, 'Don\'t email guest') !== false && strpos($new_form, 'name="charge_now" value="deposit" checked') !== false && strpos($new_form, 'name="charge_now" value="full"') !== false && strpos($new_form, 'name="charge_now_custom"') !== false && strpos($new_form, 'name="charge_now_unit"') !== false && strpos($new_form, 'Deposit 50% (site default)') !== false, 'Add booking has Charge now (Deposit 50% default / Pay in full / Custom % or $) and Don\'t email guest');
+
+    $GLOBALS['brb_mails'] = [];
+    $note = $pif_post('brb_manual', [
+        'source' => 'phone', 'date' => $pif_sat(500), 'type' => 'day', 'guests' => '20',
+        'name' => 'Pay Full Admin', 'email' => 'admin-payfull@example.com', 'phone' => '555-0199',
+        'notes' => 'Throwaway test booking.', 'agreed_price' => '1050', 'override_notice' => '1',
+        'charge_now' => 'full', 'no_guest_email' => '1',
+    ]);
+    $pf = $pif_by_email('admin-payfull@example.com');
+    if ($pf) $created_ids[] = (int) $pf->id;
+    $staff_got = 0;
+    foreach ($GLOBALS['brb_mails'] as $m) if (strpos((string) $m['subject'], 'Request pending review') !== false) $staff_got++;
+    brb_t($pf && $pf->charge_now_mode === 'full' && abs((float) $pf->deposit_due - 1050) < 0.001 && $pf->status === 'review', 'Add booking with Pay in full saves deposit_due = $1,050 total on the booking');
+    brb_t($pf && $pif_to('admin-payfull@example.com') === 0 && $staff_got === 1 && strpos($note, 'The guest was not emailed.') !== false, 'Add booking with Don\'t email guest sends the guest nothing, still tells staff, and says so');
+
+    $GLOBALS['brb_mails'] = [];
+    $pif_post('brb_manual', [
+        'source' => 'phone', 'date' => $pif_sat(510), 'type' => 'day', 'guests' => '20',
+        'name' => 'Pay Check Admin', 'email' => 'admin-paycheck@example.com', 'phone' => '555-0199',
+        'notes' => 'Throwaway test booking.', 'agreed_price' => '1050', 'override_notice' => '1',
+        'charge_now' => 'full', 'no_guest_email' => '1',
+        'take_check' => '1', 'amount' => '1050', 'check_number' => '1234', 'received_on' => brb_now()->format('Y-m-d'),
+    ]);
+    $pc = $pif_by_email('admin-paycheck@example.com');
+    if ($pc) $created_ids[] = (int) $pc->id;
+    brb_t($pc && $pc->status === 'paid' && abs((float) $pc->amount_paid - 1050) < 0.001 && $pif_to('admin-paycheck@example.com') === 0 && brb_booking_money($pc)['due_text'] === 'Paid in full', 'Add booking + full check + Don\'t email: paid in full, no request email and no receipt to the guest');
+
+    $GLOBALS['brb_mails'] = [];
+    $pif_post('brb_manual', [
+        'source' => 'phone', 'date' => $pif_sat(520), 'type' => 'day', 'guests' => '20',
+        'name' => 'Default Admin', 'email' => 'admin-default@example.com', 'phone' => '555-0199',
+        'notes' => 'Throwaway test booking.', 'agreed_price' => '1400', 'override_notice' => '1',
+    ]);
+    $df = $pif_by_email('admin-default@example.com');
+    if ($df) $created_ids[] = (int) $df->id;
+    brb_t($df && $df->charge_now_mode === '' && abs((float) $df->deposit_due - 700) < 0.001 && $pif_to('admin-default@example.com') === 1, 'without the new fields Add booking still uses the 50% deposit and emails the guest as before');
+
+    $bad = $pif_post('brb_manual', [
+        'source' => 'phone', 'date' => $pif_sat(530), 'type' => 'day', 'guests' => '20',
+        'name' => 'Bad Custom', 'email' => 'admin-badcustom@example.com', 'phone' => '555-0199',
+        'agreed_price' => '1000', 'override_notice' => '1', 'charge_now' => 'custom', 'charge_now_custom' => '',
+    ]);
+    brb_t(!$pif_by_email('admin-badcustom@example.com') && strpos($bad, 'Enter the custom charge-now amount or percent.') !== false, 'a blank custom charge now is refused before anything is saved');
+
+    if ($df) {
+        $wpdb->update(brb_table(), ['walkthrough_done' => 1], ['id' => (int) $df->id]);
+        ob_start();
+        brb_admin_detail((int) $df->id);
+        $df_html = ob_get_clean();
+        brb_t(strpos($df_html, 'data-brb-preview="brb_approve_preview"') !== false && strpos($df_html, '<h3>Charge now</h3>') !== false && strpos($df_html, 'id="brb-approve-charge-now"') !== false && strpos($df_html, 'Change charge now') !== false && strpos($df_html, '<th style="width:280px">Charge now</th><td>Deposit 50% (site default)</td>') !== false, 'the booking screen shows Charge now in the Money box, on Approve (with a live email preview), and as its own form');
+        $clone = brb_admin_charge_now_preview_clone($df, ['charge_now' => 'full']);
+        $clone->status = 'approved';
+        brb_t(abs((float) $clone->deposit_due - 1400) < 0.001 && strpos(brb_approve_guest_body($clone), 'a check for $1,400.00') !== false && abs((float) brb_booking($df->id)->deposit_due - 700) < 0.001, 'the Approve preview reflects Pay in full without saving anything');
+        $GLOBALS['brb_mails'] = [];
+        $an = $pif_post('brb_approve', ['booking' => (string) $df->id, 'email_guest' => '0', 'charge_now' => 'custom', 'charge_now_custom' => '40', 'charge_now_unit' => 'percent']);
+        $df = brb_booking($df->id);
+        brb_t($df->status === 'approved' && $df->charge_now_mode === 'percent' && abs((float) $df->deposit_due - 560) < 0.001 && $pif_to('admin-default@example.com') === 0 && strpos($an, 'The guest was not emailed.') !== false, 'Approve with Custom 40% and Don\'t email: $560 due now, nothing sent');
+        $cn = $pif_post('brb_charge_now', ['booking' => (string) $df->id, 'charge_now' => 'full']);
+        $df = brb_booking($df->id);
+        brb_t($df->charge_now_mode === 'full' && abs((float) $df->deposit_due - 1400) < 0.001 && strpos($cn, 'No email was sent.') !== false && $pif_to('admin-default@example.com') === 0, 'Change charge now switches an approved booking to Pay in full without email');
+        brb_recalc_booking($df->id);
+        brb_save_custom_line($df->id, 'Extra cleaning', 100);
+        $df = brb_booking($df->id);
+        brb_t(abs((float) $df->total - 1500) < 0.001 && abs((float) $df->deposit_due - 1500) < 0.001, 'adding an extra keeps Pay in full: deposit_due follows the new $1,500 total');
+    }
+    if ($pf) {
+        $locked = $pif_post('brb_charge_now', ['booking' => (string) $pc->id, 'charge_now' => 'deposit']);
+        brb_t(strpos($locked, 'cannot change') !== false && brb_booking($pc->id)->charge_now_mode === 'full', 'a paid booking\'s charge now is locked');
+    }
 } finally {
+    $_POST = [];
+    $_REQUEST = [];
     if ($created_ids) {
         $in = implode(',', array_map('intval', $created_ids));
         $wpdb->query("DELETE FROM " . brb_pay_table() . " WHERE booking_id IN ($in)");
         $wpdb->query("DELETE FROM " . brb_line_table() . " WHERE booking_id IN ($in)");
         $wpdb->query("DELETE FROM " . brb_table() . " WHERE id IN ($in)");
     }
-    foreach (['admin-money@example.com', 'admin-card@example.com', 'admin-mail@example.com', 'admin-save@example.com', 'admin-decline@example.com', 'admin-quiet@example.com', 'admin-vague@example.com', 'admin-delete@example.com', 'admin-paid-delete@example.com', 'admin-spam@example.com', 'admin-history@example.com', 'admin-taken@example.com', 'admin-rejected@example.com'] as $email) {
+    foreach (['admin-money@example.com', 'admin-card@example.com', 'admin-mail@example.com', 'admin-save@example.com', 'admin-decline@example.com', 'admin-quiet@example.com', 'admin-vague@example.com', 'admin-delete@example.com', 'admin-paid-delete@example.com', 'admin-spam@example.com', 'admin-history@example.com', 'admin-taken@example.com', 'admin-rejected@example.com', 'admin-payfull@example.com', 'admin-paycheck@example.com', 'admin-default@example.com', 'admin-badcustom@example.com'] as $email) {
         $wpdb->query($wpdb->prepare('DELETE FROM ' . brb_pay_table() . ' WHERE booking_id IN (SELECT id FROM ' . brb_table() . ' WHERE email=%s)', $email));
         $wpdb->query($wpdb->prepare('DELETE FROM ' . brb_line_table() . ' WHERE booking_id IN (SELECT id FROM ' . brb_table() . ' WHERE email=%s)', $email));
         $wpdb->query($wpdb->prepare('DELETE FROM ' . brb_table() . ' WHERE email=%s', $email));
