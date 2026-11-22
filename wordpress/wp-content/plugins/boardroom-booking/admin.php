@@ -651,8 +651,9 @@ function brb_admin_list() {
     $where = '1=1';
     $params = [];
     if ($f === 'card_review') {
-        $where .= ' AND attention=%s AND status<>%s';
+        $where .= ' AND attention IN (%s, %s) AND status<>%s';
         $params[] = brb_stripe_review_mark();
+        $params[] = brb_stripe_overpay_mark();
         $params[] = 'spam';
     } elseif ($f === 'spam') {
         $where .= ' AND status=%s';
@@ -816,6 +817,8 @@ function brb_admin_list() {
         }
         if ((string) ($b->attention ?? '') === brb_stripe_review_mark()) {
             $dup_note .= '<br><strong class="brb-review">Needs staff review — payment received for an unavailable date</strong>';
+        } elseif ((string) ($b->attention ?? '') === brb_stripe_overpay_mark()) {
+            $dup_note .= '<br><strong class="brb-review">' . esc_html(brb_stripe_overpay_mark()) . '</strong>';
         }
         printf(
             '<tr><th scope="row" class="check-column"><input type="checkbox" class="brb-row-check" name="booking_ids[]" value="%d" aria-label="%s"></th><td>%s</td><td>%s</td><td>%s<br><small>%s %s</small></td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td><span class="brb-badge %s">%s</span></td><td>%s</td><td>%s</td><td><a class="button button-small" href="%s">Open</a></td></tr>',
@@ -1042,10 +1045,10 @@ function brb_admin_detail($id) {
     }
     if (!empty($b->attention)) {
         echo '<div class="notice notice-error"><p><strong>' . esc_html($b->attention) . '</strong></p>';
-        if ((string) $b->attention === brb_stripe_review_mark()) {
+        if (in_array((string) $b->attention, brb_stripe_review_kinds(), true)) {
             $review_pay = brb_stripe_review_rows((int) $b->id);
             $review_pay = $review_pay ? $review_pay[0] : null;
-            echo '<p>' . esc_html(brb_stripe_review_steps()) . '</p>';
+            echo '<p>' . esc_html(brb_stripe_review_kind_steps($b->attention)) . '</p>';
             if ($review_pay) {
                 $review_url = brb_stripe_dashboard_url($review_pay->stripe_id, $review_pay->stripe_session);
                 echo '<p><a href="' . esc_url($review_url) . '" target="_blank" rel="noopener">Open this payment in the Stripe dashboard</a></p>';

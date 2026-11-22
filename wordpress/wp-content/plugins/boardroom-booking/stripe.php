@@ -150,6 +150,22 @@ function brb_stripe_review_mark() {
 function brb_stripe_review_steps() {
     return 'Do not refund this from the website, and do not email the guest automatically. Open the payment in the Stripe dashboard and refund it there if this guest cannot have the date. After the refund, clear the booking flag.';
 }
+/** 2.5.84: a second Checkout payment that arrived after the booking was already paid. */
+function brb_stripe_overpay_mark() {
+    return 'Extra payment on an already-paid booking: review needed, not applied';
+}
+function brb_stripe_overpay_steps() {
+    return 'Do not refund this from the website, and do not email the guest automatically. Open the payment in the Stripe dashboard and refund it there if this charge was not intended. After the refund, clear the booking flag.';
+}
+function brb_stripe_overpay_subject($ref) {
+    return 'Extra payment on an already-paid booking: review needed, not applied (' . $ref . ')';
+}
+function brb_stripe_review_kinds() {
+    return [brb_stripe_review_mark(), brb_stripe_overpay_mark()];
+}
+function brb_stripe_review_kind_steps($mark) {
+    return ((string) $mark === brb_stripe_overpay_mark()) ? brb_stripe_overpay_steps() : brb_stripe_review_steps();
+}
 function brb_stripe_dashboard_url($stripe_id, $session_id = '') {
     $stripe_id = (string) $stripe_id;
     $session_id = (string) $session_id;
@@ -187,10 +203,11 @@ function brb_stripe_review_rows($booking_id = null) {
         (int) $booking_id
     ));
 }
-function brb_stripe_log_review($ref, $sid, $pi, $reason) {
-    error_log('Boardroom ' . brb_stripe_review_mark() . ': ' . $ref . ' session ' . $sid . ' payment ' . $pi . '. ' . brb_stripe_redact($reason));
+function brb_stripe_log_review($ref, $sid, $pi, $reason, $mark = '') {
+    if ($mark === '') $mark = brb_stripe_review_mark();
+    error_log('Boardroom ' . $mark . ': ' . $ref . ' session ' . $sid . ' payment ' . $pi . '. ' . brb_stripe_redact($reason));
 }
-function brb_stripe_save_unapplied($booking_id, $session, $reason) {
+function brb_stripe_save_unapplied($booking_id, $session, $reason, $kind = '') {
     global $wpdb;
     if (!is_array($session)) return new WP_Error('payload', 'Invalid payment session.', ['status' => 400]);
     $meta = isset($session['metadata']) && is_array($session['metadata']) ? $session['metadata'] : [];
@@ -199,7 +216,7 @@ function brb_stripe_save_unapplied($booking_id, $session, $reason) {
     $pi = brb_stripe_id_value($session['payment_intent'] ?? '');
     $sid = brb_stripe_id_value($session['id'] ?? '');
     if (brb_find_stripe_payment([$pi, $sid])) return true;
-    $mark = brb_stripe_review_mark();
+    $mark = ($kind === 'overpay') ? brb_stripe_overpay_mark() : brb_stripe_review_mark();
     $notes = $mark . ' ' . sanitize_text_field($reason);
     $ok = $wpdb->insert(brb_pay_table(), [
         'booking_id' => max(0, (int) $booking_id),
@@ -228,25 +245,41 @@ function brb_stripe_save_unapplied($booking_id, $session, $reason) {
         . 'Stripe payment: ' . $url . "\n"
         . 'Session: ' . $sid . "\n"
         . 'Payment: ' . ($pi !== '' ? $pi : $sid) . "\n\n"
-        . brb_stripe_review_steps() . "\n";
+        . brb_stripe_review_kind_steps($mark) . "\n";
     if ($b) $body .= "\n" . admin_url('admin.php?page=brb&booking=' . (int) $b->id) . "\n";
-    brb_mail_staff('Needs staff review - payment received for unavailable date (' . $ref . ')', $body);
-    brb_stripe_log_review($ref, $sid, $pi !== '' ? $pi : $sid, $reason);
+    $subject = ($kind === 'overpay')
+        ? brb_stripe_overpay_subject($ref)
+        : 'Needs staff review - payment received for unavailable date (' . $ref . ')';
+    brb_mail_staff($subject, $body);
+    brb_stripe_log_review($ref, $sid, $pi !== '' ? $pi : $sid, $reason, $mark);
     return true;
 }
 function brb_stripe_review_notice() {
     if (!current_user_can('manage_options')) return;
     global $wpdb;
-    $mark = brb_stripe_review_mark();
+    $marks = brb_stripe_review_kinds();
     $bookings = $wpdb->get_results($wpdb->prepare(
-        'SELECT id FROM ' . brb_table() . ' WHERE attention=%s ORDER BY id DESC LIMIT 20',
-        $mark
+        'SELECT id, attention FROM ' . brb_table() . ' WHERE attention IN (%s, %s) ORDER BY id DESC LIMIT 20',
+        $marks[0],
+        $marks[1]
     ));
     $orphans = brb_stripe_review_rows(0);
     if (!$bookings && !$orphans) return;
     $list = admin_url('admin.php?page=brb&status=card_review');
-    echo '<div class="notice notice-error"><p><strong>Boardroom Booking:</strong> ' . esc_html($mark) . '.</p>';
-    echo '<p>' . esc_html(brb_stripe_review_steps()) . '</p><ul>';
+    echo '<div class="notice notice-error">';
+    $seen = [];
+    foreach ((array) $bookings as $row) {
+        $mark = (string) ($row->attention ?? '');
+        if ($mark === '' || isset($seen[$mark])) continue;
+        $seen[$mark] = true;
+        echo '<p><strong>Boardroom Booking:</strong> ' . esc_html($mark) . '.</p>';
+        echo '<p>' . esc_html(brb_stripe_review_kind_steps($mark)) . '</p>';
+    }
+    if (!$seen && $orphans) {
+        echo '<p><strong>Boardroom Booking:</strong> ' . esc_html(brb_stripe_review_mark()) . '.</p>';
+        echo '<p>' . esc_html(brb_stripe_review_steps()) . '</p>';
+    }
+    echo '<ul>';
     foreach ((array) $bookings as $row) {
         $b = brb_booking($row->id);
         if (!$b) continue;
@@ -513,9 +546,12 @@ function brb_stripe_apply_session($session) {
             'damage' => $damage_cents / 100,
         ]);
         if (is_wp_error($res)) {
-            // 2.5.84: 'amount' = a second checkout paid after the booking was already covered. Keep the money for staff review.
+            // 2.5.84: 'amount' after the booking is already covered = extra payment, with its own staff alert wording.
             if (in_array($res->get_error_code(), ['busy', 'status', 'amount'], true)) {
-                return brb_stripe_save_unapplied((int) $b->id, $session, $res->get_error_message());
+                $fresh = brb_booking($b->id);
+                $covered = $fresh && ((string) $fresh->status === 'paid' || ((float) $fresh->amount_paid + 0.009 >= (float) $fresh->total && (float) $fresh->total > 0.009));
+                $kind = ($res->get_error_code() === 'amount' && $covered) ? 'overpay' : '';
+                return brb_stripe_save_unapplied((int) $b->id, $session, $res->get_error_message(), $kind);
             }
             return $res;
         }

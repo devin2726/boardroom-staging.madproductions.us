@@ -816,9 +816,34 @@ try {
     $GLOBALS['brb_mails'] = [];
     $replay = $pif_pay($full, 'cs_test_pif_full', 105000, 3150);
     brb_t($replay->get_status() === 200 && count(brb_payments($full->id)) === 1 && count($GLOBALS['brb_mails']) === 0, 'a replayed webhook records nothing and sends nothing');
+    $GLOBALS['brb_mails'] = [];
     $race = $pif_pay($full, 'cs_test_pif_race', 105000, 3150);
     $race_row = $wpdb->get_row($wpdb->prepare('SELECT * FROM ' . brb_pay_table() . ' WHERE stripe_session=%s', 'cs_test_pif_race'));
-    brb_t($race->get_status() === 200 && $race_row && $race_row->method === 'card_review' && abs((float) brb_booking($full->id)->amount_paid - 1050) < 0.001 && count($pif_guest_mails('payinfull-full@example.com')) === 0, 'a second paid session after full payment is held for staff review, not applied, and the guest is not emailed');
+    $race_b = brb_booking($full->id);
+    $overpay = brb_stripe_overpay_mark();
+    $staff_overpay = null;
+    foreach ($GLOBALS['brb_mails'] as $m) {
+        if (strpos((string) $m['subject'], $overpay) !== false) $staff_overpay = $m;
+    }
+    brb_t($race->get_status() === 200 && $race_row && $race_row->method === 'card_review' && abs((float) $race_b->amount_paid - 1050) < 0.001 && $race_b->status === 'paid' && count($pif_guest_mails('payinfull-full@example.com')) === 0, 'a second paid session after full payment is held for staff review, not applied, and the guest is not emailed');
+    brb_t((string) $race_b->attention === $overpay && strpos((string) $race_row->notes, $overpay) !== false && strpos((string) $race_b->audit_log, $overpay) !== false, 'the extra-payment flag, payment notes, and audit use the already-paid wording, not the unavailable-date label');
+    brb_t($staff_overpay && strpos((string) $staff_overpay['subject'], brb_stripe_overpay_subject(brb_ref($race_b))) !== false && strpos((string) $staff_overpay['message'], $overpay) !== false && strpos((string) $staff_overpay['message'], 'if this charge was not intended') !== false && strpos((string) $staff_overpay['subject'], 'unavailable date') === false && strpos((string) $staff_overpay['message'], 'unavailable date') === false, 'the staff alert subject and body say Extra payment on an already-paid booking: review needed, not applied');
+    if ($admin) {
+        ob_start();
+        brb_stripe_review_notice();
+        $overpay_notice = ob_get_clean();
+        brb_t(strpos($overpay_notice, $overpay) !== false && strpos($overpay_notice, 'if this charge was not intended') !== false && strpos($overpay_notice, 'dashboard.stripe.com/test/payments/pi_test_pif_race') !== false, 'the admin notice uses the already-paid wording for the extra payment');
+        ob_start();
+        brb_admin_detail((int) $race_b->id);
+        $overpay_detail = ob_get_clean();
+        brb_t(strpos($overpay_detail, $overpay) !== false && strpos($overpay_detail, 'if this charge was not intended') !== false, 'the booking screen shows the already-paid review steps');
+        $_GET = ['status' => 'card_review'];
+        ob_start();
+        brb_admin_list();
+        $overpay_list = ob_get_clean();
+        $_GET = [];
+        brb_t(strpos($overpay_list, brb_ref($race_b)) !== false && strpos($overpay_list, $overpay) !== false, 'the Needs staff review list includes the already-paid extra payment');
+    }
     $GLOBALS['brb_mails'] = [];
     brb_send_checklist_reminder(brb_booking($full->id));
     $check_mail = $pif_guest_mails('payinfull-full@example.com');

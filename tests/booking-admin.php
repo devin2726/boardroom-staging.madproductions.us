@@ -613,14 +613,25 @@ try {
         $cn = $pif_post('brb_charge_now', ['booking' => (string) $df->id, 'charge_now' => 'full']);
         $df = brb_booking($df->id);
         brb_t($df->charge_now_mode === 'full' && abs((float) $df->deposit_due - 1400) < 0.001 && strpos($cn, 'No email was sent.') !== false && $pif_to('admin-default@example.com') === 0, 'Change charge now switches an approved booking to Pay in full without email');
+        $cn_log = (string) $df->audit_log;
+        $who = brb_audit_who();
+        $day = brb_now()->format('Y-m-d');
+        $cn_who_when = ' America/Chicago — ' . $who . ': charge now from "Custom: 40% of the total" (mode "percent", 40%) to "Pay in full (100%)" (mode "full", 100%); due now $1,400.00; no email sent';
+        brb_t($who !== '' && $who !== 'system' && strpos($cn_log, $day) !== false && strpos($cn_log, $cn_who_when) !== false, 'Change charge now on an approved booking logs who (WP user), when (Chicago timestamp), and the old and new mode plus percent or amount');
+        ob_start();
+        brb_admin_detail((int) $df->id);
+        $cn_html = ob_get_clean();
+        brb_t(strpos($cn_html, '<h2>Edit history</h2>') !== false && strpos($cn_html, esc_html($cn_who_when)) !== false && strpos($cn_html, esc_html($day)) !== false, 'the booking Edit history shows the charge-now change with who, when, and old and new values');
         brb_recalc_booking($df->id);
         brb_save_custom_line($df->id, 'Extra cleaning', 100);
         $df = brb_booking($df->id);
         brb_t(abs((float) $df->total - 1500) < 0.001 && abs((float) $df->deposit_due - 1500) < 0.001, 'adding an extra keeps Pay in full: deposit_due follows the new $1,500 total');
     }
-    if ($pf) {
+    if ($pc) {
+        $before_lock = (string) $pc->audit_log;
         $locked = $pif_post('brb_charge_now', ['booking' => (string) $pc->id, 'charge_now' => 'deposit']);
-        brb_t(strpos($locked, 'cannot change') !== false && brb_booking($pc->id)->charge_now_mode === 'full', 'a paid booking\'s charge now is locked');
+        $pc = brb_booking($pc->id);
+        brb_t(strpos($locked, 'cannot change') !== false && $pc->charge_now_mode === 'full' && abs((float) $pc->amount_paid - 1050) < 0.001 && (string) $pc->audit_log === $before_lock, 'a paid booking\'s charge now is locked: the mode stays, and no new history line is written');
     }
 } finally {
     $_POST = [];

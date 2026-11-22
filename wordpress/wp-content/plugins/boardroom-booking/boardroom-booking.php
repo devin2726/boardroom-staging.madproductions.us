@@ -533,6 +533,18 @@ function brb_site_deposit_pct() {
     if ($pct > 100) $pct = 100;
     return $pct;
 }
+/**
+ * Compact mode + amount/percent for the Edit history log.
+ * Examples: mode "", site default 50% | mode "full", 100% | mode "percent", 40% | mode "amount", $200.00
+ */
+function brb_charge_now_detail($mode, $value = 0) {
+    $mode = (string) $mode;
+    $value = round((float) $value, 2);
+    if ($mode === 'full') return 'mode "full", 100%';
+    if ($mode === 'percent') return 'mode "percent", ' . brb_pct_label($value) . '%';
+    if ($mode === 'amount') return 'mode "amount", ' . brb_money($value);
+    return 'mode "", site default ' . brb_pct_label(brb_site_deposit_pct()) . '%';
+}
 function brb_charge_now_label($b) {
     $mode = (string) ($b->charge_now_mode ?? '');
     $value = (float) ($b->charge_now_value ?? 0);
@@ -589,13 +601,21 @@ function brb_set_charge_now($booking_id, $mode, $value = 0, $audit = true) {
     }
     $cn = brb_normalize_charge_now($mode, $value);
     if (is_wp_error($cn)) return $cn;
+    $before_mode = (string) ($b->charge_now_mode ?? '');
+    $before_value = (float) ($b->charge_now_value ?? 0);
     $before = brb_charge_now_label($b);
-    $same = (string) ($b->charge_now_mode ?? '') === $cn['mode'] && abs((float) ($b->charge_now_value ?? 0) - $cn['value']) < 0.005;
+    $same = $before_mode === $cn['mode'] && abs($before_value - $cn['value']) < 0.005;
     if ($same) return $b;
     $wpdb->update(brb_table(), ['charge_now_mode' => $cn['mode'], 'charge_now_value' => brb_dec($cn['value'])], ['id' => (int) $b->id]);
     $b = brb_booking($b->id);
     if (brb_price_is_set($b)) $b = brb_recalc_booking($b->id);
-    if ($audit) brb_audit_append((int) $b->id, 'charge now from "' . $before . '" to "' . brb_charge_now_label($b) . '"; due now ' . brb_money((float) $b->deposit_due) . '; no email sent');
+    if ($audit) {
+        // brb_audit_append prefixes who (WP login) and when (Chicago timestamp). The line itself has old and new mode + pct/amount.
+        $line = 'charge now from "' . $before . '" (' . brb_charge_now_detail($before_mode, $before_value) . ') to "'
+            . brb_charge_now_label($b) . '" (' . brb_charge_now_detail((string) ($b->charge_now_mode ?? ''), (float) ($b->charge_now_value ?? 0))
+            . '); due now ' . brb_money((float) $b->deposit_due) . '; no email sent';
+        brb_audit_append((int) $b->id, $line);
+    }
     return $b;
 }
 function brb_status_label($s) {
