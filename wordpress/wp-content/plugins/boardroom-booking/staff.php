@@ -15,7 +15,9 @@
  *   address while they run. Max's decision (Nov 23, 2026, 10:00 AM CT): staff may send a guest email only
  *   from a confirm screen that shows the full message and recipient; the server refuses a send without a
  *   valid confirm token tied to that exact previewed message. Nothing sends automatically. Bots never send.
- * - Text shown here never includes phone numbers, the 2212 check address, or entry codes.
+ * - Dashboard text (calendar, lists, details, hold names/notes) is scrubbed of phone numbers, the 2212 check
+ *   address, entry codes and other-platform names. The send-confirm screen shows the guest email exactly as the
+ *   plugin writes it (Max asked for the full message), which for some email types includes the check address.
  */
 if (!defined('ABSPATH')) exit;
 
