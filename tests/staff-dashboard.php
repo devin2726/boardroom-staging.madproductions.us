@@ -1,6 +1,6 @@
 <?php
 /**
- * 2.5.87 staff dashboard (/staff/). Run with wp eval-file. Fake data only (example.com, "SD Test" names, Oct 2027).
+ * 2.5.89 staff dashboard (/staff/). Run with wp eval-file. Fake data only (example.com, "SD Test" names, Oct 2027).
  * - Access: logged-out and subscriber users get no data and no actions on every route; staff need the staff nonce to write.
  * - Les MUST FIX: Add booking / Add hold refused on booked, held, closed, blackout, add-on, and request-waiting days;
  *   Approve re-checks under the lock and refuses a taken date; holds are saved under GET_LOCK('brb_book').
@@ -82,6 +82,19 @@ function sd_rest($method, $path, $body = null, $staff_nonce = true) {
     $res = rest_do_request($req);
     return [$res->get_status(), $res->get_data()];
 }
+
+function sd_edit_body($over = []) {
+    return array_merge([
+        'name' => 'SD Test Hold Mig Edit',
+        'email' => '',
+        'guests' => 0,
+        'price' => '',
+        'date' => '2027-12-01',
+        'start_time' => '10:00',
+        'end_time' => '23:30',
+        'notes' => 'Copied from a calendar hold. Add the guest email, guest count and price.',
+    ], $over);
+}
 function sd_cleanup() {
     global $wpdb;
     $ids = $wpdb->get_col("SELECT id FROM " . brb_table() . " WHERE email LIKE '%@sd-test.example.com'");
@@ -114,7 +127,7 @@ try {
     delete_option('brb_sd_sent');
     putenv('BRB_STRIPE_SECRET_KEY=sk_test_local_fake_not_a_key');
 
-    brb_t(BRB_VER === '2.5.88', 'BRB_VER is 2.5.88');
+    brb_t(BRB_VER === '2.5.89', 'BRB_VER is 2.5.89');
     brb_t(sd_count(brb_table(), "start_dt >= '2027-10-01' AND start_dt < '2027-11-01' AND status NOT IN ('cancelled','declined','expired','spam')") === 0, 'Oct 2027 starts empty on this test box');
 
     // ---------- role, capability, users ----------
@@ -175,7 +188,7 @@ try {
     brb_t(brb_sd_page_state() === 'ok', 'staff user sees the dashboard');
     $html = brb_sd_page_html();
     brb_t(strpos($html, 'noindex, nofollow') !== false, 'page has robots noindex, nofollow');
-    brb_t(strpos($html, 'brb-staff.css?ver=2.5.88') !== false && strpos($html, 'brb-staff.js?ver=2.5.88') !== false, 'assets are versioned with BRB_VER');
+    brb_t(strpos($html, 'brb-staff.css?ver=2.5.89') !== false && strpos($html, 'brb-staff.js?ver=2.5.89') !== false, 'assets are versioned with BRB_VER');
     brb_t(strpos($html, 'SD Test Waiting') === false, 'page shell has no booking data (it loads through the checked REST routes)');
     brb_t(!preg_match('/\(?\d{3}\)?[\s.\-]\d{3}[\s.\-]\d{4}/', $html) && stripos($html, '2212') === false && stripos($html, 'airbnb') === false, 'page has no phone number, no 2212 address, no other-platform name');
     brb_t(substr_count($html, 'data-jump="') === 9 && substr_count($html, '<nav class="nav"') === 1, 'six-item bottom nav plus three summary cards');
@@ -736,8 +749,116 @@ try {
     list($st, $ad) = sd_rest('POST', 'add', ['kind' => 'booking', 'date' => '2027-11-25', 'name' => 'SD Test Added Staff Notice', 'email' => 'sd-test-added@sd-test.example.com', 'guests' => 20, 'event_type' => 'birthday', 'charge_now' => 'deposit', 'no_guest_email' => true]);
     brb_t($st === 200 && count(sd_guest_mails()) === $g0 && count($GLOBALS['sd_mail']) > $m0, 'a dashboard Add sends the internal "pending review" notice to staff and nothing to the guest');
 
+
+    // ---------- 2.5.89 staff record edit (fill in / fix, especially hold-migrate) ----------
+    $MIG = sd_raw_booking('2027-12-01', 'SD Test Hold Mig Edit', 'held', [
+        'email' => '', 'guests' => 0, 'price_set' => 0, 'subtotal' => 0, 'total' => 0,
+        'amount_due' => 0, 'deposit_due' => 0, 'source' => 'hold-migrate', 'walkthrough_done' => 1,
+        'notes' => 'Copied from a calendar hold. Add the guest email, guest count and price.',
+        'event_about' => 'Copied from a calendar hold. Add the guest email, guest count and price.',
+    ]);
+    $OTHER = sd_raw_booking('2027-12-02', 'SD Test Other Day', 'approved', ['walkthrough_done' => 1]);
+    $PAID = sd_raw_booking('2027-12-10', 'SD Test Price Locked', 'deposit_paid', ['walkthrough_done' => 1, 'amount_paid' => 425]);
+    $GONE = sd_raw_booking('2027-12-11', 'SD Test Cancelled Edit', 'cancelled');
+
+    wp_set_current_user(0);
+    $before_email = $wpdb->get_var($wpdb->prepare('SELECT email FROM ' . brb_table() . ' WHERE id=%d', $MIG));
+    list($st, $r) = sd_rest('POST', 'booking/' . $MIG . '/edit', sd_edit_body(['email' => 'sd-edit-guest@sd-test.example.com', 'confirmed' => true]));
+    brb_t($st === 401 && $wpdb->get_var($wpdb->prepare('SELECT email FROM ' . brb_table() . ' WHERE id=%d', $MIG)) === $before_email, 'logged-out edit is 401 and changes nothing');
+    wp_set_current_user($sub);
+    list($st, $r) = sd_rest('POST', 'booking/' . $MIG . '/edit', sd_edit_body(['email' => 'sd-edit-guest@sd-test.example.com', 'confirmed' => true]));
+    brb_t($st === 403 && $wpdb->get_var($wpdb->prepare('SELECT email FROM ' . brb_table() . ' WHERE id=%d', $MIG)) === $before_email, 'subscriber edit is 403 and changes nothing');
+    wp_set_current_user($staff);
+    list($st, $r) = sd_rest('POST', 'booking/' . $MIG . '/edit', sd_edit_body(['email' => 'sd-edit-guest@sd-test.example.com', 'confirmed' => true]), false);
+    brb_t($st === 403 && $wpdb->get_var($wpdb->prepare('SELECT email FROM ' . brb_table() . ' WHERE id=%d', $MIG)) === $before_email, 'staff edit without the staff nonce is 403 and changes nothing');
+
+    list($st, $d0) = sd_rest('GET', 'booking/' . $MIG);
+    $block0 = $d0['data']['pay_link_blockers'] ?? [];
+    brb_t($st === 200 && !empty($d0['data']['can_edit']) && empty($d0['data']['can_pay']) && $d0['data']['email'] === '' && $d0['data']['needs_fill'] === true, 'a hold-migrate booking is missing email and price, so it can be edited but cannot take a pay link yet');
+    brb_t(in_array('Agreed price set', $block0, true) || in_array('Price to be confirmed', $block0, true) || preg_grep('/price/i', $block0), 'Send invoice is blocked until the agreed price is filled in');
+    $g0 = count(sd_guest_mails());
+    list($st, $draft0) = sd_rest('POST', 'booking/' . $MIG . '/draft', ['kind' => 'paylink']);
+    brb_t($st === 409 && strpos((string) ($draft0['message'] ?? ''), 'no valid guest email') !== false, 'Send invoice is blocked on a hold-migrate booking with no guest email');
+
+    list($st, $cap) = sd_rest('POST', 'booking/' . $MIG . '/edit', sd_edit_body([
+        'name' => 'SD Test Guest Fixed', 'email' => 'sd-edit-guest@sd-test.example.com', 'guests' => 81, 'price' => '1400', 'confirmed' => true,
+    ]));
+    $guests_still = (int) $wpdb->get_var($wpdb->prepare('SELECT guests FROM ' . brb_table() . ' WHERE id=%d', $MIG));
+    brb_t($st === 409 && $guests_still === 0 && strpos((string) ($cap['message'] ?? ''), '80') !== false, 'guest count above the 80 cap is refused and nothing is saved');
+
+    list($st, $busy) = sd_rest('POST', 'booking/' . $MIG . '/edit', sd_edit_body([
+        'name' => 'SD Test Guest Fixed', 'email' => 'sd-edit-guest@sd-test.example.com', 'guests' => 40, 'price' => '1400',
+        'date' => '2027-12-02', 'confirmed' => true,
+    ]));
+    $date_still = substr((string) $wpdb->get_var($wpdb->prepare('SELECT start_dt FROM ' . brb_table() . ' WHERE id=%d', $MIG)), 0, 10);
+    brb_t($st === 409 && $date_still === '2027-12-01' && strpos((string) ($busy['message'] ?? ''), 'already booked') !== false, 'moving onto a booked date is refused under the same-day lock and nothing is saved');
+
+    list($st, $noconfirm) = sd_rest('POST', 'booking/' . $MIG . '/edit', sd_edit_body([
+        'name' => 'SD Test Guest Fixed', 'email' => 'sd-edit-guest@sd-test.example.com', 'guests' => 40, 'price' => '1400',
+    ]));
+    brb_t($st === 409 && ($noconfirm['code'] ?? '') === 'confirm', 'edit without the confirm flag changes nothing');
+
+    $fill = sd_edit_body([
+        'name' => 'SD Test Guest Fixed',
+        'email' => 'sd-edit-guest@sd-test.example.com',
+        'guests' => 40,
+        'price' => '1400',
+        'date' => '2027-12-03',
+        'start_time' => '10:00',
+        'end_time' => '22:00',
+        'notes' => 'Filled in on the staff dashboard.',
+        'confirmed' => true,
+    ]);
+    list($st, $prev) = sd_rest('POST', 'booking/' . $MIG . '/edit-preview', $fill);
+    $fields = array_column($prev['data']['changes'] ?? [], 'field');
+    brb_t($st === 200 && !array_diff(['name', 'email', 'guests', 'price', 'time', 'notes'], $fields), 'edit preview lists every changed field');
+
+    $g_before = count(sd_guest_mails());
+    list($st, $saved) = sd_rest('POST', 'booking/' . $MIG . '/edit', $fill);
+    $b = brb_booking($MIG);
+    brb_t($st === 200 && $saved['data']['email'] === 'sd-edit-guest@sd-test.example.com' && $saved['data']['can_pay'] === true && $saved['data']['needs_fill'] === false, 'after fill-in the record has the guest email and can take a pay link');
+    brb_t((string) $b->name === 'SD Test Guest Fixed' && (int) $b->guests === 40 && brb_price_is_set($b) && abs((float) $b->total - 1400) < 0.009, 'name, guest count and agreed price were saved and the price was recalculated');
+    brb_t((string) $b->balance_due_on === '2027-11-26' && strpos((string) ($saved['data']['money']['balance_due'] ?? ''), 'November 26, 2027') !== false, 'a price fill-in sets the balance due date from the event date');
+    brb_t(substr((string) $b->start_dt, 0, 16) === '2027-12-03 10:00' && substr((string) $b->end_dt, 0, 16) === '2027-12-03 22:00', 'event date and time were saved');
+    brb_t(count(sd_guest_mails()) === $g_before, 'editing the record does not email the guest');
+    brb_t($saved['data']['pay_link_blockers'] === [], 'Send invoice blockers are cleared after the fill-in');
+    list($st, $draft1) = sd_rest('POST', 'booking/' . $MIG . '/draft', ['kind' => 'paylink']);
+    brb_t($st === 200 && ($draft1['data']['to'] ?? '') === 'sd-edit-guest@sd-test.example.com' && ($draft1['data']['kind'] ?? '') === 'paylink', 'Send invoice is available after the fill-in');
+    $log = (string) $b->audit_log;
+    $who = 'sd-staff';
+    brb_t(strpos($log, 'America/Chicago') !== false && strpos($log, $who) !== false, 'the edit audit names the staff user and a Chicago time');
+    brb_t(strpos($log, 'guest name from "SD Test Hold Mig Edit" to "SD Test Guest Fixed"') !== false
+        && strpos($log, 'guest email from "" to "sd-edit-guest@sd-test.example.com"') !== false
+        && strpos($log, 'guest count from "0" to "40"') !== false
+        && strpos($log, 'agreed price from "Price to be confirmed" to "$1,400.00"') !== false
+        && strpos($log, 'no email sent') !== false, 'the edit audit records old and new values and that no email was sent');
+    brb_t(strpos($log, 'December 1, 2027') !== false && strpos($log, 'December 3, 2027') !== false && strpos($log, '10:00 PM') !== false, 'the edit audit records the old and new event time');
+
+    $paid_total = (float) $wpdb->get_var($wpdb->prepare('SELECT total FROM ' . brb_table() . ' WHERE id=%d', $PAID));
+    $paid_name = (string) $wpdb->get_var($wpdb->prepare('SELECT name FROM ' . brb_table() . ' WHERE id=%d', $PAID));
+    list($st, $lock) = sd_rest('POST', 'booking/' . $PAID . '/edit', [
+        'name' => $paid_name, 'email' => 'sd-test-price-locked@sd-test.example.com', 'guests' => 30,
+        'price' => '2000', 'date' => '2027-12-10', 'start_time' => '10:00', 'end_time' => '23:30', 'notes' => '', 'confirmed' => true,
+    ]);
+    $after_total = (float) $wpdb->get_var($wpdb->prepare('SELECT total FROM ' . brb_table() . ' WHERE id=%d', $PAID));
+    $after_name = (string) $wpdb->get_var($wpdb->prepare('SELECT name FROM ' . brb_table() . ' WHERE id=%d', $PAID));
+    brb_t($st === 409 && abs($after_total - $paid_total) < 0.009 && $after_name === $paid_name && strpos((string) ($lock['message'] ?? ''), 'price is locked') !== false, 'once a payment exists the price is locked and nothing is saved');
+    list($st, $okname) = sd_rest('POST', 'booking/' . $PAID . '/edit', [
+        'name' => 'SD Test Price Locked Fixed', 'email' => 'sd-test-price-locked@sd-test.example.com', 'guests' => 30,
+        'price' => '850', 'date' => '2027-12-10', 'start_time' => '10:00', 'end_time' => '23:30', 'notes' => '', 'confirmed' => true,
+    ]);
+    $still_total = (float) $wpdb->get_var($wpdb->prepare('SELECT total FROM ' . brb_table() . ' WHERE id=%d', $PAID));
+    brb_t($st === 200 && ($okname['data']['edit']['price_locked'] ?? false) === true && abs($still_total - $paid_total) < 0.009, 'other fields can still be edited after a payment; the price stays locked');
+
+    list($st, $closed) = sd_rest('POST', 'booking/' . $GONE . '/edit', [
+        'name' => 'SD Test Should Not Edit', 'email' => 'sd-cancelled@sd-test.example.com', 'guests' => 10,
+        'price' => '850', 'date' => '2027-12-11', 'start_time' => '10:00', 'end_time' => '23:30', 'notes' => '', 'confirmed' => true,
+    ]);
+    brb_t($st === 409 && $wpdb->get_var($wpdb->prepare('SELECT name FROM ' . brb_table() . ' WHERE id=%d', $GONE)) === 'SD Test Cancelled Edit', 'a cancelled booking cannot be edited');
+
     // ---------- no 2212 address in anything new ----------
-    $src = file_get_contents(BRB_DIR_TEST . 'staff-flow.php') . file_get_contents(BRB_DIR_TEST . 'assets/brb-staff.js') . file_get_contents(BRB_DIR_TEST . 'assets/brb-staff.css');
+
+    $src = file_get_contents(BRB_DIR_TEST . 'staff-flow.php') . file_get_contents(BRB_DIR_TEST . 'staff-edit.php') . file_get_contents(BRB_DIR_TEST . 'assets/brb-staff.js') . file_get_contents(BRB_DIR_TEST . 'assets/brb-staff.css');
     brb_t(stripos($src, '2212') === false, 'no 2212 address in the new flow code, script or styles');
     $html2 = brb_sd_page_html();
     brb_t(stripos($html2, '2212') === false && stripos($html2, 'tour') === false, 'the dashboard page still has no 2212 address and no tour wording');

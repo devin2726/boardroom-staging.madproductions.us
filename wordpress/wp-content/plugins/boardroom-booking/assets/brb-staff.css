@@ -1,4 +1,4 @@
-/* Boardroom staff dashboard (2.5.87). Ported from the approved demo design. Mobile first. */
+/* Boardroom staff dashboard (2.5.89). Ported from the approved demo design. Mobile first. */
 :root {
   --paper: #f3ebe1;
   --paper-deep: #e8dccf;
@@ -177,13 +177,17 @@ header.top a { color: var(--clay); }
   .day .clock { font-size: 9px; }
 }
 label.field, .field-label { display: block; font-weight: 650; font-size: 14px; margin: 12px 0 6px; }
-input[type="text"], input[type="number"], input[type="date"], select, textarea {
+input[type="text"], input[type="number"], input[type="date"], input[type="email"], input[type="time"], select, textarea {
   width: 100%;
   min-height: 48px;
   border: 1px solid var(--line);
   border-radius: 12px;
   background: #fff;
   padding: 10px 12px;
+}
+.row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+@media (max-width: 400px) {
+  .row-2 { grid-template-columns: 1fr; }
 }
 textarea { min-height: 120px; resize: vertical; }
 input:focus, select:focus, textarea:focus { outline: 3px solid var(--brass-soft); border-color: var(--brass); }
@@ -318,7 +322,7 @@ footer.note {
   .panel h2 { font-size: 20px; }
 }
   
-/* ---- 2.5.87 additions (Les design minors) ---- */
+/* ---- Staff dashboard additions (Les design minors, from 2.5.87) ---- */
 /* Tap targets: at least 44px tall and wide at 390px. */
 .cal-head .btn { min-height: 44px; min-width: 64px; }
 .day { min-height: 48px; min-width: 44px; }
@@ -364,3 +368,12 @@ footer.note {
 .item .h4 { font-family: var(--serif); font-weight: 600; font-size: 17px; }
 .item .muted { display: block; margin-top: 4px; }
 .open-hint { display: block; margin-top: 6px; font-size: 13px; font-weight: 700; color: var(--clay); }
+
+/* ---- 2.5.89 staff record edit form ---- */
+#ed-form .btn, #ed-form input { min-height: 48px; }
+#ed-form textarea { min-height: 80px; }
+#ed-form .btn { min-height: 48px; }
+/* At phone width, modal actions stack so labels like "Send invoice / pay link" stay fully visible. */
+@media (max-width: 430px) {
+  .modal .btn-row .btn { flex: 1 1 100%; white-space: normal; }
+}

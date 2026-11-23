@@ -85,7 +85,7 @@ function brb_email_card_html($rows) {
         $strong = (bool) preg_match('/^(Total|Amount)\b/i', $row[0]);
         $border = ($i < $n - 1) ? 'border-bottom:1px solid ' . $t['line'] . ';' : '';
         if ($strong && $i > 0) $border .= 'border-top:2px solid ' . $t['gold'] . ';';
-        $is_date = (bool) preg_match('/\bdate\b|due by/i', $row[0]);
+        $is_date = (bool) preg_match('/\bdate\b|due by|^Balance due$|^When$/i', $row[0]);
         $html .= '<tr><td class="brb-row-l" style="padding:9px 12px 9px 0;' . $border . 'font-family:' . $t['font'] . ';font-size:16px;line-height:1.35;color:' . $t['muted'] . ';vertical-align:top;">' . esc_html($row[0]) . '</td>'
             . '<td class="brb-row-v' . ($is_date ? ' brb-date' : '') . '" align="right" style="padding:9px 0;' . $border . 'font-family:' . $t['font'] . ';font-size:' . ($strong ? '20' : '17') . 'px;line-height:1.35;font-weight:700;color:' . ($strong ? $t['gold_dark'] : $t['ink']) . ';text-align:right;vertical-align:top;' . ($is_date ? 'white-space:nowrap;' : '') . '">' . esc_html($row[1]) . '</td></tr>';
     }

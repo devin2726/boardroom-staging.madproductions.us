@@ -46,7 +46,7 @@ add_filter('pre_wp_mail', function ($short, $atts) {
 $GLOBALS['brb_mails'] = [];
 
 try {
-    brb_t(get_option('brb_version') === '2.5.88', 'plugin storage version is 2.5.88');
+    brb_t(get_option('brb_version') === '2.5.89', 'plugin storage version is 2.5.89');
     $cc_settings = get_option('brb_settings');
     if (!is_array($cc_settings)) $cc_settings = [];
     $cc_before = (string) ($cc_settings['inquiry_cc'] ?? '');

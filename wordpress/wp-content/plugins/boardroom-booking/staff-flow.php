@@ -1,6 +1,6 @@
 <?php
 /**
- * 2.5.87 booking flow for the staff dashboard (Max, Nov 23 2026, 10:10 AM CT): one booking record.
+ * 2.5.89 booking flow for the staff dashboard (Max, Nov 23 2026, 10:10 AM CT): one booking record.
  * No guest-facing email, terms, FAQ, chat or book-page wording is changed here.
  *
  *  1. Calendar holds become booking records in HOLD status (brb_sd_mig_*). Dates stay blocked the whole time.
