@@ -578,7 +578,9 @@ try {
     ]);
     $pc = $pif_by_email('admin-paycheck@example.com');
     if ($pc) $created_ids[] = (int) $pc->id;
-    brb_t($pc && $pc->status === 'paid' && abs((float) $pc->amount_paid - 1050) < 0.001 && $pif_to('admin-paycheck@example.com') === 0 && brb_booking_money($pc)['due_text'] === 'Paid in full', 'Add booking + full check + Don\'t email: paid in full, no request email and no receipt to the guest');
+    $staff_check = 0;
+    foreach ($GLOBALS['brb_mails'] as $m) if (strpos((string) $m['subject'], 'Request pending review') !== false) $staff_check++;
+    brb_t($pc && $pc->status === 'paid' && abs((float) $pc->amount_paid - 1050) < 0.001 && $pif_to('admin-paycheck@example.com') === 0 && $staff_check === 1 && brb_booking_money($pc)['due_text'] === 'Paid in full', 'Add booking + full check + Don\'t email: paid in full, no request email and no receipt to the guest, staff still notified');
 
     $GLOBALS['brb_mails'] = [];
     $pif_post('brb_manual', [

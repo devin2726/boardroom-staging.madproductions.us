@@ -107,3 +107,17 @@
 
 .brb-email-body{font-family:Consolas,Monaco,monospace;min-height:18em;white-space:pre-wrap;line-height:1.45}
 .brb-email-subject,.brb-email-body{max-width:100%}
+
+/* Pay page: keep the fee checkbox and Continue clear of the sticky header and chat. */
+body.brb-pay-page-body{scroll-padding-top:140px}
+body.brb-pay-page-body .footer-ask-wrap,
+body.brb-pay-page-body .brb-chat,
+body.brb-pay-page-body #ask-walter{display:none!important}
+.brb-pay-page{position:relative;z-index:1;padding-bottom:calc(48px + env(safe-area-inset-bottom,0px))}
+.brb-pay-page form{margin:16px 0 24px;padding-bottom:8px}
+.brb-pay-page .brb-check{display:flex;align-items:flex-start;gap:12px;position:relative;z-index:1;margin:16px 0}
+.brb-pay-page .brb-btn{position:relative;z-index:1;margin-top:8px}
+@media(max-width:390px){
+  body.brb-pay-page-body{scroll-padding-top:160px}
+  .brb-pay-page{padding-bottom:calc(32px + env(safe-area-inset-bottom,0px))}
+}
