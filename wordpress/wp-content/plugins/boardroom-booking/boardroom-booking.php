@@ -2,11 +2,11 @@
 /**
  * Plugin Name: Boardroom Booking
  * Description: Self-hosted direct booking for The Boardroom — full-day blocks, availability calendar, agreed prices, approval before payment, blackout dates, and emails.
- * Version: 2.5.86
+ * Version: 2.5.87
  * Author: Boardroom QC LLC
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.5.86');
+define('BRB_VER', '2.5.87');
 function brb_reserve_explainer_steps() {
     return [
         'Pick a date. Prices are on the calendar.',
@@ -65,6 +65,8 @@ require_once __DIR__ . '/reports.php';
 require_once __DIR__ . '/llms.php';
 require_once __DIR__ . '/followup.php';
 require_once __DIR__ . '/owner-view.php';
+require_once __DIR__ . '/staff.php';
+require_once __DIR__ . '/staff-flow.php';
 define('BRB_URL', plugin_dir_url(__FILE__));
 
 function brb_table() { global $wpdb; return $wpdb->prefix . 'br_bookings'; }
@@ -103,7 +105,7 @@ function brb_date_taken_message() {
 function brb_blocking_statuses() {
     // A request in review does not reserve the date. Approving it, or a paid
     // deposit, does. Legacy held/confirmed rows are the same as approved/paid.
-    return ['approved', 'held', 'deposit_paid', 'paid', 'confirmed'];
+    return ['approved', 'held', 'deposit_paid', 'paid', 'confirmed', 'reserved'];
 }
 function brb_dec($n) { return number_format(round((float) $n, 2), 2, '.', ''); }
 function brb_money($n) { return '$' . number_format((float) $n, 2); }
@@ -163,6 +165,10 @@ function brb_defaults() {
         'max_days' => '7',
         'min_notice_hours' => '48',
         'hold_hours' => '48',
+        // 2.5.87: where the 48-hour pay window starts: 'link_sent' (Max's decision, Nov 23 10:19 AM CT), 'approve', or 'request'.
+        'hold_clock_start' => 'link_sent',
+        // 2.5.87: stays empty until Max approves the balance reminder wording. While empty the reminder cannot be sent.
+        'balance_reminder_template_approved' => '',
         'currency' => 'usd',
         'admin_email' => $admin,
         'tour_email' => 'boardroomqc@gmail.com',
@@ -375,19 +381,31 @@ function brb_install_hold_table() {
       end_dt datetime NOT NULL,
       notes text,
       created datetime NOT NULL,
+      migrated_to bigint(20) unsigned NOT NULL DEFAULT 0,
       PRIMARY KEY  (id),
       KEY range_idx (start_dt, end_dt)
     ) $c;");
+    // 2.5.87: a hold copied into a booking record stays here, marked, so the move can be undone. It no longer blocks.
+    brb_ensure_column($t, 'migrated_to', 'bigint(20) unsigned NOT NULL DEFAULT 0');
     return $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $t)) === $t;
 }
 function brb_hold($id) {
     global $wpdb;
     return $wpdb->get_row($wpdb->prepare('SELECT * FROM ' . brb_hold_table() . ' WHERE id=%d', (int) $id));
 }
+/** SQL piece that leaves out calendar holds already copied into a booking record (2.5.87). Safe before the column exists. */
+function brb_hold_live_sql() {
+    global $wpdb;
+    static $has = false;
+    if (!$has) {
+        $has = (bool) $wpdb->get_var($wpdb->prepare('SHOW COLUMNS FROM `' . brb_hold_table() . '` LIKE %s', 'migrated_to'));
+    }
+    return $has ? ' AND migrated_to = 0' : '';
+}
 function brb_holds_overlapping($start, $end) {
     global $wpdb;
     return $wpdb->get_results($wpdb->prepare(
-        'SELECT id, name, hold_type, start_dt, end_dt, notes FROM ' . brb_hold_table() . ' WHERE start_dt < %s AND end_dt > %s ORDER BY start_dt ASC, id ASC',
+        'SELECT id, name, hold_type, start_dt, end_dt, notes FROM ' . brb_hold_table() . ' WHERE start_dt < %s AND end_dt > %s' . brb_hold_live_sql() . ' ORDER BY start_dt ASC, id ASC',
         $end,
         $start
     ));
@@ -461,6 +479,56 @@ function brb_range_hits_hold($s, $e, $exclude_id = 0) {
 }
 function brb_notice_hours() { return max(0, (int) brb_opt('min_notice_hours')); }
 function brb_hold_hours() { return max(1, (int) brb_opt('hold_hours')); }
+/**
+ * ONE setting decides where the 48-hour pay window starts (Max, Nov 23 2026 10:19 AM CT):
+ * 'link_sent' (default) = when the pay link is sent, and a new send restarts it;
+ * 'approve' = when staff approve; 'request' = when the request came in.
+ */
+function brb_hold_clock_start() {
+    $v = (string) brb_opt('hold_clock_start');
+    return in_array($v, ['approve', 'request'], true) ? $v : 'link_sent';
+}
+/** The pay window end at approval, as a UTC datetime, or null when the clock waits for the pay link. */
+function brb_hold_until_for_approval($b) {
+    $mode = brb_hold_clock_start();
+    if ($mode === 'link_sent') return null;
+    $start = time();
+    if ($mode === 'request') {
+        $made = strtotime((string) ($b->created ?? '') . ' UTC');
+        if ($made) $start = $made;
+    }
+    return gmdate('Y-m-d H:i:s', $start + brb_hold_hours() * HOUR_IN_SECONDS);
+}
+/**
+ * The pay link went to the guest (emailed after staff confirm, or copied by staff). Records when.
+ * In link_sent mode on an unpaid approved/held booking this starts or restarts the pay window: hold_until = now + 48 hours.
+ * Sends nothing and frees nothing.
+ */
+function brb_note_pay_link_sent($booking_id) {
+    global $wpdb;
+    $b = brb_booking($booking_id);
+    if (!$b) return false;
+    brb_ensure_column(brb_table(), 'pay_link_sent_at', 'datetime NULL DEFAULT NULL'); // normally added on upgrade
+    $now = time();
+    $fields = ['pay_link_sent_at' => gmdate('Y-m-d H:i:s', $now)];
+    $note = 'pay link sent to the guest';
+    if (brb_hold_clock_start() === 'link_sent' && in_array((string) $b->status, ['approved', 'held'], true) && (float) $b->amount_paid < 0.01) {
+        $fields['hold_until'] = gmdate('Y-m-d H:i:s', $now + brb_hold_hours() * HOUR_IN_SECONDS);
+        $note .= '; pay window ' . (empty($b->hold_until) ? 'started' : 'restarted') . ' for ' . brb_hold_hours() . ' hours';
+    }
+    $wpdb->update(brb_table(), $fields, ['id' => (int) $b->id]);
+    brb_audit_append((int) $b->id, $note);
+    return true;
+}
+/** Unpaid approved/held booking whose pay window has passed. This only flags; nothing is freed or sent. */
+function brb_hold_lapsed($b) {
+    if (!$b || !in_array((string) $b->status, ['approved', 'held'], true)) return false;
+    if ((float) $b->amount_paid > 0.009) return false;
+    $until = trim((string) ($b->hold_until ?? ''));
+    if ($until === '' || strpos($until, '0000') === 0) return false;
+    $t = strtotime($until . ' UTC');
+    return $t && $t < time();
+}
 function brb_notice_cutoff() {
     return brb_now()->modify('+' . brb_notice_hours() . ' hours');
 }
@@ -628,6 +696,7 @@ function brb_status_label($s) {
         'expired' => 'Expired',
         'pending' => 'Pending review',
         'confirmed' => 'Paid in full',
+        'reserved' => 'Reserved',
     ];
     return $map[$s] ?? $s;
 }
@@ -1172,6 +1241,8 @@ function brb_install_tables() {
     brb_ensure_column($t, 'takedown_addon', 'tinyint(1) NOT NULL DEFAULT 0');
     brb_ensure_column($t, 'addon_prompted', 'tinyint(1) NOT NULL DEFAULT 0');
     brb_ensure_column($t, 'checklist_reminded', 'datetime NULL DEFAULT NULL');
+    brb_ensure_column($t, 'pay_link_sent_at', 'datetime NULL DEFAULT NULL');
+    brb_ensure_column($t, 'balance_reminded', 'datetime NULL DEFAULT NULL');
     brb_ensure_column($t, 'damage_paid', 'decimal(10,2) NOT NULL DEFAULT 0.00');
     brb_ensure_column($t, 'damage_refunded', 'tinyint(1) NOT NULL DEFAULT 0');
     // Staff follow-up log (followup.php). Separate from status and audit_log.
@@ -1249,6 +1320,8 @@ function brb_migrate_settings() {
     if ((string) ($stored['open_hour'] ?? '') === '9') $merged['open_hour'] = '10';
     if (!isset($stored['min_notice_hours'])) $merged['min_notice_hours'] = '48';
     if (!isset($stored['hold_hours'])) $merged['hold_hours'] = '48';
+    if (!isset($stored['hold_clock_start']) || !in_array($stored['hold_clock_start'], ['link_sent', 'request', 'approve'], true)) $merged['hold_clock_start'] = 'link_sent';
+    if (!isset($stored['balance_reminder_template_approved'])) $merged['balance_reminder_template_approved'] = '';
     if (!isset($stored['balance_due_days'])) $merged['balance_due_days'] = '7';
     if (!isset($stored['deposit_fixed']) || $stored['deposit_fixed'] === '') $merged['deposit_fixed'] = '0';
     $defaults = brb_defaults();
@@ -1333,7 +1406,8 @@ function brb_migrate_bookings() {
     $wpdb->query("UPDATE $t SET amount_paid = amount_due, deposit_due = IF(deposit_due > 0, deposit_due, amount_due), source = IF(source IS NULL OR source = '', 'online', source), status = IF(amount_due + 0.009 >= total, 'paid', 'deposit_paid') WHERE status = 'confirmed'");
     $wpdb->query("UPDATE $t SET hold_until = NULL, status = 'paid' WHERE status IN ('held','pending') AND total > 0.009 AND amount_paid + 0.009 >= total");
     $wpdb->query("UPDATE $t SET hold_until = NULL, status = 'deposit_paid' WHERE status IN ('held','pending') AND amount_paid > 0.009 AND amount_paid + 0.009 < total");
-    $wpdb->query("UPDATE $t SET hold_until = NULL, status = 'approved' WHERE status IN ('held','pending') AND amount_paid < 0.01");
+    // 2.5.87: leave a running pay window and rows copied from calendar holds as they are.
+    $wpdb->query("UPDATE $t SET hold_until = NULL, status = 'approved' WHERE status IN ('held','pending') AND amount_paid < 0.01 AND hold_until IS NULL AND source <> 'hold-migrate'");
 }
 function brb_migrate_prices() {
     global $wpdb;
@@ -3247,31 +3321,23 @@ function brb_send_decline_email($b, $message = '', $dates = [], $subject = '', $
     $staff .= "\n" . admin_url('admin.php?page=brb&booking=' . (int) $b->id) . "\n";
     brb_mail_staff('Request declined ' . $ref . ' – ' . $b->name, $staff, $b->email);
 }
-function brb_send_checklist_reminder($b) {
-    $o = brb_opt();
+/** The week-out checklist email, word for word as before (2.5.87 changes who sends it, not what it says). */
+function brb_checklist_reminder_message($b) {
     $ref = brb_ref($b);
     $body = brb_guest_hello_line() . "\n\nYour event is about a week away.\n\nWhen: " . brb_when($b) . "\nReference: {$ref}\n\nView your booking: " . brb_guest_link($b) . "\n\n" . brb_checklist_plain();
-    return brb_mail($b->email, 'Your Boardroom event is about a week away (' . $ref . ')', $body, brb_guest_reply_to());
+    return ['subject' => 'Your Boardroom event is about a week away (' . $ref . ')', 'body' => $body];
 }
+function brb_send_checklist_reminder($b) {
+    $m = brb_checklist_reminder_message($b);
+    return brb_mail($b->email, $m['subject'], $m['body'], brb_guest_reply_to());
+}
+/**
+ * 2.5.87 (Max, Nov 23 2026 10:19 AM CT): the week-out checklist email no longer goes out on its own.
+ * The daily job is kept so the schedule stays registered, but it sends nothing. Staff preview and confirm each
+ * one in the dashboard Messages list (staff.php: brb_sd_checklist_queue), and only then does it go.
+ */
 function brb_checklist_reminders() {
-    global $wpdb;
-    $days = [
-        brb_now()->modify('+7 days')->format('Y-m-d'),
-        brb_now()->modify('+6 days')->format('Y-m-d'),
-    ];
-    $rows = $wpdb->get_results($wpdb->prepare(
-        'SELECT id FROM ' . brb_table() . " WHERE checklist_reminded IS NULL AND status IN ('approved','deposit_paid','paid') AND DATE(start_dt) IN (%s,%s)",
-        $days[0],
-        $days[1]
-    ));
-    if (!$rows) return;
-    foreach ($rows as $row) {
-        $b = brb_booking((int) $row->id);
-        if (!$b || !is_email($b->email)) continue;
-        if (brb_send_checklist_reminder($b)) {
-            $wpdb->update(brb_table(), ['checklist_reminded' => current_time('mysql', true)], ['id' => (int) $b->id]);
-        }
-    }
+    return;
 }
 add_action('brb_cron_checklist', 'brb_checklist_reminders');
 function brb_payment_date_label($ymd) {
@@ -3402,6 +3468,7 @@ function brb_send_cancel_email($b) {
 }
 
 function brb_expire_holds() {
+    // Intentionally does nothing. A passed pay window is only flagged for staff (staff.php); a date is freed by a person.
     return;
 }
 function brb_column_ready() {
@@ -3641,6 +3708,7 @@ function brb_record_payment($booking_id, $amount, $check_number, $received_on, $
     $damage_paid = round((float) ($b->damage_paid ?? 0) + $split['damage'], 2);
     $fields = ['amount_paid' => brb_dec($paid), 'damage_paid' => brb_dec($damage_paid)];
     $fields['status'] = ($paid + 0.009 >= (float) $b->total) ? 'paid' : 'deposit_paid';
+    $fields['hold_until'] = null; // paid: the pay window is over
     $wpdb->update(brb_table(), $fields, ['id' => (int) $b->id]);
     brb_lock_lines($b->id);
     $wpdb->query("SELECT RELEASE_LOCK('brb_book')");
@@ -3837,13 +3905,16 @@ function brb_approve_booking($booking_id, $notify = true, $mail = [], $charge = 
         $wpdb->query("SELECT RELEASE_LOCK('brb_book')");
         return new WP_Error('busy', brb_date_taken_message() . ' This request was not approved.');
     }
-    $wpdb->update(brb_table(), ['status' => 'approved', 'hold_until' => null], ['id' => (int) $b->id]);
+    // 2.5.87: approval starts the pay window. It is a staff flag only; nothing frees the date or emails the guest when it passes.
+    $wpdb->update(brb_table(), ['status' => 'approved', 'hold_until' => brb_hold_until_for_approval($b)], ['id' => (int) $b->id]);
     $wpdb->query("SELECT RELEASE_LOCK('brb_book')");
     $b = brb_booking($b->id);
     if ($notify) {
         list($subject, $body) = $checked_mail;
         brb_send_approve_email($b, $subject, $body);
         brb_audit_append((int) $b->id, 'status from "' . $before_status . '" to "' . brb_status_label('approved') . '"; guest email sent; subject: "' . $subject . '"; body: "' . $body . '"');
+        $link = brb_pay_link($b);
+        if ($link !== '' && strpos($body, $link) !== false) brb_note_pay_link_sent((int) $b->id); // the approval email carried the pay link
     } else {
         brb_audit_append((int) $b->id, 'status from "' . $before_status . '" to "' . brb_status_label('approved') . '"; guest email skipped');
     }
@@ -3972,7 +4043,7 @@ function brb_rest_availability($req) {
     $params = array_merge([$next->format('Y-m-d H:i:s'), $first->format('Y-m-d H:i:s')], $args);
     $rows = $wpdb->get_results($wpdb->prepare($sql, $params));
     $hold_rows = $wpdb->get_results($wpdb->prepare(
-        'SELECT start_dt, end_dt, hold_type FROM ' . brb_hold_table() . ' WHERE start_dt < %s AND end_dt > %s',
+        'SELECT start_dt, end_dt, hold_type FROM ' . brb_hold_table() . ' WHERE start_dt < %s AND end_dt > %s' . brb_hold_live_sql(),
         $next->format('Y-m-d H:i:s'),
         $first->format('Y-m-d H:i:s')
     ));

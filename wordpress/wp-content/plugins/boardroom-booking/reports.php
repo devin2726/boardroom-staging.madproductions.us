@@ -95,7 +95,7 @@ function brb_report_occupied_days($start, $end) {
         $start_dt
     ));
     $holds = $wpdb->get_results($wpdb->prepare(
-        'SELECT start_dt, end_dt FROM ' . brb_hold_table() . ' WHERE start_dt < %s AND end_dt > %s',
+        'SELECT start_dt, end_dt FROM ' . brb_hold_table() . ' WHERE start_dt < %s AND end_dt > %s' . brb_hold_live_sql(),
         $end_dt,
         $start_dt
     ));
@@ -749,7 +749,7 @@ function brb_report_build($start, $end) {
     $span_days = max(1, (int) ((strtotime($end) - strtotime($start)) / DAY_IN_SECONDS) + 1);
     $busy_days = brb_report_occupied_days($start, $end);
     $hold_days = (int) $wpdb->get_var($wpdb->prepare(
-        "SELECT COUNT(*) FROM " . brb_hold_table() . " WHERE start_dt < %s AND end_dt > %s",
+        "SELECT COUNT(*) FROM " . brb_hold_table() . " WHERE start_dt < %s AND end_dt > %s" . brb_hold_live_sql(),
         $end_dt,
         $start_dt
     ));

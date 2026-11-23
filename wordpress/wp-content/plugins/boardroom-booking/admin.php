@@ -573,7 +573,7 @@ function brb_admin_list_calendar_items($q = '') {
     $items = [];
     $covered = [];
     $holds = $wpdb->get_results($wpdb->prepare(
-        'SELECT id, name, hold_type, start_dt, end_dt FROM ' . brb_hold_table() . ' WHERE end_dt > %s ORDER BY start_dt ASC, id ASC',
+        'SELECT id, name, hold_type, start_dt, end_dt FROM ' . brb_hold_table() . ' WHERE end_dt > %s' . brb_hold_live_sql() . ' ORDER BY start_dt ASC, id ASC',
         $from
     ));
     foreach ((array) $holds as $h) {
@@ -2004,6 +2004,8 @@ function brb_admin_settings() {
         if (!in_array($new['deposit_type'], ['full', 'percent', 'fixed'], true)) $new['deposit_type'] = 'full';
         $new['min_notice_hours'] = (string) max(0, (int) $new['min_notice_hours']);
         $new['hold_hours'] = (string) max(1, (int) $new['hold_hours']);
+        $new['hold_clock_start'] = in_array($new['hold_clock_start'] ?? '', ['approve', 'request'], true) ? $new['hold_clock_start'] : 'link_sent';
+        $new['balance_reminder_template_approved'] = ($new['balance_reminder_template_approved'] ?? '') === '1' ? '1' : '';
         $new['balance_due_days'] = (string) max(0, (int) $new['balance_due_days']);
         $new['deposit_pct'] = (string) max(1, min(100, (float) $new['deposit_pct']));
         $new['card_fee_percent'] = (string) max(0, min(100, round((float) ($new['card_fee_percent'] ?? 3), 2)));
@@ -2046,6 +2048,11 @@ function brb_admin_settings() {
         ],
         'Notice' => [
             ['min_notice_hours', 'Minimum notice (hours)', 'number', null, 'A booking must start at least this many hours from now. Default 48. The owner described the rule as not renting inside 48 hours; change this number here if that rule changes. Set 0 to allow same-day starts. A request does not hold the date.'],
+        ],
+        'Pay window and reminders (staff dashboard)' => [
+            ['hold_hours', 'Pay window (hours)', 'number', null, 'How long an approved booking stays on hold for payment. Default 48. When it passes, staff see a flag and decide; nothing is released or emailed automatically.'],
+            ['hold_clock_start', 'Pay window starts at', 'select', ['link_sent' => 'When the pay link is sent (a new send restarts it)', 'approve' => 'The moment staff approve', 'request' => 'The request time'], 'Which moment the pay window counts from. Max chose when the pay link is sent. Applies from the next approval or send.'],
+            ['balance_reminder_template_approved', 'Balance reminder wording', 'select', ['' => 'Not approved: the reminder cannot be sent', '1' => 'Approved by Max: staff may send it after the confirm screen'], 'The reminder text is a draft. Leave on Not approved until Max signs off the wording.'],
         ],
         'Check payment' => [
             ['deposit_type', 'Deposit that reserves the date', 'select', ['full' => 'Full amount', 'percent' => 'Percent of the agreed price', 'fixed' => 'Fixed dollar amount'], 'The deposit holds the date. It is refundable if written cancellation is received 60 or more days before the event, less non-refundable processing charges and costs already incurred, and it is not refundable inside 60 days. Staff process refunds manually. Default is 50% of the agreed price. Until staff set a price, the guest is told the price is to be confirmed.'],
