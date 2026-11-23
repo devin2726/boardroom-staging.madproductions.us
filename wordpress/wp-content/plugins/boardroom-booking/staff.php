@@ -1,6 +1,6 @@
 <?php
 /**
- * 2.5.85 staff dashboard at /staff/ for Boardroom staff (Charlie and Chris).
+ * 2.5.87 staff dashboard at /staff/ for Boardroom staff (Charlie and Chris).
  *
  * - Front-end screen, not wp-admin. Logged-out visitors go to the WordPress login and come back here.
  * - Role brb_staff ("Boardroom staff") has read + brb_manage_bookings. Administrators get brb_manage_bookings too.

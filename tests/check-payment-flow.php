@@ -46,7 +46,7 @@ add_filter('pre_wp_mail', function ($short, $atts) {
 $GLOBALS['brb_mails'] = [];
 
 try {
-    brb_t(get_option('brb_version') === '2.5.85', 'plugin storage version is 2.5.85');
+    brb_t(get_option('brb_version') === '2.5.87', 'plugin storage version is 2.5.87');
     $cc_settings = get_option('brb_settings');
     if (!is_array($cc_settings)) $cc_settings = [];
     $cc_before = (string) ($cc_settings['inquiry_cc'] ?? '');
@@ -1135,7 +1135,7 @@ try {
         $created_ids[] = (int) $remind->id;
         $wpdb->update(brb_table(), ['walkthrough_done' => 1], ['id' => (int) $remind->id]);
         $remind = brb_approve_booking($remind->id);
-        // 2.5.85 (Max, Nov 23 2026 10:19 AM CT): the daily job no longer emails guests. Staff preview and confirm in the dashboard.
+        // 2.5.87 (Max, Nov 23 2026 10:19 AM CT): the daily job no longer emails guests. Staff preview and confirm in the dashboard.
         $GLOBALS['brb_mails'] = [];
         brb_checklist_reminders();
         $auto = 0;

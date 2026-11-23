@@ -1,4 +1,4 @@
-/* Boardroom staff dashboard (2.5.85). Talks only to brb/v1/staff/* with the REST + staff nonces.
+/* Boardroom staff dashboard (2.5.87). Talks only to brb/v1/staff/* with the REST + staff nonces.
    A guest email sends only from the confirm screen (full message, recipient, Send/Cancel). Nothing sends automatically. */
 (function () {
   'use strict';

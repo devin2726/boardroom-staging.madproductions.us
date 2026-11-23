@@ -1,4 +1,4 @@
-/* Boardroom staff dashboard (2.5.85). Ported from the approved demo design. Mobile first. */
+/* Boardroom staff dashboard (2.5.87). Ported from the approved demo design. Mobile first. */
 :root {
   --paper: #f3ebe1;
   --paper-deep: #e8dccf;
@@ -318,7 +318,7 @@ footer.note {
   .panel h2 { font-size: 20px; }
 }
   
-/* ---- 2.5.85 additions (Les design minors) ---- */
+/* ---- 2.5.87 additions (Les design minors) ---- */
 /* Tap targets: at least 44px tall and wide at 390px. */
 .cal-head .btn { min-height: 44px; min-width: 64px; }
 .day { min-height: 48px; min-width: 44px; }

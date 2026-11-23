@@ -1,6 +1,6 @@
 <?php
 /**
- * 2.5.85 staff dashboard (/staff/). Run with wp eval-file. Fake data only (example.com, "SD Test" names, Oct 2027).
+ * 2.5.87 staff dashboard (/staff/). Run with wp eval-file. Fake data only (example.com, "SD Test" names, Oct 2027).
  * - Access: logged-out and subscriber users get no data and no actions on every route; staff need the staff nonce to write.
  * - Les MUST FIX: Add booking / Add hold refused on booked, held, closed, blackout, add-on, and request-waiting days;
  *   Approve re-checks under the lock and refuses a taken date; holds are saved under GET_LOCK('brb_book').
@@ -114,7 +114,7 @@ try {
     delete_option('brb_sd_sent');
     putenv('BRB_STRIPE_SECRET_KEY=sk_test_local_fake_not_a_key');
 
-    brb_t(BRB_VER === '2.5.85', 'BRB_VER is 2.5.85');
+    brb_t(BRB_VER === '2.5.87', 'BRB_VER is 2.5.87');
     brb_t(sd_count(brb_table(), "start_dt >= '2027-10-01' AND start_dt < '2027-11-01' AND status NOT IN ('cancelled','declined','expired','spam')") === 0, 'Oct 2027 starts empty on this test box');
 
     // ---------- role, capability, users ----------
@@ -175,7 +175,7 @@ try {
     brb_t(brb_sd_page_state() === 'ok', 'staff user sees the dashboard');
     $html = brb_sd_page_html();
     brb_t(strpos($html, 'noindex, nofollow') !== false, 'page has robots noindex, nofollow');
-    brb_t(strpos($html, 'brb-staff.css?ver=2.5.85') !== false && strpos($html, 'brb-staff.js?ver=2.5.85') !== false, 'assets are versioned with BRB_VER');
+    brb_t(strpos($html, 'brb-staff.css?ver=2.5.87') !== false && strpos($html, 'brb-staff.js?ver=2.5.87') !== false, 'assets are versioned with BRB_VER');
     brb_t(strpos($html, 'SD Test Waiting') === false, 'page shell has no booking data (it loads through the checked REST routes)');
     brb_t(!preg_match('/\(?\d{3}\)?[\s.\-]\d{3}[\s.\-]\d{4}/', $html) && stripos($html, '2212') === false && stripos($html, 'airbnb') === false, 'page has no phone number, no 2212 address, no other-platform name');
     brb_t(substr_count($html, 'data-jump="') === 9 && substr_count($html, '<nav class="nav"') === 1, 'six-item bottom nav plus three summary cards');

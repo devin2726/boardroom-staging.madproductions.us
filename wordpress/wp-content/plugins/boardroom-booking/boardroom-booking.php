@@ -2,11 +2,11 @@
 /**
  * Plugin Name: Boardroom Booking
  * Description: Self-hosted direct booking for The Boardroom — full-day blocks, availability calendar, agreed prices, approval before payment, blackout dates, and emails.
- * Version: 2.5.85
+ * Version: 2.5.87
  * Author: Boardroom QC LLC
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.5.85');
+define('BRB_VER', '2.5.87');
 function brb_reserve_explainer_steps() {
     return [
         'Pick a date. Prices are on the calendar.',
@@ -165,9 +165,9 @@ function brb_defaults() {
         'max_days' => '7',
         'min_notice_hours' => '48',
         'hold_hours' => '48',
-        // 2.5.85: where the 48-hour pay window starts: 'link_sent' (Max's decision, Nov 23 10:19 AM CT), 'approve', or 'request'.
+        // 2.5.87: where the 48-hour pay window starts: 'link_sent' (Max's decision, Nov 23 10:19 AM CT), 'approve', or 'request'.
         'hold_clock_start' => 'link_sent',
-        // 2.5.85: stays empty until Max approves the balance reminder wording. While empty the reminder cannot be sent.
+        // 2.5.87: stays empty until Max approves the balance reminder wording. While empty the reminder cannot be sent.
         'balance_reminder_template_approved' => '',
         'currency' => 'usd',
         'admin_email' => $admin,
@@ -385,7 +385,7 @@ function brb_install_hold_table() {
       PRIMARY KEY  (id),
       KEY range_idx (start_dt, end_dt)
     ) $c;");
-    // 2.5.85: a hold copied into a booking record stays here, marked, so the move can be undone. It no longer blocks.
+    // 2.5.87: a hold copied into a booking record stays here, marked, so the move can be undone. It no longer blocks.
     brb_ensure_column($t, 'migrated_to', 'bigint(20) unsigned NOT NULL DEFAULT 0');
     return $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $t)) === $t;
 }
@@ -393,7 +393,7 @@ function brb_hold($id) {
     global $wpdb;
     return $wpdb->get_row($wpdb->prepare('SELECT * FROM ' . brb_hold_table() . ' WHERE id=%d', (int) $id));
 }
-/** SQL piece that leaves out calendar holds already copied into a booking record (2.5.85). Safe before the column exists. */
+/** SQL piece that leaves out calendar holds already copied into a booking record (2.5.87). Safe before the column exists. */
 function brb_hold_live_sql() {
     global $wpdb;
     static $has = false;
@@ -1405,7 +1405,7 @@ function brb_migrate_bookings() {
     $wpdb->query("UPDATE $t SET amount_paid = amount_due, deposit_due = IF(deposit_due > 0, deposit_due, amount_due), source = IF(source IS NULL OR source = '', 'online', source), status = IF(amount_due + 0.009 >= total, 'paid', 'deposit_paid') WHERE status = 'confirmed'");
     $wpdb->query("UPDATE $t SET hold_until = NULL, status = 'paid' WHERE status IN ('held','pending') AND total > 0.009 AND amount_paid + 0.009 >= total");
     $wpdb->query("UPDATE $t SET hold_until = NULL, status = 'deposit_paid' WHERE status IN ('held','pending') AND amount_paid > 0.009 AND amount_paid + 0.009 < total");
-    // 2.5.85: leave a running pay window and rows copied from calendar holds as they are.
+    // 2.5.87: leave a running pay window and rows copied from calendar holds as they are.
     $wpdb->query("UPDATE $t SET hold_until = NULL, status = 'approved' WHERE status IN ('held','pending') AND amount_paid < 0.01 AND hold_until IS NULL AND source <> 'hold-migrate'");
 }
 function brb_migrate_prices() {
@@ -3320,7 +3320,7 @@ function brb_send_decline_email($b, $message = '', $dates = [], $subject = '', $
     $staff .= "\n" . admin_url('admin.php?page=brb&booking=' . (int) $b->id) . "\n";
     brb_mail_staff('Request declined ' . $ref . ' – ' . $b->name, $staff, $b->email);
 }
-/** The week-out checklist email, word for word as before (2.5.85 changes who sends it, not what it says). */
+/** The week-out checklist email, word for word as before (2.5.87 changes who sends it, not what it says). */
 function brb_checklist_reminder_message($b) {
     $ref = brb_ref($b);
     $body = brb_guest_hello_line() . "\n\nYour event is about a week away.\n\nWhen: " . brb_when($b) . "\nReference: {$ref}\n\nView your booking: " . brb_guest_link($b) . "\n\n" . brb_checklist_plain();
@@ -3331,7 +3331,7 @@ function brb_send_checklist_reminder($b) {
     return brb_mail($b->email, $m['subject'], $m['body'], brb_guest_reply_to());
 }
 /**
- * 2.5.85 (Max, Nov 23 2026 10:19 AM CT): the week-out checklist email no longer goes out on its own.
+ * 2.5.87 (Max, Nov 23 2026 10:19 AM CT): the week-out checklist email no longer goes out on its own.
  * The daily job is kept so the schedule stays registered, but it sends nothing. Staff preview and confirm each
  * one in the dashboard Messages list (staff.php: brb_sd_checklist_queue), and only then does it go.
  */
@@ -3904,7 +3904,7 @@ function brb_approve_booking($booking_id, $notify = true, $mail = [], $charge = 
         $wpdb->query("SELECT RELEASE_LOCK('brb_book')");
         return new WP_Error('busy', brb_date_taken_message() . ' This request was not approved.');
     }
-    // 2.5.85: approval starts the pay window. It is a staff flag only; nothing frees the date or emails the guest when it passes.
+    // 2.5.87: approval starts the pay window. It is a staff flag only; nothing frees the date or emails the guest when it passes.
     $wpdb->update(brb_table(), ['status' => 'approved', 'hold_until' => brb_hold_until_for_approval($b)], ['id' => (int) $b->id]);
     $wpdb->query("SELECT RELEASE_LOCK('brb_book')");
     $b = brb_booking($b->id);
