@@ -2199,6 +2199,8 @@ function brb_chat_markup($mode = 'float', $details_target = '') {
 }
 
 function brb_chat_hidden_here() {
+    // Pay page: the chat launcher and footer Ask Walter cover the fee checkbox and Continue.
+    if (!empty($_GET['br_pay'])) return true;
     // The owner bookings view ([brb_owner_view]) is a private page: no Walter there.
     return function_exists('brb_ov_current_is_owner_page') && brb_ov_current_is_owner_page();
 }

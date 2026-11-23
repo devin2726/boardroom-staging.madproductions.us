@@ -2,6 +2,7 @@
 /**
  * Run inside WordPress: wp eval-file tests/check-payment-flow.php
  * Exercises a request → approval → deposit → balance → paid, the 48h notice rule, and blackout preservation.
+ * 2.5.84: pay in full by check and a custom charge now, through the approval and receipt copy.
  */
 if (!defined('ABSPATH')) {
     fwrite(STDERR, "Load this with wp eval-file\n");
@@ -45,7 +46,7 @@ add_filter('pre_wp_mail', function ($short, $atts) {
 $GLOBALS['brb_mails'] = [];
 
 try {
-    brb_t(get_option('brb_version') === '2.5.80', 'plugin storage version is 2.5.80');
+    brb_t(get_option('brb_version') === '2.5.84', 'plugin storage version is 2.5.84');
     $cc_settings = get_option('brb_settings');
     if (!is_array($cc_settings)) $cc_settings = [];
     $cc_before = (string) ($cc_settings['inquiry_cc'] ?? '');
@@ -136,6 +137,7 @@ try {
     $stored = get_option('brb_settings');
     brb_t(is_array($stored) && !array_key_exists($brand . '_pk', $stored) && !array_key_exists($brand . '_sk', $stored), 'saved settings no longer keep processor keys');
     brb_t(brb_opt('deposit_type') === 'percent' && (string) brb_opt('deposit_pct') === '50', 'the deposit default is 50 percent of the agreed total');
+    brb_t(brb_defaults()['damage_deposit_amount'] === '0', 'the code default for the damage deposit is $0');
     brb_t((string) brb_opt('min_notice_hours') === '48', 'minimum notice defaults to 48');
     brb_t((string) brb_opt('hold_hours') === '48', 'hold length defaults to 48');
     brb_t(strpos((string) brb_opt('payee'), '[VERIFY]') === false, 'the stored payee is not a placeholder');
@@ -360,6 +362,9 @@ try {
     $work['hold_hours'] = '48';
     $work['balance_due_days'] = '7';
     $work['admin_email'] = 'admin@example.com';
+    // The payment-flow cases below still test a $250 damage deposit on the booking.
+    // The code default is now $0, so set it explicitly after the legacy-settings migrate (which omits the key).
+    $work['damage_deposit_amount'] = '250';
     update_option('brb_settings', $work);
 
     $soon = brb_build_range([
@@ -1896,6 +1901,44 @@ try {
         wp_set_current_user($gmail_user);
         brb_t(strpos($hidden_detail, 'Email customer') === false && strpos($hidden_detail, 'mail.google.com') === false && strpos($hidden_list, 'mail.google.com') === false && strpos($hidden_list, 'casey.nguyen@example.com') !== false, 'the email customer link is only shown to administrators');
     }
+
+    // ---------- 2.5.84: pay in full by check, and custom charge now, through the receipt copy ----------
+    $pif_o = brb_opt();
+    $pif_o['deposit_type'] = 'percent';
+    $pif_o['deposit_pct'] = '50';
+    $pif_o['damage_deposit_amount'] = '0';
+    update_option('brb_settings', $pif_o);
+    $pif_day = brb_now()->modify('+540 days');
+    while ($pif_day->format('N') !== '6') $pif_day = $pif_day->modify('+1 day');
+    $pif_r = brb_build_range(['date' => $pif_day->format('Y-m-d'), 'type' => 'day', 'days' => 1, 'guests' => 20], ['override_notice' => true]);
+    $GLOBALS['brb_mails'] = [];
+    $pf = brb_insert_booking($pif_r, brb_agreed_quote(1050), ['name' => 'Flow Full', 'email' => 'flow-payfull@example.com', 'phone' => '555-0199', 'notes' => 'Throwaway test booking.', 'charge_now_mode' => 'full'], 'phone', 'staff');
+    brb_t(!is_wp_error($pf) && $pf && abs((float) $pf->deposit_due - 1050) < 0.001, 'a pay-in-full booking owes the whole $1,050 up front');
+    if (!is_wp_error($pf) && $pf) {
+        $created_ids[] = (int) $pf->id;
+        $wpdb->update(brb_table(), ['walkthrough_done' => 1], ['id' => (int) $pf->id]);
+        $pf = brb_approve_booking($pf->id, false);
+        $approve_body = brb_approve_guest_body($pf);
+        brb_t(strpos($approve_body, 'a check for $1,050.00') !== false && strpos($approve_body, 'Payment in full holds the date.') !== false && strpos($approve_body, 'remaining balance') === false && strpos($approve_body, 'Due now to reserve: $1,050.00') !== false && strpos($approve_body, 'Balance: $0.00') !== false, 'the approval email asks for $1,050 and mentions no later balance');
+        $GLOBALS['brb_mails'] = [];
+        $pf = brb_record_payment($pf->id, 1050, '4321', brb_now()->format('Y-m-d'), '', true);
+        $receipt = null;
+        foreach ($GLOBALS['brb_mails'] as $m) if (stripos((string) $m['to'], 'flow-payfull@example.com') !== false) $receipt = $m;
+        brb_t(!is_wp_error($pf) && $pf->status === 'paid' && $receipt && strpos($receipt['subject'], 'booking confirmed') !== false && strpos($receipt['message'], 'Your booking is paid in full.') !== false && strpos($receipt['message'], 'Balance remaining: $0.00') !== false && strpos($receipt['message'], 'remaining balance as a check') === false, 'a $1,050 check marks it paid; the receipt says paid in full with $0.00 remaining');
+        brb_t(brb_balance_due_display($pf) === 'Paid' && brb_booking_money($pf)['due_text'] === 'Paid in full' && brb_amount_due_now($pf) === 0.0, 'balance due shows Paid and nothing is due');
+    }
+    $pif_day2 = $pif_day->modify('+7 days');
+    $pif_r2 = brb_build_range(['date' => $pif_day2->format('Y-m-d'), 'type' => 'day', 'days' => 1, 'guests' => 20], ['override_notice' => true]);
+    $pc = brb_insert_booking($pif_r2, brb_agreed_quote(1000), ['name' => 'Flow Custom', 'email' => 'flow-custom@example.com', 'phone' => '555-0199', 'notes' => 'Throwaway test booking.', 'charge_now_mode' => 'amount', 'charge_now_value' => 250], 'phone', 'staff');
+    if (!is_wp_error($pc) && $pc) {
+        $created_ids[] = (int) $pc->id;
+        $wpdb->update(brb_table(), ['walkthrough_done' => 1], ['id' => (int) $pc->id]);
+        $pc = brb_approve_booking($pc->id, false);
+        $lines = implode("\n", brb_payment_lines($pc));
+        brb_t(abs((float) $pc->deposit_due - 250) < 0.001 && strpos($lines, 'a check for $250.00') !== false && strpos($lines, 'The deposit of $250.00 holds the date.') !== false && strpos($lines, 'the remaining balance of $750.00') !== false, 'a custom $250 charge now asks for $250 and names the $750 balance');
+        $pc = brb_record_payment($pc->id, 250, '77', brb_now()->format('Y-m-d'), '', true, 'check', ['notify' => false]);
+        brb_t(!is_wp_error($pc) && $pc->status === 'deposit_paid' && abs(brb_amount_due_now($pc) - 750) < 0.001, 'after the custom $250, a true $750 balance is still due');
+    }
 } finally {
     if ($created_ids) {
         $in = implode(',', array_map('intval', $created_ids));
@@ -1904,6 +1947,10 @@ try {
     }
     $wpdb->query($wpdb->prepare('DELETE FROM ' . brb_pay_table() . ' WHERE booking_id IN (SELECT id FROM ' . brb_table() . ' WHERE email=%s)', 'flow-test@example.com'));
     $wpdb->query($wpdb->prepare('DELETE FROM ' . brb_table() . ' WHERE email=%s', 'flow-test@example.com'));
+    foreach (['flow-payfull@example.com', 'flow-custom@example.com'] as $pif_email) {
+        $wpdb->query($wpdb->prepare('DELETE FROM ' . brb_pay_table() . ' WHERE booking_id IN (SELECT id FROM ' . brb_table() . ' WHERE email=%s)', $pif_email));
+        $wpdb->query($wpdb->prepare('DELETE FROM ' . brb_table() . ' WHERE email=%s', $pif_email));
+    }
     if ($snapshot !== false && $snapshot !== null) update_option('brb_settings', $snapshot);
     else delete_option('brb_settings');
     foreach (['BRB_SMTP_HOST', 'BRB_SMTP_PORT', 'BRB_SMTP_USER', 'BRB_SMTP_PASS', 'BRB_SMTP_FROM', 'BRB_SMTP_FROM_NAME'] as $key) {

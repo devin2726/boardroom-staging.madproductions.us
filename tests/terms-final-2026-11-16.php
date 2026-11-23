@@ -34,7 +34,7 @@ function brb_tf_reply($q, $more = false) {
 $saved_opt = get_option('brb_settings');
 $saved_ver = get_option('brb_version');
 try {
-    brb_t(BRB_VER === '2.5.80' && version_compare(BRB_VER, '2.5.79', '>') && version_compare(BRB_VER, '2.5.81', '<'), 'plugin version is 2.5.80, after live 2.5.79 and before 2.5.81');
+    brb_t(version_compare(BRB_VER, '2.5.80', '>='), 'plugin version is 2.5.80 or later (2.5.84 adds pay in full; the Nov 16 terms stay)');
     brb_t(function_exists('br_ver') && br_ver() === '1.2.51' && strpos((string) file_get_contents(get_template_directory() . '/style.css', false, null, 0, 400), 'Version: 1.2.51') !== false, 'theme version is 1.2.51 (after 1.2.50) in br_ver() and style.css');
 
     $seo_check = br_seo_pages();
@@ -182,8 +182,8 @@ try {
     $src = (string) file_get_contents(WP_PLUGIN_DIR . '/boardroom-booking/boardroom-booking.php');
     brb_t(strpos($src, "\$location === BRB_CHECK_ADDRESS) {\n        \$merged['pay_location'] = BRB_VENUE_ADDRESS;") === false, 'the old 2212-to-2220 overwrite is gone from brb_migrate_settings');
 
-    // ---- payment logic is untouched in 2.5.80 (the $250 setting needs Devin)
-    brb_t(brb_defaults()['damage_deposit_amount'] === '250' && function_exists('brb_ensure_damage_line'), 'payment settings and the damage line code are unchanged in 2.5.80 (the damage deposit default is a Devin decision)');
+    // ---- damage deposit default is $0 (Max, Nov 16; code default set in 2.5.84)
+    brb_t(brb_defaults()['damage_deposit_amount'] === '0' && function_exists('brb_ensure_damage_line'), 'damage deposit default is $0 and the damage line helper still exists');
 } finally {
     if ($saved_opt === false) delete_option('brb_settings'); else update_option('brb_settings', $saved_opt);
     if ($saved_ver === false) delete_option('brb_version'); else update_option('brb_version', $saved_ver);

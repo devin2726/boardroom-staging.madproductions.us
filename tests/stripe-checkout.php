@@ -2,6 +2,7 @@
 /**
  * Run inside WordPress: wp eval-file tests/stripe-checkout.php
  * Signature checks, idempotent webhooks, fee cents, keys off, and pay-link tokens.
+ * 2.5.84: per-booking charge now (deposit / pay in full / custom), Don't email guest, guest Pay in full.
  */
 if (!defined('ABSPATH')) {
     fwrite(STDERR, "Load this with wp eval-file\n");
@@ -192,7 +193,7 @@ try {
         $actions_at = strpos($ready_admin, '<h2>Actions</h2>');
         $send_at = strpos($ready_admin, 'Send payment link');
         brb_t($card_at !== false && $agreed_at !== false && $record_at !== false && $actions_at !== false && $agreed_at < $card_at && $card_at < $send_at && $send_at < $record_at && $record_at < $actions_at && strpos($ready_admin, 'Send payment link', $actions_at) === false, 'the payment link section sits after the agreed price and not in Actions');
-        brb_t(substr_count($ready_admin, '>Send payment link<') === 1 && strpos($ready_admin, 'name="action" value="brb_send_pay_link"') !== false && strpos($ready_admin, 'readonly') !== false && strpos($ready_admin, 'Amount due now') !== false && strpos($ready_admin, 'Card total') !== false && strpos($ready_admin, 'The pay link is part of the Approve email preview and is sent only if staff choose Send. Use this button to resend it.') !== false && strpos($ready_admin, 'Approving the request emails the guest a Stripe pay link automatically.') === false, 'the ready section shows the amount, the card total, the link, and one send button');
+        brb_t(substr_count($ready_admin, '>Send payment link<') === 1 && strpos($ready_admin, 'name="action" value="brb_send_pay_link"') !== false && strpos($ready_admin, 'readonly') !== false && strpos($ready_admin, 'Amount due now') !== false && strpos($ready_admin, 'Card total') !== false && strpos($ready_admin, 'The pay link is included in the Approve email preview and is emailed only if staff choose Send payment link. Copy link never emails the guest. Use Send payment link to email it or to resend it.') !== false && strpos($ready_admin, 'Approving the request emails the guest a Stripe pay link automatically.') === false, 'the ready section shows the amount, the card total, the link, and one send button');
         brb_t(strpos($ready_admin, $secret_marker) === false && strpos($ready_admin, 'sk_test_') === false, 'the card section does not show the Stripe secret');
         brb_t(strpos($ready_admin, 'Extras and discounts (optional)') !== false && strpos($ready_admin, 'e.g. Extra cleaning or Returning guest discount') !== false && strpos($ready_admin, 'e.g. 150 or -100') !== false && strpos($ready_admin, '>Add to total<') !== false && strpos($ready_admin, 'Guest total:') !== false && strpos($ready_admin, '>Rental price<') !== false && strpos($ready_admin, '>Save changes<') !== false && strpos($ready_admin, 'Save rental price and email guest the total') === false && strpos($ready_admin, '>Add charge<') === false && strpos($ready_admin, '>Final price<') === false && strpos($ready_admin, 'Rental total (damage deposit not included)') === false, 'the booking screen names extras, the guest total, and the rental price');
         $saved_status = $priced->status;
@@ -686,6 +687,288 @@ try {
         }
     }
 
+    // ---------- 2.5.84: per-booking charge now, Don't email guest, guest Pay in full ----------
+    // Throwaway bookings only (payinfull-*@example.com, far-future Saturdays). Fake sk_test_ key and a
+    // signed test webhook; Stripe's API is never called (pre_http_request returns a canned session).
+    $pif = brb_opt();
+    $pif['deposit_type'] = 'percent';
+    $pif['deposit_pct'] = '50';
+    $pif['card_fee_percent'] = '3';
+    $pif['damage_deposit_amount'] = '0';
+    update_option('brb_settings', $pif);
+    brb_test_env('BRB_STRIPE_SECRET_KEY', $secret);
+    brb_test_env('BRB_STRIPE_WEBHOOK_SECRET', $whsec);
+    $pif_book = function ($email, $offset, $price, $mode = '', $value = 0, $notify = 'staff') {
+        $day = brb_now()->modify('+' . (int) $offset . ' days');
+        while ($day->format('N') !== '6') $day = $day->modify('+1 day');
+        $r = brb_build_range(['date' => $day->format('Y-m-d'), 'type' => 'day', 'days' => 1, 'guests' => 20], ['override_notice' => true]);
+        if (is_wp_error($r)) return $r;
+        return brb_insert_booking($r, brb_agreed_quote($price), [
+            'name' => 'Pay In Full Test',
+            'email' => $email,
+            'phone' => '555-0199',
+            'notes' => 'Throwaway test booking.',
+            'event_about' => 'Throwaway test booking.',
+            'charge_now_mode' => $mode,
+            'charge_now_value' => $value,
+        ], 'phone', $notify);
+    };
+    $pif_guest_mails = function ($email) {
+        $n = [];
+        foreach ($GLOBALS['brb_mails'] as $m) {
+            if (stripos((string) $m['to'], $email) !== false) $n[] = $m;
+        }
+        return $n;
+    };
+    $pif_checkout = function ($b, $choice = '') use ($pif_book) {
+        $cap = null;
+        $f = function ($pre, $args, $url) use (&$cap) {
+            $cap = ['url' => $url, 'args' => $args];
+            return ['headers' => [], 'body' => wp_json_encode(['id' => 'cs_test_pif', 'url' => 'https://checkout.stripe.com/c/pay/cs_test_pif']), 'response' => ['code' => 200, 'message' => 'OK'], 'cookies' => [], 'filename' => null];
+        };
+        add_filter('pre_http_request', $f, 10, 3);
+        $url = brb_stripe_begin_checkout($b->token, brb_pay_signature($b->token), true, $choice);
+        remove_filter('pre_http_request', $f, 10);
+        $parsed = [];
+        if ($cap) parse_str((string) $cap['args']['body'], $parsed);
+        $items = [];
+        foreach (($parsed['line_items'] ?? []) as $item) $items[(string) $item['price_data']['product_data']['name']] = (int) $item['price_data']['unit_amount'];
+        return ['url' => $url, 'parsed' => $parsed, 'items' => $items, 'called' => $cap !== null];
+    };
+    $pif_pay = function ($b, $sid, $base, $fee, $choice = 'due_now') use ($whsec) {
+        $session = [
+            'id' => $sid,
+            'payment_status' => 'paid',
+            'amount_total' => $base + $fee,
+            'payment_intent' => 'pi_' . substr($sid, 3),
+            'client_reference_id' => (string) $b->id,
+            'metadata' => ['booking_id' => (string) $b->id, 'token' => $b->token, 'base_cents' => (string) $base, 'fee_cents' => (string) $fee, 'damage_cents' => '0', 'pay_choice' => $choice],
+        ];
+        return brb_test_post(wp_json_encode(['id' => 'evt_' . $sid, 'type' => 'checkout.session.completed', 'data' => ['object' => $session]]), $whsec);
+    };
+
+    // Charge-now helpers and parsing.
+    brb_t(brb_charge_now_due('full', 0, 1050) === 1050.0 && brb_charge_now_due('', 0, 1400) === 700.0 && brb_charge_now_due('percent', 30, 1000) === 300.0 && brb_charge_now_due('amount', 200, 1000) === 200.0 && brb_charge_now_due('amount', 5000, 1000) === 1000.0, 'charge now: full = total, default = 50%, custom percent and custom dollars (capped at the total)');
+    $p100 = brb_normalize_charge_now('percent', 100);
+    $bad_pct = brb_normalize_charge_now('percent', 0);
+    $bad_mode = brb_normalize_charge_now('half', 0);
+    brb_t(!is_wp_error($p100) && $p100['mode'] === 'full' && is_wp_error($bad_pct) && is_wp_error($bad_mode), 'a custom 100% is stored as Pay in full; 0% and unknown modes are refused');
+    $posted = brb_charge_now_from_post(['charge_now' => 'custom', 'charge_now_custom' => '250', 'charge_now_unit' => 'amount']);
+    $posted_pct = brb_charge_now_from_post(['charge_now' => 'custom', 'charge_now_custom' => '30', 'charge_now_unit' => 'percent']);
+    $posted_blank = brb_charge_now_from_post(['charge_now' => 'custom', 'charge_now_custom' => '']);
+    brb_t(is_array($posted) && $posted['mode'] === 'amount' && abs($posted['value'] - 250) < 0.001 && $posted_pct['mode'] === 'percent' && is_wp_error($posted_blank) && brb_charge_now_from_post([]) === null && brb_charge_now_from_post(['charge_now' => 'full'])['mode'] === 'full', 'the charge-now form fields parse to deposit, full, custom percent, and custom dollars');
+    brb_t((string) brb_opt('deposit_pct') === '50', 'the site-wide deposit stays 50%');
+
+    // ---- Required case: $1,050 pay in full, Don't email guest, approve without email, copy link.
+    $GLOBALS['brb_mails'] = [];
+    $full = $pif_book('payinfull-full@example.com', 400, 1050, 'full', 0, 'staff');
+    brb_t(!is_wp_error($full) && $full && $full->charge_now_mode === 'full' && abs((float) $full->deposit_due - 1050) < 0.001 && abs((float) $full->total - 1050) < 0.001, 'Add booking with Pay in full stores charge_now_mode=full and deposit_due = $1,050 total');
+    if (is_wp_error($full) || !$full) throw new RuntimeException('pay-in-full booking was not created');
+    $created_ids[] = (int) $full->id;
+    $request_mail = $pif_guest_mails('payinfull-full@example.com');
+    $staff_saw = false;
+    foreach ($GLOBALS['brb_mails'] as $m) {
+        if (strpos((string) $m['subject'], 'Request pending review') !== false && strpos((string) $m['subject'], brb_ref($full)) !== false) $staff_saw = true;
+    }
+    brb_t(count($request_mail) === 0 && $staff_saw, 'Don\'t email guest skips "We received your Boardroom request" and still notifies staff');
+    brb_t(strpos((string) brb_booking($full->id)->audit_log, 'guest email skipped') !== false, 'the audit log records the skipped guest email');
+    $wpdb->update(brb_table(), ['walkthrough_done' => 1], ['id' => (int) $full->id]);
+    $full = brb_approve_booking($full->id, false);
+    brb_t(!is_wp_error($full) && $full->status === 'approved' && count($pif_guest_mails('payinfull-full@example.com')) === 0, 'Approve with Don\'t email sends the guest nothing');
+    $full = brb_recalc_booking($full->id);
+    $repriced = brb_set_agreed_price($full->id, 1050, false);
+    brb_t(abs((float) $full->deposit_due - 1050) < 0.001 && !is_wp_error($repriced) && abs((float) $repriced->deposit_due - 1050) < 0.001 && $repriced->charge_now_mode === 'full', 'brb_recalc_booking and Save price keep pay in full (no reset to 50%)');
+    $full = brb_booking($full->id);
+    $full_link = brb_pay_link($full);
+    brb_t($full_link !== '' && strpos($full_link, 'br_pay=' . $full->token) !== false && strpos($full_link, 'br_sig=' . brb_pay_signature($full->token)) !== false && count($pif_guest_mails('payinfull-full@example.com')) === 0, 'the signed pay link (br_pay + br_sig) exists and nothing was emailed');
+    brb_t(abs(brb_amount_due_now($full) - 1050) < 0.001 && !brb_guest_pay_full_available($full), 'amount due now is $1,050 and no separate guest choice is needed');
+    if ($admin) {
+        ob_start();
+        brb_admin_detail((int) $full->id);
+        $full_admin = ob_get_clean();
+        brb_t(strpos($full_admin, 'Pay in full (100%)') !== false && strpos($full_admin, 'id="brb-copy-pay-link"') !== false && strpos($full_admin, 'Copying the link never emails the guest.') !== false && strpos($full_admin, esc_attr($full_link)) !== false, 'the booking screen shows Charge now: Pay in full, the signed link, and a Copy link button that never emails');
+        brb_t(strpos($full_admin, '$1,081.50') !== false, 'the booking screen shows the $1,081.50 card total');
+    }
+    ob_start();
+    brb_view_pay($full->token, brb_pay_signature($full->token));
+    $full_page = ob_get_clean();
+    brb_t(strpos($full_page, 'Rental, paid in full: $1,050.00') !== false && strpos($full_page, 'Card processing fee (3%): $31.50') !== false && strpos($full_page, 'Total charged to your card: $1,081.50') !== false && strpos($full_page, 'name="pay_choice"') === false && strpos($full_page, 'Payment in full holds the date.') !== false, 'the pay page shows $1,050.00 + $31.50 = $1,081.50 and no deposit/full radio');
+    $co = $pif_checkout($full);
+    brb_t($co['url'] === 'https://checkout.stripe.com/c/pay/cs_test_pif' && $co['items'] === ['Rental, paid in full' => 105000, 'Card processing fee (3%)' => 3150] && array_sum($co['items']) === 108150, 'Stripe Checkout lines: $1,050.00 + $31.50 = 108,150 cents ($1,081.50)');
+    brb_t(($co['parsed']['metadata']['base_cents'] ?? '') === '105000' && ($co['parsed']['metadata']['fee_cents'] ?? '') === '3150' && ($co['parsed']['metadata']['pay_choice'] ?? '') === 'due_now', 'checkout metadata: base 105000, fee 3150');
+    $GLOBALS['brb_mails'] = [];
+    $res = $pif_pay($full, 'cs_test_pif_full', 105000, 3150);
+    $full = brb_booking($full->id);
+    $rows = brb_payments($full->id);
+    brb_t($res->get_status() === 200 && $full->status === 'paid' && abs((float) $full->amount_paid - 1050) < 0.001 && count($rows) === 1 && abs((float) $rows[0]->amount - 1050) < 0.001 && abs((float) $rows[0]->fee - 31.5) < 0.001, 'signed webhook for 108,150 cents: status paid, $1,050.00 recorded, $31.50 fee kept apart');
+    brb_t(brb_amount_due_now($full) === 0.0 && brb_pay_link($full) === '' && isset(brb_pay_link_blockers($full)['balance']), 'after pay in full: brb_amount_due_now = 0 and there is no pay link');
+    $receipts = $pif_guest_mails('payinfull-full@example.com');
+    brb_t(count($receipts) === 1 && strpos($receipts[0]['message'], 'Your booking is paid in full.') !== false && strpos($receipts[0]['message'], 'Balance remaining: $0.00') !== false && strpos($receipts[0]['message'], 'pay the rest online') === false && strpos($receipts[0]['message'], 'br_pay=') === false, 'one receipt: paid in full, $0.00 remaining, no balance link');
+    brb_t(strpos((string) $receipts[0]['subject'], 'Your Boardroom receipt, booking confirmed') !== false, 'the email named on the thank-you page is the paid-in-full receipt, not a balance email');
+    ob_start();
+    brb_view_confirmation($full->token);
+    $thanks = ob_get_clean();
+    brb_t(brb_guest_first_name('Pay In Full Test') === '' && brb_guest_first_name('Ann Smith') === 'Ann' && brb_guest_first_name('Mary-Jane Watson') === 'Mary-Jane' && brb_guest_first_name('') === '', 'a phrase like Pay In Full Test is not treated as a first name; ordinary given names still are');
+    brb_t(strpos($thanks, 'Thank you, Pay!') === false && strpos($thanks, 'Thank you! Your booking is confirmed.') !== false && strpos($thanks, 'Your request is in') === false && strpos($thanks, 'Booking confirmed') !== false && strpos($thanks, 'A receipt confirming your booking was sent to payinfull-full@example.com') !== false, 'the thank-you page says Thank you! and Booking confirmed, with no request-is-in line and a receipt (not a balance email) to the guest');
+    $_GET['br_pay'] = $full->token;
+    brb_t(brb_chat_hidden_here() === true, 'the chat widget is hidden on the pay page');
+    unset($_GET['br_pay']);
+    $m = brb_booking_money($full);
+    brb_t($m['due_text'] === 'Paid in full' && $m['rows']['Balance'] === '$0.00' && $m['rows']['Balance due'] === 'Paid', 'Money box: Paid in full, Balance $0.00, Balance due Paid');
+    $again = brb_stripe_create_session($full);
+    $again_full = brb_stripe_create_session($full, 'full');
+    brb_t(is_wp_error($again) && $again->get_error_code() === 'amount' && is_wp_error($again_full), 'a second checkout is refused once the booking is paid');
+    ob_start();
+    brb_view_pay($full->token, brb_pay_signature($full->token));
+    $paid_page = ob_get_clean();
+    brb_t(strpos($paid_page, 'There is no balance to pay online.') !== false && strpos($paid_page, 'Continue to card payment') === false, 'reloading the pay link shows no balance');
+    $GLOBALS['brb_mails'] = [];
+    $replay = $pif_pay($full, 'cs_test_pif_full', 105000, 3150);
+    brb_t($replay->get_status() === 200 && count(brb_payments($full->id)) === 1 && count($GLOBALS['brb_mails']) === 0, 'a replayed webhook records nothing and sends nothing');
+    $GLOBALS['brb_mails'] = [];
+    $race = $pif_pay($full, 'cs_test_pif_race', 105000, 3150);
+    $race_row = $wpdb->get_row($wpdb->prepare('SELECT * FROM ' . brb_pay_table() . ' WHERE stripe_session=%s', 'cs_test_pif_race'));
+    $race_b = brb_booking($full->id);
+    $overpay = brb_stripe_overpay_mark();
+    $staff_overpay = null;
+    foreach ($GLOBALS['brb_mails'] as $m) {
+        if (strpos((string) $m['subject'], $overpay) !== false) $staff_overpay = $m;
+    }
+    brb_t($race->get_status() === 200 && $race_row && $race_row->method === 'card_review' && abs((float) $race_b->amount_paid - 1050) < 0.001 && $race_b->status === 'paid' && count($pif_guest_mails('payinfull-full@example.com')) === 0, 'a second paid session after full payment is held for staff review, not applied, and the guest is not emailed');
+    brb_t((string) $race_b->attention === $overpay && strpos((string) $race_row->notes, $overpay) !== false && strpos((string) $race_b->audit_log, $overpay) !== false, 'the extra-payment flag, payment notes, and audit use the already-paid wording, not the unavailable-date label');
+    brb_t($staff_overpay && strpos((string) $staff_overpay['subject'], brb_stripe_overpay_subject(brb_ref($race_b))) !== false && strpos((string) $staff_overpay['message'], $overpay) !== false && strpos((string) $staff_overpay['message'], 'if this charge was not intended') !== false && strpos((string) $staff_overpay['subject'], 'unavailable date') === false && strpos((string) $staff_overpay['message'], 'unavailable date') === false, 'the staff alert subject and body say Extra payment on an already-paid booking: review needed, not applied');
+    if ($admin) {
+        ob_start();
+        brb_stripe_review_notice();
+        $overpay_notice = ob_get_clean();
+        brb_t(strpos($overpay_notice, $overpay) !== false && strpos($overpay_notice, 'if this charge was not intended') !== false && strpos($overpay_notice, 'dashboard.stripe.com/test/payments/pi_test_pif_race') !== false, 'the admin notice uses the already-paid wording for the extra payment');
+        ob_start();
+        brb_admin_detail((int) $race_b->id);
+        $overpay_detail = ob_get_clean();
+        brb_t(strpos($overpay_detail, $overpay) !== false && strpos($overpay_detail, 'if this charge was not intended') !== false, 'the booking screen shows the already-paid review steps');
+        $_GET = ['status' => 'card_review'];
+        ob_start();
+        brb_admin_list();
+        $overpay_list = ob_get_clean();
+        $_GET = [];
+        brb_t(strpos($overpay_list, brb_ref($race_b)) !== false && strpos($overpay_list, $overpay) !== false, 'the Needs staff review list includes the already-paid extra payment');
+    }
+    $GLOBALS['brb_mails'] = [];
+    brb_send_checklist_reminder(brb_booking($full->id));
+    $check_mail = $pif_guest_mails('payinfull-full@example.com');
+    brb_t(count($check_mail) === 1 && strpos($check_mail[0]['message'], 'br_pay=') === false, 'the week-out checklist has no balance link');
+    $locked = brb_set_charge_now($full->id, '');
+    brb_t(is_wp_error($locked), 'charge now cannot change after the booking is paid');
+
+    // ---- Guest choice on the pay page: default 50% booking, guest picks Pay in full.
+    $GLOBALS['brb_mails'] = [];
+    $guest = $pif_book('payinfull-guest@example.com', 420, 1050, '', 0, 'staff');
+    if (is_wp_error($guest) || !$guest) throw new RuntimeException('guest-choice booking was not created');
+    $created_ids[] = (int) $guest->id;
+    $wpdb->update(brb_table(), ['walkthrough_done' => 1], ['id' => (int) $guest->id]);
+    $guest = brb_approve_booking($guest->id, false);
+    brb_t(!is_wp_error($guest) && abs((float) $guest->deposit_due - 525) < 0.001 && brb_guest_pay_full_available($guest), 'a default booking owes the $525 deposit and offers the guest Pay in full');
+    ob_start();
+    brb_view_pay($guest->token, brb_pay_signature($guest->token));
+    $choice_page = ob_get_clean();
+    brb_t(strpos($choice_page, 'name="pay_choice" value="due_now" checked') !== false && strpos($choice_page, 'name="pay_choice" value="full"') !== false && strpos($choice_page, 'Pay the deposit: $525.00 + $15.75 card fee = <strong>$540.75</strong>') !== false && strpos($choice_page, 'Pay in full: $1,050.00 + $31.50 card fee = <strong>$1,081.50</strong>') !== false, 'the pay page offers deposit $540.75 (default) or pay in full $1,081.50');
+    brb_t(strpos(brb_pay_online_line($guest), 'You can also choose to pay in full on that page: $1,050.00 plus $31.50, $1,081.50 in all.') !== false, 'the pay-online line mentions the pay-in-full option');
+    $gco = $pif_checkout($guest, 'full');
+    brb_t($gco['items'] === ['Rental' => 105000, 'Card processing fee (3%)' => 3150] && ($gco['parsed']['metadata']['pay_choice'] ?? '') === 'full' && ($gco['parsed']['metadata']['base_cents'] ?? '') === '105000', 'guest Pay in full: checkout $1,050.00 + 3% on the full amount = 108,150 cents');
+    $dco = $pif_checkout($guest, '');
+    brb_t($dco['items'] === ['Deposit (50%)' => 52500, 'Card processing fee (3%)' => 1575], 'guest deposit choice: $525.00 + $15.75');
+    $junk = $pif_checkout($guest, 'everything');
+    brb_t($junk['items'] === ['Deposit (50%)' => 52500, 'Card processing fee (3%)' => 1575], 'an unknown pay choice falls back to the deposit');
+    $GLOBALS['brb_mails'] = [];
+    $gres = $pif_pay($guest, 'cs_test_pif_guest', 105000, 3150, 'full');
+    $guest = brb_booking($guest->id);
+    $gmail = $pif_guest_mails('payinfull-guest@example.com');
+    brb_t($gres->get_status() === 200 && $guest->status === 'paid' && abs((float) $guest->amount_paid - 1050) < 0.001 && brb_amount_due_now($guest) === 0.0 && brb_pay_link($guest) === '', 'guest pay in full: paid, $1,050 recorded, $0 due, no pay link');
+    brb_t(count($gmail) === 1 && strpos($gmail[0]['message'], 'Your booking is paid in full.') !== false && strpos($gmail[0]['message'], 'br_pay=') === false && brb_booking_money($guest)['due_text'] === 'Paid in full', 'guest pay in full: one paid-in-full receipt with no balance link; Money box says Paid in full');
+
+    // ---- Regression: 50% of $1,400 = $700 + $21, then the $700 + $21 balance.
+    $reg = $pif_book('payinfull-regress@example.com', 440, 1400, '', 0, 'staff');
+    if (is_wp_error($reg) || !$reg) throw new RuntimeException('regression booking was not created');
+    $created_ids[] = (int) $reg->id;
+    $wpdb->update(brb_table(), ['walkthrough_done' => 1], ['id' => (int) $reg->id]);
+    $reg = brb_approve_booking($reg->id, false);
+    $r1 = $pif_checkout($reg);
+    brb_t($r1['items'] === ['Deposit (50%)' => 70000, 'Card processing fee (3%)' => 2100], 'regression: 50% of $1,400 is $700 + $21 by card');
+    $pif_pay($reg, 'cs_test_pif_reg1', 70000, 2100);
+    $reg = brb_booking($reg->id);
+    brb_t($reg->status === 'deposit_paid' && abs((float) $reg->amount_paid - 700) < 0.001 && abs(brb_amount_due_now($reg) - 700) < 0.001 && !brb_guest_pay_full_available($reg) && brb_booking_money($reg)['due_text'] === 'Deposit received', 'regression: after the deposit, $700 balance remains and no extra choice is shown');
+    $r2 = $pif_checkout($reg, 'full');
+    brb_t($r2['items'] === ['Rental' => 70000, 'Card processing fee (3%)' => 2100], 'regression: the balance checkout is $700 + $21');
+    $pif_pay($reg, 'cs_test_pif_reg2', 70000, 2100);
+    $reg = brb_booking($reg->id);
+    brb_t($reg->status === 'paid' && abs((float) $reg->amount_paid - 1400) < 0.001 && brb_amount_due_now($reg) === 0.0, 'regression: after the balance, paid with $1,400 recorded');
+
+    // ---- Custom leaves a true balance (percent and dollars).
+    $cus = $pif_book('payinfull-custom@example.com', 460, 1000, 'percent', 30, 'staff');
+    if (is_wp_error($cus) || !$cus) throw new RuntimeException('custom booking was not created');
+    $created_ids[] = (int) $cus->id;
+    $wpdb->update(brb_table(), ['walkthrough_done' => 1], ['id' => (int) $cus->id]);
+    $cus = brb_approve_booking($cus->id, false);
+    $c1 = $pif_checkout($cus);
+    brb_t(abs((float) $cus->deposit_due - 300) < 0.001 && $c1['items'] === ['Deposit (30%)' => 30000, 'Card processing fee (3%)' => 900], 'custom 30% of $1,000 charges $300 + $9');
+    $pif_pay($cus, 'cs_test_pif_cus', 30000, 900);
+    $cus = brb_booking($cus->id);
+    brb_t($cus->status === 'deposit_paid' && abs(brb_amount_due_now($cus) - 700) < 0.001 && brb_booking_money($cus)['rows']['Balance'] === '$700.00', 'custom 30%: a true $700 balance remains');
+    brb_t(is_wp_error(brb_set_charge_now($cus->id, 'full')), 'charge now is locked once a payment is recorded');
+    $amt = $pif_book('payinfull-amount@example.com', 480, 1000, '', 0, 'staff');
+    if (is_wp_error($amt) || !$amt) throw new RuntimeException('custom-dollars booking was not created');
+    $created_ids[] = (int) $amt->id;
+    $wpdb->update(brb_table(), ['walkthrough_done' => 1], ['id' => (int) $amt->id]);
+    $amt = brb_approve_booking($amt->id, false, [], ['mode' => 'amount', 'value' => 200]);
+    brb_t(!is_wp_error($amt) && $amt->status === 'approved' && $amt->charge_now_mode === 'amount' && abs((float) $amt->deposit_due - 200) < 0.001 && strpos((string) $amt->audit_log, 'charge now from') !== false, 'Approve can set a custom $200 charge now; it is audited');
+    $a1 = $pif_checkout($amt);
+    brb_t($a1['items'] === ['Deposit' => 20000, 'Card processing fee (3%)' => 600] && brb_booking_money($amt)['rows']['Balance'] === '$800.00', 'custom $200 of $1,000 charges $200 + $6 and leaves an $800 balance');
+    $amt_full = brb_approve_booking($amt->id, false, [], ['mode' => 'full']);
+    brb_t(is_wp_error($amt_full), 'an already-approved booking is not approved twice');
+    $amt = brb_set_charge_now($amt->id, 'full');
+    brb_t(!is_wp_error($amt) && abs((float) $amt->deposit_due - 1000) < 0.001 && !brb_guest_pay_full_available($amt), 'staff can switch an approved, unpaid booking to Pay in full from the booking page');
+
+    // Les QA follow-ups: default $0 damage, deposit helpers agree, invalid charge mode, deposit line, lock split.
+    $raw_settings = get_option('brb_settings');
+    $blank = is_array($raw_settings) ? $raw_settings : [];
+    $blank['damage_deposit_amount'] = '';
+    update_option('brb_settings', $blank);
+    brb_t(brb_defaults()['damage_deposit_amount'] === '0' && abs(brb_damage_amount() - 0.0) < 0.001, 'an empty damage deposit setting uses the $0 code default, not $250');
+    $zero_pct = is_array($raw_settings) ? $raw_settings : [];
+    $zero_pct['deposit_type'] = 'percent';
+    $zero_pct['deposit_pct'] = '0';
+    $zero_pct['damage_deposit_amount'] = '0';
+    update_option('brb_settings', $zero_pct);
+    $pct_now = brb_site_deposit_pct();
+    brb_t($pct_now > 0 && abs(brb_deposit_due_amount(1000) - (1000 * $pct_now / 100)) < 0.001, 'brb_site_deposit_pct and brb_deposit_due_amount agree when the stored percent is not positive');
+    update_option('brb_settings', is_array($raw_settings) ? $raw_settings : $pif);
+
+    $bad_cn = $pif_book('payinfull-badmode@example.com', 520, 1050, 'half', 0, 'staff');
+    brb_t(is_wp_error($bad_cn) && $bad_cn->get_error_code() === 'charge_now', 'an invalid charge now mode is rejected and not saved as the site default');
+    if (!is_wp_error($bad_cn) && $bad_cn) $created_ids[] = (int) $bad_cn->id;
+
+    $dmg_set = brb_opt();
+    $dmg_set['damage_deposit_amount'] = '250';
+    $dmg_set['deposit_type'] = 'percent';
+    $dmg_set['deposit_pct'] = '50';
+    update_option('brb_settings', $dmg_set);
+    $dmb = $pif_book('payinfull-damageline@example.com', 540, 1050, 'full', 0, 'staff');
+    if (is_wp_error($dmb) || !$dmb) throw new RuntimeException('damage-line booking was not created');
+    $created_ids[] = (int) $dmb->id;
+    $link_body = brb_payment_link_body($dmb);
+    $hold_line = brb_booking_deposit_line($dmb);
+    brb_t(strpos($link_body, 'the 50% that holds the date') === false && $hold_line !== '' && strpos($link_body, $hold_line) !== false && strpos($hold_line, 'Payment in full holds the date.') !== false, 'the payment-link email uses brb_booking_deposit_line and does not hardcode the 50% that holds the date');
+    update_option('brb_settings', $pif);
+
+    // Sequential payments: the second amount is split from the locked, already-updated booking.
+    $split_b = $pif_book('payinfull-splitlock@example.com', 560, 1000, '', 0, 'staff');
+    if (is_wp_error($split_b) || !$split_b) throw new RuntimeException('split-lock booking was not created');
+    $created_ids[] = (int) $split_b->id;
+    $first_pay = brb_record_payment($split_b->id, 500, '9001', brb_now()->format('Y-m-d'), 'first half', true, 'check', ['notify' => false]);
+    $over = brb_record_payment($split_b->id, 600, '9002', brb_now()->format('Y-m-d'), 'too much', true, 'check', ['notify' => false]);
+    $split_b = brb_booking($split_b->id);
+    brb_t(!is_wp_error($first_pay) && is_wp_error($over) && $over->get_error_code() === 'amount' && abs((float) $split_b->amount_paid - 500) < 0.001, 'after the lock, a second payment is split from the remaining balance and an amount over that balance is refused');
+
     brb_test_env('BRB_STRIPE_SECRET_KEY', null);
     $disabled_again = brb_stripe_create_session($priced);
     brb_t(is_wp_error($disabled_again) && $disabled_again->get_error_code() === 'stripe' && brb_pay_link(brb_booking($priced->id)) === '', 'clearing the secret key disables online payment again');
@@ -699,10 +982,11 @@ try {
     if ($created_ids) {
         $in = implode(',', array_map('intval', $created_ids));
         $wpdb->query("DELETE FROM " . brb_pay_table() . " WHERE booking_id IN ($in)");
+        if (function_exists('brb_line_table')) $wpdb->query("DELETE FROM " . brb_line_table() . " WHERE booking_id IN ($in)");
         $wpdb->query("DELETE FROM " . brb_table() . " WHERE id IN ($in)");
     }
     $wpdb->query("DELETE FROM " . brb_pay_table() . " WHERE method='card_review' AND booking_id=0 AND stripe_session LIKE 'cs_test_%'");
-    foreach (['stripe-flow@example.com', 'stripe-taken@example.com', 'stripe-blocker@example.com'] as $stripe_email) {
+    foreach (['stripe-flow@example.com', 'stripe-taken@example.com', 'stripe-blocker@example.com', 'payinfull-full@example.com', 'payinfull-guest@example.com', 'payinfull-regress@example.com', 'payinfull-custom@example.com', 'payinfull-amount@example.com', 'payinfull-badmode@example.com', 'payinfull-damageline@example.com', 'payinfull-splitlock@example.com'] as $stripe_email) {
         $wpdb->query($wpdb->prepare('DELETE FROM ' . brb_pay_table() . ' WHERE booking_id IN (SELECT id FROM ' . brb_table() . ' WHERE email=%s)', $stripe_email));
         $wpdb->query($wpdb->prepare('DELETE FROM ' . brb_table() . ' WHERE email=%s', $stripe_email));
     }
