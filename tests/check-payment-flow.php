@@ -46,7 +46,7 @@ add_filter('pre_wp_mail', function ($short, $atts) {
 $GLOBALS['brb_mails'] = [];
 
 try {
-    brb_t(get_option('brb_version') === '2.5.84', 'plugin storage version is 2.5.84');
+    brb_t(get_option('brb_version') === '2.5.88', 'plugin storage version is 2.5.88');
     $cc_settings = get_option('brb_settings');
     if (!is_array($cc_settings)) $cc_settings = [];
     $cc_before = (string) ($cc_settings['inquiry_cc'] ?? '');
@@ -1321,7 +1321,7 @@ try {
         }
         brb_t($cash_mail && strpos($cash_mail['message'], 'We recorded cash for') !== false && strpos($cash_mail['message'], '9999') === false, 'the guest receipt says cash and omits a check number');
         brb_t($cash_mail && strpos($cash_mail['message'], 'Event type:') === false, 'the cash receipt leaves out an event type');
-        brb_t($cash_mail && strpos($cash_mail['message'], 'Thank you for contacting The Boardroom!') === 0 && strpos($cash_mail['message'], 'Amount: ' . brb_money(400)) !== false && strpos($cash_mail['message'], 'Date: ' . brb_now()->format('F j, Y')) !== false && strpos($cash_mail['message'], 'Method: Cash') !== false && strpos($cash_mail['message'], 'Booking reference: ' . brb_ref($cash_b)) !== false && strpos($cash_mail['message'], 'Event date:') !== false && strpos($cash_mail['message'], 'Balance remaining:') !== false && stripos($cash_mail['message'], 'sales tax') === false, 'the cash receipt lists the payment and does not mention sales tax');
+        brb_t($cash_mail && strpos($cash_mail['message'], 'Thank you for contacting The Boardroom!') === 0 && strpos($cash_mail['message'], 'Amount: ' . brb_money(400)) !== false && strpos($cash_mail['message'], 'Payment Date: ' . brb_now()->format('F j, Y')) !== false && strpos($cash_mail['message'], 'Method: Cash') !== false && strpos($cash_mail['message'], 'Booking reference: ' . brb_ref($cash_b)) !== false && strpos($cash_mail['message'], 'Event date:') !== false && strpos($cash_mail['message'], 'Balance remaining:') !== false && stripos($cash_mail['message'], 'sales tax') === false, 'the cash receipt lists the payment and does not mention sales tax');
         $staff_receipt = null;
         foreach ($GLOBALS['brb_mails'] as $m) {
             if (stripos($m['to'], 'flow-test@example.com') === false && strpos($m['message'], 'Method: Cash') !== false) $staff_receipt = $m;

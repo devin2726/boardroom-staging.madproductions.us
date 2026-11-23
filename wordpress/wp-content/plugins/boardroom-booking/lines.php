@@ -318,7 +318,9 @@ function brb_send_payment_link($booking_id) {
     $url = brb_pay_link($b);
     if ($url === '') return new WP_Error('link', 'There is no pay link to send yet. The walk-through, the price, and card payment all need to be ready.');
     $body = brb_guest_hello_line() . "\n\n" . brb_payment_link_body($b);
-    brb_mail($b->email, 'Your Boardroom payment link (' . brb_ref($b) . ')', $body, brb_guest_reply_to());
+    // 2.5.88: branded HTML copy. The summary card also shows the booking reference and event date (new rows, HTML only).
+    $brand = ['kind' => 'paylink', 'card_rows' => [['Booking reference', brb_ref($b)], ['Event date', brb_when($b)]]];
+    brb_mail($b->email, 'Your Boardroom payment link (' . brb_ref($b) . ')', $body, brb_guest_reply_to(), '', [], $brand);
     return $b;
 }
 function brb_mark_damage_refunded($booking_id) {
