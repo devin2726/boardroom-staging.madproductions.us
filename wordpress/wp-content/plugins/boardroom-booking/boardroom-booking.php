@@ -2,11 +2,11 @@
 /**
  * Plugin Name: Boardroom Booking
  * Description: Self-hosted direct booking for The Boardroom — full-day blocks, availability calendar, agreed prices, approval before payment, blackout dates, and emails.
- * Version: 2.5.87
+ * Version: 2.5.88
  * Author: Boardroom QC LLC
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.5.87');
+define('BRB_VER', '2.5.88');
 function brb_reserve_explainer_steps() {
     return [
         'Pick a date. Prices are on the calendar.',
@@ -64,6 +64,7 @@ require_once __DIR__ . '/lines.php';
 require_once __DIR__ . '/reports.php';
 require_once __DIR__ . '/llms.php';
 require_once __DIR__ . '/followup.php';
+require_once __DIR__ . '/email-brand.php';
 require_once __DIR__ . '/owner-view.php';
 require_once __DIR__ . '/staff.php';
 require_once __DIR__ . '/staff-flow.php';
@@ -3015,7 +3016,12 @@ add_filter('wp_mail', function ($atts) {
     if (is_array($atts) && array_key_exists('subject', $atts)) $atts['subject'] = brb_mail_subject($atts['subject']);
     return $atts;
 });
-function brb_mail($to, $subject, $body, $reply = '', $from = '', $cc = []) {
+/**
+ * $brand (2.5.88): pass an array (even an empty one) to send the branded HTML version of a guest email as well.
+ * The $body stays the plain-text part. Optional keys: 'card_rows' => [[label, value], ...] shown at the top of the
+ * first summary card that has a Total row. Staff copies and notices pass nothing and stay plain text.
+ */
+function brb_mail($to, $subject, $body, $reply = '', $from = '', $cc = [], $brand = null) {
     $to = sanitize_email($to);
     if (!$to || !is_email($to) || brb_is_blocked_inquiry_cc($to)) return false;
     if (!$from || !is_email($from)) $from = brb_mail_from_address();
@@ -3026,7 +3032,10 @@ function brb_mail($to, $subject, $body, $reply = '', $from = '', $cc = []) {
         $copy = sanitize_email($copy);
         if (is_email($copy) && strcasecmp($copy, $to) !== 0 && !brb_is_blocked_inquiry_cc($copy)) $headers[] = 'Cc: ' . $copy;
     }
-    return wp_mail($to, $subject, $body, $headers);
+    $GLOBALS['brb_email_brand_ctx'] = is_array($brand) ? $brand : null;
+    $sent = wp_mail($to, $subject, $body, $headers);
+    $GLOBALS['brb_email_brand_ctx'] = null;
+    return $sent;
 }
 function brb_send_test_email() {
     $tos = brb_admin_emails();
@@ -3068,7 +3077,7 @@ function brb_send_request_emails($b, $guest = true, $staff = true) {
     $detail = "When: " . brb_when($b) . "\n" . brb_event_type_line($b) . "Estimated Guests: {$b->guests}\n" . ($screen !== '' ? $screen . "\n" : '') . "Price: {$price}\n";
     $guest_detail = brb_price_is_set($b) ? str_replace("Price: {$price}\n", brb_guest_money_text($b) . "\n", $detail) : $detail;
     $body = brb_guest_hello_line() . "\n\n" . brb_guest_review_line() . "\n\n{$guest_detail}\n" . brb_no_overnight_line() . "\n" . brb_guest_out_line() . "\n" . brb_guest_free_line() . "\n" . brb_hours_line() . "\n\nCancellation policy:\n{$o['policy']}\n\nView your request: " . brb_guest_link($b) . "\n";
-    if ($guest) brb_mail($b->email, 'We received your Boardroom request (' . $ref . ')', $body, brb_guest_reply_to());
+    if ($guest) brb_mail($b->email, 'We received your Boardroom request (' . $ref . ')', $body, brb_guest_reply_to(), '', [], []);
     $admin = "A new request is pending review. The date is not held.\n\nReference: {$ref}\nWhen: " . brb_when($b) . "\nGuest: {$b->name}\nEmail: {$b->email}\nPhone: {$b->phone}\n" . brb_event_type_line($b) . "Guests: {$b->guests}\n" . ($screen !== '' ? $screen . "\n" : '') . "Price: {$price}\nSource: " . brb_source_label($b->source) . "\nNotes: {$b->notes}\n\n" . admin_url('admin.php?page=brb&booking=' . (int) $b->id) . "\n";
     if ($staff) brb_mail_staff('Request pending review ' . $ref . ' – ' . $b->name, $admin, $b->email);
 }
@@ -3301,7 +3310,7 @@ function brb_send_approve_email($b, $subject = '', $body = '') {
     $mail = brb_custom_guest_mail(['subject' => $subject, 'body' => $body], brb_approve_guest_subject($b), brb_approve_guest_body($b));
     if (is_wp_error($mail)) return $mail;
     list($subject, $body) = $mail;
-    brb_mail($b->email, $subject, $body, brb_guest_reply_to());
+    brb_mail($b->email, $subject, $body, brb_guest_reply_to(), '', [], []);
     $staff = "Request approved.\n\n{$facts}\n\nWhen: " . brb_when($b) . "\n" . brb_event_type_line($b) . "Estimated Guests: {$b->guests}\nReference: {$ref}\n\n" . admin_url('admin.php?page=brb&booking=' . (int) $b->id) . "\n";
     brb_mail_staff('Request approved ' . $ref . ' – ' . $b->name, $staff, $b->email);
 }
@@ -3310,7 +3319,7 @@ function brb_send_decline_email($b, $message = '', $dates = [], $subject = '', $
     $mail = brb_custom_guest_mail(['subject' => $subject, 'body' => $body], brb_decline_guest_subject($b), brb_decline_guest_body($b, $message, $dates));
     if (is_wp_error($mail)) return $mail;
     list($subject, $body) = $mail;
-    brb_mail($b->email, $subject, $body, brb_guest_reply_to());
+    brb_mail($b->email, $subject, $body, brb_guest_reply_to(), '', [], []);
     $staff = "Request declined.\n\n{$ref}, " . brb_when($b) . "\nThe date is not reserved.\n\n" . brb_deposit_line() . "\n";
     $message = trim((string) $message);
     if ($message !== '') $staff .= "\nMessage to the guest:\n" . $message . "\n";
@@ -3329,7 +3338,7 @@ function brb_checklist_reminder_message($b) {
 }
 function brb_send_checklist_reminder($b) {
     $m = brb_checklist_reminder_message($b);
-    return brb_mail($b->email, $m['subject'], $m['body'], brb_guest_reply_to());
+    return brb_mail($b->email, $m['subject'], $m['body'], brb_guest_reply_to(), '', [], []);
 }
 /**
  * 2.5.87 (Max, Nov 23 2026 10:19 AM CT): the week-out checklist email no longer goes out on its own.
@@ -3351,7 +3360,7 @@ function brb_payment_date_label($ymd) {
 function brb_receipt_block($b, $amount, $method, $received_on) {
         $balance = brb_money(max(0, round(brb_rental_left($b) + brb_damage_left($b), 2)));
     return "Amount: " . brb_money($amount) . "\n"
-        . "Date: " . brb_payment_date_label($received_on) . "\n"
+        . "Payment Date: " . brb_payment_date_label($received_on) . "\n"
         . "Method: " . brb_pay_method_label($method) . "\n"
         . "Booking reference: " . brb_ref($b) . "\n"
         . "Event date: " . brb_when($b) . "\n"
@@ -3359,7 +3368,7 @@ function brb_receipt_block($b, $amount, $method, $received_on) {
 }
 function brb_send_receipt_copies($b, $subject, $admin_subject, $body) {
     $admins = brb_admin_emails();
-    brb_mail($b->email, $subject, $body, brb_guest_reply_to());
+    brb_mail($b->email, $subject, $body, brb_guest_reply_to(), '', [], []);
     $staff = $body . "\n" . admin_url('admin.php?page=brb&booking=' . (int) $b->id) . "\n";
     foreach ($admins as $admin) {
         brb_mail($admin, $admin_subject, $staff, $b->email);
@@ -3463,7 +3472,7 @@ function brb_send_cancel_email($b) {
     $o = brb_opt();
     $ref = brb_ref($b);
     $body = brb_guest_hello_line() . "\n\nBooking {$ref} (" . brb_when($b) . ") has been cancelled. The date is no longer reserved.\n\nCancellation policy:\n{$o['policy']}\n";
-    brb_mail($b->email, 'Boardroom booking cancelled (' . $ref . ')', $body, brb_guest_reply_to());
+    brb_mail($b->email, 'Boardroom booking cancelled (' . $ref . ')', $body, brb_guest_reply_to(), '', [], []);
     brb_mail_staff('Booking cancelled ' . $ref, "Booking {$ref} was cancelled.\n\n" . admin_url('admin.php?page=brb&booking=' . (int) $b->id) . "\n", $b->email);
 }
 
@@ -3789,7 +3798,7 @@ function brb_send_price_email($b, $subject = '', $body = '') {
     $mail = brb_custom_guest_mail(['subject' => $subject, 'body' => $body], brb_price_guest_subject($b), brb_price_guest_body($b));
     if (is_wp_error($mail)) return $mail;
     list($subject, $body) = $mail;
-    brb_mail($b->email, $subject, $body, brb_guest_reply_to());
+    brb_mail($b->email, $subject, $body, brb_guest_reply_to(), '', [], []);
     brb_mail_staff('Price set for ' . $ref . ' – ' . $b->name, $body . "\n" . admin_url('admin.php?page=brb&booking=' . (int) $b->id) . "\n", $b->email);
     return ['subject' => $subject, 'body' => $body];
 }

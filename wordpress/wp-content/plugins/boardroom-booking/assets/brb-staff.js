@@ -50,7 +50,9 @@
     var o = $('overlay');
     o.classList.remove('open');
     o.hidden = true;
-    $('modal').innerHTML = '';
+    var modal = $('modal');
+    modal.classList.remove('mail-wide');
+    modal.innerHTML = '';
   }
   $('overlay').addEventListener('click', function (e) { if (e.target === this) closeModal(); });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !$('overlay').hidden) closeModal(); });
@@ -306,14 +308,48 @@
   /** The only way a guest email leaves this page: full message + recipient, then Send or Cancel. */
   function sendFlow(bookingId, kind, note) {
     api('booking/' + bookingId + '/draft', { kind: kind, note: note || '' }).then(function (d) {
+      var hasHtml = !!(d.html && String(d.html).indexOf('<') !== -1);
       var html = '<h3 id="modal-title">Send ' + esc(d.title.toLowerCase()) + '?</h3>' +
         '<ul class="facts"><li><span>To</span><span>' + esc(d.name) + ' &lt;' + esc(d.to) + '&gt;</span></li><li><span>Booking</span><span>' + esc(d.ref) + '</span></li>' +
         '<li><span>Subject</span><span>' + esc(d.subject) + '</span></li></ul>' +
-        '<p class="field-label">Full message</p><pre class="mailbody" tabindex="0">' + esc(d.body) + '</pre>' +
+        '<div class="mailview">' +
+          (hasHtml ? '<div class="mail-toggle" role="tablist" aria-label="Email preview">' +
+            '<button type="button" class="mail-tab" id="sd-view-html" role="tab" aria-selected="true">Branded email</button>' +
+            '<button type="button" class="mail-tab" id="sd-view-plain" role="tab" aria-selected="false">Plain text</button>' +
+          '</div>' +
+          '<iframe class="mailframe" id="sd-html" title="Branded email preview" sandbox="allow-same-origin"></iframe>' : '') +
+          '<pre class="mailbody" id="sd-plain" tabindex="0"' + (hasHtml ? ' hidden' : '') + '>' + esc(d.body) + '</pre>' +
+        '</div>' +
         (d.notice ? '<p class="draft-tag" role="alert">' + esc(d.notice) + '</p>' : '') +
         '<p class="muted">This goes to the guest as shown. Nothing has been sent yet.</p>' +
         '<div class="btn-row"><button type="button" class="btn btn-primary" id="sd-send"' + (d.can_send === false ? ' disabled' : '') + '>Send</button><button type="button" class="btn btn-quiet" data-close data-autofocus>Cancel</button></div>';
+      var modal = document.getElementById('modal');
+      if (hasHtml && modal) modal.classList.add('mail-wide');
       openModal(html, function (m) {
+        if (hasHtml) {
+          var frame = m.querySelector('#sd-html'), plain = m.querySelector('#sd-plain');
+          var tabHtml = m.querySelector('#sd-view-html'), tabPlain = m.querySelector('#sd-view-plain');
+          var sizeFrame = function () {
+            try {
+              var doc = frame.contentDocument;
+              if (!doc) return;
+              var h = Math.max(doc.documentElement.scrollHeight, doc.body ? doc.body.scrollHeight : 0);
+              frame.style.height = Math.min(Math.max(h + 4, 240), Math.round(window.innerHeight * 0.62)) + 'px';
+            } catch (err) {}
+          };
+          frame.addEventListener('load', sizeFrame);
+          frame.srcdoc = d.html;
+          var show = function (which) {
+            var branded = which === 'html';
+            frame.hidden = !branded;
+            plain.hidden = branded;
+            tabHtml.setAttribute('aria-selected', branded ? 'true' : 'false');
+            tabPlain.setAttribute('aria-selected', branded ? 'false' : 'true');
+            if (branded) sizeFrame();
+          };
+          tabHtml.addEventListener('click', function () { show('html'); });
+          tabPlain.addEventListener('click', function () { show('plain'); });
+        }
         m.querySelector('#sd-send').addEventListener('click', function () {
           this.disabled = true;
           api('booking/' + bookingId + '/send', { kind: d.kind, to: d.to, subject: d.subject, body: d.body, confirm: d.confirm, confirmed: true })
