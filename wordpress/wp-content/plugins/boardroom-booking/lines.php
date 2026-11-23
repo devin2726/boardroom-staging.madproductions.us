@@ -320,8 +320,10 @@ function brb_send_payment_link($booking_id) {
     $body = brb_guest_hello_line() . "\n\n" . brb_payment_link_body($b);
     // 2.5.88: branded HTML copy. The summary card also shows the booking reference and event date (new rows, HTML only).
     $brand = ['kind' => 'paylink', 'card_rows' => [['Booking reference', brb_ref($b)], ['Event date', brb_when($b)]]];
-    brb_mail($b->email, 'Your Boardroom payment link (' . brb_ref($b) . ')', $body, brb_guest_reply_to(), '', [], $brand);
-    return $b;
+    $ok = brb_mail($b->email, 'Your Boardroom payment link (' . brb_ref($b) . ')', $body, brb_guest_reply_to(), '', [], $brand);
+    if (!$ok) return new WP_Error('mail', 'The email did not send. The pay window was not started.');
+    brb_note_pay_link_sent((int) $b->id);
+    return brb_booking($b->id);
 }
 function brb_mark_damage_refunded($booking_id) {
     global $wpdb;

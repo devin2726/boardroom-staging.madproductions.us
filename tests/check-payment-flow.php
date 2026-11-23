@@ -1135,8 +1135,20 @@ try {
         $created_ids[] = (int) $remind->id;
         $wpdb->update(brb_table(), ['walkthrough_done' => 1], ['id' => (int) $remind->id]);
         $remind = brb_approve_booking($remind->id);
+        // 2.5.87 (Max, Nov 23 2026 10:19 AM CT): the daily job no longer emails guests. Staff preview and confirm in the dashboard.
         $GLOBALS['brb_mails'] = [];
         brb_checklist_reminders();
+        $auto = 0;
+        foreach ($GLOBALS['brb_mails'] as $m) {
+            if (stripos($m['to'], 'checklist-renter@example.com') !== false) $auto++;
+        }
+        $queued = array_filter(brb_sd_reminder_queue(), function ($q) use ($remind) { return $q['kind'] === 'checklist' && (int) $q['booking_id'] === (int) $remind->id; });
+        brb_t($auto === 0 && empty(brb_booking((int) $remind->id)->checklist_reminded), 'the daily checklist job sends nothing on its own');
+        brb_t(count($queued) === 1, 'the week-away checklist email waits in the staff queue');
+        $draft = brb_sd_draft((int) $remind->id, 'checklist');
+        $refused = brb_sd_send((int) $remind->id, ['kind' => 'checklist', 'to' => $remind->email, 'subject' => $draft['subject'], 'body' => $draft['body']]);
+        brb_t(is_wp_error($refused) && empty($GLOBALS['brb_mails']), 'the checklist email does not send without the confirm step');
+        $ok = brb_sd_send((int) $remind->id, ['kind' => 'checklist', 'to' => $remind->email, 'subject' => $draft['subject'], 'body' => $draft['body'], 'confirm' => $draft['confirm'], 'confirmed' => true]);
         $remind_mail = null;
         $remind_mails = 0;
         foreach ($GLOBALS['brb_mails'] as $m) {
@@ -1146,13 +1158,10 @@ try {
             }
         }
         $reminded = brb_booking((int) $remind->id);
-        brb_t($remind_mails === 1 && $remind_mail && strpos($remind_mail['message'], 'about a week away') !== false && strpos($remind_mail['message'], 'Rental checklist') !== false && strpos($remind_mail['message'], '/rental-checklist/') !== false && strpos($remind_mail['message'], 'Vendors (caterer, DJ, bartender) send proof of insurance at least 7 days before.') !== false && strpos($remind_mail['message'], 'Optional setup or takedown') === false && $reminded && !empty($reminded->checklist_reminded), 'the week-away reminder includes the updated rental checklist');
+        brb_t(!is_wp_error($ok) && $remind_mails === 1 && $remind_mail && strpos($remind_mail['message'], 'about a week away') !== false && strpos($remind_mail['message'], 'Rental checklist') !== false && strpos($remind_mail['message'], '/rental-checklist/') !== false && strpos($remind_mail['message'], 'Vendors (caterer, DJ, bartender) send proof of insurance at least 7 days before.') !== false && strpos($remind_mail['message'], 'Optional setup or takedown') === false && $reminded && !empty($reminded->checklist_reminded), 'the week-away reminder, sent after the staff confirm, includes the updated rental checklist');
         brb_checklist_reminders();
-        $again = 0;
-        foreach ($GLOBALS['brb_mails'] as $m) {
-            if (stripos($m['to'], 'checklist-renter@example.com') !== false && stripos($m['subject'], 'about a week away') !== false) $again++;
-        }
-        brb_t($again === 1, 'the checklist reminder is sent once');
+        $again = brb_sd_draft((int) $remind->id, 'checklist');
+        brb_t(is_wp_error($again), 'the checklist reminder is sent once');
     } else {
         brb_t(false, 'the checklist reminder is sent about 7 days before the event');
         brb_t(false, 'the checklist reminder is sent once');

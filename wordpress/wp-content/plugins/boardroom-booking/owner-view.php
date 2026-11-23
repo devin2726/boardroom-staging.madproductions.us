@@ -164,7 +164,7 @@ function brb_ov_upcoming_items($limit = 300) {
         $items[] = ['kind' => 'booking', 'start_dt' => $b->start_dt, 'name' => (string) $b->name, 'status' => (string) $b->status, 'label' => brb_status_label($b->status), 'row' => $b];
     }
     $holds = (array) $wpdb->get_results($wpdb->prepare(
-        'SELECT * FROM ' . brb_hold_table() . ' WHERE end_dt > %s ORDER BY start_dt ASC, id ASC LIMIT 500',
+        'SELECT * FROM ' . brb_hold_table() . ' WHERE end_dt > %s' . brb_hold_live_sql() . ' ORDER BY start_dt ASC, id ASC LIMIT 500',
         $today
     ));
     foreach ($holds as $h) {
@@ -405,7 +405,7 @@ function brb_ov_css() {
     return '<style id="brb-ov-css">'
         . '.brb-ov{max-width:720px;margin:0 auto;font-size:16px;line-height:1.4;color:#1d1d1f;overflow-wrap:anywhere}'
         . '.brb-ov *{box-sizing:border-box}'
-        . '.brb-ov h2{font-size:1.25rem;margin:0 0 .25rem}.brb-ov h3{font-size:1.05rem;margin:1.25rem 0 .5rem}'
+        . '.brb-ov h2{font-size:1.25rem;margin:0 0 .25rem}.brb-ov h3{font-size:1.05rem;margin:1.25rem 0 .5rem}.brb-ov h3.brb-ov-upcoming-title{font-size:clamp(1.4rem,4.4vw,1.65rem);font-weight:800;line-height:1.15;margin:1.6rem 0 .35rem;color:#111;letter-spacing:-.02em;text-wrap:balance}'
         . '.brb-ov-sub{margin:0 0 .75rem;color:#555;font-size:.9rem}'
         . '.brb-ov-nav{display:flex;align-items:center;justify-content:space-between;gap:.5rem;margin:.5rem 0}'
         . '.brb-ov-nav a{display:inline-block;padding:.6rem .9rem;border:1px solid #ccc;border-radius:8px;text-decoration:none;min-width:44px;text-align:center}'
@@ -513,7 +513,7 @@ function brb_ov_render() {
     }
     if (!$any) $h .= '<p class="brb-ov-none">Nothing on the calendar this month.</p>';
 
-    $h .= '<h3>Upcoming</h3><p class="brb-ov-sub">Tap a line to see everything.</p>';
+    $h .= '<h3 class="brb-ov-upcoming-title">All Upcoming Reservations</h3><p class="brb-ov-sub">Tap a line to see everything.</p>';
     $items = brb_ov_upcoming_items();
     if (!$items) {
         $h .= '<p class="brb-ov-none">No upcoming bookings or holds.</p>';

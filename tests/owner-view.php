@@ -220,7 +220,8 @@ try {
     foreach ($redact_cases as $in => $want) {
         brb_t(brb_ov_redact_codes($in) === $want, 'redact: ' . str_replace(["\r", "\n", "\t"], ['\\r', '\\n', '\\t'], $in));
     }
-    $up_all = substr($html_now, (int) strpos($html_now, '<h3>Upcoming</h3>'));
+    brb_t(strpos($html_now, '<h3 class="brb-ov-upcoming-title">All Upcoming Reservations</h3>') !== false && strpos($html_now, '<h3>Upcoming</h3>') === false && strpos(brb_ov_css(), 'brb-ov-upcoming-title') !== false, 'upcoming section heading is All Upcoming Reservations and is styled larger');
+    $up_all = substr($html_now, (int) strpos($html_now, '<h3 class="brb-ov-upcoming-title">All Upcoming Reservations</h3>'));
     brb_t(strpos($up_all, '<details>') !== false && strpos($up_all, 'Fake Hold Name') !== false && strpos($up_all, '$977.77') !== false, 'upcoming list expands to the full cards');
     $past_re = '/class="[^"]*\\bbrb-ov-past\\b/';
     brb_t(!preg_match($past_re, $html) && (preg_match($past_re, $html_now) || brb_now()->format('j') === '1'), 'past days are dimmed (this month), future months have none');
@@ -238,7 +239,7 @@ try {
     brb_t(strpos($html, 'id="brb-ov-d-' . $d(5) . '"') !== false && strpos($html, 'href="#brb-ov-d-' . $d(5) . '"') !== false, 'tapping a day jumps to that day\'s bookings');
     brb_t(strpos($html, 'brb-ov-prev') !== false && strpos($html, 'brb-ov-next') !== false && strpos($html, 'touchstart') !== false, 'prev/next month links and swipe navigation');
     // Upcoming list.
-    $up = substr($html_now, (int) strpos($html_now, '<h3>Upcoming</h3>'));
+    $up = substr($html_now, (int) strpos($html_now, '<h3 class="brb-ov-upcoming-title">All Upcoming Reservations</h3>'));
     $p1 = strpos($up, 'Fake Approved Person'); $p2 = strpos($up, 'Fake Paid Person'); $p3 = strpos($up, 'Fake Deposit Person');
     brb_t($p1 !== false && $p2 !== false && $p3 !== false && $p1 < $p2 && $p2 < $p3, 'upcoming list is sorted by date');
     // No mutation.

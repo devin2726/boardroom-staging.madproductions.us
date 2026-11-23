@@ -1,0 +1,751 @@
+<?php
+/**
+ * 2.5.87 staff dashboard (/staff/). Run with wp eval-file. Fake data only (example.com, "SD Test" names, Oct 2027).
+ * - Access: logged-out and subscriber users get no data and no actions on every route; staff need the staff nonce to write.
+ * - Les MUST FIX: Add booking / Add hold refused on booked, held, closed, blackout, add-on, and request-waiting days;
+ *   Approve re-checks under the lock and refuses a taken date; holds are saved under GET_LOCK('brb_book').
+ * - Actions never email the guest. Max's Nov 23 10:00 AM CT decision: a guest email sends only from the confirm
+ *   screen; a send without a valid confirm token for the exact previewed message is refused.
+ * - Add saves what its preview showed; Record payment keeps the 3% card fee separate; chip wording; pay link copy sends nothing.
+ * - Page: noindex, no phone number, no 2212 address, no other-platform name.
+ */
+if (!defined('ABSPATH')) exit;
+
+if (!function_exists('brb_t')) {
+    $GLOBALS['brb_fail'] = 0;
+    $GLOBALS['brb_ok'] = 0;
+    function brb_t($cond, $msg) {
+        if ($cond) { $GLOBALS['brb_ok']++; echo "ok  $msg\n"; }
+        else { $GLOBALS['brb_fail']++; echo "FAIL $msg\n"; }
+    }
+}
+if (empty($_SERVER['SERVER_NAME'])) $_SERVER['SERVER_NAME'] = 'localhost';
+define('BRB_DIR_TEST', WP_PLUGIN_DIR . '/boardroom-booking/');
+global $wpdb;
+$wpdb->hide_errors();
+
+// Mail: count what would leave (after the dashboard guard at priority 1), never deliver.
+$GLOBALS['sd_mail'] = [];
+add_filter('pre_wp_mail', function ($pre, $atts) {
+    // Anything still null here would have been delivered: record it and pretend it was (nothing leaves this box).
+    if ($pre === null) { $GLOBALS['sd_mail'][] = is_array($atts['to']) ? implode(',', $atts['to']) : (string) $atts['to']; return true; }
+    return $pre;
+}, 5, 2);
+// GET_LOCK evidence: see the original query before the SQLite shim rewrites it.
+$GLOBALS['sd_locks'] = 0;
+add_filter('query', function ($q) { if (stripos($q, "GET_LOCK('brb_book'") !== false) $GLOBALS['sd_locks']++; return $q; }, 0);
+
+$DOMAIN = 'sd-test.example.com';
+$snapshot = get_option('brb_settings');
+$sent_snapshot = get_option('brb_sd_sent', null);
+$env_secret = getenv('BRB_STRIPE_SECRET_KEY');
+
+function sd_guest_mails() {
+    return array_values(array_filter($GLOBALS['sd_mail'], function ($to) { return strpos($to, 'sd-test.example.com') !== false; }));
+}
+function sd_raw_booking($day, $name, $status, $extra = []) {
+    global $wpdb;
+    $row = array_merge([
+        'token' => wp_generate_password(32, false), 'mode' => 'day',
+        'start_dt' => $day . ' 10:00:00', 'end_dt' => $day . ' 23:30:00', 'guests' => 30,
+        'name' => $name, 'email' => sanitize_title($name) . '@sd-test.example.com', 'phone' => '', 'notes' => '',
+        'subtotal' => 850, 'total' => 850, 'amount_due' => 425, 'deposit_due' => 425, 'amount_paid' => 0,
+        'status' => $status, 'source' => 'online', 'price_set' => 1, 'event_type' => 'birthday',
+        'balance_due_on' => (new DateTimeImmutable($day))->modify('-7 days')->format('Y-m-d'),
+        'created' => current_time('mysql', true),
+    ], $extra);
+    $wpdb->insert(brb_table(), $row);
+    return (int) $wpdb->insert_id;
+}
+function sd_raw_hold($day, $name, $type) {
+    global $wpdb;
+    $wpdb->insert(brb_hold_table(), ['name' => $name, 'hold_type' => $type, 'start_dt' => $day . ' 00:00:00', 'end_dt' => $day . ' 23:59:00', 'notes' => '', 'created' => current_time('mysql', true)]);
+    return (int) $wpdb->insert_id;
+}
+function sd_count($table, $where) {
+    global $wpdb;
+    return (int) $wpdb->get_var('SELECT COUNT(*) FROM ' . $table . ' WHERE ' . $where);
+}
+function sd_rest($method, $path, $body = null, $staff_nonce = true) {
+    $req = new WP_REST_Request($method, '/brb/v1/staff/' . $path);
+    if (strpos($path, '?') !== false) {
+        list($p, $qs) = explode('?', $path, 2);
+        $req = new WP_REST_Request($method, '/brb/v1/staff/' . $p);
+        parse_str($qs, $q);
+        $req->set_query_params($q);
+    }
+    if ($body !== null) {
+        $req->set_header('content-type', 'application/json');
+        $req->set_body(wp_json_encode($body));
+    }
+    if ($method !== 'GET' && $staff_nonce) $req->set_header('x-brb-staff-nonce', wp_create_nonce('brb_staff'));
+    $res = rest_do_request($req);
+    return [$res->get_status(), $res->get_data()];
+}
+function sd_cleanup() {
+    global $wpdb;
+    $ids = $wpdb->get_col("SELECT id FROM " . brb_table() . " WHERE email LIKE '%@sd-test.example.com'");
+    foreach ($ids as $id) {
+        $wpdb->delete(brb_pay_table(), ['booking_id' => (int) $id]);
+        if (function_exists('brb_line_table')) $wpdb->delete(brb_line_table(), ['booking_id' => (int) $id]);
+        $wpdb->delete(brb_table(), ['id' => (int) $id]);
+    }
+    foreach ($wpdb->get_col("SELECT id FROM " . brb_table() . " WHERE name LIKE 'SD Test%'") as $id) {
+        $wpdb->delete(brb_pay_table(), ['booking_id' => (int) $id]);
+        $wpdb->delete(brb_table(), ['id' => (int) $id]);
+    }
+    $wpdb->query("DELETE FROM " . brb_hold_table() . " WHERE name LIKE 'SD Test%' OR notes LIKE '%SD Test%'");
+    foreach (['sd-staff', 'sd-sub', 'sd-admin'] as $login) {
+        $u = get_user_by('login', $login);
+        if ($u) { require_once ABSPATH . 'wp-admin/includes/user.php'; wp_delete_user($u->ID); }
+    }
+}
+
+try {
+    sd_cleanup();
+    // Live-like settings (damage $0, 50%, 3% fee) + one blackout for the test.
+    $o = is_array($snapshot) ? $snapshot : [];
+    $o['damage_deposit_amount'] = 0;
+    $o['deposit_type'] = 'percent';
+    $o['deposit_pct'] = 50;
+    $o['card_fee_percent'] = 3;
+    $o['blackouts'] = trim((string) ($o['blackouts'] ?? '') . "\n2027-10-11");
+    update_option('brb_settings', $o);
+    delete_option('brb_sd_sent');
+    putenv('BRB_STRIPE_SECRET_KEY=sk_test_local_fake_not_a_key');
+
+    brb_t(BRB_VER === '2.5.87', 'BRB_VER is 2.5.87');
+    brb_t(sd_count(brb_table(), "start_dt >= '2027-10-01' AND start_dt < '2027-11-01' AND status NOT IN ('cancelled','declined','expired','spam')") === 0, 'Oct 2027 starts empty on this test box');
+
+    // ---------- role, capability, users ----------
+    do_action('init');
+    brb_sd_install_role();
+    $role = get_role('brb_staff');
+    brb_t($role && $role->has_cap('brb_manage_bookings') && $role->has_cap('read'), 'brb_staff role has read + brb_manage_bookings');
+    brb_t($role && !$role->has_cap('manage_options') && !$role->has_cap('edit_posts'), 'brb_staff cannot manage options or edit posts');
+    brb_t(get_role('administrator')->has_cap('brb_manage_bookings'), 'administrators get brb_manage_bookings');
+    $staff = wp_insert_user(['user_login' => 'sd-staff', 'user_email' => 'sd-staff@sd-test.example.com', 'user_pass' => wp_generate_password(24), 'role' => 'brb_staff', 'display_name' => 'SD Test Staff']);
+    $sub = wp_insert_user(['user_login' => 'sd-sub', 'user_email' => 'sd-sub@sd-test.example.com', 'user_pass' => wp_generate_password(24), 'role' => 'subscriber']);
+    brb_t(!is_wp_error($staff) && !is_wp_error($sub), 'fake staff and subscriber users created');
+    brb_t(brb_sd_user_is_staff_only(get_user_by('id', $staff)), 'staff user is treated as staff-only (bounced from wp-admin)');
+    brb_t(apply_filters('login_redirect', admin_url(), '', get_user_by('id', $staff)) === brb_sd_url(), 'staff login lands on /staff/, not wp-admin');
+    brb_t(apply_filters('login_redirect', admin_url(), '', get_user_by('id', $sub)) === admin_url(), 'subscriber login redirect is unchanged');
+    brb_t(brb_sd_url() === home_url('/staff/'), 'dashboard URL is /staff/');
+
+    // ---------- fake data ----------
+    $A = sd_raw_booking('2027-10-04', 'SD Test Booked A', 'approved', ['walkthrough_done' => 1]);
+    sd_raw_hold('2027-10-05', 'SD Test Hold', 'hold');
+    $W = sd_raw_booking('2027-10-06', 'SD Test Waiting W', 'review');
+    sd_raw_hold('2027-10-07', 'SD Test Closed', 'blocked');
+    $AD = sd_raw_booking('2027-10-21', 'SD Test Addon', 'approved', ['setup_addon' => 1]);
+
+    // ---------- page + REST access: logged out / subscriber ----------
+    wp_set_current_user(0);
+    brb_t(brb_sd_page_state() === 'login', 'logged-out /staff/ goes to the login page');
+    brb_t(strpos(wp_login_url(brb_sd_url()), 'redirect_to=' . rawurlencode(brb_sd_url())) !== false, 'login URL returns to /staff/');
+    $paths = [];
+    foreach (brb_sd_routes() as $r) $paths[] = [$r[1], str_replace('(?P<id>\d+)', (string) $W, $r[0])];
+    brb_t(count($paths) >= 16, 'all staff routes enumerated (' . count($paths) . ')');
+    $before = [sd_count(brb_table(), '1=1'), sd_count(brb_hold_table(), '1=1'), sd_count(brb_pay_table(), '1=1'), $wpdb->get_var($wpdb->prepare('SELECT status FROM ' . brb_table() . ' WHERE id=%d', $W))];
+    $leak = false; $bad = [];
+    foreach ([[0, 401, 'logged-out'], [$sub, 403, 'subscriber']] as $who) {
+        wp_set_current_user($who[0]);
+        foreach ($paths as $p) {
+            $body = $p[0] === 'POST' ? ['date' => '2027-10-12', 'kind' => 'hold', 'walkthrough' => 1, 'amount' => 10, 'method' => 'cash', 'kind' => 'approve'] : null;
+            list($st, $data) = sd_rest($p[0], $p[1] . ($p[1] === 'day' ? '?date=2027-10-06' : ''), $body);
+            if ($st !== $who[1]) $bad[] = $who[2] . ' ' . $p[0] . ' ' . $p[1] . ' => ' . $st;
+            $json = wp_json_encode($data);
+            // WP's error shape is {code, message, data: {status}}; anything more is a leak.
+            $extra = is_array($data) ? array_diff(array_keys($data), ['code', 'message', 'data']) : ['?'];
+            $inner = is_array($data['data'] ?? null) ? array_diff(array_keys($data['data']), ['status']) : [];
+            if (strpos($json, 'SD Test') !== false || strpos($json, 'sd-test.example.com') !== false || $extra || $inner || !empty($data['ok'])) $leak = true;
+        }
+    }
+    brb_t(!$bad, 'logged-out gets 401 and subscriber gets 403 on every route' . ($bad ? ': ' . implode('; ', array_slice($bad, 0, 4)) : ''));
+    brb_t(!$leak, 'no booking names, emails or data in any refused response');
+    $after = [sd_count(brb_table(), '1=1'), sd_count(brb_hold_table(), '1=1'), sd_count(brb_pay_table(), '1=1'), $wpdb->get_var($wpdb->prepare('SELECT status FROM ' . brb_table() . ' WHERE id=%d', $W))];
+    brb_t($before === $after, 'refused users changed nothing (bookings, holds, payments, request status)');
+    wp_set_current_user($sub);
+    brb_t(brb_sd_page_state() === 'forbidden', 'subscriber /staff/ shows "Staff only" with no data');
+    $forb = brb_sd_forbidden_html();
+    brb_t(strpos($forb, 'SD Test') === false && strpos($forb, 'noindex') !== false, 'forbidden page has no data and is noindex');
+
+    // ---------- staff: reads ----------
+    wp_set_current_user($staff);
+    brb_t(brb_sd_page_state() === 'ok', 'staff user sees the dashboard');
+    $html = brb_sd_page_html();
+    brb_t(strpos($html, 'noindex, nofollow') !== false, 'page has robots noindex, nofollow');
+    brb_t(strpos($html, 'brb-staff.css?ver=2.5.87') !== false && strpos($html, 'brb-staff.js?ver=2.5.87') !== false, 'assets are versioned with BRB_VER');
+    brb_t(strpos($html, 'SD Test Waiting') === false, 'page shell has no booking data (it loads through the checked REST routes)');
+    brb_t(!preg_match('/\(?\d{3}\)?[\s.\-]\d{3}[\s.\-]\d{4}/', $html) && stripos($html, '2212') === false && stripos($html, 'airbnb') === false, 'page has no phone number, no 2212 address, no other-platform name');
+    brb_t(substr_count($html, 'data-jump="') === 9 && substr_count($html, '<nav class="nav"') === 1, 'six-item bottom nav plus three summary cards');
+    brb_t(strpos($html, 'id="add-no-email" name="no_guest_email" checked') !== false, '"Don\'t email the guest" is checked by default on Add');
+    brb_t(strpos($html, '<h2 class="big-heading">All Upcoming Reservations</h2>') !== false, 'upcoming section is headed "All Upcoming Reservations" (large heading)');
+    $js = file_get_contents(BRB_DIR_TEST . 'assets/brb-staff.js');
+    $visible = preg_replace('/(walkthrough|ap-walk|\$walk|\bwalk\b)/i', '', $html . $js);
+    brb_t(stripos($visible, 'walk-through') === false && stripos($visible, 'walkthrough') === false && stripos($visible, 'tour') === false, 'no walk-through or tour wording in the dashboard page or script');
+    brb_t(strpos($js, 'I checked the details') !== false, 'Approve checkbox reads "I checked the details"');
+    brb_t(strpos($html, 'value="hold"') === false, 'no separate thin "Hold the date" option on the Add form');
+    brb_t(stripos($html, 'type="tel"') === false && stripos($html, 'name="phone"') === false, 'no phone field anywhere');
+    $plain_post = sd_rest('POST', 'add-preview', ['date' => '2027-10-12'], false);
+    brb_t($plain_post[0] === 403, 'a staff POST without the staff nonce is refused (403)');
+
+    list($st, $cal) = sd_rest('GET', 'calendar?month=2027-10');
+    $kinds = [];
+    foreach ($cal['data']['days'] as $d) $kinds[$d['date']] = $d['kind'];
+    brb_t($st === 200 && count($cal['data']['days']) === 31, 'calendar returns October 2027 (31 days)');
+    brb_t($kinds['2027-10-04'] === 'held' && $kinds['2027-10-05'] === 'held' && $kinds['2027-10-06'] === 'waiting' && $kinds['2027-10-07'] === 'closed' && $kinds['2027-10-11'] === 'closed' && $kinds['2027-10-12'] === 'open', 'calendar kinds: an approved unpaid booking and a hold read Date held, request waiting, closed (hold and blackout), open');
+    brb_t($cal['data']['days'][0]['dow'] === 5, 'Oct 1 2027 is a Friday (US week, Sunday first)');
+    list($st, $day) = sd_rest('GET', 'day?date=2027-10-06');
+    brb_t($st === 200 && $day['data']['kind'] === 'waiting' && !$day['data']['can_add'] && strpos($day['data']['add_blocked'], 'request is waiting') !== false, 'day detail for a waiting request says it cannot take another booking');
+    $item = $day['data']['items'][0];
+    brb_t($item['can_approve'] && $item['can_decline'], 'Approve and Decline are reachable from day detail');
+    brb_t($item['hours'] === '10:00 AM – 11:30 PM' && $item['end_time'] === '', 'event times come from the booking data; no invented end time');
+    list($st, $dayA) = sd_rest('GET', 'day?date=2027-10-04');
+    brb_t(!empty($dayA['data']['items'][0]['can_pay']), 'Record payment, Send invoice / pay link and Copy pay link are reachable from the day\'s record');
+    $hid5 = (int) $wpdb->get_var("SELECT id FROM " . brb_hold_table() . " WHERE name='SD Test Hold'");
+    list($st, $hr5) = sd_rest('GET', 'hold/' . $hid5);
+    brb_t($st === 200 && $hr5['data']['label'] === 'Date held' && $hr5['data']['when'] === 'Tuesday, October 5, 2027' && $hr5['data']['pay_note'] !== '', 'a hold opens the same record view (date, label, notes) and says why no pay link can be sent yet');
+    list($st, $hr6) = sd_rest('GET', 'hold/999999999');
+    brb_t($st === 404, 'a missing hold is a clean 404');
+    $dayItems = $day['data']['items'];
+    brb_t(isset($dayItems[0]['id'], $dayItems[0]['type']), 'every day item carries type + id so it opens the shared record');
+    brb_t($dayA['data']['rate_text'] === '$850 for the day', 'day detail rate comes from the calendar rates ($850 Mon)');
+
+    // ---------- MUST FIX: Add refused on taken days ----------
+    $refused = [
+        '2027-10-04' => 'booked', '2027-10-05' => 'held', '2027-10-06' => 'waiting',
+        '2027-10-07' => 'closed', '2027-10-11' => 'closed', '2027-10-20' => 'addon',
+    ];
+    $b0 = sd_count(brb_table(), '1=1'); $h0 = sd_count(brb_hold_table(), '1=1');
+    foreach ($refused as $date => $why) {
+        list($st, $r) = sd_rest('POST', 'add', ['kind' => 'booking', 'date' => $date, 'name' => 'SD Test Second', 'email' => 'second@sd-test.example.com', 'guests' => 20, 'event_type' => 'birthday']);
+        brb_t($st === 409 && $r['code'] === 'busy' && $r['reason'] === $why, "Add booking refused on $date ($why): " . ($r['message'] ?? ''));
+        list($st, $r) = sd_rest('POST', 'add', ['kind' => 'hold', 'hold_type' => 'hold', 'date' => $date, 'name' => 'SD Test Second hold']);
+        brb_t($st === 409 && $r['code'] === 'busy', "Add hold refused on $date ($why)");
+        list($st, $r) = sd_rest('POST', 'add', ['kind' => 'hold', 'hold_type' => 'blocked', 'date' => $date, 'name' => 'SD Test Second close']);
+        brb_t($st === 409 && $r['code'] === 'busy', "Close day refused on $date ($why)");
+    }
+    brb_t(sd_count(brb_table(), '1=1') === $b0 && sd_count(brb_hold_table(), '1=1') === $h0, 'refused adds saved no booking and no hold');
+    list($st, $pv) = sd_rest('POST', 'add-preview', ['kind' => 'booking', 'date' => '2027-10-06', 'guests' => 10]);
+    brb_t($st === 200 && strpos($pv['data']['blocked'], 'request is waiting') !== false, 'Add preview warns before save on a request-waiting day');
+
+    // Open day: first add works, second is refused because a request is now waiting.
+    list($st, $r) = sd_rest('POST', 'add', ['kind' => 'booking', 'date' => '2027-10-12', 'name' => 'SD Test New', 'email' => 'new@sd-test.example.com', 'guests' => 40, 'event_type' => 'birthday']);
+    brb_t($st === 200 && $r['data']['booking']['status'] === 'review', 'Add booking on an open day saves a request waiting');
+    list($st, $r2) = sd_rest('POST', 'add', ['kind' => 'booking', 'date' => '2027-10-12', 'name' => 'SD Test Again', 'email' => 'again@sd-test.example.com', 'guests' => 10]);
+    brb_t($st === 409 && $r2['reason'] === 'waiting', 'a second Add on the same day is refused (request waiting)');
+    list($st, $r2) = sd_rest('POST', 'add', ['kind' => 'hold', 'date' => '2027-10-12']);
+    brb_t($st === 409, 'a hold on that day is refused too');
+    $locks = $GLOBALS['sd_locks'];
+    list($st, $hr) = sd_rest('POST', 'add', ['kind' => 'hold', 'hold_type' => 'hold', 'date' => '2027-10-19', 'name' => 'SD Test Held by staff']);
+    brb_t($st === 200 && $hr['data']['hold']['hold_type'] === 'hold', 'Add hold on an open day saves a date hold');
+    brb_t($GLOBALS['sd_locks'] > $locks, 'the hold save took GET_LOCK(\'brb_book\')');
+    list($st, $r2) = sd_rest('POST', 'add', ['kind' => 'booking', 'date' => '2027-10-19', 'name' => 'SD Test After hold', 'email' => 'afterhold@sd-test.example.com', 'guests' => 10]);
+    brb_t($st === 409 && $r2['reason'] === 'held', 'a booking on the newly held day is refused');
+    list($st, $r2) = sd_rest('POST', 'add', ['kind' => 'booking', 'date' => '2027-10-26', 'name' => 'SD Test Too many', 'email' => 'many@sd-test.example.com', 'guests' => 81]);
+    brb_t($st === 409 && $r2['code'] === 'guests', '81 guests is refused (up to 80)');
+    list($st, $r2) = sd_rest('POST', 'add', ['kind' => 'booking', 'date' => '2025-01-07', 'name' => 'SD Test Past', 'email' => 'past@sd-test.example.com', 'guests' => 10]);
+    brb_t($st === 409, 'a past date is refused');
+
+    // ---------- MUST FIX: Approve re-checks under the lock ----------
+    $R1 = sd_raw_booking('2027-10-13', 'SD Test Rival One', 'review');
+    $R2 = sd_raw_booking('2027-10-13', 'SD Test Rival Two', 'review'); // two public requests can wait on one day
+    list($st, $r) = sd_rest('POST', "booking/$R1/approve", ['walkthrough' => 0]);
+    brb_t($st === 409 && $r['code'] === 'walkthrough' && $r['message'] === 'Tick "I checked the details" first.', 'Approve needs the "I checked the details" checkbox');
+    $locks = $GLOBALS['sd_locks'];
+    list($st, $r) = sd_rest('POST', "booking/$R1/approve", ['walkthrough' => 1]);
+    brb_t($st === 200 && $r['data']['status'] === 'approved' && $r['data']['details_checked'], 'Approve with "I checked the details" ticked approves the first request');
+    brb_t($GLOBALS['sd_locks'] > $locks, 'Approve took GET_LOCK(\'brb_book\')');
+    list($st, $r) = sd_rest('POST', "booking/$R2/approve", ['walkthrough' => 1]);
+    brb_t($st === 409 && $r['code'] === 'busy' && $r['reason'] === 'booked', 'Approve of the rival request on the same day is refused: ' . ($r['message'] ?? ''));
+    $r2row = brb_booking($R2);
+    brb_t($r2row->status === 'review' && empty($r2row->walkthrough_done), 'refused rival stays waiting, and its "I checked the details" tick is rolled back');
+    $R3 = sd_raw_booking('2027-10-14', 'SD Test Then Held', 'review', ['walkthrough_done' => 1]);
+    sd_raw_hold('2027-10-14', 'SD Test Late hold', 'hold');
+    list($st, $r) = sd_rest('POST', "booking/$R3/approve", ['walkthrough' => 1]);
+    brb_t($st === 409 && $r['reason'] === 'held' && brb_booking($R3)->status === 'review', 'Approve refused when a hold was added after the request');
+    $R4 = sd_raw_booking('2027-10-18', 'SD Test Then Booked', 'review', ['walkthrough_done' => 1]);
+    sd_raw_booking('2027-10-18', 'SD Test Booked Elsewhere', 'deposit_paid', ['amount_paid' => 425]);
+    list($st, $r) = sd_rest('POST', "booking/$R4/approve", ['walkthrough' => 1]);
+    brb_t($st === 409 && $r['reason'] === 'booked' && brb_booking($R4)->status === 'review', 'Approve refused when another booking took the date after the request');
+    // Core layer re-check (inside brb_approve_booking, under the same lock), bypassing the staff pre-check.
+    $core = brb_approve_booking($R4, false);
+    brb_t(is_wp_error($core) && $core->get_error_code() === 'busy', 'the core approve also refuses the taken date (second check under the lock)');
+    $R5 = sd_raw_booking('2027-10-27', 'SD Test Closed later', 'review', ['walkthrough_done' => 1]);
+    $o2 = get_option('brb_settings'); $o2['blackouts'] .= "\n2027-10-27"; update_option('brb_settings', $o2);
+    list($st, $r) = sd_rest('POST', "booking/$R5/approve", ['walkthrough' => 1]);
+    brb_t($st === 409 && $r['reason'] === 'closed', 'Approve refused when the day was closed after the request');
+
+    // ---------- Add saves what the preview showed ----------
+    $cases = [['2027-10-22', 'full', 1400.00, 1400.00, 42.00], ['2027-10-25', 'deposit', 850.00, 425.00, 12.75], ['2027-10-29', 'deposit', 1400.00, 700.00, 21.00]];
+    $saved = [];
+    foreach ($cases as $c) {
+        $p = ['kind' => 'booking', 'date' => $c[0], 'name' => 'SD Test Preview ' . $c[0], 'email' => 'pv' . str_replace('-', '', $c[0]) . '@sd-test.example.com', 'guests' => 50, 'event_type' => 'shower', 'charge_now' => $c[1]];
+        list($st, $pv) = sd_rest('POST', 'add-preview', $p);
+        $q = $pv['data'];
+        brb_t($st === 200 && abs($q['total'] - $c[2]) < 0.001 && abs($q['due_now'] - $c[3]) < 0.001 && abs($q['card_fee'] - $c[4]) < 0.001, "preview {$c[0]} {$c[1]}: total {$q['text']['total']}, now {$q['text']['due_now']}, card fee {$q['text']['card_fee']}, by card {$q['text']['card_total']}");
+        list($st, $r) = sd_rest('POST', 'add', $p);
+        $b = brb_booking($r['data']['booking']['id']);
+        $saved[$c[0]] = (int) $b->id;
+        brb_t(abs((float) $b->total - $q['total']) < 0.001 && abs((float) $b->deposit_due - $q['due_now']) < 0.001 && (string) $b->charge_now_mode === $q['charge_now_mode'] && (string) $b->balance_due_on === $q['balance_due_on'], "saved {$c[0]} matches its preview (total, charge now, due now, balance date)");
+        brb_t($r['data']['quote'] == $q || (array_diff_key($q, ['blocked' => 1]) == $r['data']['quote']), "save response repeats the same quote for {$c[0]}");
+    }
+    brb_t(abs($cases[2][3] + $cases[2][4] - 721.00) < 0.001, 'Les check: $1,400 at 50% = $700 + $21 = $721 by card');
+
+    // ---------- Record payment: fee separate, chip wording ----------
+    $P = $saved['2027-10-25'];
+    list($st, $r) = sd_rest('POST', "booking/$P/payment", ['amount' => 425, 'method' => 'cash']);
+    brb_t($st === 409 && $r['code'] === 'status', 'Record payment waits for approval');
+    sd_rest('POST', "booking/$P/approve", ['walkthrough' => 1]);
+    list($st, $pv) = sd_rest('POST', "booking/$P/payment-preview", ['amount' => 425, 'method' => 'card']);
+    brb_t($st === 200 && $pv['data']['fee'] == 12.75 && $pv['data']['charged'] == 437.75 && strpos($pv['data']['text']['fee'], '3%') !== false, 'payment preview shows the 3% card fee separately ($425 + $12.75 = $437.75)');
+    list($st, $pv2) = sd_rest('POST', "booking/$P/payment-preview", ['amount' => 425, 'method' => 'check']);
+    brb_t($pv2['data']['fee'] == 0 && $pv2['data']['text']['fee'] === 'No card fee', 'check payments have no card fee');
+    list($st, $r) = sd_rest('POST', "booking/$P/payment", ['amount' => 425, 'method' => 'card']);
+    $pay = $wpdb->get_row($wpdb->prepare('SELECT * FROM ' . brb_pay_table() . ' WHERE booking_id=%d', $P));
+    brb_t($st === 200 && $pay && (float) $pay->amount == 425.0 && (float) $pay->fee == 12.75 && $pay->method === 'card', 'card payment stored as $425.00 with a separate $12.75 fee');
+    brb_t($r['data']['status'] === 'deposit_paid' && $r['data']['chip']['text'] === 'Deposit paid, $425.00 due by Mon, Oct 18, 2027', 'chip reads "' . $r['data']['chip']['text'] . '"');
+    brb_t(strpos($r['data']['money']['card_fees_text'], '$12.75') !== false, 'booking money shows card fees apart from the rental');
+    list($st, $r) = sd_rest('POST', "booking/$P/payment", ['amount' => 900, 'method' => 'cash']);
+    brb_t($st === 409 && $r['code'] === 'amount', 'a payment over what is owed is refused');
+    list($st, $r) = sd_rest('POST', "booking/$P/payment", ['amount' => 100, 'method' => 'check']);
+    brb_t($st === 409 && $r['code'] === 'check', 'a check payment needs the check number');
+    list($st, $r) = sd_rest('POST', "booking/$P/payment", ['amount' => 425, 'method' => 'check', 'check_number' => '1001']);
+    brb_t($st === 200 && $r['data']['chip']['text'] === 'Paid in full', 'paying the balance shows "Paid in full"');
+
+    // ---------- Pay link: copy only ----------
+    $L = $saved['2027-10-22'];
+    sd_rest('POST', "booking/$L/approve", ['walkthrough' => 1]);
+    $m0 = count($GLOBALS['sd_mail']);
+    list($st, $r) = sd_rest('POST', "booking/$L/pay-link", []);
+    brb_t($st === 200 && strpos($r['data']['url'], 'br_pay=') !== false && strpos($r['data']['url'], 'br_sig=') !== false, 'Copy pay link returns the signed link');
+    brb_t($r['data']['due'] === '$1,400.00' && $r['data']['fee'] === '$42.00' && $r['data']['charged'] === '$1,442.00', 'pay link shows $1,400 + $42 fee = $1,442 (pay in full)');
+    brb_t(count($GLOBALS['sd_mail']) === $m0, 'copying the pay link sends no email at all');
+    list($st, $r) = sd_rest('POST', "booking/$W/pay-link", []);
+    brb_t($st === 200 && $r['data']['url'] === '' && in_array('Request approved', $r['data']['blockers'], true), 'no link for a waiting request; it says what is missing');
+    $nb = sd_raw_booking('2027-10-31', 'SD Test Unchecked', 'approved');
+    list($st, $r) = sd_rest('POST', "booking/$nb/pay-link", []);
+    brb_t(in_array('Details checked', $r['data']['blockers'], true) && !preg_grep('/walk/i', $r['data']['blockers']), 'pay link blockers say "Details checked", never walk-through');
+    $wpdb->delete(brb_table(), ['id' => $nb]);
+
+    // ---------- Decline; actions never email; confirm-then-send (Max, Nov 23 10:00 AM CT) ----------
+    $m0 = count(sd_guest_mails());
+    list($st, $r) = sd_rest('POST', "booking/$W/decline", ['message' => 'SD Test note', 'email_guest' => 1]);
+    brb_t($st === 200 && $r['data']['status'] === 'declined', 'Decline works');
+    list($st, $xr) = sd_rest('POST', 'add', ['kind' => 'booking', 'date' => '2027-10-28', 'name' => 'SD Test Approve mail', 'email' => 'approvemail@sd-test.example.com', 'guests' => 25, 'no_guest_email' => 0]);
+    $X = (int) $xr['data']['booking']['id'];
+    sd_rest('POST', "booking/$X/approve", ['walkthrough' => 1, 'email_guest' => 1, 'charge_now' => 'full']);
+    $xb = brb_booking($X);
+    brb_t($xb->status === 'approved' && $xb->charge_now_mode === 'full' && abs((float) $xb->deposit_due - 850) < 0.001, 'Approve can set Pay in full (deposit due becomes $850)');
+    brb_t(strpos((string) $xb->audit_log, 'guest email skipped') !== false, 'approve audit says the guest email was skipped');
+    brb_t(count(sd_guest_mails()) === $m0, 'choosing "Email the guest" on Add, Approve or Decline sends nothing by itself');
+
+    list($st, $d) = sd_rest('POST', "booking/$X/draft", ['kind' => 'approve']);
+    $dr = $d['data'];
+    brb_t($st === 200 && $dr['to'] === 'approvemail@sd-test.example.com' && $dr['subject'] === brb_approve_guest_subject($xb) && $dr['body'] === brb_approve_guest_body($xb) && $dr['confirm'] !== '', 'draft returns the full plugin approval email, its recipient and a confirm token');
+    brb_t(count(sd_guest_mails()) === $m0, 'opening the confirm screen (draft) sends nothing');
+    list($st, $rq) = sd_rest('POST', "booking/$X/draft", ['kind' => 'request']);
+    brb_t($st === 200 && strpos($rq['data']['subject'], 'We received your Boardroom request') === 0 && count(sd_guest_mails()) === $m0, 'request-received draft is the plugin text, rendered without sending');
+    $send = ['kind' => 'approve', 'to' => $dr['to'], 'subject' => $dr['subject'], 'body' => $dr['body'], 'confirm' => $dr['confirm'], 'confirmed' => true];
+    $bad_cases = [
+        'no confirm step' => array_diff_key($send, ['confirm' => 1, 'confirmed' => 1]),
+        'confirm token but no confirmed flag' => array_diff_key($send, ['confirmed' => 1]),
+        'forged token' => array_merge($send, ['confirm' => (time() + 600) . '.' . str_repeat('a', 64)]),
+        'expired token' => array_merge($send, ['confirm' => '1000.' . explode('.', $dr['confirm'])[1]]),
+        'body changed after preview' => array_merge($send, ['body' => $dr['body'] . "\nExtra line"]),
+        'subject changed after preview' => array_merge($send, ['subject' => 'Different']),
+        'different recipient' => array_merge($send, ['to' => 'someone-else@sd-test.example.com']),
+        'different kind' => array_merge($send, ['kind' => 'decline']),
+    ];
+    foreach ($bad_cases as $label => $body) {
+        list($st, $r) = sd_rest('POST', "booking/$X/send", $body);
+        brb_t($st === 409 && in_array($r['code'], ['confirm'], true), "send refused: $label");
+    }
+    list($st, $r) = sd_rest('POST', "booking/$A/send", $send);
+    brb_t($st === 409, 'send refused: token from another booking');
+    brb_t(count(sd_guest_mails()) === $m0, 'no refused send reached the guest');
+    wp_set_current_user($sub);
+    list($st, $r) = sd_rest('POST', "booking/$X/send", $send);
+    brb_t($st === 403 && count(sd_guest_mails()) === $m0, 'a subscriber cannot send even with a valid token');
+    $admin_id = wp_insert_user(['user_login' => 'sd-admin', 'user_email' => 'sd-admin@sd-test.example.com', 'user_pass' => wp_generate_password(24), 'role' => 'administrator']);
+    wp_set_current_user($admin_id);
+    list($st, $r) = sd_rest('POST', "booking/$X/send", $send);
+    brb_t($st === 409, 'the token is tied to the staff user who saw the preview');
+    wp_set_current_user($staff);
+    list($st, $r) = sd_rest('POST', "booking/$X/send", $send);
+    $guest_now = sd_guest_mails();
+    brb_t($st === 200 && $r['data']['sent'] === true && count($guest_now) === $m0 + 1 && end($guest_now) === 'approvemail@sd-test.example.com', 'after the confirm step the exact previewed email sends once to the guest');
+    brb_t(strpos((string) brb_booking($X)->audit_log, 'approval email sent to the guest after the confirm screen') !== false, 'the send is logged on the booking with who and when');
+    list($st, $r) = sd_rest('POST', "booking/$X/send", $send);
+    brb_t($st === 409 && count(sd_guest_mails()) === $m0 + 1, 'the same confirm cannot send twice');
+    list($st, $dd) = sd_rest('POST', "booking/$W/draft", ['kind' => 'decline', 'note' => 'SD Test note']);
+    brb_t($st === 200 && strpos($dd['data']['body'], 'SD Test note') !== false, 'decline draft carries the message to the guest');
+    list($st, $r) = sd_rest('POST', "booking/$W/draft", ['kind' => 'approve']);
+    brb_t($st === 409, 'no approval email for a declined booking');
+    $blk = sd_raw_booking('2027-10-31', 'SD Test Blocked addr', 'approved', ['email' => 'contiveros8@gmail.com']);
+    list($st, $r) = sd_rest('POST', "booking/$blk/draft", ['kind' => 'approve']);
+    brb_t($st === 409 && $r['code'] === 'to', 'the dashboard refuses to email a never-email address');
+    $wpdb->delete(brb_table(), ['id' => $blk]);
+    list($st, $msg) = sd_rest('GET', 'messages');
+    brb_t($st === 200 && count($msg['data']['sent']) === 1 && !empty($msg['data']['suggested']), 'Messages lists sends and suggestions');
+    list($st, $r) = sd_rest('POST', "booking/$X/draft", ['kind' => 'send-now']);
+    brb_t($st === 409, 'unknown message types are refused');
+    $plinks = array_values(array_filter($msg['data']['suggested'], function ($x) { return empty($x['blocked']); }));
+    list($st, $pd) = sd_rest('POST', 'booking/' . $plinks[0]['booking_id'] . '/draft', ['kind' => 'paylink']);
+    brb_t($st === 200 && strpos($pd['data']['body'], 'br_pay=') !== false, 'pay link email draft carries the signed link');
+    brb_t(true, 'check-address note: approval body has 2212: ' . (strpos($dr['body'], '2212') !== false ? 'yes' : 'no') . ', pay link body: ' . (strpos($pd['data']['body'], '2212') !== false ? 'yes' : 'no'));
+    brb_t(count(sd_guest_mails()) === $m0 + 1, 'exactly one guest email left during the whole run, the confirmed one (' . count($GLOBALS['sd_mail']) . ' mails incl. staff notices)');
+    $GLOBALS['brb_sd_guarded'] = ['guard@sd-test.example.com'];
+    $blocked = wp_mail('guard@sd-test.example.com', 'x', 'y');
+    $blocked_cc = wp_mail('staff-only@example.com', 'x', 'y', ['Cc: guard@sd-test.example.com']);
+    brb_sd_release_guard();
+    brb_t($blocked === false && $blocked_cc === false && count(sd_guest_mails()) === $m0 + 1, 'mail guard blocks the guest address in To and Cc during actions');
+
+    // ---------- summary, lists, upcoming ----------
+    list($st, $s) = sd_rest('GET', 'summary');
+    brb_t($st === 200 && $s['data']['requests'] >= 3 && isset($s['data']['next']), 'summary counts requests waiting and shows the next event');
+    list($st, $rq) = sd_rest('GET', 'requests');
+    brb_t($st === 200 && !in_array($W, array_column($rq['data'], 'id'), true), 'declined requests leave the Requests list');
+    list($st, $pl) = sd_rest('GET', 'payments');
+    brb_t($st === 200 && in_array($A, array_column($pl['data'], 'id'), true) && !in_array($P, array_column($pl['data'], 'id'), true), 'Payments lists money owed and drops paid-in-full');
+    list($st, $up) = sd_rest('GET', 'upcoming');
+    brb_t($st === 200 && is_array($up['data']), 'Upcoming loads');
+
+    // ---------- text safety ----------
+    $dirty = "Call 563-555-0100 or (563) 555 0199. Mail checks to 2212 37th Street, Moline. Airbnb door code: 4821. Total \$1,400.00 on 2027-10-22.";
+    $clean = brb_sd_scrub($dirty);
+    brb_t(strpos($clean, '555') === false && stripos($clean, '2212') === false && stripos($clean, 'airbnb') === false && strpos($clean, '4821') === false, 'scrub hides phone numbers, the 2212 address, other-platform names and entry codes');
+    brb_t(strpos($clean, '$1,400.00') !== false && strpos($clean, '2027-10-22') !== false, 'scrub keeps money and dates');
+    $hid = sd_raw_hold('2027-10-30', 'SD Test Airbnb 563-555-0123', 'reserved');
+    list($st, $d30) = sd_rest('GET', 'day?date=2027-10-30');
+    $j = wp_json_encode($d30);
+    brb_t(strpos($j, '555-0123') === false && stripos($j, 'airbnb') === false, 'day detail never shows a phone number or other-platform name from hold names');
+    list($st, $all) = sd_rest('GET', 'calendar?month=2027-10');
+    brb_t(stripos(wp_json_encode($all), 'airbnb') === false, 'calendar tags are scrubbed too');
+
+    // ---------- not public ----------
+    $server = rest_get_server();
+    $index = $server->get_index(new WP_REST_Request('GET', '/'))->get_data();
+    brb_t(!preg_grep('#^/brb/v1/staff#', array_keys($index['routes'])), 'staff routes are not listed in the public REST index');
+    brb_t(!get_page_by_path('staff') || in_array((int) get_page_by_path('staff')->ID, (array) (apply_filters('wp_sitemaps_posts_query_args', [], 'page')['post__not_in'] ?? []), true), '/staff/ is not a sitemap page');
+    $providers = wp_sitemaps_get_server()->registry->get_providers();
+    $urls = isset($providers['posts']) ? wp_json_encode($providers['posts']->get_url_list(1, 'page')) : '';
+    brb_t(strpos($urls, '/staff') === false, 'core sitemap has no /staff/ URL');
+
+    // =====================================================================================
+    // Booking flow (Max, Nov 23 2026 10:10 and 10:19 AM CT). Fake data only: Nov 2027, "SD Test" names.
+    // =====================================================================================
+    $admin = $admin_id;
+    wp_set_current_user($staff);
+    $ages = function ($until) { return $until ? strtotime($until . ' UTC') - time() : null; };
+    $send_kind = function ($id, $kind) {
+        list($st, $d) = sd_rest('POST', 'booking/' . $id . '/draft', ['kind' => $kind]);
+        if ($st !== 200 || empty($d['ok'])) return [$st, $d, null];
+        $x = $d['data'];
+        return [$st, $d, sd_rest('POST', 'booking/' . $id . '/send', ['kind' => $x['kind'], 'to' => $x['to'], 'subject' => $x['subject'], 'body' => $x['body'], 'confirm' => $x['confirm'], 'confirmed' => true])];
+    };
+
+    // ---------- 1. one record: calendar holds become bookings in HOLD status ----------
+    $H1 = sd_raw_hold('2027-11-03', 'SD Test Mig Hold', 'hold');
+    $H2 = sd_raw_hold('2027-11-04', 'SD Test Mig Reserved', 'reserved');
+    $H3 = sd_raw_hold('2027-11-05', 'SD Test Mig Closed', 'blocked');
+    $H4 = sd_raw_hold('2027-11-06', 'SD Test Mig Conflict', 'hold');
+    sd_raw_booking('2027-11-06', 'SD Test Mig Booked', 'approved');
+    $mine = [$H1, $H2, $H3, $H4];
+    $bk_before = sd_count(brb_table(), "name LIKE 'SD Test Mig%'");
+    do_action('init');
+    delete_option('brb_sd_flow_version');
+    delete_option('brb_sd_migration_report');
+    do_action('init');
+    $rep = get_option('brb_sd_migration_report');
+    brb_t(is_array($rep) && !empty($rep['dry']) && sd_count(brb_hold_table(), 'migrated_to > 0') === 0 && sd_count(brb_table(), "name LIKE 'SD Test Mig%'") === $bk_before, 'on upgrade a dry-run report is stored and nothing is changed');
+    $dry = brb_sd_mig_run(true, $mine);
+    $would = array_column($dry['would_convert'], 'hold_id');
+    brb_t(sort($would) && $would === [$H1, $H2] && array_column($dry['skipped'], 'hold_id') === [$H4], 'dry run lists the two holds it would convert, skips the one a booking already covers, and ignores the closed day');
+    brb_t(sd_count(brb_hold_table(), 'migrated_to > 0') === 0 && sd_count(brb_table(), "name LIKE 'SD Test Mig%'") === $bk_before, 'a dry run changes nothing');
+    $gap = [];
+    add_action('brb_sd_migrate_step', function ($stage, $h) use (&$gap) {
+        $gap[] = [$stage, brb_is_free(new DateTimeImmutable($h->start_dt, brb_tz()), new DateTimeImmutable($h->end_dt, brb_tz()))];
+    }, 10, 2);
+    $mails0 = count($GLOBALS['sd_mail']);
+    $locks0 = $GLOBALS['sd_locks'];
+    $run = brb_sd_mig_run(false, $mine);
+    brb_t(!is_wp_error($run) && count($run['converted']) === 2 && count($run['skipped']) === 1, 'run converts the two holds and skips the conflict');
+    $free_ever = array_filter($gap, function ($g) { return $g[1] === true; });
+    brb_t(count($gap) === 6 && !$free_ever, 'no gap: each date stays blocked before the copy, between copy and mark, and after (' . count($gap) . ' checks)');
+    brb_t($GLOBALS['sd_locks'] > $locks0, 'migration runs under GET_LOCK(\'brb_book\')');
+    $mb = $wpdb->get_results("SELECT * FROM " . brb_table() . " WHERE source = 'hold-migrate' AND name LIKE 'SD Test Mig%' ORDER BY start_dt");
+    brb_t(count($mb) === 2 && $mb[0]->status === 'held' && $mb[1]->status === 'reserved' && (float) $mb[0]->amount_paid === 0.0 && (float) $mb[1]->amount_paid === 0.0 && $mb[0]->name === 'SD Test Mig Hold', 'an unpaid hold becomes Held; a Reserved hold (paid elsewhere) becomes Reserved, with no payment invented');
+    $d4 = brb_sd_day('2027-11-04');
+    brb_t($d4['kind'] === 'booked' && $d4['items'][0]['status'] === 'reserved' && strpos($d4['items'][0]['chip']['text'], 'Reserved') !== false && empty($d4['items'][0]['hold']), 'a Reserved copy reads Booked on the calendar, with no pay window and no lapse flag');
+    brb_note_pay_link_sent((int) $mb[1]->id);
+    brb_t(empty(brb_booking($mb[1]->id)->hold_until) && !brb_hold_lapsed(brb_booking($mb[1]->id)) && !in_array((int) $mb[1]->id, array_map('intval', array_column(array_map('brb_sd_booking_detail', brb_sd_awaiting_link()), 'id')), true), 'a Reserved copy never gets a pay window, a lapse flag, or a pay-link-not-sent flag');
+    brb_t(sd_count(brb_hold_table(), 'migrated_to > 0') === 2 && sd_count(brb_hold_table(), 'id IN (' . implode(',', $mine) . ')') === 4, 'old hold rows are kept and marked migrated, not deleted');
+    brb_t(strpos((string) $mb[0]->audit_log, 'calendar hold #' . $H1) !== false && strpos((string) $mb[0]->audit_log, 'no email sent') !== false, 'the copy is logged on the booking');
+    brb_t(count($GLOBALS['sd_mail']) === $mails0, 'migration sent no email at all');
+    brb_t(sd_count(brb_hold_table(), 'id = ' . $H3 . ' AND migrated_to = 0') === 1, 'a closed day (blocked) stays a close');
+    $d3 = brb_sd_day('2027-11-03');
+    brb_t(count($d3['items']) === 1 && $d3['items'][0]['type'] === 'booking' && $d3['kind'] === 'held', 'the date shows once, as one booking record in HOLD (not a booking plus its old hold)');
+    brb_t(!brb_is_free(new DateTimeImmutable('2027-11-03 10:00', brb_tz()), new DateTimeImmutable('2027-11-03 23:30', brb_tz())) && !brb_is_free(new DateTimeImmutable('2027-11-05 10:00', brb_tz()), new DateTimeImmutable('2027-11-05 23:30', brb_tz())), 'dates stay blocked after migration, closed day too');
+    $again = brb_sd_mig_run(false, $mine);
+    brb_t(!is_wp_error($again) && count($again['converted']) === 0 && sd_count(brb_table(), "source = 'hold-migrate' AND name LIKE 'SD Test Mig%'") === 2, 'running it again changes nothing (idempotent)');
+    brb_migrate_bookings();
+    $still = $wpdb->get_var($wpdb->prepare('SELECT status FROM ' . brb_table() . ' WHERE id = %d', $mb[0]->id));
+    brb_t($still === 'held', 'a later plugin upgrade does not turn migrated holds back into Approved');
+    wp_set_current_user($staff);
+    list($st, $r) = sd_rest('GET', 'migration');
+    brb_t($st === 403, 'the migration routes are for administrators, not staff');
+    wp_set_current_user($admin);
+    list($st, $r) = sd_rest('GET', 'migration');
+    brb_t($st === 200 && isset($r['data']['converted']), 'an administrator sees the migration summary' . ($st === 200 ? '' : ' [' . $st . ' ' . wp_json_encode($r) . ']'));
+    list($st, $r) = sd_rest('POST', 'migration/run', []);
+    brb_t($st === 409, 'the run route refuses without the confirm flag');
+    wp_set_current_user($staff);
+    // a worked-on booking is kept as a booking on undo
+    $wpdb->update(brb_table(), ['amount_paid' => 100, 'status' => 'deposit_paid'], ['id' => (int) $mb[1]->id]);
+    $undo = brb_sd_mig_undo($mine);
+    brb_t(count($undo['undone']) === 1 && count($undo['kept']) === 1, 'undo puts back the untouched hold and keeps the one that has a payment');
+    brb_t(sd_count(brb_hold_table(), 'id = ' . $H1 . ' AND migrated_to = 0') === 1 && !brb_is_free(new DateTimeImmutable('2027-11-03 10:00', brb_tz()), new DateTimeImmutable('2027-11-03 23:30', brb_tz())), 'after undo the old hold blocks the date again');
+    $cancelled_id = (int) $mb[0]->id;
+    brb_t(brb_booking($cancelled_id)->status === 'cancelled' && brb_booking($cancelled_id)->source === 'hold-migrate-undone', 'undo clears the copy marker so the cancelled row is not reused');
+    $plan2 = brb_sd_mig_plan([$H1]);
+    brb_t(($plan2[0]['action'] ?? '') === 'convert', 'after undo, the plan is a new convert, not mark_only of the cancelled copy');
+    remove_all_actions('brb_sd_migrate_step');
+    $gap2 = [];
+    add_action('brb_sd_migrate_step', function ($stage, $h) use (&$gap2) {
+        $gap2[] = [$stage, brb_is_free(new DateTimeImmutable($h->start_dt, brb_tz()), new DateTimeImmutable($h->end_dt, brb_tz()))];
+    }, 10, 2);
+    $rerun = brb_sd_mig_run(false, [$H1]);
+    $free_ever2 = array_filter($gap2, function ($g) { return $g[1] === true; });
+    $h1 = brb_hold($H1);
+    $nb = $h1 ? brb_booking((int) $h1->migrated_to) : null;
+    brb_t(!is_wp_error($rerun) && count($rerun['converted']) === 1 && !$free_ever2 && count($gap2) === 3, 'run-undo-run: a new copy is made and the date stays blocked before, between and after');
+    brb_t($nb && (int) $nb->id !== $cancelled_id && $nb->status === 'held' && !brb_is_free(new DateTimeImmutable('2027-11-03 10:00', brb_tz()), new DateTimeImmutable('2027-11-03 23:30', brb_tz())), 'run-undo-run points the hold at a live Held booking, not the cancelled copy');
+    remove_all_actions('brb_sd_migrate_step');
+
+    // Les's QA repro (qa-2026-11-23.md / repro-undo.php), fake data only.
+    $repro = brb_save_hold(['name' => 'SD Test QA Repro Hold', 'hold_type' => 'hold', 'start_date' => '2028-03-15', 'start_time' => '10:00', 'end_date' => '2028-03-15', 'end_time' => '23:30', 'notes' => 'qa']);
+    $rid = (int) $repro->id;
+    $rd = new DateTimeImmutable('2028-03-15 10:00', brb_tz());
+    $re = $rd->setTime(23, 30);
+    $rfree = function () use ($rd, $re) { return brb_is_free($rd, $re); };
+    brb_t(!$rfree(), "Les repro 1: hold saved, date blocked");
+    $rr = brb_sd_mig_run(false, [$rid]);
+    brb_t(!is_wp_error($rr) && count($rr['converted']) === 1 && !$rfree(), 'Les repro 2: after run, date blocked');
+    $ru = brb_sd_mig_undo([$rid]);
+    brb_t(!is_wp_error($ru) && count($ru['undone']) === 1 && !$rfree(), 'Les repro 3: after undo, date blocked');
+    $rp = brb_sd_mig_plan([$rid]);
+    brb_t(($rp[0]['action'] ?? '') === 'convert', 'Les repro 4: plan action is convert, not mark_only');
+    $rr = brb_sd_mig_run(false, [$rid]);
+    $rh = brb_hold($rid);
+    $rb = $rh ? brb_booking((int) $rh->migrated_to) : null;
+    brb_t(!is_wp_error($rr) && !$rfree() && $rb && $rb->status === 'held', 'Les repro 5: after run again, date blocked by a live booking');
+    brb_t(brb_sd_day_conflict('2028-03-15') !== null, 'Les repro 6: the staff day conflict is still present');
+
+    $wpdb->delete(brb_pay_table(), ['booking_id' => (int) $mb[1]->id]);
+
+    // ---------- 2. 48-hour pay window: starts when the pay link is sent ----------
+    brb_t(brb_defaults()['hold_clock_start'] === 'link_sent' && brb_defaults()['balance_reminder_template_approved'] === '', 'defaults: the pay window starts when the pay link is sent; reminder wording not approved');
+    $K = sd_raw_booking('2027-11-10', 'SD Test Clock K', 'review', ['walkthrough_done' => 1]);
+    list($st, $ap) = sd_rest('POST', 'booking/' . $K . '/approve', ['walkthrough' => 1]);
+    $kb = brb_booking($K);
+    brb_t($st === 200 && $kb->status === 'approved' && empty($kb->hold_until), 'approve with no pay link sent yet sets no hold_until');
+    brb_t(empty($ap['data']['hold']['lapsed']) && !empty($ap['data']['hold']['waiting_for_link']) && ($ap['data']['hold']['short'] ?? '') === 'No link', 'the record says the 48 hours start when the pay link is sent');
+    brb_t(!in_array($K, array_column(sd_rest('GET', 'lapsed')[1]['data'], 'id'), true), 'no pay link sent means no lapse flag');
+    list($st, $aw) = sd_rest('GET', 'awaiting-link');
+    brb_t($st === 200 && in_array($K, array_column($aw['data'], 'id'), true), 'an approved booking whose pay link was never sent is on the staff "pay link not sent" flag list');
+    list($st, $su0) = sd_rest('GET', 'summary');
+    brb_t(($su0['data']['awaiting_link'] ?? 0) >= 1, 'the summary counts pay-link-not-sent flags');
+    $mails_k = count($GLOBALS['sd_mail']);
+    brb_expire_holds();
+    do_action('brb_cron_checklist');
+    brb_t(brb_booking($K)->status === 'approved' && brb_sd_day_conflict('2027-11-10') !== null && count($GLOBALS['sd_mail']) === $mails_k, 'the pay-link-not-sent flag does not free the date, change the status, or email anyone');
+    $fail_mail = function ($pre, $atts) { return false; };
+    add_filter('pre_wp_mail', $fail_mail, 1000, 2);
+    $failed = brb_send_payment_link($K);
+    remove_filter('pre_wp_mail', $fail_mail, 1000);
+    brb_t(is_wp_error($failed) && empty(brb_booking($K)->hold_until) && empty(brb_booking($K)->pay_link_sent_at), 'a failed pay-link email does not start the 48-hour clock');
+    $m0 = count($GLOBALS['sd_mail']);
+    list($d, $dd, $sent) = $send_kind($K, 'paylink');
+    $kb = brb_booking($K);
+    $left = $ages($kb->hold_until);
+    brb_t($sent && $sent[0] === 200 && $left !== null && $left > 48 * 3600 - 120 && $left <= 48 * 3600 && !empty($kb->pay_link_sent_at), 'the first pay link send sets hold_until to 48 hours from the send and records pay_link_sent_at');
+    $wpdb->update(brb_table(), ['hold_until' => gmdate('Y-m-d H:i:s', time() + 5 * 3600)], ['id' => $K]);
+    sleep(1); // a new preview gets a new one-use token
+    list($d, $dd, $sent) = $send_kind($K, 'paylink');
+    $left = $ages(brb_booking($K)->hold_until);
+    brb_t($sent && $sent[0] === 200 && $left > 48 * 3600 - 120, 'sending the link again restarts the 48 hours from the new send');
+    $wpdb->update(brb_table(), ['hold_until' => gmdate('Y-m-d H:i:s', time() + 7 * 3600)], ['id' => $K]);
+    list($st, $cp) = sd_rest('POST', 'booking/' . $K . '/pay-link-copied', []);
+    brb_t($st === 200 && $ages(brb_booking($K)->hold_until) > 48 * 3600 - 120, 'Copy pay link also starts the 48 hours');
+    brb_t(count(array_filter(array_slice($GLOBALS['sd_mail'], $m0), function ($to) { return strpos($to, 'sd-test.example.com') !== false; })) === 2, 'only the two confirmed sends reached the guest; copying emailed nobody');
+    list($st, $dt) = sd_rest('GET', 'booking/' . $K);
+    brb_t(!empty($dt['data']['hold']['text']) && strpos($dt['data']['hold']['text'], 'left to pay') !== false && strpos($dt['data']['chip']['text'], 'left') !== false, 'the record and its chip show a countdown');
+    list($st, $calk) = sd_rest('GET', 'calendar?month=2027-11');
+    $cell = null; foreach ($calk['data']['days'] as $cd) if ($cd['date'] === '2027-11-10') $cell = $cd;
+    brb_t($cell && $cell['clock'] !== '' && $cell['lapsed'] === false && $cell['kind'] === 'held', 'the calendar cell shows the countdown');
+    $o = get_option('brb_settings'); $o['hold_clock_start'] = 'approve'; update_option('brb_settings', $o);
+    $K2 = sd_raw_booking('2027-11-11', 'SD Test Clock Approve', 'review', ['walkthrough_done' => 1, 'created' => gmdate('Y-m-d H:i:s', time() - 30 * 3600)]);
+    sd_rest('POST', 'booking/' . $K2 . '/approve', ['walkthrough' => 1]);
+    $l2 = $ages(brb_booking($K2)->hold_until);
+    brb_t($l2 > 48 * 3600 - 120 && $l2 <= 48 * 3600, "setting hold_clock_start = 'approve': the 48 hours start when staff approve");
+    $o['hold_clock_start'] = 'request'; update_option('brb_settings', $o);
+    $K3 = sd_raw_booking('2027-11-12', 'SD Test Clock Request', 'review', ['walkthrough_done' => 1, 'created' => gmdate('Y-m-d H:i:s', time() - 30 * 3600)]);
+    sd_rest('POST', 'booking/' . $K3 . '/approve', ['walkthrough' => 1]);
+    $l3 = $ages(brb_booking($K3)->hold_until);
+    brb_t($l3 > 18 * 3600 - 120 && $l3 <= 18 * 3600 + 5, "setting hold_clock_start = 'request': the 48 hours count from the request time (30 hours ago, 18 left)");
+    $o['hold_clock_start'] = 'bogus'; update_option('brb_settings', $o);
+    brb_t(brb_hold_clock_start() === 'link_sent', 'an unknown setting value falls back to the default');
+    $o['hold_clock_start'] = 'link_sent'; update_option('brb_settings', $o);
+    $pb = brb_record_payment($K2, 425, 'cash', '', '');
+    brb_t(!is_wp_error($pb) && empty(brb_booking($K2)->hold_until), 'a recorded payment clears the pay window');
+
+    // ---------- 3. lapse: a staff flag only ----------
+    $LP = sd_raw_booking('2027-11-15', 'SD Test Lapse', 'approved', ['walkthrough_done' => 1, 'hold_until' => gmdate('Y-m-d H:i:s', time() - 3 * 3600)]);
+    $PD = sd_raw_booking('2027-11-16', 'SD Test Lapse Paid', 'deposit_paid', ['walkthrough_done' => 1, 'amount_paid' => 425, 'hold_until' => gmdate('Y-m-d H:i:s', time() - 3 * 3600)]);
+    $m0 = count($GLOBALS['sd_mail']);
+    brb_expire_holds();
+    do_action('brb_cron_checklist');
+    list($st, $lp) = sd_rest('GET', 'lapsed');
+    $ids = array_column($lp['data'], 'id');
+    brb_t($st === 200 && in_array($LP, $ids, true) && !in_array($PD, $ids, true) && !in_array($K, $ids, true), 'a booking past its pay window and unpaid is flagged; a paid or running one is not');
+    brb_t(brb_booking($LP)->status === 'approved' && brb_sd_day_conflict('2027-11-15') !== null && !brb_is_free(new DateTimeImmutable('2027-11-15 10:00', brb_tz()), new DateTimeImmutable('2027-11-15 23:30', brb_tz())), 'the lapse does not free the date or change the status');
+    brb_t(count($GLOBALS['sd_mail']) === $m0, 'the lapse and the daily jobs sent no email');
+    list($st, $dl) = sd_rest('GET', 'booking/' . $LP);
+    brb_t(!empty($dl['data']['hold']['lapsed']) && strpos($dl['data']['hold']['text'], 'Pay window passed') !== false, 'the record shows "Pay window passed"');
+    list($st, $cl) = sd_rest('GET', 'calendar?month=2027-11');
+    $cell = null; foreach ($cl['data']['days'] as $cd) if ($cd['date'] === '2027-11-15') $cell = $cd;
+    brb_t($cell && $cell['lapsed'] === true && $cell['clock'] === 'Lapsed', 'the calendar cell is flagged Lapsed');
+    list($st, $su) = sd_rest('GET', 'summary');
+    brb_t($su['data']['lapsed'] >= 1, 'the summary counts lapsed windows');
+    list($st, $r) = sd_rest('POST', 'booking/' . $LP . '/release', []);
+    brb_t($st === 409 && brb_booking($LP)->status === 'approved', 'Release is refused without the confirm step; nothing changes');
+    list($st, $r) = sd_rest('POST', 'booking/' . $K . '/release', ['confirmed' => true]);
+    brb_t($st === 409 && brb_booking($K)->status === 'approved', 'Release is refused while the pay window is still running');
+    list($st, $r) = sd_rest('POST', 'booking/' . $PD . '/release', ['confirmed' => true]);
+    brb_t($st === 409 && brb_booking($PD)->status === 'deposit_paid', 'Release is refused when a payment is recorded');
+    list($st, $r) = sd_rest('POST', 'booking/' . $LP . '/release', ['confirmed' => true]);
+    brb_t($st === 200 && brb_booking($LP)->status === 'expired' && brb_sd_day_conflict('2027-11-15') === null, 'after the confirm step, Release frees the date');
+    brb_t(count($GLOBALS['sd_mail']) === $m0 && strpos((string) brb_booking($LP)->audit_log, 'released by staff') !== false, 'Release emailed nobody and is logged');
+
+    // ---------- 4. reminders: balance (placeholder wording) and week-out checklist ----------
+    $o = get_option('brb_settings'); $o['balance_reminder_template_approved'] = ''; $o['balance_due_days'] = '7'; update_option('brb_settings', $o);
+    $br_day = brb_now()->modify('+10 days');
+    $BR = sd_raw_booking($br_day->format('Y-m-d'), 'SD Test Balance', 'deposit_paid', ['walkthrough_done' => 1, 'amount_paid' => 425]);
+    $br_due = $br_day->modify('-7 days');
+    $EARLY = sd_raw_booking(brb_now()->modify('+40 days')->format('Y-m-d'), 'SD Test Balance Early', 'deposit_paid', ['walkthrough_done' => 1, 'amount_paid' => 425]);
+    list($st, $ms) = sd_rest('GET', 'messages');
+    $rq = array_values(array_filter($ms['data']['reminders'], function ($q) use ($BR) { return $q['booking_id'] === $BR; }));
+    brb_t($st === 200 && count($rq) === 1 && $rq[0]['kind'] === 'balance' && $rq[0]['draft'] === true && $rq[0]['can_send'] === false, 'a Paid Deposit booking has ONE balance reminder queued in Messages, marked draft');
+    list($st, $ms2) = sd_rest('GET', 'messages');
+    $rq2 = array_filter($ms2['data']['reminders'], function ($q) use ($BR) { return $q['booking_id'] === $BR && $q['kind'] === 'balance'; });
+    brb_t(count($rq2) === 1 && count($rq) === 1, 'loading Messages again does not queue a second reminder (idempotent)');
+    $eq = array_values(array_filter($ms2['data']['reminders'], function ($q) use ($EARLY) { return $q['booking_id'] === $EARLY && $q['kind'] === 'balance'; }));
+    brb_t(count($eq) === 1 && empty($eq[0]['ready']), 'a Paid Deposit booking too far out is queued but not open yet');
+    list($st, $drE) = sd_rest('POST', 'booking/' . $EARLY . '/draft', ['kind' => 'balance']);
+    brb_t($st === 409, 'the server refuses to preview a balance reminder before it opens');
+    list($st, $rE) = sd_rest('POST', 'booking/' . $EARLY . '/send', ['kind' => 'balance', 'to' => 'sd-test-balance-early@sd-test.example.com', 'subject' => 'x', 'body' => 'x', 'confirm' => '1.x', 'confirmed' => true]);
+    brb_t($st === 409 && empty(brb_booking($EARLY)->balance_reminded), 'the server also refuses to send a balance reminder before it opens');
+    list($st, $dr) = sd_rest('POST', 'booking/' . $BR . '/draft', ['kind' => 'balance']);
+    $x = $dr['data'];
+    brb_t($st === 200 && strpos($x['body'], 'DRAFT WORDING, needs Max approval') !== false && strpos($x['subject'], 'DRAFT') === 0 && $x['can_send'] === false && stripos($x['body'] . $x['subject'], '2212') === false, 'the placeholder reminder is clearly marked DRAFT WORDING, needs Max approval, and Send is off');
+    $m0 = count($GLOBALS['sd_mail']);
+    list($st, $r) = sd_rest('POST', 'booking/' . $BR . '/send', ['kind' => 'balance', 'to' => $x['to'], 'subject' => $x['subject'], 'body' => $x['body'], 'confirm' => $x['confirm'], 'confirmed' => true]);
+    brb_t($st === 409 && count($GLOBALS['sd_mail']) === $m0 && !sd_count(brb_table(), '1=0') && count(array_filter(brb_sd_sent_log(), function ($l) { return $l['kind'] === 'balance'; })) === 0, 'the balance reminder cannot send while the wording is unapproved, even with a valid confirm token');
+    $o['balance_reminder_template_approved'] = '1'; update_option('brb_settings', $o);
+    list($st, $r) = sd_rest('POST', 'booking/' . $BR . '/send', ['kind' => 'balance', 'to' => $x['to'], 'subject' => $x['subject'], 'body' => $x['body'], 'confirm' => $x['confirm'], 'confirmed' => true]);
+    brb_t($st === 409 && count($GLOBALS['sd_mail']) === $m0, 'a draft previewed before approval still cannot be sent after approval (it must be previewed again)');
+    list($st, $dr) = sd_rest('POST', 'booking/' . $BR . '/draft', ['kind' => 'balance']);
+    $x = $dr['data'];
+    brb_t($x['can_send'] === true && strpos($x['body'], 'DRAFT WORDING') === false, 'with the approved flag set, the preview has no draft marking');
+    sleep(1);
+    list($st2, $dr2) = sd_rest('POST', 'booking/' . $BR . '/draft', ['kind' => 'balance']); // a second preview, e.g. opened on another phone
+    $x2 = $dr2['data'];
+    $body = $x['body'];
+    brb_t(strpos($body, 'Balance') !== false || strpos($body, 'Deposit') !== false || strpos($body, 'balance') !== false, 'the reminder names the balance line');
+    brb_t(strpos($body, '$425.00') !== false, 'the reminder shows the exact balance ($425.00 left of $850.00)');
+    brb_t(preg_match('/^Card processing fee \(3%\): \$12\.75$/m', $body) === 1 && preg_match('/^Total charged to your card: \$437\.75$/m', $body) === 1, 'the card fee is its own line ($12.75) with the card total ($437.75)');
+    brb_t(strpos($body, 'Balance due by: ' . $br_due->format('l, F j, Y') . ' (7 days before your event)') !== false, 'the due date is 7 days before the event, taken from the setting');
+    $o['balance_due_days'] = '10'; update_option('brb_settings', $o);
+    list($st, $dr10) = sd_rest('POST', 'booking/' . $BR . '/draft', ['kind' => 'balance']);
+    brb_t(strpos($dr10['data']['body'] ?? '', '10 days before your event') !== false, 'the reminder reads the due-date days from the setting, not a hard-coded 7');
+    $o['balance_due_days'] = '7'; update_option('brb_settings', $o);
+    brb_t(preg_match('#Pay online: \S+br_pay=\w+&br_sig=[0-9a-f]{64}#', $body) === 1, 'the reminder carries the signed pay link');
+    brb_t(strpos($body, 'Boardroom QC LLC') !== false && stripos($body . $x['subject'], 'Mad Rentals') === false && stripos($body, 'Mad Productions') === false, 'it names Boardroom QC LLC only');
+    brb_t(!preg_match('/\(?\d{3}\)?[\s.\-]\d{3}[\s.\-]\d{4}/', $body) && stripos($body, 'door') === false && stripos($body, 'code') === false && strpos($body, '$250') === false && strpos($body, '2212') === false, 'no phone number, door code, $250 or 2212 address');
+    brb_t(is_email($x['to']) && strpos($x['subject'], 'DRAFT') === false && (int) $x['booking_id'] === $BR, 'preview shows the recipient and subject');
+    list($st, $r) = sd_rest('POST', 'booking/' . $BR . '/send', ['kind' => 'balance', 'to' => $x['to'], 'subject' => $x['subject'], 'body' => $x['body']]);
+    brb_t($st === 409 && count($GLOBALS['sd_mail']) === $m0, 'even when approved, no confirm token means no send');
+    list($st, $r) = sd_rest('POST', 'booking/' . $BR . '/send', ['kind' => 'balance', 'to' => $x['to'], 'subject' => $x['subject'], 'body' => $x['body'], 'confirm' => $x['confirm'], 'confirmed' => true]);
+    brb_t($st === 200 && count(sd_guest_mails()) >= 1 && count($GLOBALS['sd_mail']) === $m0 + 1, 'approved + previewed + confirmed: exactly one reminder goes to the guest');
+    brb_t(!empty(brb_booking($BR)->balance_reminded), 'a sent marker is stored on the booking');
+    list($st, $r) = sd_rest('POST', 'booking/' . $BR . '/send', ['kind' => 'balance', 'to' => $x2['to'], 'subject' => $x2['subject'], 'body' => $x2['body'], 'confirm' => $x2['confirm'], 'confirmed' => true]);
+    brb_t($st === 409 && count($GLOBALS['sd_mail']) === $m0 + 1, 'a second confirm, with a different valid preview token, is refused: one balance reminder per booking');
+    list($st, $r) = sd_rest('POST', 'booking/' . $BR . '/send', ['kind' => 'balance', 'to' => $x['to'], 'subject' => $x['subject'], 'body' => $x['body'], 'confirm' => $x['confirm'], 'confirmed' => true]);
+    brb_t($st === 409 && count($GLOBALS['sd_mail']) === $m0 + 1 && count(array_filter(brb_sd_sent_log(), function ($l) use ($BR) { return $l['kind'] === 'balance' && $l['booking_id'] === $BR; })) === 1, 'replaying the same token is refused too; one entry in the sent log');
+    brb_t(count(array_filter(sd_rest('GET', 'messages')[1]['data']['reminders'], function ($q) use ($BR) { return $q['booking_id'] === $BR; })) === 0 && count(array_filter(sd_rest('GET', 'messages')[1]['data']['reminders'], function ($q) use ($BR) { return $q['booking_id'] === $BR; })) === 0, 'queue stays empty for it on every load (idempotent)');
+    list($st, $ms) = sd_rest('GET', 'messages');
+    brb_t(!array_filter($ms['data']['reminders'], function ($q) use ($BR) { return $q['booking_id'] === $BR; }) && is_wp_error(brb_sd_draft($BR, 'balance')), 'once sent, the reminder leaves the queue and cannot be queued twice');
+    $o['balance_reminder_template_approved'] = ''; update_option('brb_sd_x', 1); delete_option('brb_sd_x'); update_option('brb_settings', $o);
+    brb_t(is_wp_error(brb_sd_draft($K, 'balance')), 'no balance reminder for a booking that has not paid its deposit');
+
+    $CK = sd_raw_booking(brb_now()->modify('+5 days')->format('Y-m-d'), 'SD Test Checklist', 'deposit_paid', ['walkthrough_done' => 1, 'amount_paid' => 425]);
+    $m0 = count($GLOBALS['sd_mail']);
+    brb_checklist_reminders();
+    do_action('brb_cron_checklist');
+    brb_t(count($GLOBALS['sd_mail']) === $m0 && empty(brb_booking($CK)->checklist_reminded), 'the daily checklist job sends nothing');
+    list($st, $ms) = sd_rest('GET', 'messages');
+    $cq = array_values(array_filter($ms['data']['reminders'], function ($q) use ($CK) { return $q['booking_id'] === $CK && $q['kind'] === 'checklist'; }));
+    brb_t(count($cq) === 1 && $cq[0]['can_send'] === true, 'the checklist email shows in the staff queue');
+    list($st, $dr) = sd_rest('POST', 'booking/' . $CK . '/draft', ['kind' => 'checklist']);
+    $x = $dr['data'];
+    brb_t($st === 200 && strpos($x['body'], 'Your event is about a week away.') !== false && strpos($x['subject'], 'about a week away') !== false, 'the preview is the existing checklist wording');
+    list($st, $r) = sd_rest('POST', 'booking/' . $CK . '/send', ['kind' => 'checklist', 'to' => $x['to'], 'subject' => $x['subject'], 'body' => $x['body']]);
+    brb_t($st === 409 && count($GLOBALS['sd_mail']) === $m0, 'the checklist email is refused without the confirm token');
+    list($st, $r) = sd_rest('POST', 'booking/' . $CK . '/send', ['kind' => 'checklist', 'to' => $x['to'], 'subject' => $x['subject'] . ' x', 'body' => $x['body'], 'confirm' => $x['confirm'], 'confirmed' => true]);
+    brb_t($st === 409 && count($GLOBALS['sd_mail']) === $m0, 'a changed message is refused');
+    list($st, $r) = sd_rest('POST', 'booking/' . $CK . '/send', ['kind' => 'checklist', 'to' => $x['to'], 'subject' => $x['subject'], 'body' => $x['body'], 'confirm' => $x['confirm'], 'confirmed' => true]);
+    brb_t($st === 200 && count($GLOBALS['sd_mail']) === $m0 + 1 && !empty(brb_booking($CK)->checklist_reminded), 'after the confirm step the checklist email sends once and is marked sent');
+    brb_t(is_wp_error(brb_sd_draft($CK, 'checklist')), 'it cannot be queued or sent a second time');
+
+    // ---------- 5. remove a hold or closed day ----------
+    $RH = sd_raw_hold('2027-11-20', 'SD Test Remove', 'hold');
+    $RB = sd_raw_hold('2027-11-21', 'SD Test Remove Closed', 'blocked');
+    list($st, $r) = sd_rest('POST', 'hold/' . $RH . '/remove', []);
+    brb_t($st === 409 && sd_count(brb_hold_table(), 'id = ' . $RH) === 1, 'Remove is refused without the confirm step; the hold stays');
+    $locks0 = $GLOBALS['sd_locks'];
+    list($st, $r) = sd_rest('POST', 'hold/' . $RH . '/remove', ['confirmed' => true]);
+    brb_t($st === 200 && sd_count(brb_hold_table(), 'id = ' . $RH) === 0 && $GLOBALS['sd_locks'] > $locks0, 'after the confirm step the hold is removed, under the lock');
+    list($st, $r) = sd_rest('POST', 'hold/' . $RB . '/remove', ['confirmed' => true]);
+    brb_t($st === 200 && sd_count(brb_hold_table(), 'id = ' . $RB) === 0, 'a closed day can be removed the same way');
+    $wpdb->update(brb_hold_table(), ['migrated_to' => 999999], ['id' => $H3]);
+    list($st, $r) = sd_rest('POST', 'hold/' . $H3 . '/remove', ['confirmed' => true]);
+    brb_t($st === 409 && sd_count(brb_hold_table(), 'id = ' . $H3) === 1, 'a hold that became a booking cannot be removed here (open the booking instead)');
+    $wpdb->update(brb_hold_table(), ['migrated_to' => 0], ['id' => $H3]);
+    list($st, $r) = sd_rest('GET', 'hold/' . $H3);
+    brb_t($r['data']['can_remove'] === true, 'the hold record offers Remove');
+    wp_set_current_user($sub);
+    list($st, $r) = sd_rest('POST', 'hold/' . $H3 . '/remove', ['confirmed' => true]);
+    brb_t($st === 403 && sd_count(brb_hold_table(), 'id = ' . $H3) === 1, 'a subscriber cannot remove a hold');
+    wp_set_current_user($staff);
+
+    // ---------- Add: the internal staff notice is wired, nothing goes to the guest ----------
+    $m0 = count($GLOBALS['sd_mail']);
+    $g0 = count(sd_guest_mails());
+    list($st, $ad) = sd_rest('POST', 'add', ['kind' => 'booking', 'date' => '2027-11-25', 'name' => 'SD Test Added Staff Notice', 'email' => 'sd-test-added@sd-test.example.com', 'guests' => 20, 'event_type' => 'birthday', 'charge_now' => 'deposit', 'no_guest_email' => true]);
+    brb_t($st === 200 && count(sd_guest_mails()) === $g0 && count($GLOBALS['sd_mail']) > $m0, 'a dashboard Add sends the internal "pending review" notice to staff and nothing to the guest');
+
+    // ---------- no 2212 address in anything new ----------
+    $src = file_get_contents(BRB_DIR_TEST . 'staff-flow.php') . file_get_contents(BRB_DIR_TEST . 'assets/brb-staff.js') . file_get_contents(BRB_DIR_TEST . 'assets/brb-staff.css');
+    brb_t(stripos($src, '2212') === false, 'no 2212 address in the new flow code, script or styles');
+    $html2 = brb_sd_page_html();
+    brb_t(stripos($html2, '2212') === false && stripos($html2, 'tour') === false, 'the dashboard page still has no 2212 address and no tour wording');
+} finally {
+    wp_set_current_user(0);
+    sd_cleanup();
+    if ($snapshot !== false) update_option('brb_settings', $snapshot);
+    if ($sent_snapshot === null) delete_option('brb_sd_sent'); else update_option('brb_sd_sent', $sent_snapshot, false);
+    if ($env_secret === false) putenv('BRB_STRIPE_SECRET_KEY'); else putenv('BRB_STRIPE_SECRET_KEY=' . $env_secret);
+}
+echo "RESULT ok=" . $GLOBALS['brb_ok'] . " fail=" . $GLOBALS['brb_fail'] . "\n";
