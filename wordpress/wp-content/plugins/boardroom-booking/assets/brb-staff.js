@@ -379,25 +379,24 @@
       charge_now: picked(addForm, 'charge_now') || 'deposit', no_guest_email: $('add-no-email').checked
     };
   }
-  var lastQuote = null;
+  var previewSeq = 0;
   function addPreview() {
-    var p = addPayload(), note = $('add-date-note'), box = $('add-price');
+    var p = addPayload(), note = $('add-date-note'), box = $('add-price'), seq = ++previewSeq;
     $('booking-only').hidden = p.kind !== 'booking';
     $('add-name-label').textContent = p.kind === 'booking' ? 'Guest name' : 'Label (optional)';
-    lastQuote = null;
     if (!p.date) { note.textContent = ''; box.innerHTML = ''; return; }
     if (p.kind === 'booking' && !(Number(p.guests) > 0)) p.guests = 1;
     api('add-preview', p).then(function (q) {
+      if (seq !== previewSeq) return; // an older answer arrived late
       note.textContent = q.blocked || 'This date is open.';
       note.className = 'day-note' + (q.blocked ? ' bad' : '');
       $('add-submit').disabled = !!q.blocked;
       if (q.kind !== 'booking') { box.innerHTML = ''; return; }
-      lastQuote = q;
       box.innerHTML = '<div class="line"><span>Price for the day</span><strong class="money">' + esc(q.text.total) + '</strong></div>' +
         '<div class="line"><span>' + esc(q.charge_label) + '</span><span class="money">' + esc(q.text.due_now) + '</span></div>' +
         '<div class="line fee"><span>If paid by card, plus ' + esc(C.feeLabel) + ' fee</span><span class="money">' + esc(q.text.card_fee) + ' (' + esc(q.text.card_total) + ' by card)</span></div>' +
         (q.balance > 0 ? '<div class="line fee"><span>Balance, due by ' + esc(q.text.balance_due_on) + '</span><span class="money">' + esc(q.text.balance) + '</span></div>' : '');
-    }).catch(function (e) { note.textContent = e.message; note.className = 'day-note bad'; box.innerHTML = ''; $('add-submit').disabled = true; });
+    }).catch(function (e) { if (seq !== previewSeq) return; note.textContent = e.message; note.className = 'day-note bad'; box.innerHTML = ''; $('add-submit').disabled = true; });
   }
   addForm.addEventListener('change', addPreview);
   addForm.addEventListener('reset', function () { setTimeout(function () { $('add-no-email').checked = true; addPreview(); }, 0); });
@@ -410,21 +409,24 @@
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(p.email)) return toast('Enter a valid guest email.');
       var g = Number(p.guests);
       if (!(g >= 1 && g <= C.maxGuests)) return toast('Guests: 1 to ' + C.maxGuests + '.');
-      if (!lastQuote) return toast('Wait for the price to load.');
     }
-    var lines = [['Date', p.date], ['What', p.kind === 'booking' ? 'Booking' : (p.hold_type === 'blocked' ? 'Close the day' : 'Hold the date')]];
-    if (p.kind === 'booking') {
-      lines.push(['Guest', p.name], ['Guests', String(p.guests)], ['Price', lastQuote.text.total], [lastQuote.charge_label, lastQuote.text.due_now],
-        ['Guest email', emailLine(!p.no_guest_email)]);
-    }
-    confirmStep('Save this?', lines, 'Yes, save', function () {
-      return api('add', p).then(function (r) {
-        addForm.reset();
-        if (!r.booking) return 'Saved. The date is now ' + (p.hold_type === 'blocked' ? 'closed.' : 'held.');
-        var id = r.booking.id;
-        return { text: r.booking.ref + ' saved as a request waiting for ' + r.booking.name + '.' + (p.no_guest_email ? ' The guest was not emailed.' : ''), then: p.no_guest_email ? null : function () { sendFlow(id, 'request', ''); } };
+    // The confirm screen always shows a fresh quote from the same server function the save uses.
+    api('add-preview', p).then(function (q) {
+      if (q.blocked) { toast(q.blocked); addPreview(); return; }
+      var lines = [['Date', p.date], ['What', p.kind === 'booking' ? 'Booking' : (p.hold_type === 'blocked' ? 'Close the day' : 'Hold the date')]];
+      if (p.kind === 'booking') {
+        lines.push(['Guest', p.name], ['Guests', String(p.guests)], ['Price', q.text.total], [q.charge_label, q.text.due_now],
+          ['If paid by card', q.text.card_fee + ' fee, ' + q.text.card_total + ' in all'], ['Guest email', emailLine(!p.no_guest_email)]);
+      }
+      confirmStep('Save this?', lines, 'Yes, save', function () {
+        return api('add', p).then(function (r) {
+          addForm.reset();
+          if (!r.booking) return 'Saved. The date is now ' + (p.hold_type === 'blocked' ? 'closed.' : 'held.');
+          var id = r.booking.id;
+          return { text: r.booking.ref + ' saved as a request waiting for ' + r.booking.name + '.' + (p.no_guest_email ? ' The guest was not emailed.' : ''), then: p.no_guest_email ? null : function () { sendFlow(id, 'request', ''); } };
+        });
       });
-    });
+    }).catch(function (err) { toast(err.message); });
   });
 
   function loadPanel(name) {
