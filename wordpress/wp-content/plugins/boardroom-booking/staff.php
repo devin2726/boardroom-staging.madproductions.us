@@ -1,6 +1,6 @@
 <?php
 /**
- * 2.5.87 staff dashboard at /staff/ for Boardroom staff (Charlie and Chris).
+ * 2.5.89 staff dashboard at /staff/ for Boardroom staff (Charlie and Chris).
  *
  * - Front-end screen, not wp-admin. Logged-out visitors go to the WordPress login and come back here.
  * - Role brb_staff ("Boardroom staff") has read + brb_manage_bookings. Administrators get brb_manage_bookings too.
@@ -541,6 +541,9 @@ function brb_sd_booking_detail($b) {
         'can_pay' => in_array((string) $b->status, ['approved', 'held', 'reserved', 'deposit_paid'], true) && brb_price_is_set($b),
         'pay_link_blockers' => brb_sd_blockers($b),
         'sent' => array_values(array_map(function ($r) { return $r['kind']; }, array_filter(brb_sd_sent_log(), function ($r) use ($b) { return (int) $r['booking_id'] === (int) $b->id; }))),
+        'can_edit' => brb_sd_can_edit($b),
+        'edit' => brb_sd_edit_fields($b),
+        'needs_fill' => !is_email((string) $b->email) || !brb_price_is_set($b) || (int) $b->guests < 1,
     ];
     return $out;
 }
@@ -923,6 +926,8 @@ function brb_sd_routes() {
             return $out;
         }],
         ['add', 'POST', function ($r) { return brb_sd_add($r->get_json_params() ?: $r->get_body_params()); }],
+        ['booking/' . $id . '/edit-preview', 'POST', function ($r) { return brb_sd_edit_preview((int) $r['id'], $r->get_json_params() ?: $r->get_body_params()); }],
+        ['booking/' . $id . '/edit', 'POST', function ($r) { return brb_sd_edit((int) $r['id'], $r->get_json_params() ?: $r->get_body_params()); }],
     ];
 }
 add_action('rest_api_init', function () {

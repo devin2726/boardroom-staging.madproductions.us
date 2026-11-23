@@ -1,4 +1,4 @@
-/* Boardroom staff dashboard (2.5.87). Talks only to brb/v1/staff/* with the REST + staff nonces.
+/* Boardroom staff dashboard (2.5.89). Talks only to brb/v1/staff/* with the REST + staff nonces.
    A guest email sends only from the confirm screen (full message, recipient, Send/Cancel). Nothing sends automatically. */
 (function () {
   'use strict';
@@ -89,8 +89,8 @@
     ];
     if (b.end_time) rows.push(['Guest says the event ends', b.end_time]);
     if (b.event) rows.push(['Event', b.event]);
-    rows.push(['Guests', String(b.guests || '')]);
-    if (b.email) rows.push(['Email', b.email]);
+    rows.push(['Guests', b.guests ? String(b.guests) : 'Not yet']);
+    rows.push(['Email', b.email || 'Not yet']);
     rows.push(['Status', b.status_label || '']);
     rows.push(['Details checked', b.details_checked ? 'Yes' : 'Not yet']);
     if (b.hold) {
@@ -117,6 +117,10 @@
       return '<li><span>' + esc(r[0]) + '</span><span>' + esc(r[1]) + '</span></li>';
     }).join('') + '</ul>';
   }
+  function fillInNote(b) {
+    if (!b.needs_fill) return '';
+    return '<div class="flag" role="status">Needs guest details<small>Add or fix the guest email, guest name, guest count and price so you can send an invoice. Saving does not email the guest.</small></div>';
+  }
   function holdBanner(b) {
     if (!b.hold) return '';
     if (b.hold.waiting_for_link) return '<div class="flag" role="status">Pay link not sent<small>' + esc(b.hold.text) + ' Nothing happens on its own and the guest is not emailed.</small></div>';
@@ -125,6 +129,7 @@
   }
   function bookingButtons(b) {
     var out = '';
+    if (b.can_edit) out += '<button type="button" class="btn" data-act="edit" data-id="' + b.id + '">Edit details</button>';
     if (b.hold && b.hold.lapsed) out += '<button type="button" class="btn btn-danger" data-act="release" data-id="' + b.id + '">Release this date…</button>';
     if (b.can_approve) out += '<button type="button" class="btn btn-good" data-act="approve" data-id="' + b.id + '">Approve</button>';
     if (b.can_approve || b.can_decline) out += '<button type="button" class="btn" data-act="decline" data-id="' + b.id + '">Decline</button>';
@@ -146,6 +151,7 @@
         else if (act === 'pay') payFlow(b);
         else if (act === 'link') linkFlow(b);
         else if (act === 'sendlink') sendFlow(b.id, 'paylink', '');
+        else if (act === 'edit') editFlow(b);
         else if (act === 'release') releaseFlow(b);
         else if (act === 'rmhold') removeHoldFlow(b);
         else if (act === 'open') openRecord(b.type, b.id);
@@ -171,7 +177,7 @@
     api(path).then(function (r) {
       var html;
       if (type === 'booking') {
-        html = '<h3 id="modal-title">' + esc(r.name) + ' <span class="muted">' + esc(r.ref) + '</span></h3><p>' + chip(r.chip) + '</p>' + holdBanner(r) + bookingFacts(r) + bookingButtons(r);
+        html = '<h3 id="modal-title">' + esc(r.name) + ' <span class="muted">' + esc(r.ref) + '</span></h3><p>' + chip(r.chip) + '</p>' + holdBanner(r) + fillInNote(r) + bookingFacts(r) + bookingButtons(r);
         if (!r.can_pay && !r.can_approve && r.status !== 'paid') html += '';
       } else {
         html = '<h3 id="modal-title">' + esc(r.name) + '</h3><p><span class="chip ' + (r.hold_type === 'hold' ? 'held' : (r.hold_type === 'reserved' ? 'paid' : 'block')) + '">' + esc(r.label) + '</span></p>' +
@@ -186,6 +192,72 @@
   function indexById(list) { var o = {}; list.forEach(function (b) { if (b && b.id) o[b.id] = b; }); return o; }
 
   /* ---------- flows ---------- */
+  function val(m, id) { var el = m.querySelector('#' + id); return el ? String(el.value).trim() : ''; }
+  function editPayload(m) {
+    return {
+      name: val(m, 'ed-name'),
+      email: val(m, 'ed-email'),
+      guests: val(m, 'ed-guests'),
+      price: val(m, 'ed-price'),
+      date: val(m, 'ed-date'),
+      start_time: val(m, 'ed-start'),
+      end_time: val(m, 'ed-end'),
+      notes: val(m, 'ed-notes')
+    };
+  }
+  function editFlow(b) {
+    var e = b.edit || {};
+    var max = e.max_guests || (C && C.maxGuests) || 80;
+    var locked = !!e.price_locked;
+    var html = '<h3 id="modal-title">Edit ' + esc(b.name || 'booking') + '</h3>' +
+      '<p class="muted">' + esc((b.ref || '') + (b.when ? ' · ' + b.when : '')) + '. Saving does not email the guest.</p>' +
+      '<form id="ed-form" novalidate>' +
+      '<label class="field" for="ed-name">Guest name</label>' +
+      '<input type="text" id="ed-name" name="name" autocomplete="off" maxlength="120" value="' + esc(e.name || '') + '">' +
+      '<label class="field" for="ed-email">Guest email</label>' +
+      '<input type="email" id="ed-email" name="email" autocomplete="off" maxlength="190" value="' + esc(e.email || '') + '">' +
+      '<label class="field" for="ed-guests">How many guests? (up to ' + esc(String(max)) + ')</label>' +
+      '<input type="number" id="ed-guests" name="guests" min="0" max="' + esc(String(max)) + '" inputmode="numeric" value="' + esc(String(e.guests != null ? e.guests : '')) + '">' +
+      '<label class="field" for="ed-price">Agreed price' + (locked ? ' (locked)' : '') + '</label>' +
+      '<input type="text" id="ed-price" name="price" inputmode="decimal" autocomplete="off"' + (locked ? ' disabled' : '') + ' value="' + esc(e.price || '') + '">' +
+      (locked ? '<p class="muted">A payment is already recorded, so the price is locked.</p>' : '') +
+      '<label class="field" for="ed-date">Event date</label>' +
+      '<input type="date" id="ed-date" name="date" value="' + esc(e.date || '') + '">' +
+      '<div class="row-2">' +
+      '<div><label class="field" for="ed-start">Start time</label><input type="time" id="ed-start" name="start_time" value="' + esc(e.start_time || '') + '"></div>' +
+      '<div><label class="field" for="ed-end">End time</label><input type="time" id="ed-end" name="end_time" value="' + esc(e.end_time || '') + '"></div>' +
+      '</div>' +
+      '<label class="field" for="ed-notes">Notes</label>' +
+      '<textarea id="ed-notes" name="notes" maxlength="5000">' + esc(e.notes || '') + '</textarea>' +
+      '<p class="warn" id="ed-err" hidden></p>' +
+      '<div class="btn-row"><button type="submit" class="btn btn-primary" id="ed-save">Review changes</button>' +
+      '<button type="button" class="btn btn-quiet" data-close>Cancel</button></div></form>';
+    openModal(html, function (m) {
+      var form = m.querySelector('#ed-form');
+      form.addEventListener('submit', function (ev) {
+        ev.preventDefault();
+        var err = m.querySelector('#ed-err');
+        err.hidden = true;
+        var payload = editPayload(m);
+        var btn = m.querySelector('#ed-save');
+        btn.disabled = true;
+        api('booking/' + b.id + '/edit-preview', payload).then(function (prev) {
+          var lines = (prev.changes || []).map(function (c) {
+            return [c.label, (c.from ? c.from : '(empty)') + ' → ' + (c.to ? c.to : '(empty)')];
+          });
+          confirmStep('Save these changes?', lines.concat([['Guest email', 'Not emailed']]), 'Yes, save', function () {
+            payload.confirmed = true;
+            return api('booking/' + b.id + '/edit', payload).then(function () {
+              return { text: 'Saved. No email was sent to the guest.', then: function () { openRecord('booking', b.id); } };
+            });
+          });
+        }).catch(function (e) {
+          err.hidden = false;
+          err.textContent = e.message || 'Could not save.';
+        }).then(function () { btn.disabled = false; });
+      });
+    });
+  }
   function approveFlow(b) {
     var html = '<h3 id="modal-title">Approve ' + esc(b.name) + '</h3><p class="muted">' + esc(b.ref + ' · ' + b.when) + '</p>' +
       '<label class="check"><input type="checkbox" id="ap-walk"' + (b.details_checked ? ' checked disabled' : '') + '> I checked the details</label>' +
