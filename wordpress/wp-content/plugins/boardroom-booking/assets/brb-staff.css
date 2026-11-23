@@ -322,7 +322,7 @@ footer.note {
   .panel h2 { font-size: 20px; }
 }
   
-/* ---- 2.5.87 additions (Les design minors) ---- */
+/* ---- Staff dashboard additions (Les design minors, from 2.5.87) ---- */
 /* Tap targets: at least 44px tall and wide at 390px. */
 .cal-head .btn { min-height: 44px; min-width: 64px; }
 .day { min-height: 48px; min-width: 44px; }

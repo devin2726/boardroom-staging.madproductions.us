@@ -111,6 +111,13 @@ try {
     brb_t($pay_line !== '' && strpos($approve_plain, $pay_line) !== false && strpos($approve_plain, "\nPay online: ") !== false, 'the approval plain text still has Pay online and the fee sentence on one line');
     brb_t(strpos($ah, '>Pay now<') !== false && strpos($ah, 'Or open this link') !== false && strpos($ah, 'The card charge is') !== false && strpos($ah, 'processing fee') !== false, 'the approval HTML shows a Pay now button plus the fee sentence, not a wrapping raw URL');
     brb_t(strpos($ah, esc_html($pay_line)) === false, 'the approval HTML does not print the whole Pay online line as one wrapping string');
+    foreach (['Balance due', 'When'] as $label) {
+        if (!preg_match('/' . preg_quote($label, '/') . '<\/td><td class="brb-row-v brb-date"[^>]*white-space:nowrap;/', $ah)) {
+            brb_t(false, 'the approval HTML keeps the ' . $label . ' value on one line at phone width, like Event date and Payment Date');
+        } else {
+            brb_t(true, 'the approval HTML keeps the ' . $label . ' value on one line at phone width, like Event date and Payment Date');
+        }
+    }
     $draft = brb_sd_draft($full->id, 'paylink');
     brb_t(!is_wp_error($draft) && $draft['body'] === (brb_guest_hello_line() . "\n\n" . brb_payment_link_body($full)) && strpos((string) $draft['html'], '>Pay now<') !== false && strpos((string) $draft['html'], 'Boardroom QC LLC') !== false, 'the staff confirm draft keeps the plain-text body and includes the branded HTML for the preview');
     $bal_fn_ok = function_exists('brb_sd_balance_reminder');
