@@ -193,7 +193,7 @@ try {
         $actions_at = strpos($ready_admin, '<h2>Actions</h2>');
         $send_at = strpos($ready_admin, 'Send payment link');
         brb_t($card_at !== false && $agreed_at !== false && $record_at !== false && $actions_at !== false && $agreed_at < $card_at && $card_at < $send_at && $send_at < $record_at && $record_at < $actions_at && strpos($ready_admin, 'Send payment link', $actions_at) === false, 'the payment link section sits after the agreed price and not in Actions');
-        brb_t(substr_count($ready_admin, '>Send payment link<') === 1 && strpos($ready_admin, 'name="action" value="brb_send_pay_link"') !== false && strpos($ready_admin, 'readonly') !== false && strpos($ready_admin, 'Amount due now') !== false && strpos($ready_admin, 'Card total') !== false && strpos($ready_admin, 'The pay link is part of the Approve email preview and is sent only if staff choose Send. Use this button to resend it.') !== false && strpos($ready_admin, 'Approving the request emails the guest a Stripe pay link automatically.') === false, 'the ready section shows the amount, the card total, the link, and one send button');
+        brb_t(substr_count($ready_admin, '>Send payment link<') === 1 && strpos($ready_admin, 'name="action" value="brb_send_pay_link"') !== false && strpos($ready_admin, 'readonly') !== false && strpos($ready_admin, 'Amount due now') !== false && strpos($ready_admin, 'Card total') !== false && strpos($ready_admin, 'The pay link is included in the Approve email preview and is emailed only if staff choose Send payment link. Copy link never emails the guest. Use Send payment link to email it or to resend it.') !== false && strpos($ready_admin, 'Approving the request emails the guest a Stripe pay link automatically.') === false, 'the ready section shows the amount, the card total, the link, and one send button');
         brb_t(strpos($ready_admin, $secret_marker) === false && strpos($ready_admin, 'sk_test_') === false, 'the card section does not show the Stripe secret');
         brb_t(strpos($ready_admin, 'Extras and discounts (optional)') !== false && strpos($ready_admin, 'e.g. Extra cleaning or Returning guest discount') !== false && strpos($ready_admin, 'e.g. 150 or -100') !== false && strpos($ready_admin, '>Add to total<') !== false && strpos($ready_admin, 'Guest total:') !== false && strpos($ready_admin, '>Rental price<') !== false && strpos($ready_admin, '>Save changes<') !== false && strpos($ready_admin, 'Save rental price and email guest the total') === false && strpos($ready_admin, '>Add charge<') === false && strpos($ready_admin, '>Final price<') === false && strpos($ready_admin, 'Rental total (damage deposit not included)') === false, 'the booking screen names extras, the guest total, and the rental price');
         $saved_status = $priced->status;
@@ -804,6 +804,15 @@ try {
     brb_t(brb_amount_due_now($full) === 0.0 && brb_pay_link($full) === '' && isset(brb_pay_link_blockers($full)['balance']), 'after pay in full: brb_amount_due_now = 0 and there is no pay link');
     $receipts = $pif_guest_mails('payinfull-full@example.com');
     brb_t(count($receipts) === 1 && strpos($receipts[0]['message'], 'Your booking is paid in full.') !== false && strpos($receipts[0]['message'], 'Balance remaining: $0.00') !== false && strpos($receipts[0]['message'], 'pay the rest online') === false && strpos($receipts[0]['message'], 'br_pay=') === false, 'one receipt: paid in full, $0.00 remaining, no balance link');
+    brb_t(strpos((string) $receipts[0]['subject'], 'Your Boardroom receipt, booking confirmed') !== false, 'the email named on the thank-you page is the paid-in-full receipt, not a balance email');
+    ob_start();
+    brb_view_confirmation($full->token);
+    $thanks = ob_get_clean();
+    brb_t(brb_guest_first_name('Pay In Full Test') === '' && brb_guest_first_name('Ann Smith') === 'Ann' && brb_guest_first_name('Mary-Jane Watson') === 'Mary-Jane' && brb_guest_first_name('') === '', 'a phrase like Pay In Full Test is not treated as a first name; ordinary given names still are');
+    brb_t(strpos($thanks, 'Thank you, Pay!') === false && strpos($thanks, 'Thank you! Your booking is confirmed.') !== false && strpos($thanks, 'Your request is in') === false && strpos($thanks, 'Booking confirmed') !== false && strpos($thanks, 'A receipt confirming your booking was sent to payinfull-full@example.com') !== false, 'the thank-you page says Thank you! and Booking confirmed, with no request-is-in line and a receipt (not a balance email) to the guest');
+    $_GET['br_pay'] = $full->token;
+    brb_t(brb_chat_hidden_here() === true, 'the chat widget is hidden on the pay page');
+    unset($_GET['br_pay']);
     $m = brb_booking_money($full);
     brb_t($m['due_text'] === 'Paid in full' && $m['rows']['Balance'] === '$0.00' && $m['rows']['Balance due'] === 'Paid', 'Money box: Paid in full, Balance $0.00, Balance due Paid');
     $again = brb_stripe_create_session($full);
@@ -919,6 +928,47 @@ try {
     $amt = brb_set_charge_now($amt->id, 'full');
     brb_t(!is_wp_error($amt) && abs((float) $amt->deposit_due - 1000) < 0.001 && !brb_guest_pay_full_available($amt), 'staff can switch an approved, unpaid booking to Pay in full from the booking page');
 
+    // Les QA follow-ups: default $0 damage, deposit helpers agree, invalid charge mode, deposit line, lock split.
+    $raw_settings = get_option('brb_settings');
+    $blank = is_array($raw_settings) ? $raw_settings : [];
+    $blank['damage_deposit_amount'] = '';
+    update_option('brb_settings', $blank);
+    brb_t(brb_defaults()['damage_deposit_amount'] === '0' && abs(brb_damage_amount() - 0.0) < 0.001, 'an empty damage deposit setting uses the $0 code default, not $250');
+    $zero_pct = is_array($raw_settings) ? $raw_settings : [];
+    $zero_pct['deposit_type'] = 'percent';
+    $zero_pct['deposit_pct'] = '0';
+    $zero_pct['damage_deposit_amount'] = '0';
+    update_option('brb_settings', $zero_pct);
+    $pct_now = brb_site_deposit_pct();
+    brb_t($pct_now > 0 && abs(brb_deposit_due_amount(1000) - (1000 * $pct_now / 100)) < 0.001, 'brb_site_deposit_pct and brb_deposit_due_amount agree when the stored percent is not positive');
+    update_option('brb_settings', is_array($raw_settings) ? $raw_settings : $pif);
+
+    $bad_cn = $pif_book('payinfull-badmode@example.com', 520, 1050, 'half', 0, 'staff');
+    brb_t(is_wp_error($bad_cn) && $bad_cn->get_error_code() === 'charge_now', 'an invalid charge now mode is rejected and not saved as the site default');
+    if (!is_wp_error($bad_cn) && $bad_cn) $created_ids[] = (int) $bad_cn->id;
+
+    $dmg_set = brb_opt();
+    $dmg_set['damage_deposit_amount'] = '250';
+    $dmg_set['deposit_type'] = 'percent';
+    $dmg_set['deposit_pct'] = '50';
+    update_option('brb_settings', $dmg_set);
+    $dmb = $pif_book('payinfull-damageline@example.com', 540, 1050, 'full', 0, 'staff');
+    if (is_wp_error($dmb) || !$dmb) throw new RuntimeException('damage-line booking was not created');
+    $created_ids[] = (int) $dmb->id;
+    $link_body = brb_payment_link_body($dmb);
+    $hold_line = brb_booking_deposit_line($dmb);
+    brb_t(strpos($link_body, 'the 50% that holds the date') === false && $hold_line !== '' && strpos($link_body, $hold_line) !== false && strpos($hold_line, 'Payment in full holds the date.') !== false, 'the payment-link email uses brb_booking_deposit_line and does not hardcode the 50% that holds the date');
+    update_option('brb_settings', $pif);
+
+    // Sequential payments: the second amount is split from the locked, already-updated booking.
+    $split_b = $pif_book('payinfull-splitlock@example.com', 560, 1000, '', 0, 'staff');
+    if (is_wp_error($split_b) || !$split_b) throw new RuntimeException('split-lock booking was not created');
+    $created_ids[] = (int) $split_b->id;
+    $first_pay = brb_record_payment($split_b->id, 500, '9001', brb_now()->format('Y-m-d'), 'first half', true, 'check', ['notify' => false]);
+    $over = brb_record_payment($split_b->id, 600, '9002', brb_now()->format('Y-m-d'), 'too much', true, 'check', ['notify' => false]);
+    $split_b = brb_booking($split_b->id);
+    brb_t(!is_wp_error($first_pay) && is_wp_error($over) && $over->get_error_code() === 'amount' && abs((float) $split_b->amount_paid - 500) < 0.001, 'after the lock, a second payment is split from the remaining balance and an amount over that balance is refused');
+
     brb_test_env('BRB_STRIPE_SECRET_KEY', null);
     $disabled_again = brb_stripe_create_session($priced);
     brb_t(is_wp_error($disabled_again) && $disabled_again->get_error_code() === 'stripe' && brb_pay_link(brb_booking($priced->id)) === '', 'clearing the secret key disables online payment again');
@@ -932,10 +982,11 @@ try {
     if ($created_ids) {
         $in = implode(',', array_map('intval', $created_ids));
         $wpdb->query("DELETE FROM " . brb_pay_table() . " WHERE booking_id IN ($in)");
+        if (function_exists('brb_line_table')) $wpdb->query("DELETE FROM " . brb_line_table() . " WHERE booking_id IN ($in)");
         $wpdb->query("DELETE FROM " . brb_table() . " WHERE id IN ($in)");
     }
     $wpdb->query("DELETE FROM " . brb_pay_table() . " WHERE method='card_review' AND booking_id=0 AND stripe_session LIKE 'cs_test_%'");
-    foreach (['stripe-flow@example.com', 'stripe-taken@example.com', 'stripe-blocker@example.com', 'payinfull-full@example.com', 'payinfull-guest@example.com', 'payinfull-regress@example.com', 'payinfull-custom@example.com', 'payinfull-amount@example.com'] as $stripe_email) {
+    foreach (['stripe-flow@example.com', 'stripe-taken@example.com', 'stripe-blocker@example.com', 'payinfull-full@example.com', 'payinfull-guest@example.com', 'payinfull-regress@example.com', 'payinfull-custom@example.com', 'payinfull-amount@example.com', 'payinfull-badmode@example.com', 'payinfull-damageline@example.com', 'payinfull-splitlock@example.com'] as $stripe_email) {
         $wpdb->query($wpdb->prepare('DELETE FROM ' . brb_pay_table() . ' WHERE booking_id IN (SELECT id FROM ' . brb_table() . ' WHERE email=%s)', $stripe_email));
         $wpdb->query($wpdb->prepare('DELETE FROM ' . brb_table() . ' WHERE email=%s', $stripe_email));
     }

@@ -498,7 +498,7 @@ add_action('admin_post_brb_manual', function () {
         'event_about' => $about,
         'charge_now_mode' => $charge['mode'],
         'charge_now_value' => $charge['value'],
-    ], $source, $take ? false : ($no_guest_mail ? 'staff' : true));
+    ], $source, ($take || $no_guest_mail) ? 'staff' : true);
     if (is_wp_error($b)) {
         if ($b->get_error_code() === 'busy') brb_admin_new_reject($post, $r);
         brb_admin_back(0, $b->get_error_message(), 'brb-new');
@@ -515,7 +515,8 @@ add_action('admin_post_brb_manual', function () {
             ['notify' => !$no_guest_mail]
         );
         if (is_wp_error($pay)) {
-            brb_send_request_emails(brb_booking($b->id), !$no_guest_mail);
+            // Staff were already notified when the booking was saved. Only send the guest the request email if they should get one.
+            if (!$no_guest_mail) brb_send_request_emails(brb_booking($b->id), true, false);
             brb_admin_back($b->id, 'Request saved as pending review, but the check was not recorded: ' . $pay->get_error_message());
         }
         brb_admin_back($pay->id, brb_ref($pay) . ' saved (' . brb_source_label($source) . '). ' . brb_status_label($pay->status) . '.' . ($no_guest_mail ? ' The guest was not emailed.' : ' The guest was emailed.'));
@@ -895,7 +896,7 @@ function brb_admin_card_payment($b) {
     $link = brb_pay_link($b);
     $blockers = brb_pay_link_blockers($b);
     echo '<h2>Card payment (Stripe)</h2>';
-    echo '<p>' . esc_html('The pay link is part of the Approve email preview and is sent only if staff choose Send. Use this button to resend it.') . '</p>';
+    echo '<p>' . esc_html('The pay link is included in the Approve email preview and is emailed only if staff choose Send payment link. Copy link never emails the guest. Use Send payment link to email it or to resend it.') . '</p>';
     if ($link !== '') {
         $due = brb_amount_due_now($b);
         $base_cents = brb_cents_from_amount($due);
@@ -2006,7 +2007,7 @@ function brb_admin_settings() {
         $new['balance_due_days'] = (string) max(0, (int) $new['balance_due_days']);
         $new['deposit_pct'] = (string) max(1, min(100, (float) $new['deposit_pct']));
         $new['card_fee_percent'] = (string) max(0, min(100, round((float) ($new['card_fee_percent'] ?? 3), 2)));
-        $new['damage_deposit_amount'] = brb_dec(max(0, round((float) ($new['damage_deposit_amount'] ?? 250), 2)));
+        $new['damage_deposit_amount'] = brb_dec(max(0, round((float) ($new['damage_deposit_amount'] ?? 0), 2)));
         $new['deposit_fixed'] = brb_dec(max(0, (float) $new['deposit_fixed']));
         $new['starting_price'] = brb_dec(max(0, (float) $new['starting_price']));
         if (!isset($new['typical_price'])) $new['typical_price'] = (string) ($prev['typical_price'] ?? '');

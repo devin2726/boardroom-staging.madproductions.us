@@ -137,6 +137,7 @@ try {
     $stored = get_option('brb_settings');
     brb_t(is_array($stored) && !array_key_exists($brand . '_pk', $stored) && !array_key_exists($brand . '_sk', $stored), 'saved settings no longer keep processor keys');
     brb_t(brb_opt('deposit_type') === 'percent' && (string) brb_opt('deposit_pct') === '50', 'the deposit default is 50 percent of the agreed total');
+    brb_t(brb_defaults()['damage_deposit_amount'] === '0', 'the code default for the damage deposit is $0');
     brb_t((string) brb_opt('min_notice_hours') === '48', 'minimum notice defaults to 48');
     brb_t((string) brb_opt('hold_hours') === '48', 'hold length defaults to 48');
     brb_t(strpos((string) brb_opt('payee'), '[VERIFY]') === false, 'the stored payee is not a placeholder');
@@ -361,6 +362,9 @@ try {
     $work['hold_hours'] = '48';
     $work['balance_due_days'] = '7';
     $work['admin_email'] = 'admin@example.com';
+    // The payment-flow cases below still test a $250 damage deposit on the booking.
+    // The code default is now $0, so set it explicitly after the legacy-settings migrate (which omits the key).
+    $work['damage_deposit_amount'] = '250';
     update_option('brb_settings', $work);
 
     $soon = brb_build_range([

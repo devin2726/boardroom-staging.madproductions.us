@@ -157,7 +157,7 @@ function brb_defaults() {
         'deposit_fixed' => '0',
         'balance_due_days' => '2',
         'addon_price' => '500',
-        'damage_deposit_amount' => '250',
+        'damage_deposit_amount' => '0',
         'max_guests' => '200',
         'calendar_rates' => '',
         'date_notes' => '',
@@ -470,10 +470,7 @@ function brb_deposit_due_amount($total) {
     $total = round((float) $total, 2);
     $type = $o['deposit_type'] ?? 'full';
     if ($type === 'percent') {
-        $pct = (float) $o['deposit_pct'];
-        if ($pct <= 0) $pct = 100;
-        if ($pct > 100) $pct = 100;
-        return round($total * $pct / 100, 2);
+        return round($total * brb_site_deposit_pct() / 100, 2);
     }
     if ($type === 'fixed') {
         $fixed = round((float) $o['deposit_fixed'], 2);
@@ -2989,7 +2986,7 @@ function brb_send_test_email() {
 function brb_guest_link($b) {
     return add_query_arg('br_token', $b->token, brb_book_url());
 }
-function brb_send_request_emails($b, $guest = true) {
+function brb_send_request_emails($b, $guest = true, $staff = true) {
     $o = brb_opt();
     $ref = brb_ref($b);
     $price = brb_price_phrase($b);
@@ -3000,7 +2997,7 @@ function brb_send_request_emails($b, $guest = true) {
     $body = brb_guest_hello_line() . "\n\n" . brb_guest_review_line() . "\n\n{$guest_detail}\n" . brb_no_overnight_line() . "\n" . brb_guest_out_line() . "\n" . brb_guest_free_line() . "\n" . brb_hours_line() . "\n\nCancellation policy:\n{$o['policy']}\n\nView your request: " . brb_guest_link($b) . "\n";
     if ($guest) brb_mail($b->email, 'We received your Boardroom request (' . $ref . ')', $body, brb_guest_reply_to());
     $admin = "A new request is pending review. The date is not held.\n\nReference: {$ref}\nWhen: " . brb_when($b) . "\nGuest: {$b->name}\nEmail: {$b->email}\nPhone: {$b->phone}\n" . brb_event_type_line($b) . "Guests: {$b->guests}\n" . ($screen !== '' ? $screen . "\n" : '') . "Price: {$price}\nSource: " . brb_source_label($b->source) . "\nNotes: {$b->notes}\n\n" . admin_url('admin.php?page=brb&booking=' . (int) $b->id) . "\n";
-    brb_mail_staff('Request pending review ' . $ref . ' – ' . $b->name, $admin, $b->email);
+    if ($staff) brb_mail_staff('Request pending review ' . $ref . ' – ' . $b->name, $admin, $b->email);
 }
 function brb_send_hold_emails($b) {
     brb_send_request_emails($b);
@@ -3450,7 +3447,10 @@ function brb_insert_booking($r, $q, $guest, $source = 'online', $notify = true, 
         } else {
             $token = wp_generate_password(32, false);
             $cn = brb_normalize_charge_now($guest['charge_now_mode'] ?? '', $guest['charge_now_value'] ?? 0);
-            if (is_wp_error($cn)) $cn = ['mode' => '', 'value' => 0.0];
+            if (is_wp_error($cn)) {
+                error_log('Boardroom booking rejected invalid charge now mode.');
+                $result = $cn;
+            } else {
             $due_amount = (float) $q['due'];
             if ($cn['mode'] !== '' && !empty($q['price_set'])) $due_amount = brb_charge_now_due($cn['mode'], $cn['value'], $q['total']);
             $due = brb_dec($due_amount);
@@ -3489,6 +3489,7 @@ function brb_insert_booking($r, $q, $guest, $source = 'online', $notify = true, 
                 'created' => current_time('mysql', true),
             ]);
             $result = $ok ? brb_booking($wpdb->insert_id) : new WP_Error('db', 'Could not save the booking. Please try again.');
+            }
         }
     } finally {
         $wpdb->query("SELECT RELEASE_LOCK('brb_book')");
@@ -3577,8 +3578,6 @@ function brb_record_payment($booking_id, $amount, $check_number, $received_on, $
     brb_ensure_damage_line($b->id);
     $b = brb_booking($b->id);
     $damage_explicit = array_key_exists('damage', $extra) ? $extra['damage'] : null;
-    $split = brb_split_payment($b, $amount, $damage_explicit);
-    if (is_wp_error($split)) return $split;
     $method = sanitize_key((string) $method);
     if (!brb_pay_method_known($method)) $method = 'check';
     $fee = round((float) ($extra['fee'] ?? 0), 2);
@@ -3603,10 +3602,24 @@ function brb_record_payment($booking_id, $amount, $check_number, $received_on, $
     $locked = $wpdb->get_var("SELECT GET_LOCK('brb_book', 10)");
     if ((string) $locked !== '1') return new WP_Error('lock', 'Please try again in a moment.');
     $b = brb_booking($b->id);
+    if (!$b) {
+        $wpdb->query("SELECT RELEASE_LOCK('brb_book')");
+        return new WP_Error('missing', 'Booking not found.');
+    }
+    if (in_array($b->status, ['cancelled', 'expired', 'declined', 'spam'], true)) {
+        $wpdb->query("SELECT RELEASE_LOCK('brb_book')");
+        return new WP_Error('status', 'That booking is not open for a payment.');
+    }
     $taken = brb_date_taken($b);
     if ($taken) {
         $wpdb->query("SELECT RELEASE_LOCK('brb_book')");
         return new WP_Error('busy', brb_date_taken_message() . ' This payment was not recorded.');
+    }
+    // Recompute the rental/damage split after the lock so a concurrent payment cannot be applied twice.
+    $split = brb_split_payment($b, $amount, $damage_explicit);
+    if (is_wp_error($split)) {
+        $wpdb->query("SELECT RELEASE_LOCK('brb_book')");
+        return $split;
     }
     $ok = $wpdb->insert(brb_pay_table(), [
         'booking_id' => (int) $b->id,
@@ -4041,6 +4054,11 @@ function brb_enqueue_public_calendar() {
         'cutoff' => brb_notice_cutoff()->format('c'),
     ]);
 }
+add_filter('body_class', function ($classes) {
+    if (!is_array($classes)) $classes = [];
+    if (!empty($_GET['br_pay'])) $classes[] = 'brb-pay-page-body';
+    return $classes;
+});
 add_action('wp_enqueue_scripts', function () {
     if (function_exists('is_front_page') && is_front_page()) brb_enqueue_public_calendar();
     if (function_exists('is_singular') && is_singular('post')) brb_enqueue_public_calendar();
@@ -4187,6 +4205,19 @@ function brb_view_quote() {
     </div>
     <?php
 }
+/**
+ * First name for a guest greeting. Empty when the name is missing or does not
+ * look like a person's first name, so the page can fall back to "Thank you!".
+ */
+function brb_guest_first_name($name) {
+    $name = trim(preg_replace('/\s+/', ' ', (string) $name));
+    if ($name === '') return '';
+    $first = strtok($name, ' ');
+    if (!is_string($first) || !preg_match("/^[A-Za-z][A-Za-z'\\-]{1,29}$/", $first)) return '';
+    $skip = ['a', 'an', 'and', 'booking', 'card', 'check', 'deposit', 'dr', 'for', 'full', 'guest', 'in', 'miss', 'mr', 'mrs', 'ms', 'of', 'or', 'pay', 'the', 'test'];
+    if (in_array(strtolower($first), $skip, true)) return '';
+    return $first;
+}
 function brb_view_confirmation($token) {
     $b = brb_booking_by_token($token);
     if (!$b) {
@@ -4210,15 +4241,26 @@ function brb_view_confirmation($token) {
         'expired' => 'Request closed',
     ];
     $title = $titles[$b->status] ?? 'Booking';
-    $first = trim((string) preg_replace('/\s+/', ' ', (string) $b->name));
-    $first = $first === '' ? 'there' : strtok($first, ' ');
+    $first = brb_guest_first_name($b->name ?? '');
+    $thanks = $first === '' ? 'Thank you!' : 'Thank you, ' . $first . '!';
     $next = 'Nothing is charged yet. We review your request. Once it\'s approved, we\'ll email you a payment link.';
-    $headline = 'Thank you, ' . $first . '! Your request is in.';
-    if (in_array($b->status, ['approved', 'held'], true)) $next = 'Your request is approved. We\'ll email you a payment link so you can hold the date.';
-    elseif ($b->status === 'deposit_paid') $next = 'Your deposit is recorded. The recap below shows what is still due.';
-    elseif ($b->status === 'paid') $next = 'Your booking is confirmed. We\'ll see you at the Boardroom.';
-    elseif ($b->status === 'declined') { $headline = $first . ', this request was not approved.'; $next = 'The date is not reserved.'; }
-    elseif (in_array($b->status, ['cancelled', 'expired'], true)) { $headline = $first . ', this request is closed.'; $next = 'The date is not reserved.'; }
+    $headline = $thanks . ' Your request is in.';
+    if (in_array($b->status, ['approved', 'held'], true)) {
+        $headline = $thanks . ' Your request is approved.';
+        $next = 'We\'ll email you a payment link so you can hold the date.';
+    } elseif ($b->status === 'deposit_paid') {
+        $headline = $thanks;
+        $next = 'Your deposit is recorded. The recap below shows what is still due.';
+    } elseif ($b->status === 'paid') {
+        $headline = $thanks . ' Your booking is confirmed.';
+        $next = 'We\'ll see you at the Boardroom.';
+    } elseif ($b->status === 'declined') {
+        $headline = $first !== '' ? $first . ', this request was not approved.' : 'This request was not approved.';
+        $next = 'The date is not reserved.';
+    } elseif (in_array($b->status, ['cancelled', 'expired'], true)) {
+        $headline = $first !== '' ? $first . ', this request is closed.' : 'This request is closed.';
+        $next = 'The date is not reserved.';
+    }
     ?>
     <div class="brb-thanks"><h2><?php echo esc_html($headline); ?></h2><p><?php echo esc_html($next); ?></p></div>
     <div class="brb-card brb-confirm">
@@ -4282,7 +4324,7 @@ function brb_view_confirmation($token) {
           echo '<p>' . esc_html(brb_check_sentence('the remaining balance as a check')) . ' ' . esc_html(brb_appointment_line()) . ' You can also pay the rest online when card payment is offered. Write booking reference ' . esc_html(brb_ref($b)) . ' on the memo line.</p></div>';
       } elseif ($b->status === 'paid') {
           echo '<div class="brb-paybox"><p>This booking is paid in full and confirmed.</p></div>';
-          echo '<p>A confirmation email was sent to ' . esc_html($b->email) . '.</p>';
+          echo '<p>A receipt confirming your booking was sent to ' . esc_html($b->email) . '.</p>';
       } elseif ($b->status === 'declined') {
           echo '<div class="brb-alert">This request was declined. The date is not reserved.</div>';
       } elseif ($b->status === 'expired') {

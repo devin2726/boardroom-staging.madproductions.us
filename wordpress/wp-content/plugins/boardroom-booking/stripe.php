@@ -428,6 +428,7 @@ function brb_view_pay($token, $sig) {
     $full = $can_full ? brb_pay_choice_totals($b, 'full') : null;
     $deposit_line = brb_booking_deposit_line($b);
     ?>
+    <div class="brb-pay-page">
     <div class="brb-card">
       <h2>Pay online</h2>
       <p>Reference <strong><?php echo esc_html(brb_ref($b)); ?></strong></p>
@@ -455,6 +456,7 @@ function brb_view_pay($token, $sig) {
         <p><button class="brb-btn" type="submit">Continue to card payment</button></p>
       </form>
       <p><a href="<?php echo esc_url(brb_guest_link($b)); ?>">Back to your booking</a></p>
+    </div>
     </div>
     <?php
 }

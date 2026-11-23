@@ -7,7 +7,7 @@ function brb_line_table() {
 }
 function brb_damage_amount() {
     $raw = brb_opt('damage_deposit_amount');
-    if ($raw === '' || $raw === null) return 250.0;
+    if ($raw === '' || $raw === null) return 0.0;
     $n = round((float) $raw, 2);
     return $n < 0 ? 0.0 : $n;
 }
@@ -306,7 +306,7 @@ function brb_payment_link_body($b) {
     if ($url !== '') $lines .= "Pay online: " . $url . "\n\n";
     // 2.5.80: the damage deposit sentence shows only when this charge includes one (optional invoice item).
     if ((int) $charge['damage_cents'] > 0) {
-        $lines .= "The refundable damage deposit is separate from the 50% that holds the date, and it is charged with that deposit. The card processing fee applies to both and is not part of the booking balance. You can still pay by check or in person.\n";
+        $lines .= "The refundable damage deposit is separate from the payment that holds the date, and it is charged with that payment. The card processing fee applies to both and is not part of the booking balance. You can still pay by check or in person. " . brb_booking_deposit_line($b) . "\n";
     } else {
         $lines .= "The card processing fee is not part of the booking balance. You can still pay by check or in person.\n";
     }
