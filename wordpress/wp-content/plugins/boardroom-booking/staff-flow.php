@@ -5,10 +5,11 @@
  *
  *  1. Calendar holds become booking records in HOLD status (brb_sd_mig_*). Dates stay blocked the whole time.
  *     Run only by an administrator, never automatically. Upgrade stores a dry-run report only.
- *  2. Approve starts a pay window (core: brb_hold_until_for_approval, setting hold_clock_start).
+ *  2. The 48-hour pay window starts when the pay link is sent (default). hold_clock_start can be 'link_sent', 'approve' or 'request'.
  *  3. A passed window is a staff flag. Release is a person's decision with a confirm step. No email, no auto-cancel.
+ *     An approved booking whose pay link was never sent also gets a staff-only flag. No auto-cancel, no email.
  *  4. Balance reminder queue for Paid Deposit bookings. Placeholder wording; cannot send until Max approves it in settings.
- *     (The existing auto checklist email is unchanged. Whether to retire it is Max's decision.)
+ *     The week-out checklist email no longer sends on its own; staff preview and confirm it. Its wording is unchanged.
  *  5. Remove a hold or closed day with a confirm step.
  */
 if (!defined('ABSPATH')) exit;
@@ -23,7 +24,7 @@ function brb_sd_hold_info($b) {
     if (!$t) {
         // No clock yet. With the default setting the 48 hours start when the pay link is sent.
         if (brb_hold_clock_start() !== 'link_sent' || !brb_price_is_set($b)) return null;
-        return ['seconds_left' => null, 'lapsed' => false, 'short' => '', 'text' => 'The 48-hour pay window starts when the pay link is sent.', 'until_text' => '', 'clock' => 'link_sent', 'waiting_for_link' => true];
+        return ['seconds_left' => null, 'lapsed' => false, 'short' => 'No link', 'text' => 'Pay link not sent. The 48-hour pay window starts when it is sent.', 'until_text' => '', 'clock' => 'link_sent', 'waiting_for_link' => true];
     }
     $left = $t - time();
     $lapsed = $left < 0;
@@ -50,6 +51,18 @@ function brb_sd_lapsed() {
         gmdate('Y-m-d H:i:s')
     ));
     return array_values(array_filter($rows, 'brb_hold_lapsed'));
+}
+/** Approved or held, unpaid, priced, still waiting for the pay link. Staff flag only; nothing is freed or emailed. */
+function brb_sd_awaiting_link() {
+    if (brb_hold_clock_start() !== 'link_sent') return [];
+    global $wpdb;
+    $rows = (array) $wpdb->get_results("SELECT * FROM " . brb_table() . " WHERE status IN ('approved','held') AND amount_paid < 0.01 AND (hold_until IS NULL OR hold_until = '' OR hold_until LIKE '0000%') ORDER BY start_dt ASC, id ASC LIMIT 200");
+    $out = [];
+    foreach ($rows as $b) {
+        $hi = brb_sd_hold_info($b);
+        if ($hi && !empty($hi['waiting_for_link'])) $out[] = $b;
+    }
+    return $out;
 }
 /**
  * Staff chose to release a date whose pay window passed. Frees the date (status expired) but sends nothing.
@@ -80,9 +93,11 @@ function brb_sd_remove_hold($id, $p) {
     $h = brb_hold((int) $id);
     if (!$h) return new WP_Error('missing', 'That hold was not found.', ['status' => 404]);
     if (empty($p['confirmed'])) return new WP_Error('confirm', 'Confirm the removal first. Nothing was changed.', ['status' => 409]);
-    if (!empty($h->migrated_to)) return new WP_Error('migrated', 'This hold is now a booking record. Open that booking instead.', ['status' => 409]);
     if (!brb_sd_lock()) return new WP_Error('lock', 'Please try again in a moment.');
     try {
+        $h = brb_hold((int) $id);
+        if (!$h) return new WP_Error('missing', 'That hold was not found.', ['status' => 404]);
+        if (!empty($h->migrated_to)) return new WP_Error('migrated', 'This hold is now a booking record. Open that booking instead.', ['status' => 409]);
         $done = brb_delete_hold((int) $id);
     } finally {
         brb_sd_unlock();
@@ -117,7 +132,7 @@ function brb_sd_mig_candidates($only = null) {
 function brb_sd_mig_existing($hold_id) {
     global $wpdb;
     return $wpdb->get_row($wpdb->prepare(
-        'SELECT * FROM ' . brb_table() . " WHERE source = 'hold-migrate' AND audit_log LIKE %s ORDER BY id ASC LIMIT 1",
+        'SELECT * FROM ' . brb_table() . " WHERE source = 'hold-migrate' AND status NOT IN ('cancelled','declined','expired','spam') AND audit_log LIKE %s ORDER BY id ASC LIMIT 1",
         '%' . $wpdb->esc_like('calendar hold #' . (int) $hold_id . ' ') . '%'
     ));
 }
@@ -181,6 +196,8 @@ function brb_sd_mig_run($dry = true, $only = null) {
                 do_action('brb_sd_migrate_step', 'before_insert', $h, 0);
                 $start = new DateTimeImmutable($h->start_dt, brb_tz());
                 $reserved = (string) $h->hold_type === 'reserved';
+                // Reserved (paid elsewhere) stays Reserved/Booked: a blocking status with no pay window and no lapse flag.
+                $status = $reserved ? 'reserved' : 'held';
                 $ok = $wpdb->insert(brb_table(), [
                     'token' => wp_generate_password(32, false),
                     'mode' => 'day',
@@ -192,7 +209,7 @@ function brb_sd_mig_run($dry = true, $only = null) {
                     'phone' => '',
                     'notes' => (string) $h->notes,
                     'subtotal' => '0.00', 'cleaning' => '0.00', 'tax' => '0.00', 'total' => '0.00', 'amount_due' => '0.00', 'deposit_due' => '0.00', 'amount_paid' => '0.00',
-                    'status' => 'held',
+                    'status' => $status,
                     'source' => 'hold-migrate',
                     'hold_until' => null,
                     'balance_due_on' => brb_balance_due_on($start),
@@ -205,7 +222,7 @@ function brb_sd_mig_run($dry = true, $only = null) {
                     continue;
                 }
                 $booking_id = (int) $wpdb->insert_id;
-                brb_audit_append($booking_id, 'copied from calendar hold #' . (int) $h->id . ' (' . (string) $h->hold_type . ') by the staff dashboard; status Held; no email sent');
+                brb_audit_append($booking_id, 'copied from calendar hold #' . (int) $h->id . ' (' . (string) $h->hold_type . ') by the staff dashboard; status ' . brb_status_label($status) . '; no email sent');
                 do_action('brb_sd_migrate_step', 'after_insert', $h, $booking_id);
             }
             $wpdb->update(brb_hold_table(), ['migrated_to' => $booking_id], ['id' => (int) $h->id]);
@@ -232,7 +249,7 @@ function brb_sd_mig_undo($only = null) {
         foreach ((array) $wpdb->get_results('SELECT * FROM ' . brb_hold_table() . ' WHERE migrated_to > 0 ORDER BY id ASC') as $h) {
             if (is_array($only) && !in_array((int) $h->id, array_map('intval', $only), true)) continue;
             $b = brb_booking((int) $h->migrated_to);
-            $untouched = $b && (string) $b->source === 'hold-migrate' && (string) $b->status === 'held' && (float) $b->amount_paid < 0.01 && empty($b->hold_until) && !brb_payments($b->id);
+            $untouched = $b && (string) $b->source === 'hold-migrate' && in_array((string) $b->status, ['held', 'reserved'], true) && (float) $b->amount_paid < 0.01 && empty($b->hold_until) && !brb_payments($b->id);
             if (!$untouched) {
                 $report['kept'][] = ['hold_id' => (int) $h->id, 'booking_id' => (int) $h->migrated_to, 'reason' => 'The booking has been worked on, so it stays a booking.'];
                 continue;
@@ -240,7 +257,7 @@ function brb_sd_mig_undo($only = null) {
             // Old hold blocks again first, then the booking record is closed: no gap.
             $wpdb->update(brb_hold_table(), ['migrated_to' => 0], ['id' => (int) $h->id]);
             $before = brb_status_label($b->status);
-            $wpdb->update(brb_table(), ['status' => 'cancelled'], ['id' => (int) $b->id]);
+            $wpdb->update(brb_table(), ['status' => 'cancelled', 'source' => 'hold-migrate-undone'], ['id' => (int) $b->id]);
             brb_audit_append((int) $b->id, 'undo of the calendar hold copy (hold #' . (int) $h->id . ' is a calendar hold again); status from "' . $before . '" to "' . brb_status_label('cancelled') . '"; no email sent');
             $report['undone'][] = ['hold_id' => (int) $h->id, 'booking_id' => (int) $b->id];
         }
@@ -253,7 +270,19 @@ function brb_sd_mig_undo($only = null) {
 /* ---------- balance reminder queue ---------- */
 
 function brb_sd_reminder_approved() { return (string) brb_opt('balance_reminder_template_approved') === '1'; }
-function brb_sd_reminder_lead_days() { return max(1, (int) apply_filters('brb_sd_reminder_lead_days', 7)); }
+function brb_sd_balance_due_days() {
+    $n = (int) brb_opt('balance_due_days');
+    return $n > 0 ? $n : 7;
+}
+function brb_sd_reminder_lead_days() { return max(1, (int) apply_filters('brb_sd_reminder_lead_days', brb_sd_balance_due_days())); }
+function brb_sd_reminder_opens_on($b) {
+    $on = trim((string) ($b->balance_due_on ?? ''));
+    if ($on === '') $on = brb_balance_due_on(new DateTimeImmutable($b->start_dt, brb_tz()));
+    return (new DateTimeImmutable($on, brb_tz()))->modify('-' . brb_sd_reminder_lead_days() . ' days')->setTime(0, 0);
+}
+function brb_sd_reminder_is_open($b) {
+    return brb_now()->setTime(0, 0) >= brb_sd_reminder_opens_on($b);
+}
 function brb_sd_reminder_notice() { return 'DRAFT WORDING, needs Max approval'; }
 /**
  * Placeholder text. The structure follows Les's requirements; the wording is NOT signed off (DRAFT WORDING, needs Max approval).
@@ -274,7 +303,8 @@ function brb_sd_balance_reminder($b) {
     $body .= 'Remaining balance: ' . brb_money($due) . "\n";
     $body .= 'Card processing fee (' . brb_fee_percent_label() . '): ' . brb_money($fee / 100) . "\n";
     $body .= 'Total charged to your card: ' . brb_money(($base + $fee) / 100) . "\n";
-    $body .= 'Balance due by: ' . brb_sd_fmt_date($due_ymd, 'l, F j, Y') . " (7 days before your event)\n\n";
+    $days = brb_sd_balance_due_days();
+    $body .= 'Balance due by: ' . brb_sd_fmt_date($due_ymd, 'l, F j, Y') . ' (' . $days . ' day' . ($days === 1 ? '' : 's') . " before your event)\n\n";
     $body .= 'Pay online: ' . $link . "\n\n";
     $body .= "The card processing fee is not part of the booking balance. You can also pay by check or in person.\n\nThank you,\nBoardroom QC LLC\n";
     if (!brb_sd_reminder_approved()) {

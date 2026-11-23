@@ -118,7 +118,8 @@
     }).join('') + '</ul>';
   }
   function holdBanner(b) {
-    if (!b.hold || b.hold.waiting_for_link) return b.hold ? '<p class="muted">' + esc(b.hold.text) + '</p>' : '';
+    if (!b.hold) return '';
+    if (b.hold.waiting_for_link) return '<div class="flag" role="status">Pay link not sent<small>' + esc(b.hold.text) + ' Nothing happens on its own and the guest is not emailed.</small></div>';
     if (b.hold.lapsed) return '<div class="flag" role="alert">Pay window passed, release this date?<small>' + esc(b.hold.text) + '. Nothing happens on its own and the guest is not emailed.</small></div>';
     return '<div class="countdown">' + esc(b.hold.text) + '</div>';
   }
@@ -340,7 +341,10 @@
   function loadSummary() {
     return api('summary').then(function (s) {
       $('today-line').textContent = 'Today: ' + s.today;
-      $('sum-requests').innerHTML = '<span class="k">Requests waiting</span><span class="v">' + esc(s.requests) + '</span><span class="d">' + esc(s.requests_text + (s.lapsed ? ' · ' + s.lapsed + ' pay window passed' : '')) + '</span>';
+      var extra = [];
+      if (s.lapsed) extra.push(s.lapsed + ' pay window passed');
+      if (s.awaiting_link) extra.push(s.awaiting_link + ' pay link not sent');
+      $('sum-requests').innerHTML = '<span class="k">Requests waiting</span><span class="v">' + esc(s.requests) + '</span><span class="d">' + esc(s.requests_text + (extra.length ? ' · ' + extra.join(' · ') : '')) + '</span>';
       $('sum-payments').innerHTML = '<span class="k">Payments open</span><span class="v">' + esc(s.payments) + '</span><span class="d">' + esc(s.payments_text) + '</span>';
       $('sum-next').innerHTML = '<span class="k">Next event</span><span class="v">' + esc(s.next) + '</span>';
     }).catch(function (e) { toast(e.message); });
@@ -427,7 +431,23 @@
       });
     }).catch(function () {});
   }
-  function loadRequests() { return Promise.all([loadLapsed(), api('requests').then(function (r) { listInto($('request-list'), r, 'No requests waiting.'); })]).catch(function (e) { toast(e.message); }); }
+  function loadAwaiting() {
+    return api('awaiting-link').then(function (rows) {
+      var el = $('awaiting-list');
+      if (!el) return;
+      if (!rows.length) { el.innerHTML = ''; return; }
+      var idx = {};
+      el.innerHTML = '<h3>Pay link not sent</h3>' + rows.map(function (b) {
+        idx[b.id] = b;
+        return '<article class="card"><div class="item-head"><h4>' + esc(b.name) + '</h4><span class="muted">' + esc(b.ref) + '</span></div><div class="flag" role="status">Pay link not sent<small>' + esc(b.when) + '. The 48-hour window starts when the pay link is sent. Nothing happens on its own.</small></div>' +
+          '<div class="btn-row"><button type="button" class="btn" data-act="open" data-id="' + b.id + '">Open record</button></div></article>';
+      }).join('');
+      el.querySelectorAll('[data-act]').forEach(function (btn) {
+        btn.addEventListener('click', function () { openRecord('booking', idx[btn.getAttribute('data-id')].id); });
+      });
+    }).catch(function (e) { toast(e.message); });
+  }
+  function loadRequests() { return Promise.all([loadLapsed(), loadAwaiting(), api('requests').then(function (r) { listInto($('request-list'), r, 'No requests waiting.'); })]).catch(function (e) { toast(e.message); }); }
   function loadPayments() { return api('payments').then(function (r) { listInto($('payment-list'), r, 'No money owed right now.'); }).catch(function (e) { toast(e.message); }); }
   function loadUpcoming() {
     return api('upcoming').then(function (rows) { listInto($('upcoming-list'), rows, 'Nothing coming up.'); }).catch(function (e) { toast(e.message); });
@@ -441,7 +461,7 @@
           '<p class="muted">' + esc(r.detail) + (r.opens_text && !r.ready ? ' · queued from ' + esc(r.opens_text) : '') + '</p>' +
           (r.draft && !r.can_send ? '<p class="draft-tag">DRAFT WORDING, needs Max approval. Sending is off until it is approved.</p>' : '') +
           (r.has_email ? '' : '<p class="muted">No guest email on this booking.</p>') + (r.has_link === false ? '<p class="muted">No pay link yet, so this cannot be previewed.</p>' : '') +
-          '<div class="btn-row"><button type="button" class="btn btn-primary" data-act="send" data-id="r' + i + '"' + ((r.has_email && r.has_link !== false) ? '' : ' disabled') + '>Preview…</button></div></article>';
+          '<div class="btn-row"><button type="button" class="btn btn-primary" data-act="send" data-id="r' + i + '"' + ((r.has_email && r.has_link !== false && r.ready !== false) ? '' : ' disabled') + '>Preview…</button></div></article>';
       }).join('') : '<p class="empty">No reminders waiting.</p>';
       html += '<h3>Emails you may want to send</h3>';
       html += m.suggested.length ? m.suggested.map(function (s, i) {

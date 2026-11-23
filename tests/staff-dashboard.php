@@ -476,7 +476,11 @@ try {
     brb_t(count($gap) === 6 && !$free_ever, 'no gap: each date stays blocked before the copy, between copy and mark, and after (' . count($gap) . ' checks)');
     brb_t($GLOBALS['sd_locks'] > $locks0, 'migration runs under GET_LOCK(\'brb_book\')');
     $mb = $wpdb->get_results("SELECT * FROM " . brb_table() . " WHERE source = 'hold-migrate' AND name LIKE 'SD Test Mig%' ORDER BY start_dt");
-    brb_t(count($mb) === 2 && $mb[0]->status === 'held' && $mb[1]->status === 'held' && (float) $mb[0]->amount_paid === 0.0 && $mb[0]->name === 'SD Test Mig Hold', 'each hold became a booking in HOLD (held) status with no payment invented');
+    brb_t(count($mb) === 2 && $mb[0]->status === 'held' && $mb[1]->status === 'reserved' && (float) $mb[0]->amount_paid === 0.0 && (float) $mb[1]->amount_paid === 0.0 && $mb[0]->name === 'SD Test Mig Hold', 'an unpaid hold becomes Held; a Reserved hold (paid elsewhere) becomes Reserved, with no payment invented');
+    $d4 = brb_sd_day('2027-11-04');
+    brb_t($d4['kind'] === 'booked' && $d4['items'][0]['status'] === 'reserved' && strpos($d4['items'][0]['chip']['text'], 'Reserved') !== false && empty($d4['items'][0]['hold']), 'a Reserved copy reads Booked on the calendar, with no pay window and no lapse flag');
+    brb_note_pay_link_sent((int) $mb[1]->id);
+    brb_t(empty(brb_booking($mb[1]->id)->hold_until) && !brb_hold_lapsed(brb_booking($mb[1]->id)) && !in_array((int) $mb[1]->id, array_map('intval', array_column(array_map('brb_sd_booking_detail', brb_sd_awaiting_link()), 'id')), true), 'a Reserved copy never gets a pay window, a lapse flag, or a pay-link-not-sent flag');
     brb_t(sd_count(brb_hold_table(), 'migrated_to > 0') === 2 && sd_count(brb_hold_table(), 'id IN (' . implode(',', $mine) . ')') === 4, 'old hold rows are kept and marked migrated, not deleted');
     brb_t(strpos((string) $mb[0]->audit_log, 'calendar hold #' . $H1) !== false && strpos((string) $mb[0]->audit_log, 'no email sent') !== false, 'the copy is logged on the booking');
     brb_t(count($GLOBALS['sd_mail']) === $mails0, 'migration sent no email at all');
@@ -503,6 +507,42 @@ try {
     $undo = brb_sd_mig_undo($mine);
     brb_t(count($undo['undone']) === 1 && count($undo['kept']) === 1, 'undo puts back the untouched hold and keeps the one that has a payment');
     brb_t(sd_count(brb_hold_table(), 'id = ' . $H1 . ' AND migrated_to = 0') === 1 && !brb_is_free(new DateTimeImmutable('2027-11-03 10:00', brb_tz()), new DateTimeImmutable('2027-11-03 23:30', brb_tz())), 'after undo the old hold blocks the date again');
+    $cancelled_id = (int) $mb[0]->id;
+    brb_t(brb_booking($cancelled_id)->status === 'cancelled' && brb_booking($cancelled_id)->source === 'hold-migrate-undone', 'undo clears the copy marker so the cancelled row is not reused');
+    $plan2 = brb_sd_mig_plan([$H1]);
+    brb_t(($plan2[0]['action'] ?? '') === 'convert', 'after undo, the plan is a new convert, not mark_only of the cancelled copy');
+    remove_all_actions('brb_sd_migrate_step');
+    $gap2 = [];
+    add_action('brb_sd_migrate_step', function ($stage, $h) use (&$gap2) {
+        $gap2[] = [$stage, brb_is_free(new DateTimeImmutable($h->start_dt, brb_tz()), new DateTimeImmutable($h->end_dt, brb_tz()))];
+    }, 10, 2);
+    $rerun = brb_sd_mig_run(false, [$H1]);
+    $free_ever2 = array_filter($gap2, function ($g) { return $g[1] === true; });
+    $h1 = brb_hold($H1);
+    $nb = $h1 ? brb_booking((int) $h1->migrated_to) : null;
+    brb_t(!is_wp_error($rerun) && count($rerun['converted']) === 1 && !$free_ever2 && count($gap2) === 3, 'run-undo-run: a new copy is made and the date stays blocked before, between and after');
+    brb_t($nb && (int) $nb->id !== $cancelled_id && $nb->status === 'held' && !brb_is_free(new DateTimeImmutable('2027-11-03 10:00', brb_tz()), new DateTimeImmutable('2027-11-03 23:30', brb_tz())), 'run-undo-run points the hold at a live Held booking, not the cancelled copy');
+    remove_all_actions('brb_sd_migrate_step');
+
+    // Les's QA repro (qa-2026-11-23.md / repro-undo.php), fake data only.
+    $repro = brb_save_hold(['name' => 'SD Test QA Repro Hold', 'hold_type' => 'hold', 'start_date' => '2028-03-15', 'start_time' => '10:00', 'end_date' => '2028-03-15', 'end_time' => '23:30', 'notes' => 'qa']);
+    $rid = (int) $repro->id;
+    $rd = new DateTimeImmutable('2028-03-15 10:00', brb_tz());
+    $re = $rd->setTime(23, 30);
+    $rfree = function () use ($rd, $re) { return brb_is_free($rd, $re); };
+    brb_t(!$rfree(), "Les repro 1: hold saved, date blocked");
+    $rr = brb_sd_mig_run(false, [$rid]);
+    brb_t(!is_wp_error($rr) && count($rr['converted']) === 1 && !$rfree(), 'Les repro 2: after run, date blocked');
+    $ru = brb_sd_mig_undo([$rid]);
+    brb_t(!is_wp_error($ru) && count($ru['undone']) === 1 && !$rfree(), 'Les repro 3: after undo, date blocked');
+    $rp = brb_sd_mig_plan([$rid]);
+    brb_t(($rp[0]['action'] ?? '') === 'convert', 'Les repro 4: plan action is convert, not mark_only');
+    $rr = brb_sd_mig_run(false, [$rid]);
+    $rh = brb_hold($rid);
+    $rb = $rh ? brb_booking((int) $rh->migrated_to) : null;
+    brb_t(!is_wp_error($rr) && !$rfree() && $rb && $rb->status === 'held', 'Les repro 5: after run again, date blocked by a live booking');
+    brb_t(brb_sd_day_conflict('2028-03-15') !== null, 'Les repro 6: the staff day conflict is still present');
+
     $wpdb->delete(brb_pay_table(), ['booking_id' => (int) $mb[1]->id]);
 
     // ---------- 2. 48-hour pay window: starts when the pay link is sent ----------
@@ -511,8 +551,21 @@ try {
     list($st, $ap) = sd_rest('POST', 'booking/' . $K . '/approve', ['walkthrough' => 1]);
     $kb = brb_booking($K);
     brb_t($st === 200 && $kb->status === 'approved' && empty($kb->hold_until), 'approve with no pay link sent yet sets no hold_until');
-    brb_t(empty($ap['data']['hold']['lapsed']) && !empty($ap['data']['hold']['waiting_for_link']), 'the record says the 48 hours start when the pay link is sent');
+    brb_t(empty($ap['data']['hold']['lapsed']) && !empty($ap['data']['hold']['waiting_for_link']) && ($ap['data']['hold']['short'] ?? '') === 'No link', 'the record says the 48 hours start when the pay link is sent');
     brb_t(!in_array($K, array_column(sd_rest('GET', 'lapsed')[1]['data'], 'id'), true), 'no pay link sent means no lapse flag');
+    list($st, $aw) = sd_rest('GET', 'awaiting-link');
+    brb_t($st === 200 && in_array($K, array_column($aw['data'], 'id'), true), 'an approved booking whose pay link was never sent is on the staff "pay link not sent" flag list');
+    list($st, $su0) = sd_rest('GET', 'summary');
+    brb_t(($su0['data']['awaiting_link'] ?? 0) >= 1, 'the summary counts pay-link-not-sent flags');
+    $mails_k = count($GLOBALS['sd_mail']);
+    brb_expire_holds();
+    do_action('brb_cron_checklist');
+    brb_t(brb_booking($K)->status === 'approved' && brb_sd_day_conflict('2027-11-10') !== null && count($GLOBALS['sd_mail']) === $mails_k, 'the pay-link-not-sent flag does not free the date, change the status, or email anyone');
+    $fail_mail = function ($pre, $atts) { return false; };
+    add_filter('pre_wp_mail', $fail_mail, 1000, 2);
+    $failed = brb_send_payment_link($K);
+    remove_filter('pre_wp_mail', $fail_mail, 1000);
+    brb_t(is_wp_error($failed) && empty(brb_booking($K)->hold_until) && empty(brb_booking($K)->pay_link_sent_at), 'a failed pay-link email does not start the 48-hour clock');
     $m0 = count($GLOBALS['sd_mail']);
     list($d, $dd, $sent) = $send_kind($K, 'paylink');
     $kb = brb_booking($K);
@@ -577,14 +630,23 @@ try {
     brb_t(count($GLOBALS['sd_mail']) === $m0 && strpos((string) brb_booking($LP)->audit_log, 'released by staff') !== false, 'Release emailed nobody and is logged');
 
     // ---------- 4. reminders: balance (placeholder wording) and week-out checklist ----------
-    $BR = sd_raw_booking('2027-11-22', 'SD Test Balance', 'deposit_paid', ['walkthrough_done' => 1, 'amount_paid' => 425]);
-    $o = get_option('brb_settings'); $o['balance_reminder_template_approved'] = ''; update_option('brb_settings', $o);
+    $o = get_option('brb_settings'); $o['balance_reminder_template_approved'] = ''; $o['balance_due_days'] = '7'; update_option('brb_settings', $o);
+    $br_day = brb_now()->modify('+10 days');
+    $BR = sd_raw_booking($br_day->format('Y-m-d'), 'SD Test Balance', 'deposit_paid', ['walkthrough_done' => 1, 'amount_paid' => 425]);
+    $br_due = $br_day->modify('-7 days');
+    $EARLY = sd_raw_booking(brb_now()->modify('+40 days')->format('Y-m-d'), 'SD Test Balance Early', 'deposit_paid', ['walkthrough_done' => 1, 'amount_paid' => 425]);
     list($st, $ms) = sd_rest('GET', 'messages');
     $rq = array_values(array_filter($ms['data']['reminders'], function ($q) use ($BR) { return $q['booking_id'] === $BR; }));
     brb_t($st === 200 && count($rq) === 1 && $rq[0]['kind'] === 'balance' && $rq[0]['draft'] === true && $rq[0]['can_send'] === false, 'a Paid Deposit booking has ONE balance reminder queued in Messages, marked draft');
     list($st, $ms2) = sd_rest('GET', 'messages');
     $rq2 = array_filter($ms2['data']['reminders'], function ($q) use ($BR) { return $q['booking_id'] === $BR && $q['kind'] === 'balance'; });
     brb_t(count($rq2) === 1 && count($rq) === 1, 'loading Messages again does not queue a second reminder (idempotent)');
+    $eq = array_values(array_filter($ms2['data']['reminders'], function ($q) use ($EARLY) { return $q['booking_id'] === $EARLY && $q['kind'] === 'balance'; }));
+    brb_t(count($eq) === 1 && empty($eq[0]['ready']), 'a Paid Deposit booking too far out is queued but not open yet');
+    list($st, $drE) = sd_rest('POST', 'booking/' . $EARLY . '/draft', ['kind' => 'balance']);
+    brb_t($st === 409, 'the server refuses to preview a balance reminder before it opens');
+    list($st, $rE) = sd_rest('POST', 'booking/' . $EARLY . '/send', ['kind' => 'balance', 'to' => 'sd-test-balance-early@sd-test.example.com', 'subject' => 'x', 'body' => 'x', 'confirm' => '1.x', 'confirmed' => true]);
+    brb_t($st === 409 && empty(brb_booking($EARLY)->balance_reminded), 'the server also refuses to send a balance reminder before it opens');
     list($st, $dr) = sd_rest('POST', 'booking/' . $BR . '/draft', ['kind' => 'balance']);
     $x = $dr['data'];
     brb_t($st === 200 && strpos($x['body'], 'DRAFT WORDING, needs Max approval') !== false && strpos($x['subject'], 'DRAFT') === 0 && $x['can_send'] === false && stripos($x['body'] . $x['subject'], '2212') === false, 'the placeholder reminder is clearly marked DRAFT WORDING, needs Max approval, and Send is off');
@@ -604,7 +666,11 @@ try {
     brb_t(strpos($body, 'Balance') !== false || strpos($body, 'Deposit') !== false || strpos($body, 'balance') !== false, 'the reminder names the balance line');
     brb_t(strpos($body, '$425.00') !== false, 'the reminder shows the exact balance ($425.00 left of $850.00)');
     brb_t(preg_match('/^Card processing fee \(3%\): \$12\.75$/m', $body) === 1 && preg_match('/^Total charged to your card: \$437\.75$/m', $body) === 1, 'the card fee is its own line ($12.75) with the card total ($437.75)');
-    brb_t(strpos($body, 'Balance due by: Monday, November 15, 2027 (7 days before your event)') !== false, 'the due date is 7 days before the event (Nov 15 for Nov 22)');
+    brb_t(strpos($body, 'Balance due by: ' . $br_due->format('l, F j, Y') . ' (7 days before your event)') !== false, 'the due date is 7 days before the event, taken from the setting');
+    $o['balance_due_days'] = '10'; update_option('brb_settings', $o);
+    list($st, $dr10) = sd_rest('POST', 'booking/' . $BR . '/draft', ['kind' => 'balance']);
+    brb_t(strpos($dr10['data']['body'] ?? '', '10 days before your event') !== false, 'the reminder reads the due-date days from the setting, not a hard-coded 7');
+    $o['balance_due_days'] = '7'; update_option('brb_settings', $o);
     brb_t(preg_match('#Pay online: \S+br_pay=\w+&br_sig=[0-9a-f]{64}#', $body) === 1, 'the reminder carries the signed pay link');
     brb_t(strpos($body, 'Boardroom QC LLC') !== false && stripos($body . $x['subject'], 'Mad Rentals') === false && stripos($body, 'Mad Productions') === false, 'it names Boardroom QC LLC only');
     brb_t(!preg_match('/\(?\d{3}\)?[\s.\-]\d{3}[\s.\-]\d{4}/', $body) && stripos($body, 'door') === false && stripos($body, 'code') === false && strpos($body, '$250') === false && strpos($body, '2212') === false, 'no phone number, door code, $250 or 2212 address');

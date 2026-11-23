@@ -105,7 +105,7 @@ function brb_date_taken_message() {
 function brb_blocking_statuses() {
     // A request in review does not reserve the date. Approving it, or a paid
     // deposit, does. Legacy held/confirmed rows are the same as approved/paid.
-    return ['approved', 'held', 'deposit_paid', 'paid', 'confirmed'];
+    return ['approved', 'held', 'deposit_paid', 'paid', 'confirmed', 'reserved'];
 }
 function brb_dec($n) { return number_format(round((float) $n, 2), 2, '.', ''); }
 function brb_money($n) { return '$' . number_format((float) $n, 2); }
@@ -696,6 +696,7 @@ function brb_status_label($s) {
         'expired' => 'Expired',
         'pending' => 'Pending review',
         'confirmed' => 'Paid in full',
+        'reserved' => 'Reserved',
     ];
     return $map[$s] ?? $s;
 }

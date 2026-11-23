@@ -318,7 +318,8 @@ function brb_send_payment_link($booking_id) {
     $url = brb_pay_link($b);
     if ($url === '') return new WP_Error('link', 'There is no pay link to send yet. The walk-through, the price, and card payment all need to be ready.');
     $body = brb_guest_hello_line() . "\n\n" . brb_payment_link_body($b);
-    brb_mail($b->email, 'Your Boardroom payment link (' . brb_ref($b) . ')', $body, brb_guest_reply_to());
+    $ok = brb_mail($b->email, 'Your Boardroom payment link (' . brb_ref($b) . ')', $body, brb_guest_reply_to());
+    if (!$ok) return new WP_Error('mail', 'The email did not send. The pay window was not started.');
     brb_note_pay_link_sent((int) $b->id);
     return brb_booking($b->id);
 }

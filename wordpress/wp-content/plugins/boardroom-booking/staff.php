@@ -275,6 +275,7 @@ function brb_sd_draft($booking_id, $kind, $note = '') {
     } elseif ($kind === 'balance') {
         if ((string) $b->status !== 'deposit_paid' || round((float) $b->total - (float) $b->amount_paid, 2) <= 0.009) return new WP_Error('status', 'A balance reminder is only for a Paid Deposit booking with a balance left.');
         if (brb_sd_reminder_sent($b->id)) return new WP_Error('sent', 'The balance reminder for this booking was already sent.');
+        if (!brb_sd_reminder_is_open($b)) return new WP_Error('not_ready', 'The balance reminder is not open yet. It can be previewed from ' . brb_sd_reminder_opens_on($b)->format('D, M j, Y') . '.', ['status' => 409]);
         $m = brb_sd_balance_reminder($b);
         if (is_wp_error($m)) return $m;
         $subject = $m['subject']; $body = $m['body'];
@@ -329,6 +330,9 @@ function brb_sd_send($booking_id, $p) {
     if ($kind === 'balance' && (!brb_sd_reminder_approved() || stripos($subject . $body, 'DRAFT WORDING') !== false)) {
         return new WP_Error('template', 'The balance reminder wording is not approved yet (needs Max approval). Nothing was sent.', ['status' => 409]);
     }
+    if ($kind === 'balance' && !brb_sd_reminder_is_open($b)) {
+        return new WP_Error('not_ready', 'The balance reminder is not open yet. Nothing was sent.', ['status' => 409]);
+    }
     if ($kind === 'checklist' && !brb_sd_checklist_eligible($b)) return new WP_Error('status', 'This checklist email was already sent, or the booking is not due one. Nothing was sent.', ['status' => 409]);
     $used = 'brb_sd_sent_' . md5($token);
     if (get_transient($used)) return new WP_Error('confirm', 'This message was already sent.', ['status' => 409]);
@@ -378,6 +382,7 @@ function brb_sd_chip($b) {
     if (in_array($status, brb_sd_request_statuses(), true)) return ['class' => 'review', 'text' => 'Request waiting'];
     if (in_array($status, ['paid', 'confirmed'], true)) return ['class' => 'paid', 'text' => 'Paid in full'];
     if (in_array($status, brb_sd_closed_statuses(), true)) return ['class' => 'block', 'text' => brb_status_label($status)];
+    if ($status === 'reserved') return ['class' => 'paid', 'text' => 'Reserved (paid elsewhere)'];
     if (!brb_price_is_set($b)) return ['class' => 'due', 'text' => 'Price to be confirmed'];
     $left = max(0, round((float) $b->total - (float) $b->amount_paid, 2));
     if ($status === 'deposit_paid') {
@@ -389,6 +394,7 @@ function brb_sd_chip($b) {
     $due = max(0, round((float) $b->deposit_due - (float) $b->amount_paid, 2));
     $hi = brb_sd_hold_info($b);
     if ($hi && !empty($hi['lapsed'])) return ['class' => 'due', 'text' => 'Pay window passed, ' . brb_money($due) . ' still due'];
+    if ($hi && !empty($hi['waiting_for_link'])) return ['class' => 'due', 'text' => 'Pay link not sent, ' . brb_money($due) . ' due'];
     if ($hi && $hi['short'] !== '') return ['class' => 'due', 'text' => 'On hold, ' . brb_money($due) . ' due, ' . $hi['short']];
     return ['class' => 'due', 'text' => 'Approved, ' . brb_money($due) . ' due to hold the date'];
 }
@@ -532,7 +538,7 @@ function brb_sd_booking_detail($b) {
         'money' => brb_sd_money_rows($b),
         'can_approve' => in_array((string) $b->status, brb_sd_request_statuses(), true),
         'can_decline' => in_array((string) $b->status, ['review', 'pending', 'approved', 'held'], true) && (float) $b->amount_paid <= 0.009,
-        'can_pay' => in_array((string) $b->status, ['approved', 'held', 'deposit_paid'], true) && brb_price_is_set($b),
+        'can_pay' => in_array((string) $b->status, ['approved', 'held', 'reserved', 'deposit_paid'], true) && brb_price_is_set($b),
         'pay_link_blockers' => brb_sd_blockers($b),
         'sent' => array_values(array_map(function ($r) { return $r['kind']; }, array_filter(brb_sd_sent_log(), function ($r) use ($b) { return (int) $r['booking_id'] === (int) $b->id; }))),
     ];
@@ -632,6 +638,7 @@ function brb_sd_summary() {
         'payments' => count($pay),
         'payments_text' => count($pay) ? $soon . ' in the next 14 days' : 'Nothing owed',
         'lapsed' => count(brb_sd_lapsed()),
+        'awaiting_link' => count(brb_sd_awaiting_link()),
         'next' => $next ? $next['name'] . ', ' . $next['when'] : 'No events booked',
     ];
 }
@@ -898,6 +905,7 @@ function brb_sd_routes() {
         ['booking/' . $id . '/pay-link', 'POST', function ($r) { return brb_sd_pay_link((int) $r['id']); }],
         ['booking/' . $id . '/pay-link-copied', 'POST', function ($r) { $b = brb_booking((int) $r['id']); if (!$b || brb_pay_link($b) === '') return new WP_Error('link', 'There is no pay link for this booking yet.'); brb_note_pay_link_sent((int) $b->id); return brb_sd_booking_detail(brb_booking((int) $r['id'])); }],
         ['lapsed', 'GET', function () { return array_map('brb_sd_booking_detail', brb_sd_lapsed()); }],
+        ['awaiting-link', 'GET', function () { return array_map('brb_sd_booking_detail', brb_sd_awaiting_link()); }],
         ['booking/' . $id . '/release', 'POST', function ($r) { return brb_sd_release((int) $r['id'], $r->get_json_params() ?: []); }],
         ['hold/' . $id . '/remove', 'POST', function ($r) { return brb_sd_remove_hold((int) $r['id'], $r->get_json_params() ?: []); }],
         ['migration', 'GET', function () { return brb_sd_admin_only() ?: brb_sd_mig_summary(); }],
@@ -1017,6 +1025,7 @@ function brb_sd_page_html() {
     <h2>Requests waiting</h2>
     <p class="lede">Open a request to check the details, then approve or decline. If you choose to email the guest, you see the full message and confirm before it sends.</p>
     <div id="lapsed-list"></div>
+    <div id="awaiting-list"></div>
     <div id="request-list"></div>
   </section>
   <section id="panel-payments" class="panel" data-panel="payments">
