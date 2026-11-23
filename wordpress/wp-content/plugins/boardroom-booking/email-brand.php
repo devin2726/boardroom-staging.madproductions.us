@@ -37,11 +37,29 @@ function brb_email_logo_url() {
 function brb_email_enabled($ctx = []) {
     return (bool) apply_filters('brb_email_branded', true, $ctx);
 }
+/**
+ * Brand context for a guest email, passed as brb_mail()'s $brand argument (and used to render the staff preview).
+ * Pay-link emails also get Booking reference and Event date rows on the summary card (HTML only).
+ */
+function brb_email_guest_brand($kind = '', $b = null) {
+    $ctx = ['kind' => sanitize_key((string) $kind)];
+    if ($b && $ctx['kind'] === 'paylink') {
+        $ctx['card_rows'] = [
+            ['Booking reference', brb_ref($b)],
+            ['Event date', brb_when($b)],
+        ];
+    }
+    return $ctx;
+}
 /** The words on the pay button for a "Label: URL" line. 'Pay online' becomes 'Pay now' (new wording); others keep their own words. */
 function brb_email_button_label($label) {
     $label = trim((string) $label);
     if (strcasecmp($label, 'Pay online') === 0) return 'Pay now';
     return $label;
+}
+/** Short label for the raw-URL fallback under a button. New wording, for Max's approval. */
+function brb_email_link_fallback_label() {
+    return apply_filters('brb_email_link_fallback_label', 'Or open this link');
 }
 function brb_email_linkify($escaped) {
     return preg_replace_callback('~https?://[^\s<]+~i', function ($m) {
@@ -67,12 +85,13 @@ function brb_email_card_html($rows) {
         $strong = (bool) preg_match('/^(Total|Amount)\b/i', $row[0]);
         $border = ($i < $n - 1) ? 'border-bottom:1px solid ' . $t['line'] . ';' : '';
         if ($strong && $i > 0) $border .= 'border-top:2px solid ' . $t['gold'] . ';';
+        $is_date = (bool) preg_match('/\bdate\b|due by/i', $row[0]);
         $html .= '<tr><td class="brb-row-l" style="padding:9px 12px 9px 0;' . $border . 'font-family:' . $t['font'] . ';font-size:16px;line-height:1.35;color:' . $t['muted'] . ';vertical-align:top;">' . esc_html($row[0]) . '</td>'
-            . '<td class="brb-row-v" align="right" style="padding:9px 0;' . $border . 'font-family:' . $t['font'] . ';font-size:' . ($strong ? '20' : '17') . 'px;line-height:1.35;font-weight:700;color:' . ($strong ? $t['gold_dark'] : $t['ink']) . ';text-align:right;vertical-align:top;">' . esc_html($row[1]) . '</td></tr>';
+            . '<td class="brb-row-v' . ($is_date ? ' brb-date' : '') . '" align="right" style="padding:9px 0;' . $border . 'font-family:' . $t['font'] . ';font-size:' . ($strong ? '20' : '17') . 'px;line-height:1.35;font-weight:700;color:' . ($strong ? $t['gold_dark'] : $t['ink']) . ';text-align:right;vertical-align:top;' . ($is_date ? 'white-space:nowrap;' : '') . '">' . esc_html($row[1]) . '</td></tr>';
     }
     return $html . '</table></td></tr></table>';
 }
-/** Big gold button with the raw link kept below it as a fallback. */
+/** Big gold button with a short fallback link under it (the signed URL is the href, not shown as raw text). */
 function brb_email_button_html($label, $url) {
     $t = brb_email_brand();
     $href = esc_url($url);
@@ -81,7 +100,7 @@ function brb_email_button_html($label, $url) {
         . '<td align="center" bgcolor="' . $t['gold'] . '" style="background:' . $t['gold'] . ';border-radius:3px;mso-padding-alt:17px 44px;">'
         . '<a href="' . $href . '" target="_blank" style="display:inline-block;padding:17px 44px;font-family:' . $t['font'] . ';font-size:20px;line-height:1.2;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#ffffff;text-decoration:none;">' . esc_html($label) . '</a>'
         . '</td></tr></table></td></tr>'
-        . '<tr><td align="center" style="padding:12px 0 18px;font-family:' . $t['font'] . ';font-size:13px;line-height:1.4;color:' . $t['muted'] . ';word-break:break-all;"><a href="' . $href . '" target="_blank" style="color:' . $t['gold_dark'] . ';text-decoration:underline;word-break:break-all;">' . esc_html($url) . '</a></td></tr></table>';
+        . '<tr><td align="center" style="padding:12px 0 18px;font-family:' . $t['font'] . ';font-size:13px;line-height:1.4;color:' . $t['muted'] . ';"><a href="' . $href . '" target="_blank" style="color:' . $t['gold_dark'] . ';text-decoration:underline;">' . esc_html(brb_email_link_fallback_label()) . '</a></td></tr></table>';
     return $html;
 }
 function brb_email_para_html($text, $greeting = false) {
@@ -92,7 +111,8 @@ function brb_email_para_html($text, $greeting = false) {
 }
 /**
  * Turns a plain-text email body into the HTML blocks. Blank lines separate blocks:
- *  - "Label: https://link" alone on a line becomes a button (the link stays visible below it);
+ *  - "Label: https://link" (optionally followed by more words on the same line, as in brb_pay_online_line())
+ *    becomes a button, with any words after the URL kept as a paragraph;
  *  - two or more "Label: value" lines become a summary card;
  *  - "- item" lines become a bullet list; everything else is a paragraph.
  * $ctx['card_rows'] are extra [label, value] rows put at the top of the first card that has a Total row.
@@ -107,8 +127,12 @@ function brb_email_body_html($body, $ctx = []) {
         $block = trim($block, "\n");
         if (trim($block) === '') continue;
         $lines = explode("\n", $block);
-        if (count($lines) === 1 && preg_match('~^([^:\n]{1,48}):\s*(https?://\S+)$~', $lines[0], $m)) {
+        // "Pay online: <url> The card charge is ..." (approval email) still gets the Pay now button;
+        // the fee sentence after the URL is kept as a paragraph. Plain text is unchanged.
+        if (preg_match('~^([^:\n]{1,48}):\s*(https?://\S+)(?:[ \t]+([\s\S]*))?$~', implode("\n", $lines), $m)) {
             $html .= brb_email_button_html(brb_email_button_label($m[1]), $m[2]);
+            $rest = trim((string) ($m[3] ?? ''));
+            if ($rest !== '') $html .= brb_email_para_html($rest);
             continue;
         }
         $rows = [];
@@ -159,7 +183,7 @@ function brb_email_html($body, $subject = '', $ctx = []) {
     $content = brb_email_body_html($body, $ctx);
     $first = trim((string) strtok(trim((string) $body), "\n"));
     $pre = esc_html(mb_substr($first, 0, 120));
-    $css = '@media only screen and (max-width:620px){.brb-wrap{width:100%!important}.brb-pad{padding:24px 18px!important}.brb-btn,.brb-btn td{width:100%!important}.brb-btn a{display:block!important;padding:17px 10px!important}.brb-row-l,.brb-row-v{font-size:15px!important}}';
+    $css = '@media only screen and (max-width:620px){.brb-wrap{width:100%!important}.brb-pad{padding:24px 18px!important}.brb-btn,.brb-btn td{width:100%!important}.brb-btn a{display:block!important;padding:17px 10px!important}.brb-row-l,.brb-row-v{font-size:15px!important}.brb-date{white-space:nowrap!important}}';
     $html = '<!DOCTYPE html><html lang="en" xmlns="http://www.w3.org/1999/xhtml"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="x-apple-disable-message-reformatting"><meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light">'
         . '<title>' . esc_html($subject) . '</title><style type="text/css">body{margin:0;padding:0;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%}table{border-collapse:collapse;mso-table-lspace:0;mso-table-rspace:0}img{border:0;outline:none;text-decoration:none;-ms-interpolation-mode:bicubic}' . $css . '</style></head>'
         . '<body style="margin:0;padding:0;background:' . $t['page'] . ';">'

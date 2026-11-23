@@ -93,7 +93,8 @@ try {
     $html = brb_email_html($plain, (string) $m['subject'], (array) $m['brand_ctx']);
     brb_t(strpos($html, 'max-width:600px') !== false && strpos($html, '<table role="presentation"') !== false && strpos($html, 'boardroom-logo-header-2x.png') !== false && strpos($html, 'alt="The Boardroom QC"') !== false, 'the HTML is a 600px table layout with the site logo');
     brb_t(strpos($html, '#c4912e') !== false && strpos($html, '#161616') !== false && strpos($html, 'EB Garamond') !== false && strpos($html, 'Georgia') !== false, 'the HTML uses the theme gold, ink and EB Garamond with Georgia fallback');
-    brb_t(strpos($html, '>Pay now<') !== false && strpos($html, 'br_pay=' . $full->token) !== false && substr_count($html, 'br_sig=') >= 2, 'the HTML has a Pay now button with the signed link, and the raw link is repeated below it');
+    brb_t(strpos($html, '>Pay now<') !== false && strpos($html, 'br_pay=' . $full->token) !== false && substr_count($html, 'br_sig=') >= 2 && strpos($html, 'Or open this link') !== false, 'the HTML has a Pay now button with the signed link, and "Or open this link" as the fallback (the raw URL is the href, not shown as text)');
+    brb_t(strpos($html, "brb-date") !== false && strpos($html, 'white-space:nowrap') !== false && strpos($html, brb_when($full)) !== false, 'the event date on the summary card does not wrap mid-token');
     brb_t(strpos($html, '$1,050.00') !== false && strpos($html, '$31.50') !== false && strpos($html, '$1,081.50') !== false && strpos($html, 'Booking reference') !== false && strpos($html, 'Event date') !== false && strpos($html, brb_ref($full)) !== false, 'the pay-in-full summary card shows $1,050.00 + $31.50 = $1,081.50 with the reference and event date');
     brb_t(strpos($html, 'Boardroom QC LLC') !== false && strpos($html, home_url('/')) !== false, 'the footer names Boardroom QC LLC and links the site');
     $dep_body = brb_payment_link_body($dep);
@@ -104,6 +105,16 @@ try {
     $rbody = $preview['body'];
     $rhtml = brb_email_html($rbody, $preview['subject'], []);
     brb_t(strpos($rhtml, 'Payment Date') !== false && strpos($rhtml, 'November 23, 2026') !== false && strpos($rhtml, 'Balance remaining') !== false && strpos($rhtml, 'Here is your receipt.') !== false, 'the receipt HTML shows the Amount / Payment Date card and keeps the words');
+    $approve_plain = brb_approve_guest_body($dep);
+    $ah = brb_email_html($approve_plain, brb_approve_guest_subject($dep), brb_email_guest_brand('approve', $dep));
+    $pay_line = brb_pay_online_line($dep);
+    brb_t($pay_line !== '' && strpos($approve_plain, $pay_line) !== false && strpos($approve_plain, "\nPay online: ") !== false, 'the approval plain text still has Pay online and the fee sentence on one line');
+    brb_t(strpos($ah, '>Pay now<') !== false && strpos($ah, 'Or open this link') !== false && strpos($ah, 'The card charge is') !== false && strpos($ah, 'processing fee') !== false, 'the approval HTML shows a Pay now button plus the fee sentence, not a wrapping raw URL');
+    brb_t(strpos($ah, esc_html($pay_line)) === false, 'the approval HTML does not print the whole Pay online line as one wrapping string');
+    $draft = brb_sd_draft($full->id, 'paylink');
+    brb_t(!is_wp_error($draft) && $draft['body'] === (brb_guest_hello_line() . "\n\n" . brb_payment_link_body($full)) && strpos((string) $draft['html'], '>Pay now<') !== false && strpos((string) $draft['html'], 'Boardroom QC LLC') !== false, 'the staff confirm draft keeps the plain-text body and includes the branded HTML for the preview');
+    $bal_fn_ok = function_exists('brb_sd_balance_reminder');
+    brb_t($bal_fn_ok && is_array(brb_email_guest_brand('balance', $dep)), 'the balance reminder uses the same brand helper; its send gate stays off until Max approves the wording');
 
     // ---- 4. Which mails get the wrapper
     $GLOBALS['brb_mails'] = [];

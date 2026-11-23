@@ -289,9 +289,14 @@ function brb_sd_draft($booking_id, $kind, $note = '') {
         $subject = $got['subject']; $body = $got['body'];
     }
     $exp = time() + 15 * MINUTE_IN_SECONDS;
+    $brand = function_exists('brb_email_guest_brand') ? brb_email_guest_brand($kind, $b) : [];
+    $html = (function_exists('brb_email_enabled') && brb_email_enabled($brand) && function_exists('brb_email_html'))
+        ? brb_email_html($body, $subject, $brand)
+        : '';
     return [
         'booking_id' => (int) $b->id, 'ref' => brb_ref($b), 'kind' => $kind, 'title' => $kinds[$kind],
         'to' => $to, 'name' => brb_sd_scrub($b->name), 'subject' => $subject, 'body' => $body,
+        'html' => $html,
         'confirm' => $exp . '.' . brb_sd_confirm_sig((int) $b->id, $kind, $to, $subject, $body, $exp),
         'can_send' => $kind !== 'balance' || brb_sd_reminder_approved(),
         'notice' => ($kind === 'balance' && !brb_sd_reminder_approved()) ? brb_sd_reminder_notice() . '. Sending is off until Max approves the wording in Settings.' : '',
@@ -341,7 +346,7 @@ function brb_sd_send($booking_id, $p) {
         return new WP_Error('sent', 'The balance reminder for this booking was already sent. Nothing was sent.', ['status' => 409]);
     }
     set_transient($used, 1, HOUR_IN_SECONDS);
-    $ok = brb_mail($to, $subject, $body, brb_guest_reply_to());
+    $ok = brb_mail($to, $subject, $body, brb_guest_reply_to(), '', [], function_exists('brb_email_guest_brand') ? brb_email_guest_brand($kind, $b) : []);
     $kinds = brb_sd_mail_kinds();
     if (!$ok) {
         delete_transient($used);
