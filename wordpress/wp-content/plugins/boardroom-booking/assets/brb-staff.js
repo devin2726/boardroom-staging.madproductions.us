@@ -93,6 +93,14 @@
     if (b.email) rows.push(['Email', b.email]);
     rows.push(['Status', b.status_label || '']);
     rows.push(['Details checked', b.details_checked ? 'Yes' : 'Not yet']);
+    if (b.hold) {
+      if (b.hold.waiting_for_link) rows.push(['Pay window', 'Starts when the pay link is sent']);
+      else {
+        rows.push(['Pay window ends', b.hold.until_text]);
+        rows.push(['Time left', b.hold.text]);
+        if (b.hold.link_sent_text) rows.push(['Pay link sent', b.hold.link_sent_text]);
+      }
+    }
     if (m.priced) {
       rows.push(['Price', m.total_text]);
       rows.push(['Charge now', m.charge_now]);
@@ -109,8 +117,14 @@
       return '<li><span>' + esc(r[0]) + '</span><span>' + esc(r[1]) + '</span></li>';
     }).join('') + '</ul>';
   }
+  function holdBanner(b) {
+    if (!b.hold || b.hold.waiting_for_link) return b.hold ? '<p class="muted">' + esc(b.hold.text) + '</p>' : '';
+    if (b.hold.lapsed) return '<div class="flag" role="alert">Pay window passed, release this date?<small>' + esc(b.hold.text) + '. Nothing happens on its own and the guest is not emailed.</small></div>';
+    return '<div class="countdown">' + esc(b.hold.text) + '</div>';
+  }
   function bookingButtons(b) {
     var out = '';
+    if (b.hold && b.hold.lapsed) out += '<button type="button" class="btn btn-danger" data-act="release" data-id="' + b.id + '">Release this date…</button>';
     if (b.can_approve) out += '<button type="button" class="btn btn-good" data-act="approve" data-id="' + b.id + '">Approve</button>';
     if (b.can_approve || b.can_decline) out += '<button type="button" class="btn" data-act="decline" data-id="' + b.id + '">Decline</button>';
     if (b.can_pay) {
@@ -131,6 +145,8 @@
         else if (act === 'pay') payFlow(b);
         else if (act === 'link') linkFlow(b);
         else if (act === 'sendlink') sendFlow(b.id, 'paylink', '');
+        else if (act === 'release') releaseFlow(b);
+        else if (act === 'rmhold') removeHoldFlow(b);
         else if (act === 'open') openRecord(b.type, b.id);
         else if (act === 'send') sendFlow(b.booking_id, b.kind, '');
       });
@@ -154,16 +170,16 @@
     api(path).then(function (r) {
       var html;
       if (type === 'booking') {
-        html = '<h3 id="modal-title">' + esc(r.name) + ' <span class="muted">' + esc(r.ref) + '</span></h3><p>' + chip(r.chip) + '</p>' + bookingFacts(r) + bookingButtons(r);
+        html = '<h3 id="modal-title">' + esc(r.name) + ' <span class="muted">' + esc(r.ref) + '</span></h3><p>' + chip(r.chip) + '</p>' + holdBanner(r) + bookingFacts(r) + bookingButtons(r);
         if (!r.can_pay && !r.can_approve && r.status !== 'paid') html += '';
       } else {
         html = '<h3 id="modal-title">' + esc(r.name) + '</h3><p><span class="chip ' + (r.hold_type === 'hold' ? 'held' : (r.hold_type === 'reserved' ? 'paid' : 'block')) + '">' + esc(r.label) + '</span></p>' +
           '<ul class="facts"><li><span>Date</span><span>' + esc(r.when) + '</span></li>' + (r.time ? '<li><span>Time</span><span>' + esc(r.time) + '</span></li>' : '') +
           (r.notes ? '<li><span>Notes</span><span>' + esc(r.notes) + '</span></li>' : '') + '</ul>' +
-          '<div class="btn-row"><button type="button" class="btn" disabled>Send invoice / pay link</button></div><p class="muted">' + esc(r.pay_note) + '</p>';
+          '<div class="btn-row"><button type="button" class="btn" disabled>Send invoice / pay link</button>' + (r.can_remove ? '<button type="button" class="btn btn-danger" data-act="rmhold" data-id="' + r.id + '">Remove this ' + esc(r.label.toLowerCase()) + '…</button>' : '') + '</div><p class="muted">' + esc(r.pay_note) + '</p>';
       }
       html += '<div class="btn-row"><button type="button" class="btn btn-quiet" data-close>Close</button></div>';
-      openModal(html, function (m) { if (type === 'booking') { var o = {}; o[r.id] = r; wireActions(m, o); } });
+      openModal(html, function (m) { var o = {}; o[r.id] = r; wireActions(m, o); });
     }).catch(function (e) { toast(e.message); });
   }
   function indexById(list) { var o = {}; list.forEach(function (b) { if (b && b.id) o[b.id] = b; }); return o; }
@@ -192,6 +208,16 @@
             .then(function () { return { text: b.name + ' approved.' + (mail ? '' : ' The guest was not emailed.'), then: mail ? function () { sendFlow(b.id, 'approve', ''); } : null }; });
         });
       });
+    });
+  }
+  function releaseFlow(b) {
+    confirmStep('Release this date?', [['Guest', b.name + ' (' + b.ref + ')'], ['Date', b.when], ['Pay window', b.hold ? b.hold.text : ''], ['What happens', 'The date opens up on the calendar'], ['Guest email', 'None. Nothing is emailed.']], 'Yes, release the date', function () {
+      return api('booking/' + b.id + '/release', { confirmed: true }).then(function () { return { text: b.when + ' released. The guest was not emailed.' }; });
+    });
+  }
+  function removeHoldFlow(h) {
+    confirmStep('Remove this ' + String(h.label || 'hold').toLowerCase() + '?', [['Date', h.when], ['Name', h.name], ['What happens', 'It is taken off the calendar and the date opens up']], 'Yes, remove it', function () {
+      return api('hold/' + h.id + '/remove', { confirmed: true }).then(function () { return { text: 'Removed. ' + h.when + ' is open.' }; });
     });
   }
   function declineFlow(b) {
@@ -269,7 +295,7 @@
         m.querySelector('#pl-mail').addEventListener('click', function () { closeModal(); sendFlow(b.id, 'paylink', ''); });
         m.querySelector('#pl-copy').addEventListener('click', function () {
           var ta = m.querySelector('#pl-url');
-          var done = function () { toast('Pay link copied. Nothing was emailed.'); };
+          var done = function () { toast('Pay link copied. Nothing was emailed.'); api('booking/' + b.id + '/pay-link-copied', {}).then(refreshAll).catch(function () {}); };
           if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(ta.value).then(done, function () { ta.select(); document.execCommand('copy'); done(); });
           else { ta.select(); document.execCommand('copy'); done(); }
         });
@@ -283,8 +309,9 @@
         '<ul class="facts"><li><span>To</span><span>' + esc(d.name) + ' &lt;' + esc(d.to) + '&gt;</span></li><li><span>Booking</span><span>' + esc(d.ref) + '</span></li>' +
         '<li><span>Subject</span><span>' + esc(d.subject) + '</span></li></ul>' +
         '<p class="field-label">Full message</p><pre class="mailbody" tabindex="0">' + esc(d.body) + '</pre>' +
+        (d.notice ? '<p class="draft-tag" role="alert">' + esc(d.notice) + '</p>' : '') +
         '<p class="muted">This goes to the guest as shown. Nothing has been sent yet.</p>' +
-        '<div class="btn-row"><button type="button" class="btn btn-primary" id="sd-send">Send</button><button type="button" class="btn btn-quiet" data-close data-autofocus>Cancel</button></div>';
+        '<div class="btn-row"><button type="button" class="btn btn-primary" id="sd-send"' + (d.can_send === false ? ' disabled' : '') + '>Send</button><button type="button" class="btn btn-quiet" data-close data-autofocus>Cancel</button></div>';
       openModal(html, function (m) {
         m.querySelector('#sd-send').addEventListener('click', function () {
           this.disabled = true;
@@ -313,7 +340,7 @@
   function loadSummary() {
     return api('summary').then(function (s) {
       $('today-line').textContent = 'Today: ' + s.today;
-      $('sum-requests').innerHTML = '<span class="k">Requests waiting</span><span class="v">' + esc(s.requests) + '</span><span class="d">' + esc(s.requests_text) + '</span>';
+      $('sum-requests').innerHTML = '<span class="k">Requests waiting</span><span class="v">' + esc(s.requests) + '</span><span class="d">' + esc(s.requests_text + (s.lapsed ? ' · ' + s.lapsed + ' pay window passed' : '')) + '</span>';
       $('sum-payments').innerHTML = '<span class="k">Payments open</span><span class="v">' + esc(s.payments) + '</span><span class="d">' + esc(s.payments_text) + '</span>';
       $('sum-next').innerHTML = '<span class="k">Next event</span><span class="v">' + esc(s.next) + '</span>';
     }).catch(function (e) { toast(e.message); });
@@ -326,12 +353,13 @@
       var lead = cal.days.length ? cal.days[0].dow : 0;
       for (var i = 0; i < lead; i++) html += '<button type="button" class="day" disabled aria-hidden="true" tabindex="-1"></button>';
       cal.days.forEach(function (d) {
-        var cls = 'day ' + (d.kind === 'open' ? '' : d.kind) + (d.date === cal.today ? ' today' : '');
+        var cls = 'day ' + (d.kind === 'open' ? '' : d.kind) + (d.lapsed ? ' lapsed' : '') + (d.date === cal.today ? ' today' : '');
         html += '<button type="button" class="' + cls + '" data-date="' + esc(d.date) + '" aria-label="' + esc(d.date + ', ' + d.label + (d.tag && d.tag !== d.label ? ', ' + d.tag : '')) + '">' +
-          '<span class="n">' + d.day + '</span>' + (d.kind !== 'open' ? '<span class="tag">' + esc(d.tag) + '</span>' : '') + '</button>';
+          '<span class="n">' + d.day + '</span>' + (d.kind !== 'open' ? '<span class="tag">' + esc(d.tag) + '</span>' : '') + (d.clock ? '<span class="clock' + (d.lapsed ? ' bad' : '') + '">' + esc(d.clock) + '</span>' : '') + '</button>';
       });
       g.innerHTML = html;
       g.querySelectorAll('.day[data-date]').forEach(function (b) { b.addEventListener('click', function () { openDay(b.getAttribute('data-date')); }); });
+      loadMigration();
     }).catch(function (e) { toast(e.message); });
   }
   $('cal-prev').addEventListener('click', function () { if (state.cal) { state.month = state.cal.prev; loadCalendar(); } });
@@ -357,14 +385,65 @@
     el.innerHTML = rows.length ? rows.map(itemRow).join('') : '<p class="empty">' + esc(empty) + '</p>';
     wireActions(el, indexItems(rows));
   }
-  function loadRequests() { return api('requests').then(function (r) { listInto($('request-list'), r, 'No requests waiting.'); }).catch(function (e) { toast(e.message); }); }
+  function loadLapsed() {
+    return api('lapsed').then(function (rows) {
+      var el = $('lapsed-list');
+      if (!rows.length) { el.innerHTML = ''; return; }
+      var idx = {};
+      el.innerHTML = '<h3>Pay window passed</h3>' + rows.map(function (b) {
+        idx[b.id] = b;
+        return '<article class="card"><div class="item-head"><h4>' + esc(b.name) + '</h4><span class="muted">' + esc(b.ref) + '</span></div><div class="flag" role="alert">Pay window passed, release this date?<small>' + esc(b.when + ' · ' + b.hold.text) + '</small></div>' +
+          '<div class="btn-row"><button type="button" class="btn btn-danger" data-act="release" data-id="' + b.id + '">Release…</button><button type="button" class="btn" data-act="open" data-id="' + b.id + '">Open record</button></div></article>';
+      }).join('');
+      el.querySelectorAll('[data-act]').forEach(function (btn) { btn.addEventListener('click', function () {
+        var b = idx[btn.getAttribute('data-id')];
+        if (btn.getAttribute('data-act') === 'release') releaseFlow(b); else openRecord('booking', b.id);
+      }); });
+    }).catch(function (e) { toast(e.message); });
+  }
+  function loadMigration() {
+    var el = $('migration-card');
+    if (!C.isAdmin || !el) return Promise.resolve();
+    return api('migration').then(function (s) {
+      if (!s.pending.length && !s.converted) { el.innerHTML = ''; return; }
+      var html = '<div class="card"><h3>Calendar holds to turn into bookings</h3>';
+      if (s.pending.length) {
+        html += '<p class="muted">' + esc(s.to_convert) + ' date hold' + (s.to_convert === 1 ? '' : 's') + ' can become a booking in Held status. The date stays blocked the whole time and nobody is emailed. Closed days are not touched.' + (s.skipped ? ' ' + esc(s.skipped) + ' will be skipped because a booking already covers the date.' : '') + '</p><ul class="facts">' +
+          s.pending.slice(0, 12).map(function (r) { return '<li><span>' + esc(r.date + ' · ' + r.name) + '</span><span>' + esc(r.action === 'skip' ? 'Skipped' : 'Will convert') + '</span></li>'; }).join('') + '</ul>' +
+          '<div class="btn-row"><button type="button" class="btn btn-primary" id="mg-run"' + (s.to_convert ? '' : ' disabled') + '>Convert them…</button></div>';
+      }
+      if (s.converted) html += '<p class="muted">' + esc(s.converted) + ' already converted. The old hold rows are kept, so this can be undone.</p><div class="btn-row"><button type="button" class="btn" id="mg-undo">Undo conversion…</button></div>';
+      el.innerHTML = html + '</div>';
+      var run = $('mg-run'), undo = $('mg-undo');
+      if (run) run.addEventListener('click', function () {
+        confirmStep('Turn these holds into bookings?', [['Holds', String(s.to_convert)], ['Dates', 'Stay blocked the whole time'], ['Guest email', 'None. Nobody is emailed.'], ['Undo', 'Possible afterward']], 'Yes, convert', function () {
+          return api('migration/run', { confirmed: true }).then(function (r) { return { text: r.converted.length + ' converted, ' + r.skipped.length + ' skipped.' }; });
+        });
+      });
+      if (undo) undo.addEventListener('click', function () {
+        confirmStep('Undo the conversion?', [['What happens', 'Holds nobody has worked on go back to calendar holds'], ['Worked-on bookings', 'Stay as bookings'], ['Guest email', 'None']], 'Yes, undo', function () {
+          return api('migration/undo', { confirmed: true }).then(function (r) { return { text: r.undone.length + ' put back, ' + r.kept.length + ' kept as bookings.' }; });
+        });
+      });
+    }).catch(function () {});
+  }
+  function loadRequests() { return Promise.all([loadLapsed(), api('requests').then(function (r) { listInto($('request-list'), r, 'No requests waiting.'); })]).catch(function (e) { toast(e.message); }); }
   function loadPayments() { return api('payments').then(function (r) { listInto($('payment-list'), r, 'No money owed right now.'); }).catch(function (e) { toast(e.message); }); }
   function loadUpcoming() {
     return api('upcoming').then(function (rows) { listInto($('upcoming-list'), rows, 'Nothing coming up.'); }).catch(function (e) { toast(e.message); });
   }
   function loadMessages() {
     return api('messages').then(function (m) {
-      var idx = {}, html = '<h3>Emails you may want to send</h3>';
+      var idx = {}, html = '<h3>Reminders to preview first</h3>';
+      html += (m.reminders && m.reminders.length) ? m.reminders.map(function (r, i) {
+        idx['r' + i] = { id: 'r' + i, booking_id: r.booking_id, kind: r.kind, title: r.title };
+        return '<article class="card"><div class="item-head"><h4>' + esc(r.title) + '</h4><span class="muted">' + esc(r.ref) + '</span></div>' +
+          '<p class="muted">' + esc(r.detail) + (r.opens_text && !r.ready ? ' · queued from ' + esc(r.opens_text) : '') + '</p>' +
+          (r.draft && !r.can_send ? '<p class="draft-tag">DRAFT WORDING, needs Max approval. Sending is off until it is approved.</p>' : '') +
+          (r.has_email ? '' : '<p class="muted">No guest email on this booking.</p>') + (r.has_link === false ? '<p class="muted">No pay link yet, so this cannot be previewed.</p>' : '') +
+          '<div class="btn-row"><button type="button" class="btn btn-primary" data-act="send" data-id="r' + i + '"' + ((r.has_email && r.has_link !== false) ? '' : ' disabled') + '>Preview…</button></div></article>';
+      }).join('') : '<p class="empty">No reminders waiting.</p>';
+      html += '<h3>Emails you may want to send</h3>';
       html += m.suggested.length ? m.suggested.map(function (s, i) {
         var ready = !(s.blocked && s.blocked.length);
         idx['s' + i] = { id: 's' + i, booking_id: s.booking_id, kind: s.kind, title: s.title };

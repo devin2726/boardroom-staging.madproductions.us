@@ -164,7 +164,7 @@ function brb_ov_upcoming_items($limit = 300) {
         $items[] = ['kind' => 'booking', 'start_dt' => $b->start_dt, 'name' => (string) $b->name, 'status' => (string) $b->status, 'label' => brb_status_label($b->status), 'row' => $b];
     }
     $holds = (array) $wpdb->get_results($wpdb->prepare(
-        'SELECT * FROM ' . brb_hold_table() . ' WHERE end_dt > %s ORDER BY start_dt ASC, id ASC LIMIT 500',
+        'SELECT * FROM ' . brb_hold_table() . ' WHERE end_dt > %s' . brb_hold_live_sql() . ' ORDER BY start_dt ASC, id ASC LIMIT 500',
         $today
     ));
     foreach ($holds as $h) {

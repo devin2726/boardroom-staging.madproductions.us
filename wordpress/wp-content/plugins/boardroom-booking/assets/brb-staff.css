@@ -125,6 +125,8 @@ header.top a { color: var(--clay); }
 .btn-primary { background: var(--clay); color: #fff8f3; border-color: var(--clay); }
 .btn-primary:hover, .btn-primary:focus { background: var(--clay-hover); border-color: var(--clay-hover); }
 .btn-good { background: var(--forest); color: #f4faf7; border-color: var(--forest); }
+.btn-danger { background: var(--clay); color: #fff; border-color: var(--clay); }
+.btn-danger:hover { background: var(--clay-hover); }
 .btn-quiet { background: var(--paper); }
 .btn-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .btn-row .btn { flex: 1 1 140px; }
@@ -161,9 +163,18 @@ header.top a { color: var(--clay); }
 .day.closed { background: var(--slate-soft); border-color: #c9ccd1; }
 .day.waiting { background: var(--request-soft); border-color: #d8c2da; }
 .day .tag { font-size: 10px; font-weight: 700; line-height: 1.2; color: var(--ink); }
+.day .clock { font-size: 10px; font-weight: 800; line-height: 1.2; color: var(--amber); }
+.day.lapsed { background: var(--clay-soft); border-color: var(--clay); border-style: dashed; }
+.day .clock.bad { color: var(--clay); }
+.swatch.lapsed { background: var(--clay-soft); border: 1px dashed var(--clay); }
+.flag { background: var(--clay-soft); color: var(--clay); border: 2px solid var(--clay); border-radius: 10px; padding: 10px 12px; font-size: 16px; font-weight: 800; margin: 12px 0; }
+.flag small { display: block; font-weight: 600; font-size: 14px; margin-top: 2px; }
+.countdown { background: var(--amber-soft); color: var(--amber); border-radius: 10px; padding: 8px 12px; font-size: 16px; font-weight: 800; margin: 10px 0; }
+.draft-tag { background: var(--clay-soft); color: var(--clay); border-radius: 8px; padding: 6px 10px; font-size: 14px; font-weight: 800; margin: 8px 0; }
 @media (max-width: 639px) {
   .day { min-height: 52px; padding: 3px; }
   .day .tag { font-size: 9px; }
+  .day .clock { font-size: 9px; }
 }
 label.field, .field-label { display: block; font-weight: 650; font-size: 14px; margin: 12px 0 6px; }
 input[type="text"], input[type="number"], input[type="date"], select, textarea {

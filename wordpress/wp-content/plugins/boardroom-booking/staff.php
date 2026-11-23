@@ -225,6 +225,8 @@ function brb_sd_mail_kinds() {
         'decline' => 'Decline email',
         'receipt' => 'Payment receipt',
         'paylink' => 'Pay link email',
+        'balance' => 'Balance reminder (draft wording)',
+        'checklist' => 'Week-out checklist email',
     ];
 }
 /** Addresses the dashboard never emails. */
@@ -270,6 +272,16 @@ function brb_sd_draft($booking_id, $kind, $note = '') {
         if (brb_pay_link($b) === '') return new WP_Error('link', 'There is no pay link yet. Still needed: ' . implode(', ', brb_sd_blockers($b)) . '.');
         $subject = 'Your Boardroom payment link (' . brb_ref($b) . ')';
         $body = brb_guest_hello_line() . "\n\n" . brb_payment_link_body($b);
+    } elseif ($kind === 'balance') {
+        if ((string) $b->status !== 'deposit_paid' || round((float) $b->total - (float) $b->amount_paid, 2) <= 0.009) return new WP_Error('status', 'A balance reminder is only for a Paid Deposit booking with a balance left.');
+        if (brb_sd_reminder_sent($b->id)) return new WP_Error('sent', 'The balance reminder for this booking was already sent.');
+        $m = brb_sd_balance_reminder($b);
+        if (is_wp_error($m)) return $m;
+        $subject = $m['subject']; $body = $m['body'];
+    } elseif ($kind === 'checklist') {
+        if (!brb_sd_checklist_eligible($b)) return new WP_Error('status', 'This booking is not due a week-out checklist email, or it was already sent.');
+        $m = brb_checklist_reminder_message($b);
+        $subject = $m['subject']; $body = $m['body'];
     } else {
         $got = brb_sd_capture_guest_mail($b, function () use ($b) { brb_send_request_emails($b, true); });
         if (!$got) return new WP_Error('draft', 'Could not build that email.');
@@ -280,6 +292,8 @@ function brb_sd_draft($booking_id, $kind, $note = '') {
         'booking_id' => (int) $b->id, 'ref' => brb_ref($b), 'kind' => $kind, 'title' => $kinds[$kind],
         'to' => $to, 'name' => brb_sd_scrub($b->name), 'subject' => $subject, 'body' => $body,
         'confirm' => $exp . '.' . brb_sd_confirm_sig((int) $b->id, $kind, $to, $subject, $body, $exp),
+        'can_send' => $kind !== 'balance' || brb_sd_reminder_approved(),
+        'notice' => ($kind === 'balance' && !brb_sd_reminder_approved()) ? brb_sd_reminder_notice() . '. Sending is off until Max approves the wording in Settings.' : '',
     ];
 }
 /** Ties the confirm token to this user, booking, recipient and the exact previewed text. */
@@ -312,13 +326,22 @@ function brb_sd_send($booking_id, $p) {
         return new WP_Error('confirm', 'The message changed after the preview. Open it again. Nothing was sent.', ['status' => 409]);
     }
     if (in_array(strtolower($to), brb_sd_never_email(), true)) return new WP_Error('to', 'The dashboard does not email this address.');
+    if ($kind === 'balance' && (!brb_sd_reminder_approved() || stripos($subject . $body, 'DRAFT WORDING') !== false)) {
+        return new WP_Error('template', 'The balance reminder wording is not approved yet (needs Max approval). Nothing was sent.', ['status' => 409]);
+    }
+    if ($kind === 'checklist' && !brb_sd_checklist_eligible($b)) return new WP_Error('status', 'This checklist email was already sent, or the booking is not due one. Nothing was sent.', ['status' => 409]);
     $used = 'brb_sd_sent_' . md5($token);
     if (get_transient($used)) return new WP_Error('confirm', 'This message was already sent.', ['status' => 409]);
+    // One balance reminder per booking, ever: claim the marker first, so a second confirm (even a new preview) is refused.
+    if ($kind === 'balance' && !brb_sd_reminder_claim((int) $b->id)) {
+        return new WP_Error('sent', 'The balance reminder for this booking was already sent. Nothing was sent.', ['status' => 409]);
+    }
     set_transient($used, 1, HOUR_IN_SECONDS);
     $ok = brb_mail($to, $subject, $body, brb_guest_reply_to());
     $kinds = brb_sd_mail_kinds();
     if (!$ok) {
         delete_transient($used);
+        if ($kind === 'balance') brb_sd_reminder_release((int) $b->id);
         brb_audit_append((int) $b->id, 'staff dashboard: ' . strtolower($kinds[$kind]) . ' was confirmed but did not send');
         return new WP_Error('mail', 'The email did not send. Try again, or tell Max.', ['status' => 502]);
     }
@@ -326,7 +349,13 @@ function brb_sd_send($booking_id, $p) {
     $log = get_option('brb_sd_sent', []);
     if (!is_array($log)) $log = [];
     $log[] = ['booking_id' => (int) $b->id, 'kind' => $kind, 'who' => brb_audit_who(), 'at' => brb_now()->format('Y-m-d H:i:s'), 'subject' => $subject];
-    update_option('brb_sd_sent', array_slice($log, -100), false);
+    update_option('brb_sd_sent', array_slice($log, -500), false);
+    if ($kind === 'checklist') {
+        global $wpdb;
+        $wpdb->update(brb_table(), ['checklist_reminded' => current_time('mysql', true)], ['id' => (int) $b->id]);
+    }
+    $link = brb_pay_link($b);
+    if ($link !== '' && strpos($body, $link) !== false) brb_note_pay_link_sent((int) $b->id); // the pay window starts or restarts here
     return ['sent' => true, 'to' => $to, 'kind' => $kind];
 }
 function brb_sd_sent_log() {
@@ -358,6 +387,9 @@ function brb_sd_chip($b) {
         return ['class' => 'deposit', 'text' => 'Deposit paid, ' . brb_money($left) . ' due' . ($when !== '' ? ' by ' . $when : '')];
     }
     $due = max(0, round((float) $b->deposit_due - (float) $b->amount_paid, 2));
+    $hi = brb_sd_hold_info($b);
+    if ($hi && !empty($hi['lapsed'])) return ['class' => 'due', 'text' => 'Pay window passed, ' . brb_money($due) . ' still due'];
+    if ($hi && $hi['short'] !== '') return ['class' => 'due', 'text' => 'On hold, ' . brb_money($due) . ' due, ' . $hi['short']];
     return ['class' => 'due', 'text' => 'Approved, ' . brb_money($due) . ' due to hold the date'];
 }
 function brb_sd_booking_brief($b) {
@@ -374,7 +406,12 @@ function brb_sd_booking_brief($b) {
         'guests' => (int) $b->guests,
         'event' => brb_sd_scrub(brb_event_type_label($b->event_type ?? '')),
         'waiting' => in_array((string) $b->status, brb_sd_request_statuses(), true),
+        'hold' => brb_sd_hold_info($b),
     ];
+}
+/** Staff-only gate for the migration routes: an administrator, not a staff-role user. */
+function brb_sd_admin_only() {
+    return current_user_can('manage_options') ? null : new WP_Error('brb_admin_only', 'Only an administrator can move calendar holds into bookings.', ['status' => 403]);
 }
 function brb_sd_hold_brief($h) {
     $types = brb_hold_types();
@@ -385,6 +422,7 @@ function brb_sd_hold_brief($h) {
         'type' => 'hold',
         'id' => (int) $h->id,
         'hold_type' => $type,
+        'can_remove' => (int) $h->id > 0 && empty($h->migrated_to),
         'label' => $label,
         'name' => brb_sd_scrub($h->name),
         'notes' => brb_sd_scrub($h->notes ?? ''),
@@ -396,8 +434,15 @@ function brb_sd_day_kind($ymd, $bookings) {
     if (in_array($ymd, brb_blackouts(), true)) return 'closed';
     $hold = brb_date_status($ymd);
     if ($hold === 'blocked') return 'closed';
-    foreach ($bookings as $b) if (in_array((string) $b->status, brb_blocking_statuses(), true)) return 'booked';
+    // One record: an approved or held booking with no payment yet is a HOLD, so its day reads Date held.
+    $held = false;
+    foreach ($bookings as $b) {
+        if (!in_array((string) $b->status, brb_blocking_statuses(), true)) continue;
+        if (in_array((string) $b->status, ['approved', 'held'], true) && (float) $b->amount_paid < 0.01) $held = true;
+        else return 'booked';
+    }
     if ($hold === 'reserved') return 'booked';
+    if ($held) return 'held';
     if ($hold === 'hold') return 'held';
     foreach ($bookings as $b) if (in_array((string) $b->status, brb_sd_request_statuses(), true)) return 'waiting';
     return 'open';
@@ -417,9 +462,14 @@ function brb_sd_month($ym) {
         $on = array_values(array_filter($all, function ($b) use ($ymd) { return brb_ov_booking_on_day($b, $ymd); }));
         $kind = brb_sd_day_kind($ymd, $on);
         $tag = '';
+        $clock = ''; $lapsed = false;
         foreach ($on as $b) { $tag = brb_sd_scrub($b->name); break; }
+        foreach ($on as $b) {
+            $hi = brb_sd_hold_info($b);
+            if ($hi && $hi['short'] !== '') { $clock = $hi['short']; $lapsed = $hi['lapsed']; break; }
+        }
         if ($tag === '' && $kind !== 'open') $tag = brb_sd_kind_label($kind);
-        $days[] = ['date' => $ymd, 'day' => (int) $d->format('j'), 'dow' => (int) $d->format('w'), 'kind' => $kind, 'label' => brb_sd_kind_label($kind), 'tag' => mb_substr($tag, 0, 24)];
+        $days[] = ['date' => $ymd, 'day' => (int) $d->format('j'), 'dow' => (int) $d->format('w'), 'kind' => $kind, 'label' => brb_sd_kind_label($kind), 'tag' => mb_substr($tag, 0, 24), 'clock' => $clock, 'lapsed' => $lapsed];
     }
     return [
         'month' => $first->format('Y-m'),
@@ -581,6 +631,7 @@ function brb_sd_summary() {
         'requests_text' => count($req) ? 'Oldest date: ' . $req[0]['when'] : 'Nothing waiting',
         'payments' => count($pay),
         'payments_text' => count($pay) ? $soon . ' in the next 14 days' : 'Nothing owed',
+        'lapsed' => count(brb_sd_lapsed()),
         'next' => $next ? $next['name'] . ', ' . $next['when'] : 'No events booked',
     ];
 }
@@ -602,7 +653,7 @@ function brb_sd_messages() {
             : 'Amount due now ' . brb_money($p['money']['due_now']) . ' to hold ' . $p['when'] . '.';
         $suggest[] = ['title' => $kinds['paylink'] . ' for ' . $p['name'], 'ref' => $p['ref'], 'booking_id' => $p['id'], 'kind' => 'paylink', 'preview' => $what, 'blocked' => $p['pay_link_blockers']];
     }
-    return ['suggested' => $suggest, 'sent' => $sent];
+    return ['suggested' => $suggest, 'sent' => $sent, 'reminders' => brb_sd_reminder_queue(), 'approved_template' => brb_sd_reminder_approved()];
 }
 
 /* ---------- add booking / hold: one quote used by both preview and save ---------- */
@@ -801,7 +852,7 @@ function brb_sd_pay_link($id) {
     if ($url === '') return ['url' => '', 'blockers' => brb_sd_blockers($b)];
     $due = brb_amount_due_now($b);
     $fee = brb_card_fee_cents(brb_cents_from_amount($due)) / 100;
-    brb_audit_append((int) $b->id, 'staff dashboard: pay link copied; no email sent');
+    brb_audit_append((int) $b->id, 'staff dashboard: pay link opened for copying; no email sent');
     return ['url' => $url, 'blockers' => [], 'due' => brb_money($due), 'fee' => brb_money($fee), 'charged' => brb_money($due + $fee)];
 }
 
@@ -845,6 +896,13 @@ function brb_sd_routes() {
         ['booking/' . $id . '/payment-preview', 'POST', function ($r) { $b = brb_booking((int) $r['id']); return $b ? brb_sd_payment_figures($b, $r->get_json_params() ?: []) : new WP_Error('missing', 'Booking not found.', ['status' => 404]); }],
         ['booking/' . $id . '/payment', 'POST', function ($r) { return brb_sd_payment((int) $r['id'], $r->get_json_params() ?: $r->get_body_params()); }],
         ['booking/' . $id . '/pay-link', 'POST', function ($r) { return brb_sd_pay_link((int) $r['id']); }],
+        ['booking/' . $id . '/pay-link-copied', 'POST', function ($r) { $b = brb_booking((int) $r['id']); if (!$b || brb_pay_link($b) === '') return new WP_Error('link', 'There is no pay link for this booking yet.'); brb_note_pay_link_sent((int) $b->id); return brb_sd_booking_detail(brb_booking((int) $r['id'])); }],
+        ['lapsed', 'GET', function () { return array_map('brb_sd_booking_detail', brb_sd_lapsed()); }],
+        ['booking/' . $id . '/release', 'POST', function ($r) { return brb_sd_release((int) $r['id'], $r->get_json_params() ?: []); }],
+        ['hold/' . $id . '/remove', 'POST', function ($r) { return brb_sd_remove_hold((int) $r['id'], $r->get_json_params() ?: []); }],
+        ['migration', 'GET', function () { return brb_sd_admin_only() ?: brb_sd_mig_summary(); }],
+        ['migration/run', 'POST', function ($r) { $p = $r->get_json_params() ?: []; return brb_sd_admin_only() ?: ((empty($p['confirmed'])) ? new WP_Error('confirm', 'Confirm first. Nothing was changed.', ['status' => 409]) : brb_sd_mig_run(false)); }],
+        ['migration/undo', 'POST', function ($r) { $p = $r->get_json_params() ?: []; return brb_sd_admin_only() ?: ((empty($p['confirmed'])) ? new WP_Error('confirm', 'Confirm first. Nothing was changed.', ['status' => 409]) : brb_sd_mig_undo()); }],
         ['booking/' . $id . '/draft', 'POST', function ($r) { $p = $r->get_json_params() ?: []; return brb_sd_draft((int) $r['id'], sanitize_key((string) ($p['kind'] ?? '')), (string) ($p['note'] ?? '')); }],
         ['booking/' . $id . '/send', 'POST', function ($r) { return brb_sd_send((int) $r['id'], $r->get_json_params() ?: []); }],
         ['add-preview', 'POST', function ($r) {
@@ -906,6 +964,7 @@ function brb_sd_page_html() {
         'depositPct' => brb_pct_label(brb_site_deposit_pct()),
         'eventTypes' => brb_event_types(),
         'today' => brb_now()->format('Y-m-d'),
+        'isAdmin' => current_user_can('manage_options'),
         'month' => (isset($_GET['m']) && preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', (string) $_GET['m'])) ? (string) $_GET['m'] : brb_now()->format('Y-m'),
     ];
     $css = esc_url(BRB_URL . 'assets/brb-staff.css?ver=' . BRB_VER);
@@ -941,7 +1000,7 @@ function brb_sd_page_html() {
     <p class="lede">Tap a day, then tap any item to open its full record.</p>
     <div class="legend" aria-label="Calendar legend">
       <span><i class="swatch booked"></i> Booked</span><span><i class="swatch held"></i> Date held</span>
-      <span><i class="swatch waiting"></i> Request waiting</span><span><i class="swatch closed"></i> Closed</span><span><i class="swatch open"></i> Open</span>
+      <span><i class="swatch lapsed"></i> Pay window passed</span><span><i class="swatch waiting"></i> Request waiting</span><span><i class="swatch closed"></i> Closed</span><span><i class="swatch open"></i> Open</span>
     </div>
     <div class="card cal-card">
       <div class="cal-head">
@@ -952,10 +1011,12 @@ function brb_sd_page_html() {
       <div class="dow" aria-hidden="true"><span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span></div>
       <div class="cal-grid" id="cal-grid"></div>
     </div>
+    <div id="migration-card"></div>
   </section>
   <section id="panel-requests" class="panel" data-panel="requests">
     <h2>Requests waiting</h2>
     <p class="lede">Open a request to check the details, then approve or decline. If you choose to email the guest, you see the full message and confirm before it sends.</p>
+    <div id="lapsed-list"></div>
     <div id="request-list"></div>
   </section>
   <section id="panel-payments" class="panel" data-panel="payments">
