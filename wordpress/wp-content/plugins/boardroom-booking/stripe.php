@@ -46,9 +46,14 @@ function brb_card_fee_cents($base_cents, $percent = null) {
     if ($percent === null) $percent = brb_card_fee_percent();
     return (int) round($base_cents * ((float) $percent) / 100);
 }
-function brb_amount_due_now($b) {
+function brb_amount_due_now($b, $choice = '') {
     if (!$b || !brb_price_is_set($b)) return 0.0;
     if (!in_array($b->status, ['approved', 'held', 'deposit_paid'], true)) return 0.0;
+    if ($choice === 'full') {
+        // 2.5.84 guest Pay in full: everything still owed on the rental plus any unpaid damage deposit.
+        $all = round(brb_rental_left($b) + brb_damage_left($b), 2);
+        return $all > 0.009 ? $all : 0.0;
+    }
     $money = brb_booking_money($b);
     if ((float) $money['deposit_left'] > 0.009) {
         // Reserve stage: the admin Money box "Due now to reserve" figure.
@@ -78,6 +83,28 @@ function brb_pay_link($b) {
         'br_sig' => brb_pay_signature($b->token),
     ], brb_book_url());
 }
+/**
+ * 2.5.84: the guest may choose Pay in full on the pay page while the booking is still at
+ * the deposit stage and paying in full would charge more than the deposit.
+ */
+function brb_guest_pay_full_available($b) {
+    if (!$b || !brb_price_is_set($b)) return false;
+    if (!in_array((string) $b->status, ['approved', 'held'], true)) return false;
+    $deposit_left = max(0, round((float) $b->deposit_due - (float) $b->amount_paid, 2));
+    if ($deposit_left <= 0.009) return false;
+    return brb_amount_due_now($b, 'full') - brb_amount_due_now($b) > 0.009;
+}
+function brb_normalize_pay_choice($b, $choice) {
+    $choice = sanitize_key((string) $choice);
+    return ($choice === 'full' && brb_guest_pay_full_available($b)) ? 'full' : '';
+}
+/** Base, fee, and total cents for one choice, the same math as Stripe Checkout. */
+function brb_pay_choice_totals($b, $choice = '') {
+    $charge = brb_checkout_lines($b, $choice);
+    $base = (int) $charge['base_cents'];
+    $fee = brb_card_fee_cents($base);
+    return ['charge' => $charge, 'base_cents' => $base, 'fee_cents' => $fee, 'total_cents' => $base + $fee];
+}
 function brb_pay_link_checklist() {
     return [
         'stripe' => 'Stripe connected',
@@ -106,7 +133,12 @@ function brb_pay_online_line($b) {
     if ($url === '') return '';
     $due = brb_amount_due_now($b);
     $fee = brb_card_fee_cents(brb_cents_from_amount($due)) / 100;
-    return 'Pay online: ' . $url . ' The card charge is ' . brb_money($due) . ' plus a ' . brb_fee_percent_label() . ' processing fee of ' . brb_money($fee) . '. That fee is not part of the booking balance. You can still pay by check or in person. ' . brb_deposit_line() . ' ' . brb_fee_public_line();
+    $line = 'Pay online: ' . $url . ' The card charge is ' . brb_money($due) . ' plus a ' . brb_fee_percent_label() . ' processing fee of ' . brb_money($fee) . '.';
+    if (brb_guest_pay_full_available($b)) {
+        $full = brb_pay_choice_totals($b, 'full');
+        $line .= ' You can also choose to pay in full on that page: ' . brb_money($full['base_cents'] / 100) . ' plus ' . brb_money($full['fee_cents'] / 100) . ', ' . brb_money($full['total_cents'] / 100) . ' in all.';
+    }
+    return $line . ' That fee is not part of the booking balance. You can still pay by check or in person. ' . brb_booking_deposit_line($b) . ' ' . brb_fee_public_line();
 }
 
 function brb_stripe_unavailable_guest_message() {
@@ -117,6 +149,22 @@ function brb_stripe_review_mark() {
 }
 function brb_stripe_review_steps() {
     return 'Do not refund this from the website, and do not email the guest automatically. Open the payment in the Stripe dashboard and refund it there if this guest cannot have the date. After the refund, clear the booking flag.';
+}
+/** 2.5.84: a second Checkout payment that arrived after the booking was already paid. */
+function brb_stripe_overpay_mark() {
+    return 'Extra payment on an already-paid booking: review needed, not applied';
+}
+function brb_stripe_overpay_steps() {
+    return 'Do not refund this from the website, and do not email the guest automatically. Open the payment in the Stripe dashboard and refund it there if this charge was not intended. After the refund, clear the booking flag.';
+}
+function brb_stripe_overpay_subject($ref) {
+    return 'Extra payment on an already-paid booking: review needed, not applied (' . $ref . ')';
+}
+function brb_stripe_review_kinds() {
+    return [brb_stripe_review_mark(), brb_stripe_overpay_mark()];
+}
+function brb_stripe_review_kind_steps($mark) {
+    return ((string) $mark === brb_stripe_overpay_mark()) ? brb_stripe_overpay_steps() : brb_stripe_review_steps();
 }
 function brb_stripe_dashboard_url($stripe_id, $session_id = '') {
     $stripe_id = (string) $stripe_id;
@@ -155,10 +203,11 @@ function brb_stripe_review_rows($booking_id = null) {
         (int) $booking_id
     ));
 }
-function brb_stripe_log_review($ref, $sid, $pi, $reason) {
-    error_log('Boardroom ' . brb_stripe_review_mark() . ': ' . $ref . ' session ' . $sid . ' payment ' . $pi . '. ' . brb_stripe_redact($reason));
+function brb_stripe_log_review($ref, $sid, $pi, $reason, $mark = '') {
+    if ($mark === '') $mark = brb_stripe_review_mark();
+    error_log('Boardroom ' . $mark . ': ' . $ref . ' session ' . $sid . ' payment ' . $pi . '. ' . brb_stripe_redact($reason));
 }
-function brb_stripe_save_unapplied($booking_id, $session, $reason) {
+function brb_stripe_save_unapplied($booking_id, $session, $reason, $kind = '') {
     global $wpdb;
     if (!is_array($session)) return new WP_Error('payload', 'Invalid payment session.', ['status' => 400]);
     $meta = isset($session['metadata']) && is_array($session['metadata']) ? $session['metadata'] : [];
@@ -167,7 +216,7 @@ function brb_stripe_save_unapplied($booking_id, $session, $reason) {
     $pi = brb_stripe_id_value($session['payment_intent'] ?? '');
     $sid = brb_stripe_id_value($session['id'] ?? '');
     if (brb_find_stripe_payment([$pi, $sid])) return true;
-    $mark = brb_stripe_review_mark();
+    $mark = ($kind === 'overpay') ? brb_stripe_overpay_mark() : brb_stripe_review_mark();
     $notes = $mark . ' ' . sanitize_text_field($reason);
     $ok = $wpdb->insert(brb_pay_table(), [
         'booking_id' => max(0, (int) $booking_id),
@@ -196,25 +245,41 @@ function brb_stripe_save_unapplied($booking_id, $session, $reason) {
         . 'Stripe payment: ' . $url . "\n"
         . 'Session: ' . $sid . "\n"
         . 'Payment: ' . ($pi !== '' ? $pi : $sid) . "\n\n"
-        . brb_stripe_review_steps() . "\n";
+        . brb_stripe_review_kind_steps($mark) . "\n";
     if ($b) $body .= "\n" . admin_url('admin.php?page=brb&booking=' . (int) $b->id) . "\n";
-    brb_mail_staff('Needs staff review - payment received for unavailable date (' . $ref . ')', $body);
-    brb_stripe_log_review($ref, $sid, $pi !== '' ? $pi : $sid, $reason);
+    $subject = ($kind === 'overpay')
+        ? brb_stripe_overpay_subject($ref)
+        : 'Needs staff review - payment received for unavailable date (' . $ref . ')';
+    brb_mail_staff($subject, $body);
+    brb_stripe_log_review($ref, $sid, $pi !== '' ? $pi : $sid, $reason, $mark);
     return true;
 }
 function brb_stripe_review_notice() {
     if (!current_user_can('manage_options')) return;
     global $wpdb;
-    $mark = brb_stripe_review_mark();
+    $marks = brb_stripe_review_kinds();
     $bookings = $wpdb->get_results($wpdb->prepare(
-        'SELECT id FROM ' . brb_table() . ' WHERE attention=%s ORDER BY id DESC LIMIT 20',
-        $mark
+        'SELECT id, attention FROM ' . brb_table() . ' WHERE attention IN (%s, %s) ORDER BY id DESC LIMIT 20',
+        $marks[0],
+        $marks[1]
     ));
     $orphans = brb_stripe_review_rows(0);
     if (!$bookings && !$orphans) return;
     $list = admin_url('admin.php?page=brb&status=card_review');
-    echo '<div class="notice notice-error"><p><strong>Boardroom Booking:</strong> ' . esc_html($mark) . '.</p>';
-    echo '<p>' . esc_html(brb_stripe_review_steps()) . '</p><ul>';
+    echo '<div class="notice notice-error">';
+    $seen = [];
+    foreach ((array) $bookings as $row) {
+        $mark = (string) ($row->attention ?? '');
+        if ($mark === '' || isset($seen[$mark])) continue;
+        $seen[$mark] = true;
+        echo '<p><strong>Boardroom Booking:</strong> ' . esc_html($mark) . '.</p>';
+        echo '<p>' . esc_html(brb_stripe_review_kind_steps($mark)) . '</p>';
+    }
+    if (!$seen && $orphans) {
+        echo '<p><strong>Boardroom Booking:</strong> ' . esc_html(brb_stripe_review_mark()) . '.</p>';
+        echo '<p>' . esc_html(brb_stripe_review_steps()) . '</p>';
+    }
+    echo '<ul>';
     foreach ((array) $bookings as $row) {
         $b = brb_booking($row->id);
         if (!$b) continue;
@@ -235,15 +300,19 @@ function brb_stripe_review_notice() {
 }
 add_action('admin_notices', 'brb_stripe_review_notice');
 
-function brb_stripe_create_session($b) {
+function brb_stripe_create_session($b, $choice = '') {
     if (!brb_stripe_enabled()) return new WP_Error('stripe', 'Online card payment is not available.');
-    if ($b && brb_date_taken($b)) {
+    if (!$b) return new WP_Error('missing', 'Booking not found.');
+    if (brb_date_taken($b)) {
         brb_stripe_note_checkout_blocked($b);
         return new WP_Error('busy', brb_stripe_unavailable_guest_message());
     }
-    $due = brb_amount_due_now($b);
+    // 2.5.84: never open a session for a paid booking or a $0 balance (double-charge guard).
+    if ((string) $b->status === 'paid') return new WP_Error('amount', 'This booking is paid in full. There is no balance to pay online.');
+    $choice = brb_normalize_pay_choice($b, $choice);
+    $due = brb_amount_due_now($b, $choice);
     if ($due <= 0) return new WP_Error('amount', 'There is no balance to pay online.');
-    $charge = brb_checkout_lines($b);
+    $charge = brb_checkout_lines($b, $choice);
     $base_cents = (int) $charge['base_cents'];
     if ($base_cents <= 0) return new WP_Error('amount', 'There is no balance to pay online.');
     $percent = brb_card_fee_percent();
@@ -261,6 +330,7 @@ function brb_stripe_create_session($b) {
         'metadata[base_cents]' => (string) $base_cents,
         'metadata[fee_cents]' => (string) $fee_cents,
         'metadata[damage_cents]' => (string) (int) $charge['damage_cents'],
+        'metadata[pay_choice]' => $choice === 'full' ? 'full' : 'due_now',
     ];
     $i = 0;
     foreach ($charge['lines'] as $line) {
@@ -297,18 +367,19 @@ function brb_stripe_create_session($b) {
     }
     return $url;
 }
-function brb_stripe_begin_checkout($token, $sig, $agreed) {
+function brb_stripe_begin_checkout($token, $sig, $agreed, $choice = '') {
     if (!brb_pay_token_valid($token, $sig)) return new WP_Error('token', 'This payment link is not valid.');
     if (!$agreed) return new WP_Error('agree', 'Please confirm the card processing fee.');
     $b = brb_booking_by_token($token);
     if (!$b) return new WP_Error('missing', 'Booking not found.');
-    return brb_stripe_create_session($b);
+    return brb_stripe_create_session($b, $choice);
 }
 function brb_handle_stripe_checkout() {
     $token = sanitize_text_field(wp_unslash($_POST['br_token'] ?? ''));
     $sig = sanitize_text_field(wp_unslash($_POST['br_sig'] ?? ''));
     $agreed = !empty($_POST['card_fee_agree']);
-    $result = brb_stripe_begin_checkout($token, $sig, $agreed);
+    $choice = sanitize_key(wp_unslash($_POST['pay_choice'] ?? ''));
+    $result = brb_stripe_begin_checkout($token, $sig, $agreed, $choice);
     $back = add_query_arg(['br_pay' => $token, 'br_sig' => $sig], brb_book_url());
     if (is_wp_error($result)) {
         wp_safe_redirect(add_query_arg('br_err', rawurlencode($result->get_error_message()), $back));
@@ -353,7 +424,11 @@ function brb_view_pay($token, $sig) {
     $fee_cents = brb_card_fee_cents($base_cents);
     $total_cents = $base_cents + $fee_cents;
     $label = brb_fee_percent_label();
+    $can_full = brb_guest_pay_full_available($b);
+    $full = $can_full ? brb_pay_choice_totals($b, 'full') : null;
+    $deposit_line = brb_booking_deposit_line($b);
     ?>
+    <div class="brb-pay-page">
     <div class="brb-card">
       <h2>Pay online</h2>
       <p>Reference <strong><?php echo esc_html(brb_ref($b)); ?></strong></p>
@@ -364,16 +439,24 @@ function brb_view_pay($token, $sig) {
         <?php } ?>
         <p>Card processing fee (<?php echo esc_html($label); ?>): <?php echo esc_html(brb_money($fee_cents / 100)); ?></p>
         <p><strong>Total charged to your card: <?php echo esc_html(brb_money($total_cents / 100)); ?></strong></p>
-        <p>The processing fee is not part of the booking balance. You can still pay by check or in person. <?php echo esc_html(brb_deposit_line()); ?> <?php echo esc_html(brb_fee_public_line()); ?></p>
+        <p>The processing fee is not part of the booking balance. You can still pay by check or in person. <?php echo esc_html($deposit_line); ?> <?php echo esc_html(brb_fee_public_line()); ?></p>
       </div>
       <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
         <input type="hidden" name="action" value="brb_stripe_checkout">
         <input type="hidden" name="br_token" value="<?php echo esc_attr($token); ?>">
         <input type="hidden" name="br_sig" value="<?php echo esc_attr($sig); ?>">
-        <label class="brb-check"><input type="checkbox" name="card_fee_agree" value="1" required> I understand a <?php echo esc_html($label); ?> card processing fee applies, <?php echo esc_html(lcfirst(brb_deposit_line())); ?> and I agree to the <a href="<?php echo esc_url(home_url('/terms/')); ?>" target="_blank" rel="noopener">Terms</a> and <a href="<?php echo esc_url(home_url('/rental-agreement/')); ?>" target="_blank" rel="noopener">Rental Agreement</a>.</label>
+        <?php if ($can_full) { ?>
+        <fieldset class="brb-pay-choice">
+          <legend><strong>How much would you like to pay now?</strong></legend>
+          <label class="brb-check"><input type="radio" name="pay_choice" value="due_now" checked> Pay the deposit: <?php echo esc_html(brb_money($base_cents / 100)); ?> + <?php echo esc_html(brb_money($fee_cents / 100)); ?> card fee = <strong><?php echo esc_html(brb_money($total_cents / 100)); ?></strong>. The balance of <?php echo esc_html(brb_money(max(0, round(($full['base_cents'] - $base_cents) / 100, 2)))); ?> is due later.</label>
+          <label class="brb-check"><input type="radio" name="pay_choice" value="full"> Pay in full: <?php echo esc_html(brb_money($full['base_cents'] / 100)); ?> + <?php echo esc_html(brb_money($full['fee_cents'] / 100)); ?> card fee = <strong><?php echo esc_html(brb_money($full['total_cents'] / 100)); ?></strong>. Nothing more is due.</label>
+        </fieldset>
+        <?php } ?>
+        <label class="brb-check"><input type="checkbox" name="card_fee_agree" value="1" required> I understand a <?php echo esc_html($label); ?> card processing fee applies, <?php echo esc_html(lcfirst($deposit_line)); ?> and I agree to the <a href="<?php echo esc_url(home_url('/terms/')); ?>" target="_blank" rel="noopener">Terms</a> and <a href="<?php echo esc_url(home_url('/rental-agreement/')); ?>" target="_blank" rel="noopener">Rental Agreement</a>.</label>
         <p><button class="brb-btn" type="submit">Continue to card payment</button></p>
       </form>
       <p><a href="<?php echo esc_url(brb_guest_link($b)); ?>">Back to your booking</a></p>
+    </div>
     </div>
     <?php
 }
@@ -465,8 +548,12 @@ function brb_stripe_apply_session($session) {
             'damage' => $damage_cents / 100,
         ]);
         if (is_wp_error($res)) {
-            if (in_array($res->get_error_code(), ['busy', 'status'], true)) {
-                return brb_stripe_save_unapplied((int) $b->id, $session, $res->get_error_message());
+            // 2.5.84: 'amount' after the booking is already covered = extra payment, with its own staff alert wording.
+            if (in_array($res->get_error_code(), ['busy', 'status', 'amount'], true)) {
+                $fresh = brb_booking($b->id);
+                $covered = $fresh && ((string) $fresh->status === 'paid' || ((float) $fresh->amount_paid + 0.009 >= (float) $fresh->total && (float) $fresh->total > 0.009));
+                $kind = ($res->get_error_code() === 'amount' && $covered) ? 'overpay' : '';
+                return brb_stripe_save_unapplied((int) $b->id, $session, $res->get_error_message(), $kind);
             }
             return $res;
         }

@@ -182,8 +182,8 @@ try {
     $src = (string) file_get_contents(WP_PLUGIN_DIR . '/boardroom-booking/boardroom-booking.php');
     brb_t(strpos($src, "\$location === BRB_CHECK_ADDRESS) {\n        \$merged['pay_location'] = BRB_VENUE_ADDRESS;") === false, 'the old 2212-to-2220 overwrite is gone from brb_migrate_settings');
 
-    // ---- payment logic is untouched in 2.5.80 (the $250 setting needs Devin)
-    brb_t(brb_defaults()['damage_deposit_amount'] === '250' && function_exists('brb_ensure_damage_line'), 'payment settings and the damage line code are unchanged in 2.5.80 (the damage deposit default is a Devin decision)');
+    // ---- damage deposit default is $0 (Max, Nov 16; code default set in 2.5.84)
+    brb_t(brb_defaults()['damage_deposit_amount'] === '0' && function_exists('brb_ensure_damage_line'), 'damage deposit default is $0 and the damage line helper still exists');
 } finally {
     if ($saved_opt === false) delete_option('brb_settings'); else update_option('brb_settings', $saved_opt);
     if ($saved_ver === false) delete_option('brb_version'); else update_option('brb_version', $saved_ver);
