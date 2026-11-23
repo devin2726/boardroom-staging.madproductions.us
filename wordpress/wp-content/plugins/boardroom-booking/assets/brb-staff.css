@@ -338,5 +338,5 @@ footer.note {
 .loading { color: var(--muted); padding: 16px 4px; }
 .mailbody { white-space: pre-wrap; word-break: break-word; font-family: var(--font); font-size: 14px; background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; max-height: 42vh; overflow: auto; margin: 0 0 8px; }
 /* Max, Nov 23 10:03 AM CT: the upcoming list heading is much bigger and clearer than other section headers (matches /admin-calendar/). */
-.panel h2.big-heading { font-family: var(--font); font-size: 30px; font-weight: 800; line-height: 1.15; letter-spacing: -0.01em; color: #120d09; margin: 6px 0 8px; padding-bottom: 8px; border-bottom: 3px solid var(--clay); }
+.panel h2.big-heading { font-family: var(--font); font-size: 30px; font-weight: 800; line-height: 1.15; letter-spacing: -0.01em; color: #111; margin: 6px 0 8px; padding-bottom: 8px; border-bottom: 3px solid var(--clay); }
 @media (min-width: 640px) { .panel h2.big-heading { font-size: 38px; } }
