@@ -340,3 +340,9 @@ footer.note {
 /* Max, Nov 23 10:03 AM CT: the upcoming list heading is much bigger and clearer than other section headers (matches /admin-calendar/). */
 .panel h2.big-heading { font-family: var(--font); font-size: 30px; font-weight: 800; line-height: 1.15; letter-spacing: -0.01em; color: #111; margin: 6px 0 8px; padding-bottom: 8px; border-bottom: 3px solid var(--clay); }
 @media (min-width: 640px) { .panel h2.big-heading { font-size: 38px; } }
+/* One record view: every list and calendar item is a tappable card that opens it. */
+.card.item-open { display: block; width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer; min-height: 64px; }
+.card.item-open:hover, .card.item-open:focus { border-color: var(--brass); outline: 2px solid var(--brass-soft); }
+.item .h4 { font-family: var(--serif); font-weight: 600; font-size: 17px; }
+.item .muted { display: block; margin-top: 4px; }
+.open-hint { display: block; margin-top: 6px; font-size: 13px; font-weight: 700; color: var(--clay); }

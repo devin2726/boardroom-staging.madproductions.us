@@ -20,6 +20,7 @@ if (!function_exists('brb_t')) {
     }
 }
 if (empty($_SERVER['SERVER_NAME'])) $_SERVER['SERVER_NAME'] = 'localhost';
+define('BRB_DIR_TEST', WP_PLUGIN_DIR . '/boardroom-booking/');
 global $wpdb;
 $wpdb->hide_errors();
 
@@ -176,6 +177,11 @@ try {
     brb_t(substr_count($html, 'data-jump="') === 9 && substr_count($html, '<nav class="nav"') === 1, 'six-item bottom nav plus three summary cards');
     brb_t(strpos($html, 'id="add-no-email" name="no_guest_email" checked') !== false, '"Don\'t email the guest" is checked by default on Add');
     brb_t(strpos($html, '<h2 class="big-heading">All Upcoming Reservations</h2>') !== false, 'upcoming section is headed "All Upcoming Reservations" (large heading)');
+    $js = file_get_contents(BRB_DIR_TEST . 'assets/brb-staff.js');
+    $visible = preg_replace('/(walkthrough|ap-walk|\$walk|\bwalk\b)/i', '', $html . $js);
+    brb_t(stripos($visible, 'walk-through') === false && stripos($visible, 'walkthrough') === false && stripos($visible, 'tour') === false, 'no walk-through or tour wording in the dashboard page or script');
+    brb_t(strpos($js, 'I checked the details') !== false, 'Approve checkbox reads "I checked the details"');
+    brb_t(strpos($html, 'value="hold"') === false, 'no separate thin "Hold the date" option on the Add form');
     brb_t(stripos($html, 'type="tel"') === false && stripos($html, 'name="phone"') === false, 'no phone field anywhere');
     $plain_post = sd_rest('POST', 'add-preview', ['date' => '2027-10-12'], false);
     brb_t($plain_post[0] === 403, 'a staff POST without the staff nonce is refused (403)');
@@ -192,7 +198,14 @@ try {
     brb_t($item['can_approve'] && $item['can_decline'], 'Approve and Decline are reachable from day detail');
     brb_t($item['hours'] === '10:00 AM – 11:30 PM' && $item['end_time'] === '', 'event times come from the booking data; no invented end time');
     list($st, $dayA) = sd_rest('GET', 'day?date=2027-10-04');
-    brb_t(!empty($dayA['data']['items'][0]['can_pay']), 'Record payment and Copy pay link are reachable from day detail');
+    brb_t(!empty($dayA['data']['items'][0]['can_pay']), 'Record payment, Send invoice / pay link and Copy pay link are reachable from the day\'s record');
+    $hid5 = (int) $wpdb->get_var("SELECT id FROM " . brb_hold_table() . " WHERE name='SD Test Hold'");
+    list($st, $hr5) = sd_rest('GET', 'hold/' . $hid5);
+    brb_t($st === 200 && $hr5['data']['label'] === 'Date held' && $hr5['data']['when'] === 'Tuesday, October 5, 2027' && $hr5['data']['pay_note'] !== '', 'a hold opens the same record view (date, label, notes) and says why no pay link can be sent yet');
+    list($st, $hr6) = sd_rest('GET', 'hold/999999999');
+    brb_t($st === 404, 'a missing hold is a clean 404');
+    $dayItems = $day['data']['items'];
+    brb_t(isset($dayItems[0]['id'], $dayItems[0]['type']), 'every day item carries type + id so it opens the shared record');
     brb_t($dayA['data']['rate_text'] === '$850 for the day', 'day detail rate comes from the calendar rates ($850 Mon)');
 
     // ---------- MUST FIX: Add refused on taken days ----------
@@ -235,15 +248,15 @@ try {
     $R1 = sd_raw_booking('2027-10-13', 'SD Test Rival One', 'review');
     $R2 = sd_raw_booking('2027-10-13', 'SD Test Rival Two', 'review'); // two public requests can wait on one day
     list($st, $r) = sd_rest('POST', "booking/$R1/approve", ['walkthrough' => 0]);
-    brb_t($st === 409 && $r['code'] === 'walkthrough', 'Approve needs the walk-through checkbox');
+    brb_t($st === 409 && $r['code'] === 'walkthrough' && $r['message'] === 'Tick "I checked the details" first.', 'Approve needs the "I checked the details" checkbox');
     $locks = $GLOBALS['sd_locks'];
     list($st, $r) = sd_rest('POST', "booking/$R1/approve", ['walkthrough' => 1]);
-    brb_t($st === 200 && $r['data']['status'] === 'approved' && $r['data']['walkthrough'], 'Approve with the walk-through ticked approves the first request');
+    brb_t($st === 200 && $r['data']['status'] === 'approved' && $r['data']['details_checked'], 'Approve with "I checked the details" ticked approves the first request');
     brb_t($GLOBALS['sd_locks'] > $locks, 'Approve took GET_LOCK(\'brb_book\')');
     list($st, $r) = sd_rest('POST', "booking/$R2/approve", ['walkthrough' => 1]);
     brb_t($st === 409 && $r['code'] === 'busy' && $r['reason'] === 'booked', 'Approve of the rival request on the same day is refused: ' . ($r['message'] ?? ''));
     $r2row = brb_booking($R2);
-    brb_t($r2row->status === 'review' && empty($r2row->walkthrough_done), 'refused rival stays waiting, and its walk-through tick is rolled back');
+    brb_t($r2row->status === 'review' && empty($r2row->walkthrough_done), 'refused rival stays waiting, and its "I checked the details" tick is rolled back');
     $R3 = sd_raw_booking('2027-10-14', 'SD Test Then Held', 'review', ['walkthrough_done' => 1]);
     sd_raw_hold('2027-10-14', 'SD Test Late hold', 'hold');
     list($st, $r) = sd_rest('POST', "booking/$R3/approve", ['walkthrough' => 1]);
@@ -307,6 +320,10 @@ try {
     brb_t(count($GLOBALS['sd_mail']) === $m0, 'copying the pay link sends no email at all');
     list($st, $r) = sd_rest('POST', "booking/$W/pay-link", []);
     brb_t($st === 200 && $r['data']['url'] === '' && in_array('Request approved', $r['data']['blockers'], true), 'no link for a waiting request; it says what is missing');
+    $nb = sd_raw_booking('2027-10-31', 'SD Test Unchecked', 'approved');
+    list($st, $r) = sd_rest('POST', "booking/$nb/pay-link", []);
+    brb_t(in_array('Details checked', $r['data']['blockers'], true) && !preg_grep('/walk/i', $r['data']['blockers']), 'pay link blockers say "Details checked", never walk-through');
+    $wpdb->delete(brb_table(), ['id' => $nb]);
 
     // ---------- Decline; actions never email; confirm-then-send (Max, Nov 23 10:00 AM CT) ----------
     $m0 = count(sd_guest_mails());

@@ -92,7 +92,7 @@
     rows.push(['Guests', String(b.guests || '')]);
     if (b.email) rows.push(['Email', b.email]);
     rows.push(['Status', b.status_label || '']);
-    rows.push(['Walk-through', b.walkthrough ? 'Done' : 'Not yet']);
+    rows.push(['Details checked', b.details_checked ? 'Yes' : 'Not yet']);
     if (m.priced) {
       rows.push(['Price', m.total_text]);
       rows.push(['Charge now', m.charge_now]);
@@ -115,40 +115,63 @@
     if (b.can_approve || b.can_decline) out += '<button type="button" class="btn" data-act="decline" data-id="' + b.id + '">Decline</button>';
     if (b.can_pay) {
       out += '<button type="button" class="btn btn-primary" data-act="pay" data-id="' + b.id + '">Record payment</button>';
+      out += '<button type="button" class="btn" data-act="sendlink" data-id="' + b.id + '">Send invoice / pay link</button>';
       out += '<button type="button" class="btn" data-act="link" data-id="' + b.id + '">Copy pay link</button>';
     }
     return out ? '<div class="btn-row">' + out + '</div>' : '';
   }
-  function bookingCard(b) {
-    return '<article class="card"><div class="item-head"><h4>' + esc(b.name) + ' <span class="muted">' + esc(b.ref) + '</span></h4>' + chip(b.chip) + '</div>' +
-      bookingFacts(b) + bookingButtons(b) + '</article>';
-  }
-  function holdCard(h) {
-    var cls = h.hold_type === 'hold' ? 'held' : (h.hold_type === 'reserved' ? 'paid' : 'block');
-    return '<article class="card"><div class="item-head"><h4>' + esc(h.name) + '</h4><span class="chip ' + cls + '">' + esc(h.label) + '</span></div>' +
-      '<ul class="facts">' + (h.time ? '<li><span>Time</span><span>' + esc(h.time) + '</span></li>' : '') +
-      (h.notes ? '<li><span>Notes</span><span>' + esc(h.notes) + '</span></li>' : '') + '</ul></article>';
-  }
   function wireActions(root, byId) {
     root.querySelectorAll('[data-act]').forEach(function (btn) {
       btn.addEventListener('click', function () {
+        var act = btn.getAttribute('data-act');
         var b = byId[btn.getAttribute('data-id')];
         if (!b) return;
-        var act = btn.getAttribute('data-act');
         if (act === 'approve') approveFlow(b);
         else if (act === 'decline') declineFlow(b);
         else if (act === 'pay') payFlow(b);
         else if (act === 'link') linkFlow(b);
+        else if (act === 'sendlink') sendFlow(b.id, 'paylink', '');
+        else if (act === 'open') openRecord(b.type, b.id);
         else if (act === 'send') sendFlow(b.booking_id, b.kind, '');
       });
     });
+  }
+  /** Compact list/calendar item. Tapping it opens the one shared record view. */
+  function itemRow(it) {
+    var isB = it.type === 'booking';
+    var c = isB ? chip(it.chip) : '<span class="chip ' + (it.hold_type === 'hold' ? 'held' : (it.hold_type === 'reserved' ? 'paid' : 'block')) + '">' + esc(it.label) + '</span>';
+    var sub = isB ? [it.when, it.event, it.guests ? it.guests + ' guests' : ''].filter(Boolean).join(' · ') : [it.when, it.time].filter(Boolean).join(' · ');
+    var key = (isB ? 'b' : 'h') + it.id;
+    if (!it.id) return '<article class="card item"><div class="item-head"><h4>' + esc(it.name) + '</h4>' + c + '</div><p class="muted">' + esc(sub) + '</p></article>';
+    return '<button type="button" class="card item item-open" data-act="open" data-id="' + key + '" aria-label="Open ' + esc(it.name) + '">' +
+      '<span class="item-head"><span class="h4">' + esc(it.name) + (it.ref && isB ? ' <span class="muted">' + esc(it.ref) + '</span>' : '') + '</span>' + c + '</span>' +
+      '<span class="muted">' + esc(sub) + '</span><span class="open-hint" aria-hidden="true">Open ›</span></button>';
+  }
+  function indexItems(list) { var o = {}; list.forEach(function (it) { if (it && it.id) o[(it.type === 'booking' ? 'b' : 'h') + it.id] = it; }); return o; }
+  /** The single record view for a booking, request or hold, from anywhere on the page. */
+  function openRecord(type, id) {
+    var path = type === 'booking' ? 'booking/' + id : 'hold/' + id;
+    api(path).then(function (r) {
+      var html;
+      if (type === 'booking') {
+        html = '<h3 id="modal-title">' + esc(r.name) + ' <span class="muted">' + esc(r.ref) + '</span></h3><p>' + chip(r.chip) + '</p>' + bookingFacts(r) + bookingButtons(r);
+        if (!r.can_pay && !r.can_approve && r.status !== 'paid') html += '';
+      } else {
+        html = '<h3 id="modal-title">' + esc(r.name) + '</h3><p><span class="chip ' + (r.hold_type === 'hold' ? 'held' : (r.hold_type === 'reserved' ? 'paid' : 'block')) + '">' + esc(r.label) + '</span></p>' +
+          '<ul class="facts"><li><span>Date</span><span>' + esc(r.when) + '</span></li>' + (r.time ? '<li><span>Time</span><span>' + esc(r.time) + '</span></li>' : '') +
+          (r.notes ? '<li><span>Notes</span><span>' + esc(r.notes) + '</span></li>' : '') + '</ul>' +
+          '<div class="btn-row"><button type="button" class="btn" disabled>Send invoice / pay link</button></div><p class="muted">' + esc(r.pay_note) + '</p>';
+      }
+      html += '<div class="btn-row"><button type="button" class="btn btn-quiet" data-close>Close</button></div>';
+      openModal(html, function (m) { if (type === 'booking') { var o = {}; o[r.id] = r; wireActions(m, o); } });
+    }).catch(function (e) { toast(e.message); });
   }
   function indexById(list) { var o = {}; list.forEach(function (b) { if (b && b.id) o[b.id] = b; }); return o; }
 
   /* ---------- flows ---------- */
   function approveFlow(b) {
     var html = '<h3 id="modal-title">Approve ' + esc(b.name) + '</h3><p class="muted">' + esc(b.ref + ' · ' + b.when) + '</p>' +
-      '<label class="check"><input type="checkbox" id="ap-walk"' + (b.walkthrough ? ' checked disabled' : '') + '> Walk-through done</label>' +
+      '<label class="check"><input type="checkbox" id="ap-walk"' + (b.details_checked ? ' checked disabled' : '') + '> I checked the details</label>' +
       '<p class="field-label">Charge now</p><div class="choice">' +
       '<label><input type="radio" name="ap-charge" value="deposit"' + (b.money && /^Pay in full/.test(b.money.charge_now) ? '' : ' checked') + '> Deposit ' + esc(C.depositPct) + '% (holds the date)</label>' +
       '<label><input type="radio" name="ap-charge" value="full"' + (b.money && /^Pay in full/.test(b.money.charge_now) ? ' checked' : '') + '> Pay in full (100%)</label></div>' +
@@ -158,7 +181,7 @@
     openModal(html, function (m) {
       m.querySelector('#ap-go').addEventListener('click', function () {
         var walk = m.querySelector('#ap-walk').checked;
-        if (!walk) { var e = m.querySelector('#ap-err'); e.hidden = false; e.textContent = 'Tick "Walk-through done" first.'; return; }
+        if (!walk) { var e = m.querySelector('#ap-err'); e.hidden = false; e.textContent = 'Tick "I checked the details" first.'; return; }
         var charge = picked(m, 'ap-charge'), mail = picked(m, 'ap-email') === '1';
         confirmStep('Approve this request?', [
           ['Guest', b.name + ' (' + b.ref + ')'], ['Date', b.when],
@@ -319,31 +342,25 @@
       var bookings = d.items.filter(function (x) { return x.type === 'booking'; });
       var html = '<h3 id="modal-title">' + esc(d.title) + '</h3><p><span class="chip ' + esc({ booked: 'paid', held: 'held', waiting: 'review', closed: 'block', open: 'open' }[d.kind]) + '">' + esc(d.label) + '</span>' +
         (d.rate_text ? ' <span class="muted">' + esc(d.rate_text) + '</span>' : '') + '</p>';
-      html += d.items.length ? d.items.map(function (it) { return it.type === 'booking' ? bookingCard(it) : holdCard(it); }).join('') : '<p class="empty">Nothing on this day.</p>';
+      html += d.items.length ? d.items.map(function (it) { if (!it.when) it.when = d.title; return itemRow(it); }).join('') : '<p class="empty">Nothing on this day.</p>';
       html += '<div class="btn-row">' + (d.can_add ? '<button type="button" class="btn btn-primary" id="day-add">Add a booking or hold</button>' : '') +
         '<button type="button" class="btn btn-quiet" data-close>Close</button></div>';
       if (!d.can_add && d.add_blocked) html += '<p class="muted">' + esc(d.add_blocked) + '</p>';
       openModal(html, function (m) {
-        wireActions(m, indexById(bookings));
+        wireActions(m, indexItems(d.items));
         var add = m.querySelector('#day-add');
         if (add) add.addEventListener('click', function () { closeModal(); $('add-date').value = date; showPanel('add'); addPreview(); });
       });
     }).catch(function (e) { toast(e.message); });
   }
-  function listInto(el, rows, empty, render) {
-    el.innerHTML = rows.length ? rows.map(render).join('') : '<p class="empty">' + esc(empty) + '</p>';
-    wireActions(el, indexById(rows));
+  function listInto(el, rows, empty) {
+    el.innerHTML = rows.length ? rows.map(itemRow).join('') : '<p class="empty">' + esc(empty) + '</p>';
+    wireActions(el, indexItems(rows));
   }
-  function loadRequests() { return api('requests').then(function (r) { listInto($('request-list'), r, 'No requests waiting.', bookingCard); }).catch(function (e) { toast(e.message); }); }
-  function loadPayments() { return api('payments').then(function (r) { listInto($('payment-list'), r, 'No money owed right now.', bookingCard); }).catch(function (e) { toast(e.message); }); }
+  function loadRequests() { return api('requests').then(function (r) { listInto($('request-list'), r, 'No requests waiting.'); }).catch(function (e) { toast(e.message); }); }
+  function loadPayments() { return api('payments').then(function (r) { listInto($('payment-list'), r, 'No money owed right now.'); }).catch(function (e) { toast(e.message); }); }
   function loadUpcoming() {
-    return api('upcoming').then(function (rows) {
-      $('upcoming-list').innerHTML = rows.length ? rows.map(function (r) {
-        var tagc = r.type === 'booking' ? chip(r.chip) : '<span class="chip ' + (r.hold_type === 'hold' ? 'held' : (r.hold_type === 'reserved' ? 'paid' : 'block')) + '">' + esc(r.label) + '</span>';
-        var line = r.type === 'booking' ? (r.hours ? 'Hours booked ' + r.hours : '') + (r.end_time ? ' · guest says it ends ' + r.end_time : '') + (r.guests ? ' · ' + r.guests + ' guests' : '') : (r.time || '');
-        return '<article class="card"><div class="item-head"><h4>' + esc(r.when) + ' · ' + esc(r.name) + '</h4>' + tagc + '</div><p class="muted">' + esc(line) + '</p></article>';
-      }).join('') : '<p class="empty">Nothing coming up.</p>';
-    }).catch(function (e) { toast(e.message); });
+    return api('upcoming').then(function (rows) { listInto($('upcoming-list'), rows, 'Nothing coming up.'); }).catch(function (e) { toast(e.message); });
   }
   function loadMessages() {
     return api('messages').then(function (m) {

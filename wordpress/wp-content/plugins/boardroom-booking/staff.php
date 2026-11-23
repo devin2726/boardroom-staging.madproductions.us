@@ -267,7 +267,7 @@ function brb_sd_draft($booking_id, $kind, $note = '') {
         $m = brb_payment_guest_message($b, (float) $last->amount, (string) $last->check_number, (string) $last->method, $last);
         $subject = (string) $m['subject']; $body = (string) $m['body'];
     } elseif ($kind === 'paylink') {
-        if (brb_pay_link($b) === '') return new WP_Error('link', 'There is no pay link yet: ' . implode(', ', brb_pay_link_blockers($b)) . '.');
+        if (brb_pay_link($b) === '') return new WP_Error('link', 'There is no pay link yet. Still needed: ' . implode(', ', brb_sd_blockers($b)) . '.');
         $subject = 'Your Boardroom payment link (' . brb_ref($b) . ')';
         $body = brb_guest_hello_line() . "\n\n" . brb_payment_link_body($b);
     } else {
@@ -461,6 +461,13 @@ function brb_sd_money_rows($b) {
         'payments' => $payments,
     ];
 }
+/** Dashboard wording for what a pay link still needs (Max, Nov 23 10:10 AM CT: no walk-through wording here). */
+function brb_sd_blockers($b) {
+    $map = ['walkthrough' => 'Details checked'];
+    $out = [];
+    foreach (brb_pay_link_blockers($b) as $key => $label) $out[] = $map[$key] ?? $label;
+    return $out;
+}
 function brb_sd_booking_detail($b) {
     $out = brb_sd_booking_brief($b);
     $start = (string) $b->start_dt;
@@ -471,14 +478,28 @@ function brb_sd_booking_detail($b) {
         'email' => sanitize_email($b->email),
         'source' => brb_source_label($b->source),
         'notes' => brb_sd_scrub($b->event_about ?: $b->notes),
-        'walkthrough' => !empty($b->walkthrough_done),
+        'details_checked' => !empty($b->walkthrough_done),
         'money' => brb_sd_money_rows($b),
         'can_approve' => in_array((string) $b->status, brb_sd_request_statuses(), true),
         'can_decline' => in_array((string) $b->status, ['review', 'pending', 'approved', 'held'], true) && (float) $b->amount_paid <= 0.009,
         'can_pay' => in_array((string) $b->status, ['approved', 'held', 'deposit_paid'], true) && brb_price_is_set($b),
-        'pay_link_blockers' => array_values(brb_pay_link_blockers($b)),
+        'pay_link_blockers' => brb_sd_blockers($b),
         'sent' => array_values(array_map(function ($r) { return $r['kind']; }, array_filter(brb_sd_sent_log(), function ($r) use ($b) { return (int) $r['booking_id'] === (int) $b->id; }))),
     ];
+    return $out;
+}
+/**
+ * One record view for a calendar hold. Until the planned migration makes a hold a booking in HOLD status,
+ * a wp_br_holds row has no guest, money or email, so it cannot send an invoice or pay link yet.
+ */
+function brb_sd_hold_record($id) {
+    $h = brb_hold((int) $id);
+    if (!$h) return new WP_Error('missing', 'Hold not found.', ['status' => 404]);
+    $out = brb_sd_hold_brief($h);
+    $out['date'] = substr((string) $h->start_dt, 0, 10);
+    $out['when'] = brb_sd_fmt_date($out['date'], 'l, F j, Y');
+    $out['ref'] = 'Hold ' . (int) $h->id;
+    $out['pay_note'] = 'This calendar hold has no guest or price on it yet, so there is no invoice or pay link to send.';
     return $out;
 }
 function brb_sd_day($ymd) {
@@ -696,14 +717,15 @@ function brb_sd_walkthrough_set($b, $on) {
     $on = $on ? 1 : 0;
     if ((int) $on === (int) ($b->walkthrough_done ?? 0)) return;
     $wpdb->update(brb_table(), ['walkthrough_done' => $on], ['id' => (int) $b->id]);
-    brb_audit_append((int) $b->id, 'saved walk-through from "' . ($on ? 'Not yet' : 'Completed') . '" to "' . ($on ? 'Completed' : 'Not yet') . '" (staff dashboard); no email sent');
+    brb_audit_append((int) $b->id, 'saved walk-through from "' . ($on ? 'Not yet' : 'Completed') . '" to "' . ($on ? 'Completed' : 'Not yet') . '" (staff dashboard: "I checked the details"); no email sent');
 }
 function brb_sd_approve($id, $p) {
     $b = brb_booking($id);
     if (!$b) return new WP_Error('missing', 'Booking not found.', ['status' => 404]);
     if (!in_array((string) $b->status, brb_sd_request_statuses(), true)) return new WP_Error('status', 'Only a request that is waiting can be approved.');
     $walk = !empty($p['walkthrough']);
-    if (!$walk && empty($b->walkthrough_done)) return new WP_Error('walkthrough', 'Tick "Walk-through done" first. Approval follows the in-person walk-through.');
+    // Stored in the existing walkthrough_done column; the dashboard label is "I checked the details".
+    if (!$walk && empty($b->walkthrough_done)) return new WP_Error('walkthrough', 'Tick "I checked the details" first.');
     $charge = null;
     if (isset($p['charge_now']) && in_array($p['charge_now'], ['deposit', 'full'], true)) {
         $charge = ['mode' => $p['charge_now'] === 'full' ? 'full' : '', 'value' => 0];
@@ -776,7 +798,7 @@ function brb_sd_pay_link($id) {
     $b = brb_booking($id);
     if (!$b) return new WP_Error('missing', 'Booking not found.', ['status' => 404]);
     $url = brb_pay_link($b);
-    if ($url === '') return ['url' => '', 'blockers' => array_values(brb_pay_link_blockers($b))];
+    if ($url === '') return ['url' => '', 'blockers' => brb_sd_blockers($b)];
     $due = brb_amount_due_now($b);
     $fee = brb_card_fee_cents(brb_cents_from_amount($due)) / 100;
     brb_audit_append((int) $b->id, 'staff dashboard: pay link copied; no email sent');
@@ -817,6 +839,7 @@ function brb_sd_routes() {
         ['upcoming', 'GET', function () { return brb_sd_upcoming(); }],
         ['messages', 'GET', function () { return brb_sd_messages(); }],
         ['booking/' . $id, 'GET', function ($r) { $b = brb_booking((int) $r['id']); return $b ? brb_sd_booking_detail($b) : new WP_Error('missing', 'Booking not found.', ['status' => 404]); }],
+        ['hold/' . $id, 'GET', function ($r) { return brb_sd_hold_record((int) $r['id']); }],
         ['booking/' . $id . '/approve', 'POST', function ($r) { return brb_sd_approve((int) $r['id'], $r->get_json_params() ?: $r->get_body_params()); }],
         ['booking/' . $id . '/decline', 'POST', function ($r) { return brb_sd_decline((int) $r['id'], $r->get_json_params() ?: $r->get_body_params()); }],
         ['booking/' . $id . '/payment-preview', 'POST', function ($r) { $b = brb_booking((int) $r['id']); return $b ? brb_sd_payment_figures($b, $r->get_json_params() ?: []) : new WP_Error('missing', 'Booking not found.', ['status' => 404]); }],
@@ -915,7 +938,7 @@ function brb_sd_page_html() {
 
   <section id="panel-calendar" class="panel active" data-panel="calendar">
     <h2>Calendar</h2>
-    <p class="lede">Tap a day to see what is on it.</p>
+    <p class="lede">Tap a day, then tap any item to open its full record.</p>
     <div class="legend" aria-label="Calendar legend">
       <span><i class="swatch booked"></i> Booked</span><span><i class="swatch held"></i> Date held</span>
       <span><i class="swatch waiting"></i> Request waiting</span><span><i class="swatch closed"></i> Closed</span><span><i class="swatch open"></i> Open</span>
@@ -932,7 +955,7 @@ function brb_sd_page_html() {
   </section>
   <section id="panel-requests" class="panel" data-panel="requests">
     <h2>Requests waiting</h2>
-    <p class="lede">Approve after the walk-through, or decline. If you choose to email the guest, you see the full message and confirm before it sends.</p>
+    <p class="lede">Open a request to check the details, then approve or decline. If you choose to email the guest, you see the full message and confirm before it sends.</p>
     <div id="request-list"></div>
   </section>
   <section id="panel-payments" class="panel" data-panel="payments">
@@ -947,7 +970,6 @@ function brb_sd_page_html() {
       <p class="field-label">What are you adding?</p>
       <div class="choice">
         <label><input type="radio" name="kind" value="booking" checked> A booking</label>
-        <label><input type="radio" name="kind" value="hold"> Hold the date (no guest, unpaid)</label>
         <label><input type="radio" name="kind" value="blocked"> Close the day</label>
       </div>
       <label class="field" for="add-date">Date</label>
