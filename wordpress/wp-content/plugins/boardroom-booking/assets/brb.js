@@ -63,7 +63,7 @@
         msg = 'A full day on this date starts inside the ' + BRB.noticeHours + '-hour minimum notice. Choose a later date.';
         block = true;
       }
-      if (info.status === 'soon' || info.status === 'booked' || info.status === 'blocked' || info.status === 'blackout' || info.status === 'past') {
+      if (info.status === 'soon' || info.status === 'booked' || info.status === 'tentative' || info.status === 'blocked' || info.status === 'blackout' || info.status === 'past') {
         block = true;
         if (!msg) msg = 'That date is not available.';
       }
@@ -93,6 +93,7 @@
   function fmt(h) { var a = h % 24 < 12 ? 'am' : 'pm', x = h % 12 || 12; return x + a; }
   function statusLabel(s) {
     if (s === 'booked') return 'Booked';
+    if (s === 'tentative') return 'Tentative hold';
     if (s === 'blocked' || s === 'blackout') return 'Blocked';
     if (s === 'soon') return 'Inside the minimum notice';
     if (s === 'past') return 'Past';
@@ -109,9 +110,10 @@
       var info = data[k] || {};
       var s = info.status || 'free';
       if (s === 'partial') s = 'booked';
-      var off = (s === 'past' || s === 'booked' || s === 'blocked' || s === 'blackout' || s === 'soon');
+      var off = (s === 'past' || s === 'booked' || s === 'tentative' || s === 'blocked' || s === 'blackout' || s === 'soon');
       var price = info.price ? '<span class="brb-dayprice">' + info.price + '</span>' : '';
-      var label = longChicago(cur.y, cur.m, dayNum) + (info.price ? ', ' + info.price : ', price to be confirmed') + ', ' + statusLabel(s);
+      var walk = cfg.pricing === 'walkthrough';
+      var label = longChicago(cur.y, cur.m, dayNum) + (info.price ? ', ' + info.price : (walk ? '' : ', price to be confirmed')) + ', ' + statusLabel(s);
       h += '<button type="button" class="d ' + s + (date && date.value === k ? ' sel' : '') + '" data-k="' + k + '" aria-label="' + label.replace(/"/g, '&quot;') + '"' + (off ? ' disabled' : '') + '><span class="brb-daynum">' + dayNum + '</span>' + price + '</button>';
     }
     cal.innerHTML = h + '</div>';
@@ -130,6 +132,7 @@
     }).then(function (j) {
       if (!j || !j.days) throw new Error('calendar');
       Object.assign(data, j.days);
+      if (j.pricing) cfg.pricing = j.pricing;
       render();
       showBusy();
       if (form) syncType();

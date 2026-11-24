@@ -2,12 +2,13 @@
 /**
  * Plugin Name: Boardroom Booking
  * Description: Self-hosted direct booking for The Boardroom — full-day blocks, availability calendar, agreed prices, approval before payment, blackout dates, and emails.
- * Version: 2.5.90
+ * Version: 2.5.91
  * Author: Boardroom QC LLC
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.5.90');
+define('BRB_VER', '2.5.91');
 function brb_reserve_explainer_steps() {
+    if (function_exists('brb_walkthrough_mode') && brb_walkthrough_mode()) return brb_walk_steps();
     return [
         'Pick a date. Prices are on the calendar.',
         'Send a request. No charge yet.',
@@ -70,6 +71,7 @@ require_once __DIR__ . '/staff.php';
 require_once __DIR__ . '/staff-flow.php';
 require_once __DIR__ . '/staff-edit.php';
 require_once __DIR__ . '/author-privacy.php';
+require_once __DIR__ . '/walkthrough.php';
 define('BRB_URL', plugin_dir_url(__FILE__));
 
 function brb_table() { global $wpdb; return $wpdb->prefix . 'br_bookings'; }
@@ -108,6 +110,8 @@ function brb_date_taken_message() {
 function brb_blocking_statuses() {
     // A request in review does not reserve the date. Approving it, or a paid
     // deposit, does. Legacy held/confirmed rows are the same as approved/paid.
+    // 2.5.91: in the walk-through flow a new request places a tentative hold, so it blocks the date too.
+    if (function_exists('brb_walkthrough_mode') && brb_walkthrough_mode()) return ['review', 'pending', 'approved', 'held', 'deposit_paid', 'paid', 'confirmed', 'reserved'];
     return ['approved', 'held', 'deposit_paid', 'paid', 'confirmed', 'reserved'];
 }
 function brb_dec($n) { return number_format(round((float) $n, 2), 2, '.', ''); }
@@ -185,6 +189,9 @@ function brb_defaults() {
         'policy' => brb_cancellation_summary(),
         'checklist' => '',
         'quote_prices' => '1',
+        // 2.5.91: 'walkthrough' (Max, Nov 24, 2026, 1:44 PM CT) or 'calendar' (the old pricing flow, kept for reinstall).
+        'pricing_mode' => 'walkthrough',
+        'public_price_range' => '',
         'rate_sun_thu' => '850',
         'rate_fri_sat' => '1400',
         'rate_ranges' => wp_json_encode(brb_default_rate_ranges()),
@@ -766,12 +773,14 @@ function brb_guest_hello_line() {
     return 'Thank you for contacting The Boardroom!';
 }
 function brb_guest_review_line() {
+    if (brb_walkthrough_mode()) return brb_walk_review_line();
     return 'We review your request. Once it\'s approved, we\'ll email you a payment link. Your date is reserved once your deposit is received and approved by the Boardroom.';
 }
 function brb_terms_review_line() {
     return 'All bookings are subject to review and approval by the Boardroom. Approval is based on the event details provided, availability, and our house rules.';
 }
 function brb_price_range_sentence() {
+    if (brb_walkthrough_mode()) return brb_walk_price_line();
     return 'The price for a date is on the calendar. Your exact price is confirmed by email.';
 }
 function brb_damage_card_refund_line() {
@@ -820,6 +829,7 @@ function brb_deposit_bullets_html() {
     return $html;
 }
 function brb_how_booking_works_steps() {
+    if (brb_walkthrough_mode()) return brb_walk_steps();
     return [
         'Pick your date. The price shows right on the calendar.',
         'Send your request. Nothing is charged yet.',
@@ -829,6 +839,17 @@ function brb_how_booking_works_steps() {
     ];
 }
 function brb_how_booking_works_html() {
+    if (brb_walkthrough_mode()) {
+        $facts = function_exists('br_facts_strip') ? br_facts_strip([
+            'Hold a Date',
+            'No Charge to Request',
+            'Tentative Hold',
+            'In-Person Walk-Through',
+            'Price Quoted in Person',
+        ], 0) : '';
+        $range = '<p class="brb-range">' . esc_html(brb_walk_price_line()) . '</p>';
+        return '<section class="brb-how"><h2>Hold a Date</h2>' . $facts . $range . '</section>';
+    }
     $facts = function_exists('br_facts_strip') ? br_facts_strip([
         'Prices on the Calendar',
         'No Charge to Request',
@@ -839,6 +860,15 @@ function brb_how_booking_works_html() {
     return '<section class="brb-how"><h2>Pick a Date</h2>' . $facts . '</section>';
 }
 function brb_book_policy_html() {
+    if (brb_walkthrough_mode()) {
+        $sections = [
+            ['Pricing', brb_walk_price_line()],
+            ['Payment', 'After your walk-through, once you approve your quote, we send an invoice. Payment terms are in the Rental Terms.'],
+        ];
+        $html = '<section class="brb-book-policy">';
+        foreach ($sections as $section) $html .= '<h3>' . esc_html($section[0]) . '</h3><p>' . esc_html($section[1]) . '</p>';
+        return $html . '</section>';
+    }
     $sections = [
         ['Pricing', 'Full days are $850 Sunday through Thursday and $1,400 Friday and Saturday. The price for a date is on the calendar, and we confirm the final price by email. Card payments add a 3% processing fee.'],
         ['Payment', 'To hold your date, pay a 50% booking deposit. The remaining balance is due no later than 7 days before your event. Card payments add a 3% fee. A cleaning fee may be applied if the space is left dirty or damaged, and the renter is still responsible for the cost of any damage.'],
@@ -1110,6 +1140,7 @@ function brb_approval_line() {
     return 'Bookings are subject to approval. No payment is due until the request is approved. The owner may decline any request.';
 }
 function brb_request_open_line() {
+    if (brb_walkthrough_mode()) return 'A request places a tentative hold on the date. It is not a confirmed booking until we confirm it after your walk-through.';
     return 'A request does not hold the date.';
 }
 function brb_fee_public_line() {
@@ -1128,6 +1159,8 @@ function brb_screening_lines($b) {
     if ($age !== '') $lines[] = 'Host age bracket: ' . $age;
     $about = trim((string) ($b->event_about ?? ''));
     if ($about !== '') $lines[] = 'About the event: ' . $about;
+    $walk = function_exists('brb_walk_pref_label') ? brb_walk_pref_label($b) : '';
+    if ($walk !== '') $lines[] = 'Walk-through preference: ' . $walk;
     return $lines;
 }
 function brb_collect_screening($post, $required = true, $start = null) {
@@ -1253,6 +1286,9 @@ function brb_install_tables() {
     // 2.5.84: per-booking charge-now choice (blank = site-wide deposit percent).
     brb_ensure_column($t, 'charge_now_mode', "varchar(10) NOT NULL DEFAULT ''");
     brb_ensure_column($t, 'charge_now_value', 'decimal(10,2) NOT NULL DEFAULT 0.00');
+    // 2.5.91: walk-through preference from the Hold a Date form (e.g. "mon,wed" and "morning").
+    brb_ensure_column($t, 'walk_days', "varchar(40) NOT NULL DEFAULT ''");
+    brb_ensure_column($t, 'walk_window', "varchar(40) NOT NULL DEFAULT ''");
     brb_install_line_table();
     brb_install_hold_table();
     $p = brb_pay_table();
@@ -1326,6 +1362,9 @@ function brb_migrate_settings() {
     if (!isset($stored['hold_clock_start']) || !in_array($stored['hold_clock_start'], ['link_sent', 'request', 'approve'], true)) $merged['hold_clock_start'] = 'link_sent';
     if (!isset($stored['balance_reminder_template_approved'])) $merged['balance_reminder_template_approved'] = '';
     if (!isset($stored['balance_due_days'])) $merged['balance_due_days'] = '7';
+    // 2.5.91: switch to the walk-through flow on upgrade (Max, Nov 24, 2026). Set it back to 'calendar' in Settings to reinstall the old pricing.
+    if (!isset($stored['pricing_mode']) || !in_array($stored['pricing_mode'], ['walkthrough', 'calendar'], true)) $merged['pricing_mode'] = 'walkthrough';
+    if (!isset($stored['public_price_range'])) $merged['public_price_range'] = '';
     if (!isset($stored['deposit_fixed']) || $stored['deposit_fixed'] === '') $merged['deposit_fixed'] = '0';
     $defaults = brb_defaults();
     foreach (['payee', 'pay_location', 'pay_hours', 'pay_instructions'] as $k) {
@@ -3078,9 +3117,18 @@ function brb_send_request_emails($b, $guest = true, $staff = true) {
     $facts = brb_approval_line() . "\n\n" . brb_request_open_line() . "\n\n" . brb_reserved_line() . "\n\n" . brb_deposit_line() . "\n\n" . brb_not_held_line();
     $detail = "When: " . brb_when($b) . "\n" . brb_event_type_line($b) . "Estimated Guests: {$b->guests}\n" . ($screen !== '' ? $screen . "\n" : '') . "Price: {$price}\n";
     $guest_detail = brb_price_is_set($b) ? str_replace("Price: {$price}\n", brb_guest_money_text($b) . "\n", $detail) : $detail;
+    $walk_mode = brb_walkthrough_mode();
+    if ($walk_mode) {
+        $price = 'Quoted in person at the walk-through';
+        $detail = "When: " . brb_when($b) . "\n" . brb_event_type_line($b) . "Estimated Guests: {$b->guests}\n" . ($screen !== '' ? $screen . "\n" : '');
+    }
     $body = brb_guest_hello_line() . "\n\n" . brb_guest_review_line() . "\n\n{$guest_detail}\n" . brb_no_overnight_line() . "\n" . brb_guest_out_line() . "\n" . brb_guest_free_line() . "\n" . brb_hours_line() . "\n\nCancellation policy:\n{$o['policy']}\n\nView your request: " . brb_guest_link($b) . "\n";
+    if ($walk_mode) $body = brb_walk_request_guest_body($b);
     if ($guest) brb_mail($b->email, 'We received your Boardroom request (' . $ref . ')', $body, brb_guest_reply_to(), '', [], []);
-    $admin = "A new request is pending review. The date is not held.\n\nReference: {$ref}\nWhen: " . brb_when($b) . "\nGuest: {$b->name}\nEmail: {$b->email}\nPhone: {$b->phone}\n" . brb_event_type_line($b) . "Guests: {$b->guests}\n" . ($screen !== '' ? $screen . "\n" : '') . "Price: {$price}\nSource: " . brb_source_label($b->source) . "\nNotes: {$b->notes}\n\n" . admin_url('admin.php?page=brb&booking=' . (int) $b->id) . "\n";
+    $head = $walk_mode
+        ? "A new Hold a Date request is pending review. The date is TENTATIVELY HELD on the website calendar until staff decline or cancel it.\nNext step: contact the guest to set up the in-person walk-through and quote the price.\n"
+        : "A new request is pending review. The date is not held.\n";
+    $admin = $head . "\nReference: {$ref}\nWhen: " . brb_when($b) . "\nGuest: {$b->name}\nEmail: {$b->email}\nPhone: {$b->phone}\n" . brb_event_type_line($b) . "Guests: {$b->guests}\n" . ($screen !== '' ? $screen . "\n" : '') . "Price: {$price}\nSource: " . brb_source_label($b->source) . "\nNotes: {$b->notes}\n\n" . admin_url('admin.php?page=brb&booking=' . (int) $b->id) . "\n";
     if ($staff) brb_mail_staff('Request pending review ' . $ref . ' – ' . $b->name, $admin, $b->email);
 }
 function brb_send_hold_emails($b) {
@@ -3563,6 +3611,8 @@ function brb_insert_booking($r, $q, $guest, $source = 'online', $notify = true, 
                 'price_set' => empty($q['price_set']) ? 0 : 1,
                 'charge_now_mode' => $cn['mode'],
                 'charge_now_value' => brb_dec($cn['value']),
+                'walk_days' => (string) ($guest['walk_days'] ?? ''),
+                'walk_window' => (string) ($guest['walk_window'] ?? ''),
                 'created' => current_time('mysql', true),
             ]);
             $result = $ok ? brb_booking($wpdb->insert_id) : new WP_Error('db', 'Could not save the booking. Please try again.');
@@ -3605,8 +3655,19 @@ function brb_process_public_booking($post) {
     $about = $screen['event_about'] . "\n" . (string) ($post['notes'] ?? '');
     $blocked = brb_chat_safety_text_error($about);
     if ($blocked) return $blocked;
+    $walk = ['walk_days' => '', 'walk_window' => ''];
+    if (brb_walkthrough_mode()) {
+        $walk = brb_collect_walk_pref($post, true);
+        if (is_wp_error($walk)) return $walk;
+    }
     $q = brb_quote($r);
+    if (brb_walkthrough_mode()) {
+        // 2.5.91: the price is quoted in person at the walk-through; staff set it with Agreed price.
+        $q = array_merge($q, ['subtotal' => 0, 'cleaning' => 0, 'tax' => 0, 'total' => 0, 'due' => 0, 'price_set' => 0]);
+    }
     return brb_insert_booking($r, $q, [
+        'walk_days' => $walk['walk_days'],
+        'walk_window' => $walk['walk_window'],
         'name' => $name,
         'email' => $email,
         'phone' => $phone,
@@ -4053,6 +4114,15 @@ function brb_rest_availability($req) {
     $sql = 'SELECT start_dt,end_dt FROM ' . brb_table() . " WHERE start_dt < %s AND end_dt > %s AND $block";
     $params = array_merge([$next->format('Y-m-d H:i:s'), $first->format('Y-m-d H:i:s')], $args);
     $rows = $wpdb->get_results($wpdb->prepare($sql, $params));
+    // 2.5.91: in the walk-through flow, open requests are tentative holds and show as "Tentative hold".
+    $walk_mode = brb_walkthrough_mode();
+    $tentative_rows = [];
+    if ($walk_mode) {
+        $range = [$next->format('Y-m-d H:i:s'), $first->format('Y-m-d H:i:s')];
+        $tentative_rows = (array) $wpdb->get_results($wpdb->prepare('SELECT start_dt,end_dt FROM ' . brb_table() . " WHERE start_dt < %s AND end_dt > %s AND status IN ('review','pending')", $range[0], $range[1]));
+        $firm = "'" . implode("','", array_diff(brb_blocking_statuses(), ['review', 'pending'])) . "'";
+        $rows = $wpdb->get_results($wpdb->prepare('SELECT start_dt,end_dt FROM ' . brb_table() . " WHERE start_dt < %s AND end_dt > %s AND status IN ($firm)", $range[0], $range[1]));
+    }
     $hold_rows = $wpdb->get_results($wpdb->prepare(
         'SELECT start_dt, end_dt, hold_type FROM ' . brb_hold_table() . ' WHERE start_dt < %s AND end_dt > %s' . brb_hold_live_sql(),
         $next->format('Y-m-d H:i:s'),
@@ -4088,10 +4158,17 @@ function brb_rest_availability($req) {
         };
         foreach ($rows as $r) $mark($r);
         foreach ((array) $hold_rows as $r) $mark($r);
+        $tentative = false;
+        foreach ($tentative_rows as $r) {
+            $ts = new DateTimeImmutable($r->start_dt, $tz);
+            $te = new DateTimeImmutable($r->end_dt, $tz);
+            if ($ts < $d->modify('+1 day') && $te > $d) $tentative = true;
+        }
         $slot = brb_slot_info($d);
         if ($d < $today) $st = 'past';
         elseif (in_array($k, $bo, true) || $blocked_hold) $st = 'blocked';
         elseif ($full || $booked_span) $st = 'booked';
+        elseif ($tentative) $st = 'tentative';
         elseif (!$slot['any']) $st = 'soon';
         else $st = 'free';
         $full_price = brb_rate_for_date($k, 'full');
@@ -4100,7 +4177,7 @@ function brb_rest_availability($req) {
             'busy' => $busy,
             'day_ok' => (bool) $slot['day_ok'],
             'first_hour' => $slot['first_hour'],
-            'price' => $full_price === null ? '' : brb_whole_money($full_price),
+            'price' => ($walk_mode || $full_price === null) ? '' : brb_whole_money($full_price),
         ];
     }
     $response = new WP_REST_Response([
@@ -4112,6 +4189,7 @@ function brb_rest_availability($req) {
         'min_hours' => (int) $o['min_hours'],
         'mode' => $o['mode'],
         'timezone' => 'America/Chicago',
+        'pricing' => $walk_mode ? 'walkthrough' : 'calendar',
         'days' => $days,
     ]);
     $response->header('Cache-Control', 'no-store, no-cache, must-revalidate');
@@ -4133,6 +4211,7 @@ function brb_enqueue_public_calendar() {
         'noticeHours' => brb_notice_hours(),
         'mode' => $o['mode'],
         'cutoff' => brb_notice_cutoff()->format('c'),
+        'pricing' => brb_walkthrough_mode() ? 'walkthrough' : 'calendar',
     ]);
 }
 add_filter('body_class', function ($classes) {
@@ -4159,7 +4238,8 @@ function brb_calendar_markup($link_to_book = false) {
         $extra = ' data-book="' . esc_url(brb_book_url()) . '" data-lazy="1"';
     }
     $html = '<div id="brb-cal" class="brb-cal" aria-live="polite" data-api="' . esc_url(rest_url('brb/v1/availability')) . '" data-nonce="' . esc_attr(wp_create_nonce('wp_rest')) . '" data-notice="' . (int) $notice . '" data-mode="' . esc_attr($o['mode']) . '"' . $extra . '>Loading calendar…</div>';
-    $html .= '<p class="brb-legend"><span class="free"></span>Available <span class="booked"></span>Booked <span class="blocked"></span>Blocked <span class="soon"></span>Inside ' . (int) $notice . 'h notice <span class="past"></span>Past</p>';
+    $tent = brb_walkthrough_mode() ? '<span class="tentative"></span>Tentative hold ' : '';
+    $html .= '<p class="brb-legend"><span class="free"></span>Available <span class="booked"></span>Booked ' . $tent . '<span class="blocked"></span>Blocked <span class="soon"></span>Inside ' . (int) $notice . 'h notice <span class="past"></span>Past</p>';
     return $html;
 }
 function brb_home_calendar_html() {
@@ -4256,7 +4336,9 @@ function brb_view_quote() {
       <div class="brb-card">
         <h3>Your date</h3>
         <p><strong><?php echo esc_html($when); ?></strong><br>Estimated Guests: <?php echo (int) $r['guests']; ?></p>
-        <?php if (!empty($q['price_set'])): ?>
+        <?php if (brb_walkthrough_mode()): ?>
+        <p><strong><?php echo esc_html('Rentals run ' . brb_public_price_range() . '.'); ?></strong><br>We quote your exact price in person at your walk-through.</p>
+        <?php elseif (!empty($q['price_set'])): ?>
         <p><strong>Rental Price: <?php echo esc_html(brb_whole_money($q['total'])); ?> (+deposit)</strong></p>
         <?php else: ?>
         <p><strong>price to be confirmed</strong></p>
@@ -4267,7 +4349,7 @@ function brb_view_quote() {
       <div class="brb-card brb-guest"><?php echo brb_staging_guest_notice_html(); ?></div>
       <?php else: ?>
       <form class="brb-card brb-guest" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
-        <h3>Guest details</h3>
+        <h3><?php echo brb_walkthrough_mode() ? 'Hold a Date' : 'Guest details'; ?></h3>
         <input type="hidden" name="action" value="brb_book"><?php wp_nonce_field('brb_book', '_brb');
         foreach (['date', 'type', 'guests'] as $k) {
             if (isset($in[$k])) printf('<input type="hidden" name="%s" value="%s">', esc_attr($k), esc_attr($in[$k]));
@@ -4277,10 +4359,11 @@ function brb_view_quote() {
         <div class="brb-field"><label>Phone<span class="brb-req">*</span><input type="tel" name="phone" required autocomplete="tel" maxlength="50"></label></div>
         <div class="brb-field"><label class="brb-check"><input type="checkbox" name="free_admission" value="1" required><span class="brb-check-copy"><strong>Free to attend</strong><span class="brb-callout"><?php echo esc_html(brb_free_admission_rule()); ?></span></span></label></div>
         <div class="brb-field"><label>Tell us about your event<span class="brb-req">*</span><textarea name="event_about" rows="4" required></textarea></label></div>
+        <?php if (brb_walkthrough_mode()) echo brb_walk_fields_html(); ?>
         <p class="brb-callout"><?php echo esc_html(brb_approval_line()); ?> <?php echo esc_html(brb_request_open_line()); ?></p>
         <div class="brb-field"><label class="brb-check"><input type="checkbox" name="waiver" value="1" required><span class="brb-check-copy"><strong>Assumption of risk</strong><span class="brb-callout">I and my guests assume all risk. The Boardroom is not responsible for injury, loss, or equipment issues, such as the ice maker or wifi, that affect an event.</span></span></label></div>
         <div class="brb-field"><label class="brb-check"><input type="checkbox" name="policy" value="1" required><span class="brb-check-copy"><strong>I agree</strong><span class="brb-callout">I agree to the <a href="<?php echo esc_url(home_url('/terms/')); ?>" target="_blank" rel="noopener">Terms</a>, the <a href="<?php echo esc_url(home_url('/rental-agreement/')); ?>" target="_blank" rel="noopener">Rental Agreement</a> and the <a href="<?php echo esc_url(home_url('/privacy/')); ?>" target="_blank" rel="noopener">Privacy Policy</a>.</span></span></label></div>
-        <button class="brb-btn" type="submit">Submit request</button>
+        <button class="brb-btn" type="submit"><?php echo brb_walkthrough_mode() ? 'Send Hold a Date request' : 'Submit request'; ?></button>
       </form>
       <?php endif; ?>
     </div>
@@ -4326,6 +4409,11 @@ function brb_view_confirmation($token) {
     $thanks = $first === '' ? 'Thank you!' : 'Thank you, ' . $first . '!';
     $next = 'Nothing is charged yet. We review your request. Once it\'s approved, we\'ll email you a payment link.';
     $headline = $thanks . ' Your request is in.';
+    if (brb_walkthrough_mode() && in_array($b->status, ['review', 'pending'], true)) {
+        $title = 'Tentative hold';
+        $headline = $thanks . ' Your date is tentatively held.';
+        $next = 'Nothing is charged. We\'ll reach out to set up an in-person walk-through, where we quote your price.';
+    }
     if (in_array($b->status, ['approved', 'held'], true)) {
         $headline = $thanks . ' Your request is approved.';
         $next = 'We\'ll email you a payment link so you can hold the date.';
@@ -4364,6 +4452,8 @@ function brb_view_confirmation($token) {
             echo '<p>The card processing fee of ' . esc_html(brb_money($card_fee)) . ' was charged separately and is not part of this balance.</p>';
         }
       ?>
+      <?php elseif (brb_walkthrough_mode()): ?>
+      <p>Price: quoted in person at your walk-through</p>
       <?php else: ?>
       <p>price to be confirmed</p>
       <?php endif; ?>
@@ -4374,9 +4464,17 @@ function brb_view_confirmation($token) {
       if (in_array($b->status, ['review', 'pending'], true)) {
           echo '<div class="brb-paybox">';
           echo '<p>' . esc_html(brb_guest_hello_line()) . '</p>';
+          if (brb_walkthrough_mode()) {
+              echo '<p>' . esc_html(brb_walk_review_line()) . '</p>';
+              $walk_pref = brb_walk_pref_label($b);
+              if ($walk_pref !== '') echo '<p>Your walk-through preference: ' . esc_html($walk_pref) . '</p>';
+              echo '<p>' . esc_html(brb_walk_hold_line()) . '</p>';
+              echo '<p>Tentative hold</p>';
+          } else {
           echo '<p>Nothing is charged yet. We review your request. Once it\'s approved, we\'ll email you a payment link.</p>';
           echo '<p>' . esc_html(brb_guest_review_line()) . '</p>';
           echo '<p>Pending review</p>';
+          }
           echo '</div>';
           echo '<p>A copy of this request was sent to ' . esc_html($b->email) . '.</p>';
       } elseif (in_array($b->status, ['approved', 'held'], true)) {

@@ -536,6 +536,7 @@ function brb_sd_booking_detail($b) {
         'when' => brb_sd_fmt_date($start, 'l, F j, Y'),
         'hours' => brb_sd_time($b->start_dt) . ' – ' . brb_sd_time($b->end_dt),
         'end_time' => brb_sd_scrub($b->end_time ?? ''),
+        'walk_pref' => brb_walk_pref_label($b),
         'email' => sanitize_email($b->email),
         'source' => brb_source_label($b->source),
         'notes' => brb_sd_scrub($b->event_about ?: $b->notes),

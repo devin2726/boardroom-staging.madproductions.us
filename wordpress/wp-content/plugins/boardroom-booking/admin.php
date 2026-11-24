@@ -955,6 +955,8 @@ function brb_admin_detail($id) {
         'Free admission' => (($b->free_admission ?? '') === '1') ? 'Acknowledged' : '—',
         'About the event' => ($b->event_about ?? '') !== '' ? $b->event_about : '—',
     ];
+    $walk_pref = brb_walk_pref_label($b);
+    if ($walk_pref !== '') $rows['Walk-through preference'] = $walk_pref;
     $saved_type = brb_event_type_label($b->event_type ?? '');
     if ($saved_type !== '') $rows['Event type'] = $saved_type;
     $saved_alcohol = brb_yes_no_label($b->alcohol ?? '');
@@ -2012,6 +2014,7 @@ function brb_admin_settings() {
         $new['damage_deposit_amount'] = brb_dec(max(0, round((float) ($new['damage_deposit_amount'] ?? 0), 2)));
         $new['deposit_fixed'] = brb_dec(max(0, (float) $new['deposit_fixed']));
         $new['starting_price'] = brb_dec(max(0, (float) $new['starting_price']));
+        $new['pricing_mode'] = array_key_exists((string) ($new['pricing_mode'] ?? ''), brb_pricing_modes()) ? (string) $new['pricing_mode'] : 'walkthrough';
         if (!isset($new['typical_price'])) $new['typical_price'] = (string) ($prev['typical_price'] ?? '');
         if (trim((string) $new['venue_address']) === '') $new['venue_address'] = $defaults['venue_address'];
         if (trim((string) $new['pay_location']) === '') $new['pay_location'] = $defaults['pay_location'];
@@ -2036,6 +2039,8 @@ function brb_admin_settings() {
     if (trim((string) ($o['checklist'] ?? '')) === '') $o['checklist'] = brb_checklist_default();
     $groups = [
         'Pricing shown to guests' => [
+            ['pricing_mode', 'Booking flow shown to guests', 'select', brb_pricing_modes(), 'Hold a Date + walk-through (Max, Nov 24, 2026): no prices on the calendar or in the request email, a new request places a tentative hold on the date, guests pick a walk-through weekday and morning or afternoon, and staff quote the price in person. Pick the old flow to reinstall the calendar prices and deposit wording exactly as they were. Staff invoices and Stripe pay links work the same in both.'],
+            ['public_price_range', 'Price range line (walk-through flow)', 'text', null, 'The only price guests see in the walk-through flow. Leave blank for the default: $850–$1,500 depending on seasonal availability.'],
             ['starting_price', 'Starting price ($ per day)', 'text', null, 'Guests see “from” this amount per day. Default 850. Whole dollars are shown without cents.'],
         ],
         'Hours and capacity' => [

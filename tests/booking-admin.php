@@ -8,6 +8,8 @@ if (!defined('ABSPATH')) {
     fwrite(STDERR, "Load this with wp eval-file\n");
     exit(1);
 }
+// 2.5.91: this suite covers the old pricing flow (Settings > Booking flow = old flow). The walk-through flow is in no-pricing-walkthrough.php.
+add_filter('brb_pricing_mode', function () { return 'calendar'; }, 5);
 
 $GLOBALS['brb_fail'] = 0;
 $GLOBALS['brb_ok'] = 0;

@@ -94,6 +94,7 @@ function brb_chat_apply_rate_settings($new, $post) {
 }
 
 function brb_quote_prices_enabled() {
+    if (function_exists('brb_walkthrough_mode') && brb_walkthrough_mode()) return false;
     return (string) brb_opt('quote_prices') !== '0';
 }
 
@@ -579,6 +580,7 @@ function brb_chat_estimate_phrase() {
     return 'That\'s the calendar price for that date. We confirm the final price in writing.';
 }
 function brb_chat_reserved_sentence() {
+    if (function_exists('brb_walkthrough_mode') && brb_walkthrough_mode()) return 'A Hold a Date request places a tentative hold on your date. It is confirmed after your walk-through, once you approve the quote.';
     return 'A request doesn\'t hold the date. Your date is reserved once your deposit is received and approved.';
 }
 function brb_chat_insurance_sentence() {
@@ -604,6 +606,7 @@ function brb_chat_food_line() {
     return $line;
 }
 function brb_chat_no_date_price() {
+    if (function_exists('brb_walkthrough_mode') && brb_walkthrough_mode()) return brb_walk_price_line() . ' Send a Hold a Date request and we\'ll reach out to set up the walk-through.';
     $text = function_exists('brb_faq_price_html') ? trim(wp_strip_all_tags(brb_faq_price_html())) : 'Sunday to Thursday from $850. The price for your date is on the calendar.';
     return $text . ' Tell me a date and I\'ll show its calendar price.';
 }
@@ -932,6 +935,7 @@ function brb_chat_suggestion_bits($rows) {
     $bits = [];
     $chips = [];
     foreach ($rows as $row) {
+        if (function_exists('brb_walkthrough_mode') && brb_walkthrough_mode()) $row['price'] = null;
         $dt = new DateTimeImmutable($row['date'] . ' 12:00:00', brb_tz());
         $label = brb_chat_date_label($row['date']);
         $money = $row['price'] === null ? '' : ' (' . brb_whole_money($row['price']) . ')';
@@ -1020,6 +1024,7 @@ function brb_chat_availability_text($parsed) {
 function brb_chat_price_for_dates($parsed) {
     if (!empty($parsed['too_long'])) return 'I can estimate up to 14 days at a time. Please give me a shorter range. ' . brb_chat_estimate_phrase();
     if (empty($parsed['dates'])) return brb_chat_no_date_price();
+    if (function_exists('brb_walkthrough_mode') && brb_walkthrough_mode()) return brb_chat_no_date_price();
     if (!brb_quote_prices_enabled()) {
         return 'Our team will confirm pricing. I can\'t share an estimate here, but they\'d be glad to help. ' . brb_chat_estimate_phrase();
     }

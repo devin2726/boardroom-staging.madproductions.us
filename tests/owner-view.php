@@ -8,6 +8,8 @@
  * (robots, no-store, sitemaps, search, feeds, REST, oEmbed, page lists).
  */
 if (!defined('ABSPATH')) exit;
+// 2.5.91: this suite covers the old pricing flow (Settings > Booking flow = old flow). The walk-through flow is in no-pricing-walkthrough.php.
+add_filter('brb_pricing_mode', function () { return 'calendar'; }, 5);
 
 if (!function_exists('brb_t')) {
     $GLOBALS['brb_fail'] = 0;
@@ -80,8 +82,8 @@ $snapshot = get_option('brb_settings');
 $made_b = []; $made_h = []; $made_p = [];
 $unlock = function () { return false; };
 try {
-    brb_t(get_option('brb_version') === '2.5.90', 'plugin storage version is 2.5.90');
-    brb_t(BRB_VER === '2.5.90', 'BRB_VER is 2.5.90');
+    brb_t(get_option('brb_version') === '2.5.91', 'plugin storage version is 2.5.91');
+    brb_t(BRB_VER === '2.5.91', 'BRB_VER is 2.5.91');
     brb_t(shortcode_exists('brb_owner_view'), 'the [brb_owner_view] shortcode is registered');
 
     $tz = brb_tz();

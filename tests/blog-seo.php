@@ -3,6 +3,8 @@
  * /blog/ and blog post titles and meta descriptions. Run with wp eval-file.
  */
 if (!defined('ABSPATH')) exit;
+// 2.5.91: this suite covers the old pricing flow (Settings > Booking flow = old flow). The walk-through flow is in no-pricing-walkthrough.php.
+add_filter('brb_pricing_mode', function () { return 'calendar'; }, 5);
 
 if (!function_exists('brb_t')) {
     $GLOBALS['brb_fail'] = 0;

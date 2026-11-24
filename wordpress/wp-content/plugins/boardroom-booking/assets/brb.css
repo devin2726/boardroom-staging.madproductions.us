@@ -121,3 +121,14 @@ body.brb-pay-page-body #ask-walter{display:none!important}
   body.brb-pay-page-body{scroll-padding-top:160px}
   .brb-pay-page{padding-bottom:calc(32px + env(safe-area-inset-bottom,0px))}
 }
+
+/* 2.5.91 walk-through flow: tentative hold day and walk-through preference fields */
+.brb-calgrid .d.tentative{background:#f6e7c1;color:#6b4a0c;cursor:not-allowed;background-image:repeating-linear-gradient(135deg,transparent 0 6px,rgba(107,74,12,.14) 6px 9px)}
+.brb-legend .tentative{background:#f6e7c1}
+.brb .brb-walk{border:1px solid #e6dcc6;border-radius:8px;padding:12px 14px;margin:0 0 14px}
+.brb .brb-walk legend{padding:0 4px}
+.brb-walk-opts{display:flex;flex-wrap:wrap;gap:8px 18px}
+.brb-walk-opt{display:inline-flex;align-items:center;gap:6px;min-height:44px}
+.brb-walk-opt input{width:20px;height:20px;margin:0}
+.brb-range{font-size:17px;margin:10px 0 0}
+@media (max-width:480px){.brb-walk-opts{flex-direction:column;gap:2px}}

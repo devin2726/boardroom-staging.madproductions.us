@@ -312,6 +312,8 @@ function brb_ov_render_booking_card($b) {
     $rows['Host age bracket'] = esc_html(brb_host_age_label($b->host_age ?? ''));
     $rows['Source'] = esc_html(brb_source_label($b->source ?? ''));
     $rows['Walk-through'] = !empty($b->walkthrough_done) ? 'Completed' : 'Not yet';
+    $walk_pref = brb_walk_pref_label($b);
+    if ($walk_pref !== '') $rows['Walk-through preference'] = esc_html($walk_pref);
     $rows['Setup day'] = !empty($b->setup_addon) ? 'Added' : 'No';
     $rows['Takedown day'] = !empty($b->takedown_addon) ? 'Added' : 'No';
     $rows['Date hold'] = esc_html(brb_date_hold_state($b));
