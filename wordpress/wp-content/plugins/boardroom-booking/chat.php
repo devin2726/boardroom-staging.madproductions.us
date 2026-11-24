@@ -1911,7 +1911,8 @@ function brb_chat_answer($message, $history = [], $detail = null) {
     $asked_price = brb_chat_asks_price($message) || brb_chat_asks_price($norm);
     $price_ok = !empty($parsed['dates']) || !empty($parsed['too_long']) || ($asked_price && empty($parsed['invalid']));
     // 2.5.94: walk-through flow always answers a price question with the starting price (81776f6 returned an empty reply for "Saturday price?"; old flow left as is).
-    if (function_exists('brb_walkthrough_mode') && brb_walkthrough_mode() && in_array('pricing', $intents, true)) $price_ok = true;
+    // 2.5.95: not when the payment answer is also given; it already carries the starting price (no repeated "We quote your exact price").
+    if (function_exists('brb_walkthrough_mode') && brb_walkthrough_mode() && in_array('pricing', $intents, true) && !in_array('payment', $intents, true)) $price_ok = true;
     if (in_array('pricing', $intents, true) && $price_ok) $parts[] = brb_chat_price_for_dates($parsed);
     $walk_check = (function_exists('brb_walkthrough_mode') && brb_walkthrough_mode()) && (brb_chat_asks_checks($message) || brb_chat_asks_checks($norm));
     // 2.5.93: walk-through flow, "Where do I mail a check?" (payment + place): the address answer leads, no range first.

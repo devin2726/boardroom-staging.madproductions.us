@@ -210,11 +210,21 @@ try {
     if (function_exists('brb_llms_txt_body')) $walk_out[] = (string) brb_llms_txt_body();
     $blob = implode("\n", $walk_out);
     brb_t(!preg_match('/1,500|\b1500\b|seasonal availability|Rentals run/', $blob), 'walk mode: no $1,500, 1500, "seasonal availability" or "Rentals run" in page, FAQ, chat, schema or llms output');
-    brb_t(strpos($schema, '"priceRange":"Starting at $850"') !== false && strpos($schema, 'maxPrice') === false && strpos($schema, 'highPrice') === false, 'schema priceRange is Starting at $850, no maximum');
+    brb_t(strpos($schema, 'priceRange') === false && strpos($schema, 'maxPrice') === false && strpos($schema, 'highPrice') === false, 'EventVenue schema has no priceRange in the new flow (Les: not valid on EventVenue; Max Nov 11: not decided)');
+    $GLOBALS['brb_chat_detail'] = false;
+    foreach (['How much is the deposit?', 'How much is the deposit and how do I pay?', 'Can I pay with a card?'] as $q) {
+        foreach ([false, true] as $det) {
+            $GLOBALS['brb_chat_detail'] = $det;
+            $a = (string) brb_chat_answer($q, [], $det)['reply'];
+            brb_t(substr_count($a, 'We quote your exact price') === 1 && substr_count($a, 'Starting at $850') === 1, 'chat ' . ($det ? 'detail' : 'short') . ' "' . $q . '" says the price and "We quote your exact price" once');
+        }
+    }
+    $GLOBALS['brb_chat_detail'] = false;
     brb_t(strpos((string) brb_chat_answer('Saturday price?')['reply'], 'Starting at $850') !== false, 'chat: "Saturday price?" answers with Starting at $850 (no empty reply)');
-    $o2 = get_option('brb_settings'); $o2['public_price_from'] = '900'; update_option('brb_settings', $o2);
-    brb_t(brb_public_price_range() === 'Starting at $900', 'starting price setting drives the line');
-    $o2['public_price_from'] = '850'; update_option('brb_settings', $o2);
+    $o2 = get_option('brb_settings'); $sp_keep = $o2['starting_price'] ?? '850'; $o2['starting_price'] = '900'; update_option('brb_settings', $o2);
+    brb_t(brb_public_price_range() === 'Starting at $900', 'the existing Starting price ($ per day) setting drives the new-flow line (one source)');
+    $o2['starting_price'] = $sp_keep; update_option('brb_settings', $o2);
+    brb_t(!array_key_exists('public_price_from', brb_defaults()) && (string) brb_defaults()['starting_price'] === '850', 'no separate public_price_from setting; starting_price default stays 850');
 
     // ---- reinstall switch: old flow comes back
     $set_mode('calendar');

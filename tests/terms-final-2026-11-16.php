@@ -36,7 +36,7 @@ function brb_tf_reply($q, $more = false) {
 $saved_opt = get_option('brb_settings');
 $saved_ver = get_option('brb_version');
 try {
-    brb_t(BRB_VER === '2.5.94' && version_compare(BRB_VER, '2.5.80', '>'), 'plugin version is 2.5.94');
+    brb_t(BRB_VER === '2.5.95' && version_compare(BRB_VER, '2.5.80', '>'), 'plugin version is 2.5.95');
     brb_t(function_exists('br_ver') && br_ver() === '1.2.52' && strpos((string) file_get_contents(get_template_directory() . '/style.css', false, null, 0, 400), 'Version: 1.2.52') !== false, 'theme version is 1.2.52 (after 1.2.51) in br_ver() and style.css');
 
     $seo_check = br_seo_pages();
