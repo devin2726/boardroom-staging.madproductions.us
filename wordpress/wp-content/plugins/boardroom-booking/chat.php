@@ -1423,10 +1423,10 @@ function brb_chat_place_text($with_checks) {
 function brb_chat_walk_payment_text($include_checks = false) {
     // 2.5.93: a check question gets the address first; the walk-through line trails and the range is dropped.
     if ($include_checks) return brb_check_sentence() . ' We go over your price and other payment details in person at your walk-through.' . (brb_chat_detail() ? '' : ' Want more details?');
-    $text = 'Rentals run ' . brb_public_price_range() . '. We quote your exact price and go over payment details, including how to pay, in person at your walk-through. After you approve the quote, we send an invoice. See ' . home_url('/terms/') . '.';
+    $text = brb_public_price_range() . '. We quote your exact price and go over payment details, including how to pay, in person at your walk-through. After you approve the quote, we send an invoice. See ' . home_url('/terms/') . '.';
     if ($include_checks) $text .= ' ' . brb_check_sentence();
     if (brb_chat_detail()) return $text;
-    return 'Rentals run ' . brb_public_price_range() . '. We quote your exact price and go over payment details in person at your walk-through. Want more details?';
+    return brb_public_price_range() . '. We quote your exact price and go over payment details in person at your walk-through. Want more details?';
 }
 function brb_chat_cancel_text() {
     if (function_exists('brb_walkthrough_mode') && brb_walkthrough_mode()) {
@@ -1910,6 +1910,8 @@ function brb_chat_answer($message, $history = [], $detail = null) {
     if (in_array('availability', $intents, true)) $parts[] = brb_chat_availability_text($parsed);
     $asked_price = brb_chat_asks_price($message) || brb_chat_asks_price($norm);
     $price_ok = !empty($parsed['dates']) || !empty($parsed['too_long']) || ($asked_price && empty($parsed['invalid']));
+    // 2.5.94: walk-through flow always answers a price question with the starting price (81776f6 returned an empty reply for "Saturday price?"; old flow left as is).
+    if (function_exists('brb_walkthrough_mode') && brb_walkthrough_mode() && in_array('pricing', $intents, true)) $price_ok = true;
     if (in_array('pricing', $intents, true) && $price_ok) $parts[] = brb_chat_price_for_dates($parsed);
     $walk_check = (function_exists('brb_walkthrough_mode') && brb_walkthrough_mode()) && (brb_chat_asks_checks($message) || brb_chat_asks_checks($norm));
     // 2.5.93: walk-through flow, "Where do I mail a check?" (payment + place): the address answer leads, no range first.

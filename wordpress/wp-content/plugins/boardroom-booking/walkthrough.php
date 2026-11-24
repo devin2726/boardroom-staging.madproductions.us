@@ -27,16 +27,22 @@ function brb_pricing_mode() {
 function brb_walkthrough_mode() {
     return brb_pricing_mode() === 'walkthrough';
 }
-function brb_public_price_range_default() {
-    return "$850\u{2013}$1,500 depending on seasonal availability";
+/*
+ * Public price (walk-through flow). Max, Nov 24, 2026, 3:16 PM CT: "say 'Starting at $850' for all prices."
+ * Replaces the earlier "$850–$1,500 depending on seasonal availability" line (no top of range anywhere).
+ * Setting public_price_from (whole dollars, default 850). The old public_price_range text setting is no longer read.
+ */
+function brb_public_price_from() {
+    $n = (float) brb_opt('public_price_from');
+    if ($n <= 0) $n = 850;
+    return brb_whole_money($n);
 }
-/** The single public price line, e.g. "$850–$1,500 depending on seasonal availability". */
+/** "Starting at $850" */
 function brb_public_price_range() {
-    $line = trim((string) brb_opt('public_price_range'));
-    return $line !== '' ? $line : brb_public_price_range_default();
+    return 'Starting at ' . brb_public_price_from();
 }
 function brb_walk_price_line() {
-    return 'Rentals run ' . brb_public_price_range() . '. We quote your exact price in person at your walk-through.';
+    return brb_public_price_range() . '. We quote your exact price in person at your walk-through.';
 }
 function brb_walk_days() {
     return ['mon' => 'Monday', 'tue' => 'Tuesday', 'wed' => 'Wednesday', 'thu' => 'Thursday', 'fri' => 'Friday'];
@@ -112,7 +118,7 @@ function brb_walk_steps() {
         'Hold a Date. Pick an open date and send a request. Nothing is charged.',
         'We email you a confirmation and place a tentative hold on your date.',
         'We reach out to set up an in-person walk-through on a weekday, morning (8 AM–12 PM) or afternoon (12–4 PM).',
-        'At the walk-through we quote your price. Rentals run ' . brb_public_price_range() . '.',
+        'At the walk-through we quote your price, starting at ' . brb_public_price_from() . '.',
         'Once you\'re ready, we send your invoice to lock in the date.',
     ];
 }

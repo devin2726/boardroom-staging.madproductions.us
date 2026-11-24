@@ -55,26 +55,27 @@ try {
     brb_t((get_option('brb_settings')['pricing_mode'] ?? '') === 'walkthrough', 'upgrade without a stored flow switches to walkthrough');
     $set_mode('walkthrough');
     brb_t(brb_walkthrough_mode(), 'walkthrough mode is on');
-    brb_t(brb_public_price_range() === "$850\u{2013}$1,500 depending on seasonal availability", 'public price range line is $850–$1,500 depending on seasonal availability');
+    brb_t(brb_public_price_range() === 'Starting at $850', 'public price line is Starting at $850 (Max, Nov 24, 3:16 PM CT)');
+    brb_t(brb_walk_price_line() === 'Starting at $850. We quote your exact price in person at your walk-through.', 'walk price sentence reads naturally');
     brb_t(array_keys(brb_walk_days()) === ['mon', 'tue', 'wed', 'thu', 'fri'], 'walk-through days are Monday to Friday only');
     brb_t(brb_walk_windows() === ['morning' => 'Morning (8 AM–12 PM)', 'afternoon' => 'Afternoon (12–4 PM)'], 'walk-through windows are 8–12 and 12–4');
 
     // ---- public copy
     $how = brb_how_booking_works_html();
     brb_t(strpos($how, 'Hold a Date') !== false && strpos($how, 'Prices&nbsp;on') === false && strpos($how, '50%') === false, 'Book page facts say Hold a Date, no calendar prices or 50%');
-    brb_t(strpos($how, '$850–$1,500 depending on seasonal availability') !== false, 'Book page shows the range line');
+    brb_t(strpos($how, 'Starting at $850') !== false && strpos($how, '1,500') === false, 'Book page shows Starting at $850, no top of range');
     $steps = implode(' ', brb_how_booking_works_steps());
     brb_t(strpos($steps, 'tentative hold') !== false && strpos($steps, 'walk-through') !== false && !preg_match('/3%|50%|7 days/', $steps), 'booking steps describe tentative hold + walk-through, no fee/deposit/balance');
     $GLOBALS['brb_np_test_faq'] = true;
     $faq = brb_walk_faq_swap(brb_faq_markup());
     brb_t(strpos($faq, 'The price shows right on the calendar') === false, 'FAQ no longer says the price is on the calendar');
-    brb_t(strpos($faq, 'How is pricing set?') !== false && strpos($faq, '$850–$1,500 depending on seasonal availability') !== false, 'FAQ has the pricing range question');
+    brb_t(strpos($faq, 'How is pricing set?') !== false && strpos($faq, 'Starting at $850') !== false && strpos($faq, '1,500') === false, 'FAQ How is pricing set? says Starting at $850');
     brb_t(strpos($faq, 'What is the walk-through?') !== false, 'FAQ explains the walk-through');
     brb_t(strpos($faq, '3% processing fee') === false && strpos($faq, 'The deposit (50% of the agreed total)') === false, 'FAQ How do I pay has no 3% or 50% figure');
     preg_match_all('/\$\s?[0-9][0-9,]*/', wp_strip_all_tags($faq), $m);
     $amounts = array_values(array_unique($m[0]));
     sort($amounts);
-    brb_t(array_values(array_diff($amounts, ['$850', '$1,500', '$1,000,000', '$2,000,000'])) === [], 'FAQ dollar figures are only the range and the insurance limits');
+    brb_t(array_values(array_diff($amounts, ['$850', '$1,000,000', '$2,000,000'])) === [], 'FAQ dollar figures are only $850 and the insurance limits');
     $llms = function_exists('brb_llms_body') ? brb_llms_body() : '';
     if ($llms !== '') brb_t(strpos($llms, 'see the price on the calendar') === false && strpos($llms, 'Hold a Date') !== false, 'llms.txt says Hold a Date, not calendar price');
 
@@ -139,7 +140,7 @@ try {
     $_SERVER['REQUEST_URI'] = '/reserve-the-boardroom-quad-cities/?date=' . $ymd;
     ob_start(); brb_view_quote(); $q = ob_get_clean();
     $_GET = [];
-    brb_t(strpos($q, 'Rental Price') === false && strpos($q, '$850–$1,500 depending on seasonal availability') !== false, 'Your date card shows the range, not a Rental Price');
+    brb_t(strpos($q, 'Rental Price') === false && strpos($q, 'Starting at $850') !== false && strpos($q, '1,500') === false, 'Your date card shows Starting at $850, not a Rental Price');
     brb_t(substr_count($q, 'name="walk_days[]"') === 5 && substr_count($q, 'name="walk_window[]"') === 2, 'form has Mon–Fri and morning/afternoon choices');
     brb_t(strpos($q, 'not set until we reach out and confirm') !== false, 'form says the walk-through is not set until we confirm');
     brb_t(strpos($q, 'Send Hold a Date request') !== false, 'button says Send Hold a Date request');
@@ -198,6 +199,23 @@ try {
     brb_t(strpos($chk2, 'Rentals run') === false || strpos($chk2, 'Rentals run') > strpos($chk2, 'checks'), 'drop-off-a-check answer leads with the address');
     $walk_change_intent = $ans('Can you change my booking?', false)['intent'];
 
+    // ---- Starting at $850 (Max, Nov 24, 3:16 PM CT): no $1,500 / top of range anywhere in walk-mode output
+    $walk_out = [brb_how_booking_works_html(), brb_walk_faq_swap(brb_faq_markup()), implode("\n", brb_walk_steps())];
+    $GLOBALS['brb_chat_detail'] = true;
+    foreach (['How much does it cost?', 'How much is the deposit?', 'How do I pay?', 'Can I book a tour?', 'What is the price for a Saturday?', 'How much is December 12?', 'Price for a wedding?'] as $q) $walk_out[] = (string) brb_chat_answer($q, [], true)['reply'];
+    $GLOBALS['brb_chat_detail'] = false;
+    foreach (['How much does it cost?', 'How much is the deposit?', 'How much is December 12?'] as $q) $walk_out[] = (string) brb_chat_answer($q)['reply'];
+    ob_start(); brb_place_schema(); $schema = ob_get_clean();
+    $walk_out[] = $schema;
+    if (function_exists('brb_llms_txt_body')) $walk_out[] = (string) brb_llms_txt_body();
+    $blob = implode("\n", $walk_out);
+    brb_t(!preg_match('/1,500|\b1500\b|seasonal availability|Rentals run/', $blob), 'walk mode: no $1,500, 1500, "seasonal availability" or "Rentals run" in page, FAQ, chat, schema or llms output');
+    brb_t(strpos($schema, '"priceRange":"Starting at $850"') !== false && strpos($schema, 'maxPrice') === false && strpos($schema, 'highPrice') === false, 'schema priceRange is Starting at $850, no maximum');
+    brb_t(strpos((string) brb_chat_answer('Saturday price?')['reply'], 'Starting at $850') !== false, 'chat: "Saturday price?" answers with Starting at $850 (no empty reply)');
+    $o2 = get_option('brb_settings'); $o2['public_price_from'] = '900'; update_option('brb_settings', $o2);
+    brb_t(brb_public_price_range() === 'Starting at $900', 'starting price setting drives the line');
+    $o2['public_price_from'] = '850'; update_option('brb_settings', $o2);
+
     // ---- reinstall switch: old flow comes back
     $set_mode('calendar');
     brb_t(!brb_walkthrough_mode(), 'switching to calendar mode turns the walk-through flow off');
@@ -217,6 +235,8 @@ try {
     brb_t(brb_hold_lapsed($lb) && !empty(brb_sd_hold_info($lb)['lapsed']), 'old flow: pay-window lapse flag is back');
     ob_start(); brb_view_select(); $sel = ob_get_clean();
     brb_t(strpos($sel, 'max="200"') !== false, 'old flow: guest field max 200 is back');
+    ob_start(); brb_place_schema(); $schema_old = ob_get_clean();
+    brb_t(strpos($schema_old, 'priceRange') === false, 'old flow: venue schema unchanged (no priceRange)');
     $oa = function ($q, $det) { $GLOBALS['brb_chat_detail'] = $det; $r = brb_chat_answer($q, [], $det); $GLOBALS['brb_chat_detail'] = false; return $r; };
     brb_t(strpos((string) $oa('Is December 12 available?', true)['reply'], 'We review your request. Once it\'s approved') !== false, 'old flow: detail availability answer keeps the original review line');
     brb_t(strpos((string) $oa('Where do I mail a check?', false)['reply'], 'The deposit is 50%') === 0, 'old flow: mail-a-check answer unchanged (81776f6 wording)');
