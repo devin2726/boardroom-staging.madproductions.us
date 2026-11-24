@@ -100,6 +100,11 @@ function brb_walk_fields_html() {
         $h .= '<label class="brb-check brb-walk-opt"><input type="checkbox" name="walk_window[]" value="' . esc_attr($k) . '"> ' . esc_html($label) . '</label>';
     }
     $h .= '</div><p class="brb-small brb-walk-note">' . esc_html(brb_walk_not_confirmed_line()) . '</p></fieldset>';
+    // Checkbox groups cannot use "required"; stop the submit in the browser so typed details are not lost. The server checks again.
+    $h .= '<script>(function(){var f=document.currentScript&&document.currentScript.closest("form");if(!f)return;f.addEventListener("submit",function(e){'
+        . 'var d=f.querySelector("input[name=\'walk_days[]\']:checked"),w=f.querySelector("input[name=\'walk_window[]\']:checked");'
+        . 'if(!d||!w){e.preventDefault();alert(!d?"Please pick at least one weekday (Monday to Friday) for your walk-through.":"Please pick a walk-through time: morning (8 AM\u201312 PM) or afternoon (12\u20134 PM).");'
+        . 'var t=f.querySelector(".brb-walk");if(t)t.scrollIntoView({block:"center"});}});})();</script>';
     return $h;
 }
 function brb_walk_steps() {
