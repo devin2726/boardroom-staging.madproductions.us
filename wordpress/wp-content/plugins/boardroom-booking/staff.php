@@ -1019,7 +1019,7 @@ function brb_sd_page_html() {
     <p class="lede">Tap a day, then tap any item to open its full record.</p>
     <div class="legend" aria-label="Calendar legend">
       <span><i class="swatch booked"></i> Booked</span><span><i class="swatch held"></i> Date held</span>
-      <span><i class="swatch lapsed"></i> Pay window passed</span><span><i class="swatch waiting"></i> Request waiting</span><span><i class="swatch closed"></i> Closed</span><span><i class="swatch open"></i> Open</span>
+      <?php if (!brb_walkthrough_mode()): ?><span><i class="swatch lapsed"></i> Pay window passed</span><?php endif; ?><span><i class="swatch waiting"></i> Request waiting</span><span><i class="swatch closed"></i> Closed</span><span><i class="swatch open"></i> Open</span>
     </div>
     <div class="card cal-card">
       <div class="cal-head">

@@ -154,6 +154,9 @@ function brb_walk_faq_swap($html) {
     $walk = '<details><summary>What is the walk-through?</summary><p>A short, in-person visit at The Boardroom before your booking is confirmed. We show you the space, go over your plans and the house rules, and quote your price. Walk-throughs are on weekdays, morning (8 AM–12 PM) or afternoon (12–4 PM). You pick your preference on the request form, and we reach out to confirm a time.</p></details>';
     $html = str_replace('<details><summary>What dates are open?</summary>', $walk . '<details><summary>What dates are open?</summary>', $html);
     $html = str_replace('(including the 3% card processing fee)', '(including the card processing fee)', $html);
+    // QA MINOR (Nov 24): neutral cancellation answer, no "deposit" wording. Same 60-day rule as the Rental Terms.
+    $cancel = '<details><summary>What is the cancellation policy?</summary><p>Cancel in writing. If we receive your written cancellation 60 or more days before the event, what you have paid is refundable, less any non-refundable processing charges (including the card processing fee) and costs already incurred. Cancellations received less than 60 days before the event are not refundable. We go over this at your walk-through. See the <a href="/terms/">Rental Terms</a>. If a summary and the signed agreement differ, the signed agreement controls.</p></details>';
+    $html = brb_walk_replace_details('/<details><summary>What is the cancellation policy\?<\/summary>.*?<\/details>/s', $cancel, $html);
     return $html;
 }
 /** Public blog/page copy that described the old pricing flow, swapped at render time (database untouched). */
@@ -171,3 +174,24 @@ add_filter('the_content', function ($content) {
     }
     return strtr($content, brb_walk_copy_map());
 }, 9);
+
+/* ---------- /rental-checklist/ (QA SHOULD, Les, Nov 24, 2026) ----------
+ * Display-time swap of the "deposit" line on the checklist page ([brb_checklist] shortcode).
+ * Stored checklist text and the checklist emails are unchanged. Old flow shows the original.
+ * Original text: pricing-backup-2026-11-24/checklist-original.txt
+ */
+function brb_walk_checklist_deposit_line() { return 'The deposit is received and approved.'; }
+function brb_walk_checklist_hold_line() { return 'Your date is tentatively held once you send a Hold a Date request. It is confirmed after your walk-through, once you approve the quote and we confirm it.'; }
+function brb_walk_checklist_swap($html) {
+    if (!brb_walkthrough_mode()) return $html;
+    return str_replace('<li>' . esc_html(brb_walk_checklist_deposit_line()) . '</li>', '<li>' . esc_html(brb_walk_checklist_hold_line()) . '</li>', (string) $html);
+}
+add_action('init', function () {
+    global $shortcode_tags;
+    if (empty($shortcode_tags['brb_checklist'])) return;
+    $orig = $shortcode_tags['brb_checklist'];
+    add_shortcode('brb_checklist', function ($atts = [], $content = null, $tag = '') use ($orig) {
+        return brb_walk_checklist_swap(call_user_func($orig, $atts, $content, $tag));
+    });
+}, 20);
+

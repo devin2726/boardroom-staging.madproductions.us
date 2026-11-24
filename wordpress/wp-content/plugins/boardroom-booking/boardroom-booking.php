@@ -2,11 +2,11 @@
 /**
  * Plugin Name: Boardroom Booking
  * Description: Self-hosted direct booking for The Boardroom — full-day blocks, availability calendar, agreed prices, approval before payment, blackout dates, and emails.
- * Version: 2.5.91
+ * Version: 2.5.92
  * Author: Boardroom QC LLC
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.5.91');
+define('BRB_VER', '2.5.92');
 function brb_reserve_explainer_steps() {
     if (function_exists('brb_walkthrough_mode') && brb_walkthrough_mode()) return brb_walk_steps();
     return [
@@ -532,6 +532,8 @@ function brb_note_pay_link_sent($booking_id) {
 }
 /** Unpaid approved/held booking whose pay window has passed. This only flags; nothing is freed or sent. */
 function brb_hold_lapsed($b) {
+    // 2.5.91: the walk-through flow has no pay window, so nothing is ever "lapsed" and the staff release step stays hidden.
+    if (function_exists('brb_walkthrough_mode') && brb_walkthrough_mode()) return false;
     if (!$b || !in_array((string) $b->status, ['approved', 'held'], true)) return false;
     if ((float) $b->amount_paid > 0.009) return false;
     $until = trim((string) ($b->hold_until ?? ''));
@@ -1886,6 +1888,11 @@ function brb_build_range($in, $args = []) {
     $units = $days;
     $guests = max(1, (int) ($in['guests'] ?? 1));
     $guest_cap = max(200, (int) $o['max_guests']);
+    // 2.5.91 walk-through flow (QA MINOR, Nov 24): the public form caps at 80 to match the Terms. Staff/admin entry keeps the old cap.
+    if (!empty($args['public']) && function_exists('brb_walkthrough_mode') && brb_walkthrough_mode()) {
+        $guest_cap = brb_public_guest_cap();
+        if ($guests > $guest_cap) return new WP_Error('guests', 'The booking form takes up to 80 guests. For an open house or graduation party with more guests coming and going, enter 80 and tell us your expected total in "Tell us about your event." We confirm it at your walk-through.');
+    }
     if ($guests > $guest_cap) return new WP_Error('guests', '80 guests is the usual capacity. Graduation parties or open houses can go over. For a much larger guest count, please contact us.');
     if (empty($args['override_notice']) && $s < brb_notice_cutoff()) {
         return new WP_Error('notice', sprintf(
@@ -2680,6 +2687,9 @@ function brb_guest_money_html($b, $opts = []) {
 }
 function brb_date_hold_state($b) {
     $status = (string) ($b->status ?? '');
+    if (function_exists('brb_walkthrough_mode') && brb_walkthrough_mode() && in_array($status, ['review', 'pending'], true)) {
+        return 'Tentative hold. Blocks the date until staff decline or cancel; no time limit.';
+    }
     if (in_array($status, ['deposit_paid', 'paid', 'confirmed'], true)) {
         return 'Reserved. The deposit has been received.';
     }
@@ -3642,7 +3652,7 @@ function brb_insert_booking($r, $q, $guest, $source = 'online', $notify = true, 
 function brb_process_public_booking($post) {
     if (!brb_public_writes_open()) return new WP_Error('staging', brb_staging_guest_message());
     if (empty($post['policy'])) return new WP_Error('policy', 'Please agree to the Terms, the Rental Agreement and the Privacy Policy.');
-    $r = brb_build_range($post);
+    $r = brb_build_range($post, ['public' => true]);
     if (is_wp_error($r)) return $r;
     $name = sanitize_text_field($post['name'] ?? '');
     $email = sanitize_email($post['email'] ?? '');
@@ -4300,8 +4310,13 @@ function brb_view_select() {
         <label>Date<input type="date" name="date" id="brb-date" required min="<?php echo esc_attr(brb_now()->format('Y-m-d')); ?>"></label>
         <input type="hidden" name="type" value="day">
         <p class="brb-small" id="brb-notice"></p>
+        <?php if (brb_walkthrough_mode()): ?>
+        <label>Estimated Guests<input type="number" name="guests" id="brb-guests" value="10" min="1" max="<?php echo (int) brb_public_guest_cap(); ?>"></label>
+        <p class="brb-small" id="brb-guest-cap-note">Up to 80 guests. Open house or graduation party with more coming and going? Enter 80 and tell us your expected total in "Tell us about your event."</p>
+        <?php else: ?>
         <label>Estimated Guests<input type="number" name="guests" id="brb-guests" value="10" min="1" max="200"></label>
         <p class="brb-small" id="brb-guest-note" hidden>Over 80 needs our written approval. Open houses and graduation parties can go over.</p>
+        <?php endif; ?>
         <button class="brb-btn" type="submit">Continue</button>
       </form>
     </div>
@@ -4315,7 +4330,7 @@ function brb_echo_lines($lines) {
 function brb_view_quote() {
     $o = brb_opt();
     $in = wp_unslash($_GET);
-    $r = brb_build_range($in);
+    $r = brb_build_range($in, ['public' => true]);
     if (is_wp_error($r)) {
         echo '<div class="brb-alert brb-err">' . esc_html($r->get_error_message()) . '</div>';
         brb_view_select();

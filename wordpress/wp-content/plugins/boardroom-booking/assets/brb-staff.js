@@ -97,7 +97,8 @@
     rows.push(['Status', b.status_label || '']);
     rows.push(['Details checked', b.details_checked ? 'Yes' : 'Not yet']);
     if (b.hold) {
-      if (b.hold.waiting_for_link) rows.push(['Pay window', 'Starts when the pay link is sent']);
+      if (b.hold.clock === 'none') rows.push(['Pay link', 'Not sent yet (no pay deadline in the walk-through flow)']);
+      else if (b.hold.waiting_for_link) rows.push(['Pay window', 'Starts when the pay link is sent']);
       else {
         rows.push(['Pay window ends', b.hold.until_text]);
         rows.push(['Time left', b.hold.text]);

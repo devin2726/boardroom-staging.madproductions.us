@@ -144,6 +144,43 @@ try {
     brb_t(strpos($q, 'not set until we reach out and confirm') !== false, 'form says the walk-through is not set until we confirm');
     brb_t(strpos($q, 'Send Hold a Date request') !== false, 'button says Send Hold a Date request');
 
+    // ---- QA round 2 (Les, Nov 24): chat, checklist, pay window, FAQ cancellation, guest cap
+    $chat = function ($q) { $r = brb_chat_answer($q); return (string) $r['reply']; };
+    $no_old_pay = function ($t) { return strpos($t, '50%') === false && strpos($t, '3%') === false && stripos($t, 'within 1 day') === false && stripos($t, 'deposit') === false; };
+    foreach (['How much is the deposit?', 'How do I pay?', 'Do you take credit cards?', 'What is the cancellation policy?'] as $q) {
+        $a = $chat($q);
+        brb_t($no_old_pay($a), 'chat walk mode: "' . $q . '" has no 50%, 1 day, 3% or deposit (' . substr($a, 0, 90) . ')');
+    }
+    $a = brb_chat_walk_payment_text(false);
+    brb_t(strpos($a, '$850') !== false && stripos($a, 'walk-through') !== false && stripos($a, 'payment details') !== false && stripos($a, 'in person') !== false, 'chat payment answer: range, walk-through, payment details covered at the in-person quote');
+    $GLOBALS['brb_chat_detail'] = false;
+    $short_ok = $no_old_pay(brb_chat_payment_text(false)) && $no_old_pay(brb_chat_cancel_text());
+    $GLOBALS['brb_chat_detail'] = true;
+    brb_t($short_ok && $no_old_pay(brb_chat_payment_text(true)) && $no_old_pay(brb_chat_cancel_text()), 'chat payment and cancel texts (short and detailed) carry no deposit terms');
+    brb_t(stripos(brb_chat_tour_text(), 'Hold a Date') !== false, 'chat walk-through answer points to Hold a Date');
+    brb_t(stripos(brb_chat_suggestions(), 'deposit') === false, 'chat suggestions do not mention the deposit');
+    $chips = wp_list_pluck(brb_chat_chips('price'), 'label');
+    brb_t(!in_array('Deposit', $chips, true), 'chat chips: no Deposit chip');
+    $ck = do_shortcode('[brb_checklist]');
+    brb_t(strpos($ck, 'The deposit is received and approved.') === false && strpos($ck, 'tentatively held') !== false, 'checklist page shows the tentative-hold line, not the deposit line');
+    brb_t(strpos(implode("\n", brb_checklist_lines()), 'The deposit is received and approved.') !== false, 'stored checklist text is unchanged (display-time swap only)');
+    $faq2 = brb_walk_faq_swap(brb_faq_markup());
+    preg_match('/<details><summary>What is the cancellation policy\?<\/summary>.*?<\/details>/s', $faq2, $cm);
+    brb_t(!empty($cm[0]) && stripos($cm[0], 'deposit') === false && strpos($cm[0], '60') !== false, 'FAQ cancellation answer is neutral (no deposit) and keeps the 60-day rule');
+    $ymd_l = $open_weekday(45);
+    $wpdb->insert(brb_table(), ['token' => wp_generate_password(20, false), 'name' => 'Np Lapse', 'email' => 'nopricing-lapse@example.com', 'start_dt' => $ymd_l . ' 10:00:00', 'end_dt' => $ymd_l . ' 23:30:00', 'mode' => 'day', 'guests' => 10, 'status' => 'approved', 'total' => 900, 'deposit_due' => 450, 'amount_paid' => 0, 'price_set' => 1, 'hold_until' => gmdate('Y-m-d H:i:s', time() - 7200), 'pay_link_sent_at' => gmdate('Y-m-d H:i:s', time() - 180000), 'created' => current_time('mysql')]);
+    $lapse_id = (int) $wpdb->insert_id; $created[] = $lapse_id;
+    $lb = brb_booking($lapse_id);
+    brb_t(!brb_hold_lapsed($lb) && brb_sd_hold_info($lb) === null && brb_sd_lapsed() === [], 'walk mode: no pay-window clock, no lapse flag, nothing in the Pay window passed list');
+    $rel = brb_sd_release($lapse_id, ['confirmed' => true]);
+    brb_t(is_wp_error($rel) && brb_booking($lapse_id)->status === 'approved', 'walk mode: release is refused and the booking stays put');
+    ob_start(); brb_view_select(); $sel = ob_get_clean();
+    brb_t(strpos($sel, 'max="80"') !== false && strpos($sel, 'max="200"') === false, 'Hold a Date form caps guests at 80');
+    $r80 = brb_build_range(['date' => $ymd, 'type' => 'day', 'guests' => 81], ['public' => true]);
+    brb_t(is_wp_error($r80) && $r80->get_error_code() === 'guests', 'server refuses 81 guests on the public form');
+    brb_t(!is_wp_error(brb_build_range(['date' => $ymd, 'type' => 'day', 'guests' => 80], ['public' => true])), '80 guests is accepted');
+    brb_t(!is_wp_error(brb_build_range(['date' => $ymd, 'type' => 'day', 'guests' => 120], ['override_notice' => true])), 'staff entry can still go over 80 (open house, graduation)');
+
     // ---- reinstall switch: old flow comes back
     $set_mode('calendar');
     brb_t(!brb_walkthrough_mode(), 'switching to calendar mode turns the walk-through flow off');
@@ -156,6 +193,13 @@ try {
     ob_start(); brb_view_quote(); $q = ob_get_clean();
     $_GET = [];
     brb_t(strpos($q, 'Rental Price') !== false && strpos($q, 'walk_days') === false, 'old flow: Rental Price back, no walk-through fields');
+    brb_t(strpos(brb_chat_payment_text(true), '50%') !== false, 'old flow: chat quotes the 50% deposit again');
+    brb_t(strpos(do_shortcode('[brb_checklist]'), 'The deposit is received and approved.') !== false, 'old flow: checklist deposit line is back');
+    $lb = brb_booking($lapse_id);
+    brb_t(brb_hold_lapsed($lb) && !empty(brb_sd_hold_info($lb)['lapsed']), 'old flow: pay-window lapse flag is back');
+    ob_start(); brb_view_select(); $sel = ob_get_clean();
+    brb_t(strpos($sel, 'max="200"') !== false, 'old flow: guest field max 200 is back');
+    $GLOBALS['brb_chat_detail'] = false;
 } catch (Throwable $t) {
     brb_t(false, 'exception: ' . $t->getMessage() . ' @' . $t->getLine());
 } finally {
