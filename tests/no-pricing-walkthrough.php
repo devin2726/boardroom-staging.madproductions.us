@@ -181,6 +181,23 @@ try {
     brb_t(!is_wp_error(brb_build_range(['date' => $ymd, 'type' => 'day', 'guests' => 80], ['public' => true])), '80 guests is accepted');
     brb_t(!is_wp_error(brb_build_range(['date' => $ymd, 'type' => 'day', 'guests' => 120], ['override_notice' => true])), 'staff entry can still go over 80 (open house, graduation)');
 
+    // ---- QA round 3 (Les round 2 findings, Nov 24): no hold claimed without a request; check address first
+    $ans = function ($q, $det) { $GLOBALS['brb_chat_detail'] = $det; $r = brb_chat_answer($q, [], $det); $GLOBALS['brb_chat_detail'] = false; return $r; };
+    foreach (['Is December 12 available?', 'Can I book a tour?', 'Can you change my booking?', 'How do I book?', 'Any open dates in December?'] as $q) {
+        foreach ([false, true] as $det) {
+            $a = (string) $ans($q, $det)['reply'];
+            brb_t(strpos($a, 'Your date is tentatively held.') === false, 'chat ' . ($det ? 'detail' : 'short') . ' "' . $q . '" does not claim a hold exists');
+        }
+    }
+    brb_t(strpos((string) $ans('How do I book?', true)['reply'], 'Once you send a Hold a Date request') !== false, 'chat detail booking answer uses the conditional Once you send a Hold a Date request line');
+    $chk = (string) $ans('Where do I mail a check?', false)['reply'];
+    brb_t(strpos($chk, 'Mail or drop off checks') !== false && strpos($chk, '$850') === false && strpos($chk, 'Rentals run') === false, 'mail-a-check answer: address, no range first (short)');
+    $chk = (string) $ans('Where do I mail a check?', true)['reply'];
+    brb_t(strpos($chk, 'Mail or drop off checks') !== false && (strpos($chk, 'Rentals run') === false || strpos($chk, 'Rentals run') > strpos($chk, 'Mail or drop off checks')), 'mail-a-check answer: address leads (detail)');
+    $chk2 = (string) $ans('Where can I drop off a check?', false)['reply'];
+    brb_t(strpos($chk2, 'Rentals run') === false || strpos($chk2, 'Rentals run') > strpos($chk2, 'checks'), 'drop-off-a-check answer leads with the address');
+    $walk_change_intent = $ans('Can you change my booking?', false)['intent'];
+
     // ---- reinstall switch: old flow comes back
     $set_mode('calendar');
     brb_t(!brb_walkthrough_mode(), 'switching to calendar mode turns the walk-through flow off');
@@ -193,12 +210,17 @@ try {
     ob_start(); brb_view_quote(); $q = ob_get_clean();
     $_GET = [];
     brb_t(strpos($q, 'Rental Price') !== false && strpos($q, 'walk_days') === false, 'old flow: Rental Price back, no walk-through fields');
+    $GLOBALS['brb_chat_detail'] = true;
     brb_t(strpos(brb_chat_payment_text(true), '50%') !== false, 'old flow: chat quotes the 50% deposit again');
     brb_t(strpos(do_shortcode('[brb_checklist]'), 'The deposit is received and approved.') !== false, 'old flow: checklist deposit line is back');
     $lb = brb_booking($lapse_id);
     brb_t(brb_hold_lapsed($lb) && !empty(brb_sd_hold_info($lb)['lapsed']), 'old flow: pay-window lapse flag is back');
     ob_start(); brb_view_select(); $sel = ob_get_clean();
     brb_t(strpos($sel, 'max="200"') !== false, 'old flow: guest field max 200 is back');
+    $oa = function ($q, $det) { $GLOBALS['brb_chat_detail'] = $det; $r = brb_chat_answer($q, [], $det); $GLOBALS['brb_chat_detail'] = false; return $r; };
+    brb_t(strpos((string) $oa('Is December 12 available?', true)['reply'], 'We review your request. Once it\'s approved') !== false, 'old flow: detail availability answer keeps the original review line');
+    brb_t(strpos((string) $oa('Where do I mail a check?', false)['reply'], 'The deposit is 50%') === 0, 'old flow: mail-a-check answer unchanged (81776f6 wording)');
+    brb_t($oa('Can you change my booking?', false)['intent'] === $walk_change_intent, '"Can you change my booking?" routes the same as the old flow / 81776f6 (' . $walk_change_intent . ')');
     $GLOBALS['brb_chat_detail'] = false;
 } catch (Throwable $t) {
     brb_t(false, 'exception: ' . $t->getMessage() . ' @' . $t->getLine());

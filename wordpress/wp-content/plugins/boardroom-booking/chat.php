@@ -752,7 +752,7 @@ function brb_chat_day_sentence($ymd) {
         return $label . ' is a bit soon. ' . $notice;
     }
     $open = $label . ' looks open. ' . brb_chat_reserved_sentence();
-    if (brb_chat_detail()) $open .= ' ' . brb_guest_review_line();
+    if (brb_chat_detail()) $open .= ' ' . brb_chat_review_line();
     return $open;
 }
 
@@ -1366,9 +1366,17 @@ function brb_chat_payment_text($include_checks = false) {
 function brb_chat_party_line() {
     return 'Yes. We\'d be glad to host a bachelorette or bachelor party. A full day runs from 10:00 AM to 11:30 PM, and setup can begin at 8:00 AM. Up to 80 guests, with a serving kitchen, a game room, an 80-inch TV, and ample parking. You may bring your own decorations. Balloons are fine. Glitter, confetti, confetti cannons, rice, birdseed, loose sequins, and wall tape aren\'t allowed. Check a date and reserve here: ' . brb_book_url();
 }
+/**
+ * 2.5.93 (Les QA round 2, Nov 24): chat answers must not say a date IS held when no request exists.
+ * Walk-through flow: conditional wording. Old flow: the original review line.
+ */
+function brb_chat_review_line() {
+    if (function_exists('brb_walkthrough_mode') && brb_walkthrough_mode()) return 'Once you send a Hold a Date request, we\'ll reach out to set up your walk-through, where we quote your price. Please don\'t count on a walk-through time until we confirm it with you.';
+    return brb_guest_review_line();
+}
 function brb_chat_book_text() {
     $core = 'Submit a request on the Book page: ' . brb_book_url() . '. ' . brb_chat_reserved_sentence();
-    if (brb_chat_detail()) return $core . ' ' . brb_guest_review_line();
+    if (brb_chat_detail()) return $core . ' ' . brb_chat_review_line();
     return $core . ' Want more details?';
 }
 function brb_chat_confirm_line() {
@@ -1387,7 +1395,7 @@ function brb_chat_december_open() {
     }
     if (!$found) return 'I do not see an open December date in that quick look. ' . brb_chat_confirm_line();
     $line = 'A few open dates in December: ' . brb_chat_list_dates($found) . '.';
-    if (brb_chat_detail()) return $line . ' ' . brb_guest_review_line();
+    if (brb_chat_detail()) return $line . ' ' . brb_chat_review_line();
     return $line . ' Want more details?';
 }
 
@@ -1413,6 +1421,8 @@ function brb_chat_place_text($with_checks) {
 }
 
 function brb_chat_walk_payment_text($include_checks = false) {
+    // 2.5.93: a check question gets the address first; the walk-through line trails and the range is dropped.
+    if ($include_checks) return brb_check_sentence() . ' We go over your price and other payment details in person at your walk-through.' . (brb_chat_detail() ? '' : ' Want more details?');
     $text = 'Rentals run ' . brb_public_price_range() . '. We quote your exact price and go over payment details, including how to pay, in person at your walk-through. After you approve the quote, we send an invoice. See ' . home_url('/terms/') . '.';
     if ($include_checks) $text .= ' ' . brb_check_sentence();
     if (brb_chat_detail()) return $text;
@@ -1901,14 +1911,16 @@ function brb_chat_answer($message, $history = [], $detail = null) {
     $asked_price = brb_chat_asks_price($message) || brb_chat_asks_price($norm);
     $price_ok = !empty($parsed['dates']) || !empty($parsed['too_long']) || ($asked_price && empty($parsed['invalid']));
     if (in_array('pricing', $intents, true) && $price_ok) $parts[] = brb_chat_price_for_dates($parsed);
-    if (in_array('payment', $intents, true)) $parts[] = brb_chat_payment_text((brb_chat_asks_checks($message) || brb_chat_asks_checks($norm)) && !in_array('place', $intents, true));
+    $walk_check = (function_exists('brb_walkthrough_mode') && brb_walkthrough_mode()) && (brb_chat_asks_checks($message) || brb_chat_asks_checks($norm));
+    // 2.5.93: walk-through flow, "Where do I mail a check?" (payment + place): the address answer leads, no range first.
+    if (in_array('payment', $intents, true) && !($walk_check && in_array('place', $intents, true))) $parts[] = brb_chat_payment_text((brb_chat_asks_checks($message) || brb_chat_asks_checks($norm)) && !in_array('place', $intents, true));
     if (in_array('rules', $intents, true)) $parts[] = brb_chat_rules_text();
     if (in_array('amenities', $intents, true)) $parts[] = brb_chat_amenities_text();
     if (in_array('cancel', $intents, true)) $parts[] = brb_chat_cancel_text();
     if (in_array('book', $intents, true)) $parts[] = brb_chat_book_text();
     if (in_array('tour', $intents, true)) $parts[] = brb_chat_tour_text();
     if (in_array('contact', $intents, true)) $parts[] = brb_chat_contact_text();
-    if (in_array('place', $intents, true)) $parts[] = brb_chat_place_text(in_array('payment', $intents, true));
+    if (in_array('place', $intents, true)) $parts[] = brb_chat_place_text(in_array('payment', $intents, true)) . (($walk_check && in_array('payment', $intents, true)) ? ' We go over your price and other payment details in person at your walk-through.' : '');
     $lead = brb_chat_lead_flag($intents, $history) || brb_chat_extra_lead($message) || brb_chat_extra_lead($norm);
     return brb_chat_finish(brb_chat_finish_bits($parts), $lead, $intents ? $intents[0] : 'topic');
 }
