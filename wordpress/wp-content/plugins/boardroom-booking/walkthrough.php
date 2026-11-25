@@ -46,7 +46,7 @@ function brb_public_price_range() {
     return 'Starting at ' . brb_public_price_from();
 }
 function brb_walk_price_line() {
-    return brb_public_price_range() . '. We quote your exact price in person at your walk-through.';
+    return brb_public_price_range() . '. We quote your exact price at the walk-through for first-time renters, or when we reach out if you\'ve rented with us before.';
 }
 /*
  * First-time vs returning renters (Max, Nov 25, 2026, 7:07 AM CT, relayed by the Czar):
@@ -58,6 +58,23 @@ function brb_walk_first_time_line() {
 }
 function brb_walk_first_time_form_note() {
     return 'If you\'ve rented with us before, you can skip the walk-through. We still ask for a preferred weekday and time in case plans change.';
+}
+/** After a Hold a Date request (email, thanks screen, status). No auto-confirmation, no deadlines. */
+function brb_walk_followup_line() {
+    return 'If this is your first time renting The Boardroom, we\'ll reach out to set up an in-person walk-through. If you\'ve rented with us before, we\'ll reach out to confirm your hold.';
+}
+function brb_is_returning_renter($b) {
+    if (!$b) return false;
+    return !empty(is_object($b) ? ($b->returning_renter ?? 0) : ($b['returning_renter'] ?? 0));
+}
+/**
+ * Whether staff must mark the walk-through complete before approval.
+ * Old flow always requires it (81776f6). In the new flow, a staff-only
+ * "Returning renter (walk-through not needed)" flag waives it.
+ */
+function brb_walk_required_for_approval($b) {
+    if (function_exists('brb_walkthrough_mode') && brb_walkthrough_mode() && brb_is_returning_renter($b)) return false;
+    return true;
 }
 function brb_walk_days() {
     return ['mon' => 'Monday', 'tue' => 'Tuesday', 'wed' => 'Wednesday', 'thu' => 'Thursday', 'fri' => 'Friday'];
@@ -139,7 +156,7 @@ function brb_walk_steps() {
     ];
 }
 function brb_walk_review_line() {
-    return 'Your date is tentatively held. We\'ll reach out to set up an in-person walk-through, where we quote your price. Please don\'t count on the walk-through time until we confirm it with you.';
+    return 'Your date is tentatively held. ' . brb_walk_followup_line() . ' Please don\'t count on a walk-through time until we confirm it with you.';
 }
 function brb_walk_hold_line() {
     return 'A tentative hold is not a confirmed booking. Your date is booked once you approve the quote and we confirm it.';
@@ -153,7 +170,7 @@ function brb_walk_request_guest_body($b) {
     if ($pref !== '') $detail .= 'Your walk-through preference: ' . $pref . "\n";
     return brb_guest_hello_line() . "\n\n"
         . "We received your request, and your date is tentatively held.\n\n"
-        . "Next, we'll reach out to set up an in-person walk-through of The Boardroom. We'll quote your price at the walk-through. Please don't count on the walk-through time until we confirm it with you.\n\n"
+        . brb_walk_followup_line() . " Please don't count on a walk-through time until we confirm it with you.\n\n"
         . $detail . "\n"
         . brb_walk_hold_line() . "\n\n"
         . brb_no_overnight_line() . "\n" . brb_guest_out_line() . "\n" . brb_guest_free_line() . "\n" . brb_hours_line() . "\n\n"
@@ -171,20 +188,20 @@ function brb_walk_faq_swap($html) {
     $steps = '<details><summary>How booking works</summary><p>' . esc_html(implode(' ', brb_walk_steps())) . '</p></details>';
     $html = brb_walk_replace_details('/<details><summary>How booking works<\/summary>.*?<\/details>/s', $steps, $html);
     $price = '<details><summary>How is pricing set?</summary><p>' . esc_html(brb_walk_price_line()) . '</p></details>';
-    $pay = '<details><summary>How do I pay?</summary><p>After your walk-through, once you approve your quote, we send an invoice. Pay by check or in person, or online by card (a card processing fee applies). Mail or drop off checks payable to Boardroom QC LLC at the office, ' . BRB_CHECK_ADDRESS . '. We don\'t keep set hours. We meet on demand and set a time together, by appointment. Payment terms are in the <a href="/terms/">Rental Terms</a>. Sales tax is included in the price.</p></details>';
+    $pay = '<details><summary>How do I pay?</summary><p>Once you approve your quote, we send an invoice. First-time renters approve it after the walk-through. If you\'ve rented with us before, we\'ll be in touch about the quote when we confirm your hold. Pay by check or in person, or online by card (a card processing fee applies). Mail or drop off checks payable to Boardroom QC LLC at the office, ' . BRB_CHECK_ADDRESS . '. We don\'t keep set hours. We meet on demand and set a time together, by appointment. Payment terms are in the <a href="/terms/">Rental Terms</a>. Sales tax is included in the price.</p></details>';
     $html = brb_walk_replace_details('/<details><summary>How do I pay\?<\/summary>.*?<\/details>/s', $price . $pay, $html);
     $walk = '<details><summary>What is the walk-through?</summary><p>A short, in-person visit at The Boardroom before your booking is confirmed. We show you the space, go over your plans and the house rules, and quote your price. Walk-throughs are on weekdays, morning (8 AM–12 PM) or afternoon (12–4 PM). You pick your preference on the request form, and we reach out to confirm a time. ' . esc_html(brb_walk_first_time_line()) . '</p></details>';
     $html = str_replace('<details><summary>What dates are open?</summary>', $walk . '<details><summary>What dates are open?</summary>', $html);
     $html = str_replace('(including the 3% card processing fee)', '(including the card processing fee)', $html);
     // QA MINOR (Nov 24): neutral cancellation answer, no "deposit" wording. Same 60-day rule as the Rental Terms.
-    $cancel = '<details><summary>What is the cancellation policy?</summary><p>Cancel in writing. If we receive your written cancellation 60 or more days before the event, what you have paid is refundable, less any non-refundable processing charges (including the card processing fee) and costs already incurred. Cancellations received less than 60 days before the event are not refundable. We go over this at your walk-through. See the <a href="/terms/">Rental Terms</a>. If a summary and the signed agreement differ, the signed agreement controls.</p></details>';
+    $cancel = '<details><summary>What is the cancellation policy?</summary><p>Cancel in writing. If we receive your written cancellation 60 or more days before the event, what you have paid is refundable, less any non-refundable processing charges (including the card processing fee) and costs already incurred. Cancellations received less than 60 days before the event are not refundable. We go over this when we quote your price. See the <a href="/terms/">Rental Terms</a>. If a summary and the signed agreement differ, the signed agreement controls.</p></details>';
     $html = brb_walk_replace_details('/<details><summary>What is the cancellation policy\?<\/summary>.*?<\/details>/s', $cancel, $html);
     return $html;
 }
 /** Public blog/page copy that described the old pricing flow, swapped at render time (database untouched). */
 function brb_walk_copy_map() {
     return [
-        'Keep in mind a request does not hold the date until the deposit is received and approved.' => 'Your request places a tentative hold on the date, and we reach out to set up a walk-through where we quote your price.',
+        'Keep in mind a request does not hold the date until the deposit is received and approved.' => 'Your request places a tentative hold on the date. ' . brb_walk_first_time_line(),
         'See open dates and pricing on our calendar.' => 'See open dates on our calendar.',
     ];
 }
@@ -203,7 +220,7 @@ add_filter('the_content', function ($content) {
  * Original text: pricing-backup-2026-11-24/checklist-original.txt
  */
 function brb_walk_checklist_deposit_line() { return 'The deposit is received and approved.'; }
-function brb_walk_checklist_hold_line() { return 'Your date is tentatively held once you send a Hold a Date request. It is confirmed after your walk-through, once you approve the quote and we confirm it.'; }
+function brb_walk_checklist_hold_line() { return 'Your date is tentatively held once you send a Hold a Date request. It is confirmed once you approve the quote and we confirm it. First-time renters come in for a walk-through first. If you\'ve rented with us before, no walk-through is needed.'; }
 function brb_walk_checklist_swap($html) {
     if (!brb_walkthrough_mode()) return $html;
     return str_replace('<li>' . esc_html(brb_walk_checklist_deposit_line()) . '</li>', '<li>' . esc_html(brb_walk_checklist_hold_line()) . '</li>', (string) $html);

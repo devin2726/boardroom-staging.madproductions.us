@@ -96,6 +96,7 @@
     rows.push(['Email', b.email || 'Not yet']);
     rows.push(['Status', b.status_label || '']);
     rows.push(['Details checked', b.details_checked ? 'Yes' : 'Not yet']);
+    if (b.returning_renter) rows.push(['Returning renter', 'Yes (walk-through not needed)']);
     if (b.hold) {
       if (b.hold.clock === 'none') rows.push(['Pay link', 'Not sent yet (no pay deadline in the walk-through flow)']);
       else if (b.hold.waiting_for_link) rows.push(['Pay window', 'Starts when the pay link is sent']);
@@ -265,6 +266,7 @@
   function approveFlow(b) {
     var html = '<h3 id="modal-title">Approve ' + esc(b.name) + '</h3><p class="muted">' + esc(b.ref + ' · ' + b.when) + '</p>' +
       '<label class="check"><input type="checkbox" id="ap-walk"' + (b.details_checked ? ' checked disabled' : '') + '> I checked the details</label>' +
+      (C.walkthroughMode ? '<label class="check"><input type="checkbox" id="ap-return"' + (b.returning_renter ? ' checked' : '') + '> Returning renter (walk-through not needed)</label>' : '') +
       '<p class="field-label">Charge now</p><div class="choice">' +
       '<label><input type="radio" name="ap-charge" value="deposit"' + (b.money && /^Pay in full/.test(b.money.charge_now) ? '' : ' checked') + '> Deposit ' + esc(C.depositPct) + '% (holds the date)</label>' +
       '<label><input type="radio" name="ap-charge" value="full"' + (b.money && /^Pay in full/.test(b.money.charge_now) ? ' checked' : '') + '> Pay in full (100%)</label></div>' +
@@ -274,14 +276,15 @@
     openModal(html, function (m) {
       m.querySelector('#ap-go').addEventListener('click', function () {
         var walk = m.querySelector('#ap-walk').checked;
-        if (!walk) { var e = m.querySelector('#ap-err'); e.hidden = false; e.textContent = 'Tick "I checked the details" first.'; return; }
+        var ret = !!(C.walkthroughMode && m.querySelector('#ap-return') && m.querySelector('#ap-return').checked);
+        if (!walk && !ret) { var e = m.querySelector('#ap-err'); e.hidden = false; e.textContent = C.walkthroughMode ? 'Tick "I checked the details" or "Returning renter (walk-through not needed)" first.' : 'Tick "I checked the details" first.'; return; }
         var charge = picked(m, 'ap-charge'), mail = picked(m, 'ap-email') === '1';
         confirmStep('Approve this request?', [
           ['Guest', b.name + ' (' + b.ref + ')'], ['Date', b.when],
           ['Charge now', charge === 'full' ? 'Pay in full (100%)' : 'Deposit ' + C.depositPct + '%'],
           ['Guest email', emailLine(mail)]
         ], 'Yes, approve', function () {
-          return api('booking/' + b.id + '/approve', { walkthrough: true, charge_now: charge, email_guest: mail })
+          return api('booking/' + b.id + '/approve', { walkthrough: walk, returning_renter: ret, charge_now: charge, email_guest: mail })
             .then(function () { return { text: b.name + ' approved.' + (mail ? '' : ' The guest was not emailed.'), then: mail ? function () { sendFlow(b.id, 'approve', ''); } : null }; });
         });
       });

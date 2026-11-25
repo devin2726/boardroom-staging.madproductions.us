@@ -2,11 +2,11 @@
 /**
  * Plugin Name: Boardroom Booking
  * Description: Self-hosted direct booking for The Boardroom — full-day blocks, availability calendar, agreed prices, approval before payment, blackout dates, and emails.
- * Version: 2.5.97
+ * Version: 2.5.98
  * Author: Boardroom QC LLC
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.5.97');
+define('BRB_VER', '2.5.98');
 function brb_reserve_explainer_steps() {
     if (function_exists('brb_walkthrough_mode') && brb_walkthrough_mode()) return brb_walk_steps();
     return [
@@ -865,7 +865,7 @@ function brb_book_policy_html() {
     if (brb_walkthrough_mode()) {
         $sections = [
             ['Pricing', brb_walk_price_line()],
-            ['Payment', 'After your walk-through, once you approve your quote, we send an invoice. Payment terms are in the Rental Terms.'],
+            ['Payment', 'Once you approve your quote, we send an invoice. First-time renters approve it after the walk-through. If you\'ve rented with us before, we\'ll be in touch about the quote when we confirm your hold. Payment terms are in the Rental Terms.'],
         ];
         $html = '<section class="brb-book-policy">';
         foreach ($sections as $section) $html .= '<h3>' . esc_html($section[0]) . '</h3><p>' . esc_html($section[1]) . '</p>';
@@ -1142,7 +1142,7 @@ function brb_approval_line() {
     return 'Bookings are subject to approval. No payment is due until the request is approved. The owner may decline any request.';
 }
 function brb_request_open_line() {
-    if (brb_walkthrough_mode()) return 'A request places a tentative hold on the date. It is not a confirmed booking until we confirm it after your walk-through.';
+    if (brb_walkthrough_mode()) return 'A request places a tentative hold on the date. It is not a confirmed booking until we confirm it. ' . brb_walk_first_time_line();
     return 'A request does not hold the date.';
 }
 function brb_fee_public_line() {
@@ -1245,6 +1245,7 @@ function brb_install_tables() {
       free_admission varchar(3) NOT NULL DEFAULT '',
       waiver_ack varchar(3) NOT NULL DEFAULT '',
       walkthrough_done tinyint(1) NOT NULL DEFAULT 0,
+      returning_renter tinyint(1) NOT NULL DEFAULT 0,
       damage_deposit decimal(10,2) NOT NULL DEFAULT 0.00,
       setup_addon tinyint(1) NOT NULL DEFAULT 0,
       takedown_addon tinyint(1) NOT NULL DEFAULT 0,
@@ -1291,6 +1292,8 @@ function brb_install_tables() {
     // 2.5.91: walk-through preference from the Hold a Date form (e.g. "mon,wed" and "morning").
     brb_ensure_column($t, 'walk_days', "varchar(40) NOT NULL DEFAULT ''");
     brb_ensure_column($t, 'walk_window', "varchar(40) NOT NULL DEFAULT ''");
+    // 2.5.98: staff-only, new flow. Lets a returning renter be approved without walkthrough_done.
+    brb_ensure_column($t, 'returning_renter', 'tinyint(1) NOT NULL DEFAULT 0');
     brb_install_line_table();
     brb_install_hold_table();
     $p = brb_pay_table();
@@ -1892,7 +1895,7 @@ function brb_build_range($in, $args = []) {
     // 2.5.91 walk-through flow (QA MINOR, Nov 24): the public form caps at 80 to match the Terms. Staff/admin entry keeps the old cap.
     if (!empty($args['public']) && function_exists('brb_walkthrough_mode') && brb_walkthrough_mode()) {
         $guest_cap = brb_public_guest_cap();
-        if ($guests > $guest_cap) return new WP_Error('guests', 'The booking form takes up to 80 guests. For an open house or graduation party with more guests coming and going, enter 80 and tell us your expected total in "Tell us about your event." We confirm it at your walk-through.');
+        if ($guests > $guest_cap) return new WP_Error('guests', 'The booking form takes up to 80 guests. For an open house or graduation party with more guests coming and going, enter 80 and tell us your expected total in "Tell us about your event." We confirm it when we reach out.');
     }
     if ($guests > $guest_cap) return new WP_Error('guests', '80 guests is the usual capacity. Graduation parties or open houses can go over. For a much larger guest count, please contact us.');
     if (empty($args['override_notice']) && $s < brb_notice_cutoff()) {
@@ -3130,14 +3133,14 @@ function brb_send_request_emails($b, $guest = true, $staff = true) {
     $guest_detail = brb_price_is_set($b) ? str_replace("Price: {$price}\n", brb_guest_money_text($b) . "\n", $detail) : $detail;
     $walk_mode = brb_walkthrough_mode();
     if ($walk_mode) {
-        $price = 'Quoted in person at the walk-through';
+        $price = 'Quoted at the walk-through for first-time renters, or when we reach out if they have rented before';
         $detail = "When: " . brb_when($b) . "\n" . brb_event_type_line($b) . "Estimated Guests: {$b->guests}\n" . ($screen !== '' ? $screen . "\n" : '');
     }
     $body = brb_guest_hello_line() . "\n\n" . brb_guest_review_line() . "\n\n{$guest_detail}\n" . brb_no_overnight_line() . "\n" . brb_guest_out_line() . "\n" . brb_guest_free_line() . "\n" . brb_hours_line() . "\n\nCancellation policy:\n{$o['policy']}\n\nView your request: " . brb_guest_link($b) . "\n";
     if ($walk_mode) $body = brb_walk_request_guest_body($b);
     if ($guest) brb_mail($b->email, 'We received your Boardroom request (' . $ref . ')', $body, brb_guest_reply_to(), '', [], []);
     $head = $walk_mode
-        ? "A new Hold a Date request is pending review. The date is TENTATIVELY HELD on the website calendar until staff decline or cancel it.\nNext step: contact the guest to set up the in-person walk-through and quote the price.\n"
+        ? "A new Hold a Date request is pending review. The date is TENTATIVELY HELD on the website calendar until staff decline or cancel it.\nNext step: if this is a first-time renter, set up the in-person walk-through and quote the price. If they have rented before, reach out to confirm the hold.\n"
         : "A new request is pending review. The date is not held.\n";
     $admin = $head . "\nReference: {$ref}\nWhen: " . brb_when($b) . "\nGuest: {$b->name}\nEmail: {$b->email}\nPhone: {$b->phone}\n" . brb_event_type_line($b) . "Guests: {$b->guests}\n" . ($screen !== '' ? $screen . "\n" : '') . "Price: {$price}\nSource: " . brb_source_label($b->source) . "\nNotes: {$b->notes}\n\n" . admin_url('admin.php?page=brb&booking=' . (int) $b->id) . "\n";
     if ($staff) brb_mail_staff('Request pending review ' . $ref . ' – ' . $b->name, $admin, $b->email);
@@ -3938,6 +3941,14 @@ function brb_save_booking_changes($booking_id, $input) {
         $flag_changes[] = 'walk-through from "' . (!empty($b->walkthrough_done) ? 'Completed' : 'Not yet') . '" to "' . ($walk ? 'Completed' : 'Not yet') . '"';
         $wpdb->update(brb_table(), ['walkthrough_done' => $walk], ['id' => (int) $b->id]);
     }
+    if (function_exists('brb_walkthrough_mode') && brb_walkthrough_mode()) {
+        $ret = empty($input['returning_renter']) ? 0 : 1;
+        $b = brb_booking($booking_id);
+        if ((int) $ret !== (int) ($b->returning_renter ?? 0)) {
+            $flag_changes[] = 'returning renter from "' . (!empty($b->returning_renter) ? 'Yes (walk-through not needed)' : 'No') . '" to "' . ($ret ? 'Yes (walk-through not needed)' : 'No') . '"';
+            $wpdb->update(brb_table(), ['returning_renter' => $ret], ['id' => (int) $b->id]);
+        }
+    }
     foreach (['setup' => 'setup_addon', 'takedown' => 'takedown_addon'] as $which => $col) {
         if (empty($input[$col]) || !empty($b->$col)) continue;
         $before = 'No';
@@ -3965,7 +3976,7 @@ function brb_approve_booking($booking_id, $notify = true, $mail = [], $charge = 
     if (!$b) return new WP_Error('missing', 'Booking not found.');
     if (!in_array($b->status, ['review', 'pending'], true)) return new WP_Error('status', 'Only a request that is pending review can be approved.');
     $before_status = brb_status_label($b->status);
-    if (empty($b->walkthrough_done)) return new WP_Error('walkthrough', 'Mark the in-person walk-through complete before approving. Approval follows the event details, availability, and house rules.');
+    if (empty($b->walkthrough_done) && brb_walk_required_for_approval($b)) return new WP_Error('walkthrough', 'Mark the in-person walk-through complete before approving. Approval follows the event details, availability, and house rules.');
     // 2.5.84: optional per-booking charge-now choice from the Approve form, saved before the email is built.
     if (is_array($charge)) {
         $set_charge = brb_set_charge_now($b->id, $charge['mode'] ?? '', $charge['value'] ?? 0);
@@ -4353,7 +4364,7 @@ function brb_view_quote() {
         <h3>Your date</h3>
         <p><strong><?php echo esc_html($when); ?></strong><br>Estimated Guests: <?php echo (int) $r['guests']; ?></p>
         <?php if (brb_walkthrough_mode()): ?>
-        <p><strong><?php echo esc_html(brb_public_price_range() . '.'); ?></strong><br>We quote your exact price in person at your walk-through.</p>
+        <p><strong><?php echo esc_html(brb_public_price_range() . '.'); ?></strong><br>We quote your exact price at the walk-through for first-time renters, or when we reach out if you've rented with us before.</p>
         <?php elseif (!empty($q['price_set'])): ?>
         <p><strong>Rental Price: <?php echo esc_html(brb_whole_money($q['total'])); ?> (+deposit)</strong></p>
         <?php else: ?>
@@ -4428,7 +4439,7 @@ function brb_view_confirmation($token) {
     if (brb_walkthrough_mode() && in_array($b->status, ['review', 'pending'], true)) {
         $title = 'Tentative hold';
         $headline = $thanks . ' Your date is tentatively held.';
-        $next = 'Nothing is charged. We\'ll reach out to set up an in-person walk-through, where we quote your price.';
+        $next = 'Nothing is charged. ' . brb_walk_followup_line();
     }
     if (in_array($b->status, ['approved', 'held'], true)) {
         $headline = $thanks . ' Your request is approved.';
@@ -4469,7 +4480,7 @@ function brb_view_confirmation($token) {
         }
       ?>
       <?php elseif (brb_walkthrough_mode()): ?>
-      <p>Price: quoted in person at your walk-through</p>
+      <p>Price: quoted at the walk-through for first-time renters, or when we reach out if you've rented with us before</p>
       <?php else: ?>
       <p>price to be confirmed</p>
       <?php endif; ?>

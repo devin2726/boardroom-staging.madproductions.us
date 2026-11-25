@@ -82,7 +82,7 @@ $created_posts = [];
 $created_pages = [];
 
 try {
-    brb_t(defined('BRB_VER') && BRB_VER === '2.5.97', 'BRB_VER is 2.5.97');
+    brb_t(defined('BRB_VER') && BRB_VER === '2.5.98', 'BRB_VER is 2.5.98');
     brb_t(function_exists('brb_is_public_author_request') && function_exists('brb_strip_author_urls_from_schema'), 'author-privacy functions are loaded');
 
     wp_set_current_user(0);

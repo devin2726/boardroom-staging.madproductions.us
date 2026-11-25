@@ -541,6 +541,7 @@ function brb_sd_booking_detail($b) {
         'source' => brb_source_label($b->source),
         'notes' => brb_sd_scrub($b->event_about ?: $b->notes),
         'details_checked' => !empty($b->walkthrough_done),
+        'returning_renter' => !empty($b->returning_renter),
         'money' => brb_sd_money_rows($b),
         'can_approve' => in_array((string) $b->status, brb_sd_request_statuses(), true),
         'can_decline' => in_array((string) $b->status, ['review', 'pending', 'approved', 'held'], true) && (float) $b->amount_paid <= 0.009,
@@ -786,13 +787,24 @@ function brb_sd_walkthrough_set($b, $on) {
     $wpdb->update(brb_table(), ['walkthrough_done' => $on], ['id' => (int) $b->id]);
     brb_audit_append((int) $b->id, 'saved walk-through from "' . ($on ? 'Not yet' : 'Completed') . '" to "' . ($on ? 'Completed' : 'Not yet') . '" (staff dashboard: "I checked the details"); no email sent');
 }
+function brb_sd_returning_renter_set($b, $on) {
+    global $wpdb;
+    $on = $on ? 1 : 0;
+    if ((int) $on === (int) ($b->returning_renter ?? 0)) return;
+    $wpdb->update(brb_table(), ['returning_renter' => $on], ['id' => (int) $b->id]);
+    brb_audit_append((int) $b->id, 'saved returning renter from "' . ($on ? 'No' : 'Yes (walk-through not needed)') . '" to "' . ($on ? 'Yes (walk-through not needed)' : 'No') . '" (staff dashboard); no email sent');
+}
 function brb_sd_approve($id, $p) {
     $b = brb_booking($id);
     if (!$b) return new WP_Error('missing', 'Booking not found.', ['status' => 404]);
     if (!in_array((string) $b->status, brb_sd_request_statuses(), true)) return new WP_Error('status', 'Only a request that is waiting can be approved.');
     $walk = !empty($p['walkthrough']);
+    $returning = function_exists('brb_walkthrough_mode') && brb_walkthrough_mode() && !empty($p['returning_renter']);
+    if ($returning) brb_sd_returning_renter_set($b, true);
+    $b = brb_booking($id);
     // Stored in the existing walkthrough_done column; the dashboard label is "I checked the details".
-    if (!$walk && empty($b->walkthrough_done)) return new WP_Error('walkthrough', 'Tick "I checked the details" first.');
+    // New flow only: a staff-marked returning renter does not need the walk-through.
+    if (!$walk && empty($b->walkthrough_done) && brb_walk_required_for_approval($b)) return new WP_Error('walkthrough', 'Tick "I checked the details" first.');
     $charge = null;
     if (isset($p['charge_now']) && in_array($p['charge_now'], ['deposit', 'full'], true)) {
         $charge = ['mode' => $p['charge_now'] === 'full' ? 'full' : '', 'value' => 0];
@@ -802,10 +814,11 @@ function brb_sd_approve($id, $p) {
     try {
         $conflict = brb_sd_day_conflict(substr((string) $b->start_dt, 0, 10), ['exclude' => (int) $b->id, 'ignore_requests' => true]);
         if ($conflict) return new WP_Error('busy', $conflict['message'] . ' This request was not approved.', ['code' => $conflict['code']]);
-        if ($walk && empty($b->walkthrough_done)) { brb_sd_walkthrough_set($b, true); $set_walk = true; }
+        if ($walk && empty($b->walkthrough_done) && brb_walk_required_for_approval($b)) { brb_sd_walkthrough_set($b, true); $set_walk = true; }
         brb_sd_guard_guest_mail([$b->email]);
         $res = brb_approve_booking($b->id, false, [], $charge);
         if (is_wp_error($res) && $set_walk) brb_sd_walkthrough_set(brb_booking($b->id), false);
+        if (is_wp_error($res) && $returning) brb_sd_returning_renter_set(brb_booking($b->id), false);
     } finally {
         brb_sd_release_guard();
         brb_sd_unlock();
@@ -984,6 +997,7 @@ function brb_sd_page_html() {
         'eventTypes' => brb_event_types(),
         'today' => brb_now()->format('Y-m-d'),
         'isAdmin' => current_user_can('manage_options'),
+        'walkthroughMode' => function_exists('brb_walkthrough_mode') && brb_walkthrough_mode(),
         'month' => (isset($_GET['m']) && preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', (string) $_GET['m'])) ? (string) $_GET['m'] : brb_now()->format('Y-m'),
     ];
     $css = esc_url(BRB_URL . 'assets/brb-staff.css?ver=' . BRB_VER);

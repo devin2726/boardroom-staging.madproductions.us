@@ -57,7 +57,7 @@ try {
     brb_t(brb_walkthrough_mode(), 'walkthrough mode is on');
     brb_t(brb_public_price_range() === 'Starting at $850+', 'public price line is Starting at $850+ (Max, Nov 25, 2026, 5:15 AM CT)');
     brb_t(brb_public_price_from() === '$850+', 'amount helper appends a single plus');
-    brb_t(brb_walk_price_line() === 'Starting at $850+. We quote your exact price in person at your walk-through.', 'walk price sentence reads naturally');
+    brb_t(brb_walk_price_line() === 'Starting at $850+. We quote your exact price at the walk-through for first-time renters, or when we reach out if you\'ve rented with us before.', 'walk price sentence is first-time / returning, keeps Starting at $850+');
     brb_t(strpos(brb_public_price_range(), '++') === false && strpos(brb_walk_price_line(), '$850++') === false, 'no double plus');
     brb_t(array_keys(brb_walk_days()) === ['mon', 'tue', 'wed', 'thu', 'fri'], 'walk-through days are Monday to Friday only');
     brb_t(brb_walk_windows() === ['morning' => 'Morning (8 AM–12 PM)', 'afternoon' => 'Afternoon (12–4 PM)'], 'walk-through windows are 8–12 and 12–4');
@@ -122,8 +122,8 @@ try {
         }
         $gb = $guest ? (string) $guest['message'] : '';
         brb_t($guest !== null, 'guest confirmation email is produced');
-        brb_t(strpos($gb, 'tentatively held') !== false && strpos($gb, 'walk-through') !== false && strpos($gb, 'quote your price') !== false, 'guest email: received, tentatively held, walk-through, price quoted there');
-        brb_t(strpos($gb, "Please don't count on the walk-through time until we confirm it") !== false, 'guest email says not to count on the time until confirmed');
+        brb_t(strpos($gb, 'tentatively held') !== false && strpos($gb, 'If this is your first time renting The Boardroom') !== false && strpos($gb, 'confirm your hold') !== false, 'guest email: received, tentatively held, first-time walk-through or confirm the hold');
+        brb_t(strpos($gb, "Please don't count on a walk-through time until we confirm it") !== false, 'guest email says not to count on the time until confirmed');
         brb_t(!preg_match('/\$\s?\d|deposit|3%|50%|price to be confirmed|payment link/i', wp_strip_all_tags($gb)), 'guest email has no price, deposit, fee or pay-link wording');
         brb_t(strpos($gb, 'Monday, Wednesday · Afternoon (12–4 PM)') !== false, 'guest email repeats the walk-through preference');
         $sb = $staff ? (string) $staff['message'] : '';
@@ -134,7 +134,7 @@ try {
         // Confirmation page
         $_GET = ['br_token' => $b->token];
         ob_start(); brb_view_confirmation($b->token); $page = ob_get_clean();
-        brb_t(strpos($page, 'tentatively held') !== false && strpos($page, 'quoted in person') !== false && !preg_match('/\$\s?\d/', wp_strip_all_tags($page)), 'status page: tentatively held, price quoted in person, no dollar amount');
+        brb_t(strpos($page, 'tentatively held') !== false && strpos($page, 'If this is your first time renting The Boardroom') !== false && strpos($page, 'confirm your hold') !== false && !preg_match('/\$\s?\d/', wp_strip_all_tags($page)), 'status page: tentatively held, first-time / returning follow-up, no dollar amount');
         $_GET = [];
         // Staff can still price and approve the normal way (Stripe/invoice path intact)
         brb_set_agreed_price($b->id, 1200, false);
@@ -165,7 +165,7 @@ try {
         brb_t($no_old_pay($a), 'chat walk mode: "' . $q . '" has no 50%, 1 day, 3% or deposit (' . substr($a, 0, 90) . ')');
     }
     $a = brb_chat_walk_payment_text(false);
-    brb_t(strpos($a, '$850') !== false && stripos($a, 'walk-through') !== false && stripos($a, 'payment details') !== false && stripos($a, 'in person') !== false, 'chat payment answer: range, walk-through, payment details covered at the in-person quote');
+    brb_t(strpos($a, '$850') !== false && stripos($a, 'walk-through') !== false && stripos($a, 'payment details') !== false && strpos($a, 'first-time renters') !== false, 'chat payment answer: range, first-time / returning walk-through, payment details');
     $GLOBALS['brb_chat_detail'] = false;
     $short_ok = $no_old_pay(brb_chat_payment_text(false)) && $no_old_pay(brb_chat_cancel_text());
     $GLOBALS['brb_chat_detail'] = true;
@@ -245,6 +245,28 @@ try {
     }
     $GLOBALS['brb_chat_detail'] = false;
     brb_t(strpos((string) brb_chat_answer('Saturday price?')['reply'], 'Starting at $850+') !== false, 'chat: "Saturday price?" answers with Starting at $850+ (no empty reply)');
+    $GLOBALS['brb_chat_detail'] = false;
+    foreach (['How much does it cost?', 'Saturday price?', 'How much to book a Saturday?'] as $q) {
+        foreach ([false, true] as $det) {
+            $GLOBALS['brb_chat_detail'] = $det;
+            $a = (string) brb_chat_answer($q, [], $det)['reply'];
+            brb_t(strpos($a, 'we\'ll reach out to set up the walk-through') === false && strpos($a, 'we\'ll reach out to set up your walk-through') === false, 'chat ' . ($det ? 'detail' : 'short') . ' "' . $q . '" does not say everyone gets a walk-through reach-out');
+            brb_t(strpos($a, 'Starting at $850+') !== false && (strpos($a, 'first-time renters') !== false || strpos($a, 'first time renting The Boardroom') !== false || strpos($a, 'If this is your first time renting The Boardroom') !== false), 'chat ' . ($det ? 'detail' : 'short') . ' "' . $q . '" keeps Starting at $850+ and first-time / returning wording');
+        }
+    }
+    $GLOBALS['brb_chat_detail'] = false;
+    if (function_exists('br_seo_pages')) {
+        $seo = br_seo_pages();
+        brb_t(strpos($seo['home']['description'], 'we meet you for a walk-through') === false && strpos($seo['home']['description'], 'First-time renters') !== false && strpos($seo['home']['description'], 'rented with us before') !== false, 'home meta: first-time / returning, not everyone gets a walk-through');
+        brb_t(strpos($seo['reserve-the-boardroom-quad-cities']['description'], 'set up an in-person walk-through, and quote your price there') === false && strpos($seo['reserve-the-boardroom-quad-cities']['description'], 'First-time renters') !== false, 'Book meta: first-time / returning, not everyone gets a walk-through');
+    }
+    $llms_txt = function_exists('brb_llms_body') ? brb_llms_body() : (function_exists('brb_llms_txt_body') ? brb_llms_txt_body() : '');
+    if ($llms_txt !== '') brb_t(strpos($llms_txt, 'We quote the price at the walk-through') === false && strpos($llms_txt, 'Starting at $850+') !== false, 'llms.txt drops leftover everyone-walks price quote, keeps Starting at $850+');
+    $check = brb_walk_checklist_hold_line();
+    brb_t(strpos($check, 'after your walk-through') === false && strpos($check, 'no walk-through is needed') !== false, 'checklist hold line is first-time / returning');
+    $faq_pay = brb_walk_faq_swap(brb_faq_markup());
+    brb_t(strpos($faq_pay, 'After your walk-through, once you approve') === false && strpos($faq_pay, 'First-time renters approve it after the walk-through') !== false, 'FAQ How do I pay is first-time / returning');
+
     foreach (['What does it cost and how do I pay?', 'How much does it cost and how do I pay?'] as $q) {
         foreach ([false, true] as $det) {
             $GLOBALS['brb_chat_detail'] = $det;
@@ -269,9 +291,45 @@ try {
     $after = get_option('brb_settings');
     brb_t(!isset($after['public_price_from']) && !isset($after['public_price_range']), 'migrate unsets orphan public_price_from and public_price_range');
 
+
+    // ---- staff-only returning renter (walk-through not needed)
+    $ymd_ret = $open_weekday(42);
+    $bret = brb_process_public_booking($post_for($ymd_ret, 'nopricing-return@example.com', ['walk_days' => ['tue'], 'walk_window' => ['morning']]));
+    brb_t($bret && !is_wp_error($bret), 'returning-renter test request is saved');
+    if ($bret && !is_wp_error($bret)) {
+        $created[] = (int) $bret->id;
+        brb_set_agreed_price($bret->id, 1200, false);
+        $denied = brb_approve_booking($bret->id, false);
+        brb_t(is_wp_error($denied) && $denied->get_error_code() === 'walkthrough', 'walk mode: approve without walkthrough_done is refused when returning renter is not set');
+        $saved = brb_save_booking_changes($bret->id, [
+            'date' => $ymd_ret, 'name' => $bret->name, 'email' => $bret->email, 'phone' => $bret->phone, 'notes' => $bret->notes,
+            'walkthrough_done' => 0, 'returning_renter' => 1,
+        ]);
+        brb_t(!is_wp_error($saved) && !empty(brb_booking($bret->id)->returning_renter) && empty(brb_booking($bret->id)->walkthrough_done), 'admin save stores Returning renter (walk-through not needed) without marking the walk-through complete');
+        $ok = brb_approve_booking($bret->id, false);
+        brb_t(!is_wp_error($ok) && (string) $ok->status === 'approved' && empty($ok->walkthrough_done) && !empty($ok->returning_renter), 'walk mode: staff-marked returning renter can be approved without walkthrough_done');
+        $blockers = brb_pay_link_blockers($ok);
+        brb_t(!isset($blockers['walkthrough']), 'walk mode: pay-link walk-through blocker is waived for a returning renter');
+    }
+
     // ---- reinstall switch: old flow comes back
     $set_mode('calendar');
     brb_t(!brb_walkthrough_mode(), 'switching to calendar mode turns the walk-through flow off');
+    $ymd_old = $open_weekday(50);
+    $bold = brb_process_public_booking($post_for($ymd_old, 'nopricing-oldreturn@example.com'));
+    brb_t($bold && !is_wp_error($bold), 'old-flow returning-renter test request is saved');
+    if ($bold && !is_wp_error($bold)) {
+        $created[] = (int) $bold->id;
+        brb_set_agreed_price($bold->id, 1200, false);
+        global $wpdb;
+        $wpdb->update(brb_table(), ['returning_renter' => 1, 'walkthrough_done' => 0], ['id' => (int) $bold->id]);
+        $old_deny = brb_approve_booking($bold->id, false);
+        brb_t(is_wp_error($old_deny) && $old_deny->get_error_code() === 'walkthrough', 'old flow: walkthrough_done is still required even if returning_renter is set (81776f6 gate)');
+        $wpdb->update(brb_table(), ['walkthrough_done' => 1], ['id' => (int) $bold->id]);
+        $old_ok = brb_approve_booking($bold->id, false);
+        brb_t(!is_wp_error($old_ok) && (string) $old_ok->status === 'approved', 'old flow: approve still works once walkthrough_done is set');
+    }
+
     brb_t(strpos(brb_how_booking_works_html(), 'Prices&nbsp;on&nbsp;the&nbsp;Calendar') !== false, 'old flow: Prices on the Calendar is back');
     brb_t(strpos(brb_how_booking_works_html(), brb_walk_first_time_line()) === false && strpos(implode(' ', brb_how_booking_works_steps()), 'no walk-through is needed') === false, 'old flow: first-time / returning walk-through line is gone');
     brb_t(strpos(brb_chat_reserved_sentence(), 'First time renting') === false, 'old flow: chat hold sentence does not mention first-time renters');
