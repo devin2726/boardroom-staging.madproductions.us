@@ -54,7 +54,7 @@ $saved_opt = get_option('brb_settings');
 $kept_get = $_GET;
 $created = [];
 try {
-    brb_t(get_option('brb_version') === '2.5.90', 'plugin storage version is 2.5.90');
+    brb_t(get_option('brb_version') === '2.5.101', 'plugin storage version is 2.5.101');
     putenv('BRB_STRIPE_SECRET_KEY=sk_test_harness_not_real');
     $admin = get_users(['role' => 'administrator', 'number' => 1]);
     if ($admin) wp_set_current_user($admin[0]->ID);

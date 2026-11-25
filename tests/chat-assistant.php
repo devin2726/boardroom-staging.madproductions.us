@@ -36,7 +36,7 @@ function brb_chat_reply($text, $history = []) {
 }
 
 try {
-    brb_t(get_option('brb_version') === '2.5.90', 'plugin storage version is 2.5.90');
+    brb_t(get_option('brb_version') === '2.5.101', 'plugin storage version is 2.5.101');
     putenv('BRB_ENV=production');
     $_ENV['BRB_ENV'] = 'production';
     $_SERVER['BRB_ENV'] = 'production';
@@ -253,7 +253,7 @@ try {
     $tour = brb_chat_reply('Can I tour the space?');
     brb_t(strpos($tour, home_url('/contact/')) !== false && strpos($tour, 'boardroomqc@gmail.com') !== false && strpos($tour, 'does not hold') !== false, 'a tour question points at the contact form');
     $contact = brb_chat_reply('How do I contact you?');
-    brb_t(strpos($contact, 'boardroomqc@gmail.com') !== false && strpos($contact, 'no phone number') !== false && strpos($contact, '2220 37th Street, Moline, IL 61265') !== false && strpos($contact, '2212 37th Street') === false && strpos($contact, '309') === false, 'contact help gives the email, the venue, and no phone number');
+    brb_t(strpos($contact, 'boardroomqc@gmail.com') !== false && strpos($contact, "I don't give out a phone number in this chat") !== false && strpos($contact, 'Hold a Date') !== false && strpos($contact, '2220 37th Street, Moline, IL 61265') !== false && strpos($contact, '2212 37th Street') === false && strpos($contact, '309') === false && strpos($contact, 'no phone number on this site') === false, 'contact help gives the email and venue, and does not give a phone number in chat');
     $cancel = brb_chat_reply('What is the cancellation policy?');
     brb_t(strpos($cancel, 'non-refundable') !== false && strpos($cancel, 'not legal advice') !== false && strpos($cancel, home_url('/terms/')) !== false && stripos($cancel, 'owner') === false, 'cancellation follows the terms without giving legal advice');
 

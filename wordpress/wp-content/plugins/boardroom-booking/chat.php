@@ -1387,7 +1387,7 @@ function brb_chat_tour_text() {
 }
 
 function brb_chat_contact_text() {
-    return 'We\'d love to hear from you. Email boardroomqc@gmail.com or use the Contact form: ' . home_url('/contact/') . '. There is no phone number on this site, and the venue is at ' . brb_venue_address() . '.';
+    return 'We\'d love to hear from you. Email boardroomqc@gmail.com, use the Contact form: ' . home_url('/contact/') . ', or send a Hold a Date request. I don\'t give out a phone number in this chat. The venue is at ' . brb_venue_address() . '.';
 }
 function brb_chat_place_text($with_checks) {
     if ($with_checks) {
