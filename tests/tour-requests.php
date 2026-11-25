@@ -456,6 +456,37 @@ try {
     $dir = 'https://www.google.com/maps/dir/?api=1&destination=2220+37th+Street%2C+Moline%2C+IL+61265';
     $footer_map_plain = html_entity_decode((string) $footer_map, ENT_QUOTES);
     brb_t(is_string($footer) && strpos($footer, '<iframe') === false && strpos($footer, 'output=embed') === false && strpos($footer, 'footer-map') === false && strpos($footer, $dir) !== false && strpos($footer, 'target="_blank"') !== false && strpos($footer, 'rel="noopener"') !== false && strpos($footer, 'Get directions') !== false && strpos($footer, '2220 37th Street, Moline, IL 61265') !== false && strpos($footer_map, '<iframe') === false && strpos($footer_map_plain, $dir) !== false && strpos($footer_map, 'Get directions') !== false && strpos($footer_map, '2220 37th Street, Moline, IL 61265') !== false, 'the footer shows the address and a directions link, with no map embed');
+    // Footer-only exception (Max, Nov 25, 2026, 2:48 PM CT): the Boardroom Grasshopper
+    // line 309-722-1984 may appear in the theme footer. It must not appear on the
+    // contact form, Book/Hold a Date pages, Walter/chat, emails, schema, llms.txt, or meta.
+    brb_t(is_string($footer) && strpos($footer, "esc_url('tel:+13097221984')") !== false && strpos($footer, 'Call 309-722-1984') !== false, 'the footer has a Call 309-722-1984 line with a tel:+13097221984 link');
+    $phone_needles = ['309-722-1984', '+13097221984'];
+    $phone_files = [];
+    $scan_roots = [get_stylesheet_directory()];
+    if (function_exists('brb_tour_form')) {
+        $scan_roots[] = dirname((new ReflectionFunction('brb_tour_form'))->getFileName());
+    }
+    foreach ($scan_roots as $root) {
+        $it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS));
+        foreach ($it as $file) {
+            if (!$file->isFile()) continue;
+            $path = $file->getPathname();
+            if (!preg_match('/\.(php|js|css|txt|md|html|json)$/i', $path)) continue;
+            $src = (string) file_get_contents($path);
+            foreach ($phone_needles as $needle) {
+                if (strpos($src, $needle) !== false) {
+                    $phone_files[] = $path;
+                    break;
+                }
+            }
+        }
+    }
+    $allowed = [realpath(get_stylesheet_directory() . '/footer.php')];
+    $unexpected = [];
+    foreach (array_unique($phone_files) as $path) {
+        if (!in_array(realpath($path), $allowed, true)) $unexpected[] = $path;
+    }
+    brb_t($phone_files !== [] && $unexpected === [], '309-722-1984 appears only in the theme footer, not in the rest of the theme or plugin');
     brb_t(is_string($contact_tpl) && strpos($contact_tpl, "br_ask_walter_card('#contact-inquiry')") !== false && strpos($contact_tpl, '<h2>Send a Message</h2>') !== false && strpos($contact_tpl, '<h2>Send a Message</h2>') < strpos($contact_tpl, 'brb_tour_form') && strpos($contact_tpl, 'brb_tour_form') !== false && strpos($contact_tpl, 'brb_map_embed') === false && strpos($contact_tpl, "br_ask_walter_card('#contact-inquiry')") < strpos($contact_tpl, 'brb_tour_form') && strpos($contact_tpl, 'Thank You!') !== false && strpos($contact_tpl, 'brb_tour_form') < strpos($contact_tpl, 'Thank You!') && strpos($contact_tpl, 'br_contact_ask_button()') !== false, 'the contact page is Walter, then Send a Message and the form, and a successful inquiry shows Ask Walter');
     $chat_src = file_get_contents(dirname((new ReflectionFunction('brb_chat_markup'))->getFileName()) . '/chat.php');
     brb_t(is_string($chat_src) && strpos($chat_src, 'function brb_chat_page_is_inline()') !== false && strpos($chat_src, "is_page('faq')") !== false && strpos($chat_src, "is_page('contact')") !== false && strpos($chat_src, 'if (brb_chat_page_is_inline()) return;') !== false && strpos($chat_src, "if (is_front_page()) return;") === false, 'the floating chat stays off pages that already show the inline card');
