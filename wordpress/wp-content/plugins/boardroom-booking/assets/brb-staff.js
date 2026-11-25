@@ -91,6 +91,7 @@
     ];
     if (b.end_time) rows.push(['Guest says the event ends', b.end_time]);
     if (b.walk_pref) rows.push(['Walk-through preference', b.walk_pref]);
+    if (b.guest_says_returning) rows.push(['Guest claim', 'I\'ve rented with The Boardroom before (the guest\'s own statement; staff still need to verify this)']);
     if (b.event) rows.push(['Event', b.event]);
     rows.push(['Guests', b.guests ? String(b.guests) : 'Not yet']);
     rows.push(['Email', b.email || 'Not yet']);

@@ -960,6 +960,11 @@ function brb_admin_detail($id) {
     ];
     $walk_pref = brb_walk_pref_label($b);
     if ($walk_pref !== '') $rows['Walk-through preference'] = $walk_pref;
+    if (function_exists('brb_walkthrough_mode') && brb_walkthrough_mode()) {
+        $rows['Guest claim'] = !empty($b->guest_says_returning)
+            ? 'I\'ve rented with The Boardroom before (the guest\'s own statement; staff still need to verify this)'
+            : 'The guest did not say they have rented with The Boardroom before';
+    }
     $saved_type = brb_event_type_label($b->event_type ?? '');
     if ($saved_type !== '') $rows['Event type'] = $saved_type;
     $saved_alcohol = brb_yes_no_label($b->alcohol ?? '');

@@ -135,3 +135,6 @@ body.brb-pay-page-body #ask-walter{display:none!important}
 @media (max-width:480px){.brb-walk-opts{flex-direction:column;gap:2px}}
 
 .brb-how .brb-walk-who, .brb-walk-return { margin: 0.6em 0 0; max-width: 40rem; }
+.brb-guest .brb-walk-claim{margin:0 0 10px}
+.brb-guest .brb-walk-claim .brb-check{display:flex;align-items:center;gap:8px;font-weight:600;font-size:18px;min-height:44px}
+.brb-guest .brb-walk-claim input{width:20px;height:20px;margin:0}

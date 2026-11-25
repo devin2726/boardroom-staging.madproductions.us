@@ -542,6 +542,7 @@ function brb_sd_booking_detail($b) {
         'notes' => brb_sd_scrub($b->event_about ?: $b->notes),
         'details_checked' => !empty($b->walkthrough_done),
         'returning_renter' => !empty($b->returning_renter),
+        'guest_says_returning' => !empty($b->guest_says_returning),
         'money' => brb_sd_money_rows($b),
         'can_approve' => in_array((string) $b->status, brb_sd_request_statuses(), true),
         'can_decline' => in_array((string) $b->status, ['review', 'pending', 'approved', 'held'], true) && (float) $b->amount_paid <= 0.009,

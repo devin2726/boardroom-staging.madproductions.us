@@ -56,8 +56,34 @@ function brb_walk_price_line() {
 function brb_walk_first_time_line() {
     return 'First time renting The Boardroom? We\'ll set up an in-person walk-through before your date is confirmed. If you\'ve rented with us before, you can simply place a tentative hold, and no walk-through is needed.';
 }
+function brb_walk_checkbox_label() {
+    return 'I\'ve rented with The Boardroom before';
+}
 function brb_walk_first_time_form_note() {
-    return 'If you\'ve rented with us before, you can skip the walk-through. We still ask for a preferred weekday and time in case plans change.';
+    return 'If you\'ve rented with us before, check the box below. You can skip the walk-through, and the weekday and time are then optional. You can still share a preference in case plans change.';
+}
+function brb_collect_guest_says_returning($post) {
+    // Public POST may only set this guest-claimed field. It must never set returning_renter.
+    $v = $post['guest_says_returning'] ?? '';
+    if ($v === true || $v === 1 || $v === '1' || $v === 'on' || $v === 'yes') return 1;
+    return 0;
+}
+function brb_guest_says_returning($b) {
+    if (!$b) return false;
+    return !empty(is_object($b) ? ($b->guest_says_returning ?? 0) : ($b['guest_says_returning'] ?? 0));
+}
+/** Staff-facing label for the guest's own claim. Not the staff approval flag. */
+function brb_guest_claim_staff_line() {
+    return 'Guest claim: I\'ve rented with The Boardroom before. This is the guest\'s own statement. Staff still need to verify it and, if confirmed, mark Returning renter (walk-through not needed).';
+}
+function brb_walk_returning_followup_line() {
+    return 'We\'ll reach out to confirm your hold and the quote, starting at ' . brb_public_price_from() . '.';
+}
+function brb_walk_returning_review_line() {
+    return 'Your date is tentatively held. ' . brb_walk_returning_followup_line();
+}
+function brb_walk_returning_thanks_line() {
+    return 'Nothing is charged. ' . brb_walk_returning_followup_line();
 }
 /** After a Hold a Date request (email, thanks screen, status). No auto-confirmation, no deadlines. */
 function brb_walk_followup_line() {
@@ -126,9 +152,10 @@ function brb_walk_pref_label($b) {
     return implode(' · ', $parts);
 }
 function brb_walk_fields_html() {
-    $h = '<fieldset class="brb-field brb-walk"><legend>Walk-through: preferred weekday<span class="brb-req">*</span></legend>';
-    $h .= '<p class="brb-small">First-time renters meet us at The Boardroom for a short walk-through, where we quote the price in person. Pick the weekdays that work for you.</p>';
+    $h = '<p class="brb-field brb-walk-claim"><label class="brb-check"><input type="checkbox" name="guest_says_returning" value="1"> ' . esc_html(brb_walk_checkbox_label()) . '</label></p>';
     $h .= '<p class="brb-small brb-walk-return">' . esc_html(brb_walk_first_time_form_note()) . '</p>';
+    $h .= '<fieldset class="brb-field brb-walk"><legend>Walk-through: preferred weekday<span class="brb-req">*</span></legend>';
+    $h .= '<p class="brb-small">First-time renters meet us at The Boardroom for a short walk-through, where we quote the price in person. Pick the weekdays that work for you.</p>';
     $h .= '<div class="brb-walk-opts">';
     foreach (brb_walk_days() as $k => $label) {
         $h .= '<label class="brb-check brb-walk-opt"><input type="checkbox" name="walk_days[]" value="' . esc_attr($k) . '"> ' . esc_html($label) . '</label>';
@@ -140,7 +167,14 @@ function brb_walk_fields_html() {
     }
     $h .= '</div><p class="brb-small brb-walk-note">' . esc_html(brb_walk_not_confirmed_line()) . '</p></fieldset>';
     // Checkbox groups cannot use "required"; stop the submit in the browser so typed details are not lost. The server checks again.
-    $h .= '<script>(function(){var f=document.currentScript&&document.currentScript.closest("form");if(!f)return;f.addEventListener("submit",function(e){'
+    // When "I\'ve rented with The Boardroom before" is checked, weekday and time are optional on the client and the server.
+    $h .= '<script>(function(){var f=document.currentScript&&document.currentScript.closest("form");if(!f)return;'
+        . 'var ret=f.querySelector("input[name=\'guest_says_returning\']");'
+        . 'function claimed(){return !!(ret&&ret.checked);}'
+        . 'function sync(){var on=claimed();f.querySelectorAll(".brb-walk .brb-req").forEach(function(m){m.hidden=on;});}'
+        . 'if(ret){ret.addEventListener("change",sync);sync();}'
+        . 'f.addEventListener("submit",function(e){'
+        . 'if(claimed())return;'
         . 'var d=f.querySelector("input[name=\'walk_days[]\']:checked"),w=f.querySelector("input[name=\'walk_window[]\']:checked");'
         . 'if(!d||!w){e.preventDefault();alert(!d?"Please pick at least one weekday (Monday to Friday) for your walk-through.":"Please pick a walk-through time: morning (8 AM\u201312 PM) or afternoon (12\u20134 PM).");'
         . 'var t=f.querySelector(".brb-walk");if(t)t.scrollIntoView({block:"center"});}});})();</script>';
@@ -168,9 +202,12 @@ function brb_walk_request_guest_body($b) {
     $about = trim((string) ($b->event_about ?? ''));
     if ($about !== '') $detail .= 'About the event: ' . $about . "\n";
     if ($pref !== '') $detail .= 'Your walk-through preference: ' . $pref . "\n";
+    $follow = brb_guest_says_returning($b)
+        ? brb_walk_returning_followup_line() . "\n\n"
+        : brb_walk_followup_line() . " Please don't count on a walk-through time until we confirm it with you.\n\n";
     return brb_guest_hello_line() . "\n\n"
         . "We received your request, and your date is tentatively held.\n\n"
-        . brb_walk_followup_line() . " Please don't count on a walk-through time until we confirm it with you.\n\n"
+        . $follow
         . $detail . "\n"
         . brb_walk_hold_line() . "\n\n"
         . brb_no_overnight_line() . "\n" . brb_guest_out_line() . "\n" . brb_guest_free_line() . "\n" . brb_hours_line() . "\n\n"

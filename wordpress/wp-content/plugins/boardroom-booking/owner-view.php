@@ -312,6 +312,7 @@ function brb_ov_render_booking_card($b) {
     $rows['Host age bracket'] = esc_html(brb_host_age_label($b->host_age ?? ''));
     $rows['Source'] = esc_html(brb_source_label($b->source ?? ''));
     $rows['Walk-through'] = !empty($b->walkthrough_done) ? 'Completed' : 'Not yet';
+    if (function_exists('brb_walkthrough_mode') && brb_walkthrough_mode() && !empty($b->guest_says_returning)) $rows['Guest claim'] = 'I\'ve rented with The Boardroom before (the guest\'s own statement; not the staff approval flag)';
     if (function_exists('brb_walkthrough_mode') && brb_walkthrough_mode() && !empty($b->returning_renter)) $rows['Returning renter'] = 'Yes (walk-through not needed)';
     $walk_pref = brb_walk_pref_label($b);
     if ($walk_pref !== '') $rows['Walk-through preference'] = esc_html($walk_pref);

@@ -2,11 +2,11 @@
 /**
  * Plugin Name: Boardroom Booking
  * Description: Self-hosted direct booking for The Boardroom — full-day blocks, availability calendar, agreed prices, approval before payment, blackout dates, and emails.
- * Version: 2.5.98
+ * Version: 2.5.99
  * Author: Boardroom QC LLC
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.5.98');
+define('BRB_VER', '2.5.99');
 function brb_reserve_explainer_steps() {
     if (function_exists('brb_walkthrough_mode') && brb_walkthrough_mode()) return brb_walk_steps();
     return [
@@ -1163,6 +1163,9 @@ function brb_screening_lines($b) {
     if ($about !== '') $lines[] = 'About the event: ' . $about;
     $walk = function_exists('brb_walk_pref_label') ? brb_walk_pref_label($b) : '';
     if ($walk !== '') $lines[] = 'Walk-through preference: ' . $walk;
+    if (function_exists('brb_walkthrough_mode') && brb_walkthrough_mode() && function_exists('brb_guest_says_returning') && brb_guest_says_returning($b) && function_exists('brb_guest_claim_staff_line')) {
+        $lines[] = brb_guest_claim_staff_line();
+    }
     return $lines;
 }
 function brb_collect_screening($post, $required = true, $start = null) {
@@ -1246,6 +1249,7 @@ function brb_install_tables() {
       waiver_ack varchar(3) NOT NULL DEFAULT '',
       walkthrough_done tinyint(1) NOT NULL DEFAULT 0,
       returning_renter tinyint(1) NOT NULL DEFAULT 0,
+      guest_says_returning tinyint(1) NOT NULL DEFAULT 0,
       damage_deposit decimal(10,2) NOT NULL DEFAULT 0.00,
       setup_addon tinyint(1) NOT NULL DEFAULT 0,
       takedown_addon tinyint(1) NOT NULL DEFAULT 0,
@@ -1294,6 +1298,8 @@ function brb_install_tables() {
     brb_ensure_column($t, 'walk_window', "varchar(40) NOT NULL DEFAULT ''");
     // 2.5.98: staff-only, new flow. Lets a returning renter be approved without walkthrough_done.
     brb_ensure_column($t, 'returning_renter', 'tinyint(1) NOT NULL DEFAULT 0');
+    // 2.5.99: guest-claimed checkbox on Hold a Date. Does not set returning_renter.
+    brb_ensure_column($t, 'guest_says_returning', 'tinyint(1) NOT NULL DEFAULT 0');
     brb_install_line_table();
     brb_install_hold_table();
     $p = brb_pay_table();
@@ -3142,6 +3148,9 @@ function brb_send_request_emails($b, $guest = true, $staff = true) {
     $head = $walk_mode
         ? "A new Hold a Date request is pending review. The date is TENTATIVELY HELD on the website calendar until staff decline or cancel it.\nNext step: if this is a first-time renter, set up the in-person walk-through and quote the price. If they have rented before, reach out to confirm the hold.\n"
         : "A new request is pending review. The date is not held.\n";
+    if ($walk_mode && function_exists('brb_guest_says_returning') && brb_guest_says_returning($b)) {
+        $head = "A new Hold a Date request is pending review. The date is TENTATIVELY HELD on the website calendar until staff decline or cancel it.\nThe guest says they have rented with The Boardroom before. This is their own claim. Verify it, and if confirmed, mark Returning renter (walk-through not needed). Then reach out to confirm the hold and the quote.\n";
+    }
     $admin = $head . "\nReference: {$ref}\nWhen: " . brb_when($b) . "\nGuest: {$b->name}\nEmail: {$b->email}\nPhone: {$b->phone}\n" . brb_event_type_line($b) . "Guests: {$b->guests}\n" . ($screen !== '' ? $screen . "\n" : '') . "Price: {$price}\nSource: " . brb_source_label($b->source) . "\nNotes: {$b->notes}\n\n" . admin_url('admin.php?page=brb&booking=' . (int) $b->id) . "\n";
     if ($staff) brb_mail_staff('Request pending review ' . $ref . ' – ' . $b->name, $admin, $b->email);
 }
@@ -3627,6 +3636,7 @@ function brb_insert_booking($r, $q, $guest, $source = 'online', $notify = true, 
                 'charge_now_value' => brb_dec($cn['value']),
                 'walk_days' => (string) ($guest['walk_days'] ?? ''),
                 'walk_window' => (string) ($guest['walk_window'] ?? ''),
+                'guest_says_returning' => empty($guest['guest_says_returning']) ? 0 : 1,
                 'created' => current_time('mysql', true),
             ]);
             $result = $ok ? brb_booking($wpdb->insert_id) : new WP_Error('db', 'Could not save the booking. Please try again.');
@@ -3670,8 +3680,10 @@ function brb_process_public_booking($post) {
     $blocked = brb_chat_safety_text_error($about);
     if ($blocked) return $blocked;
     $walk = ['walk_days' => '', 'walk_window' => ''];
+    $guest_says_returning = 0;
     if (brb_walkthrough_mode()) {
-        $walk = brb_collect_walk_pref($post, true);
+        $guest_says_returning = brb_collect_guest_says_returning($post);
+        $walk = brb_collect_walk_pref($post, $guest_says_returning ? false : true);
         if (is_wp_error($walk)) return $walk;
     }
     $q = brb_quote($r);
@@ -3682,6 +3694,7 @@ function brb_process_public_booking($post) {
     return brb_insert_booking($r, $q, [
         'walk_days' => $walk['walk_days'],
         'walk_window' => $walk['walk_window'],
+        'guest_says_returning' => $guest_says_returning,
         'name' => $name,
         'email' => $email,
         'phone' => $phone,
@@ -4439,7 +4452,9 @@ function brb_view_confirmation($token) {
     if (brb_walkthrough_mode() && in_array($b->status, ['review', 'pending'], true)) {
         $title = 'Tentative hold';
         $headline = $thanks . ' Your date is tentatively held.';
-        $next = 'Nothing is charged. ' . brb_walk_followup_line();
+        $next = function_exists('brb_guest_says_returning') && brb_guest_says_returning($b)
+            ? brb_walk_returning_thanks_line()
+            : 'Nothing is charged. ' . brb_walk_followup_line();
     }
     if (in_array($b->status, ['approved', 'held'], true)) {
         $headline = $thanks . ' Your request is approved.';
@@ -4480,7 +4495,9 @@ function brb_view_confirmation($token) {
         }
       ?>
       <?php elseif (brb_walkthrough_mode()): ?>
-      <p>Price: quoted at the walk-through for first-time renters, or when we reach out if you've rented with us before</p>
+      <p><?php echo esc_html((function_exists('brb_guest_says_returning') && brb_guest_says_returning($b))
+          ? ('Price: we\'ll go over the quote when we reach out to confirm your hold, starting at ' . brb_public_price_from())
+          : 'Price: quoted at the walk-through for first-time renters, or when we reach out if you\'ve rented with us before'); ?></p>
       <?php else: ?>
       <p>price to be confirmed</p>
       <?php endif; ?>
@@ -4492,7 +4509,7 @@ function brb_view_confirmation($token) {
           echo '<div class="brb-paybox">';
           echo '<p>' . esc_html(brb_guest_hello_line()) . '</p>';
           if (brb_walkthrough_mode()) {
-              echo '<p>' . esc_html(brb_walk_review_line()) . '</p>';
+              echo '<p>' . esc_html((function_exists('brb_guest_says_returning') && brb_guest_says_returning($b)) ? brb_walk_returning_review_line() : brb_walk_review_line()) . '</p>';
               $walk_pref = brb_walk_pref_label($b);
               if ($walk_pref !== '') echo '<p>Your walk-through preference: ' . esc_html($walk_pref) . '</p>';
               echo '<p>' . esc_html(brb_walk_hold_line()) . '</p>';

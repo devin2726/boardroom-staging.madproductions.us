@@ -152,10 +152,73 @@ try {
     brb_t(strpos($q, 'Rental Price') === false && strpos($q, 'Starting at $850+') !== false && strpos($q, '1,500') === false, 'Your date card shows Starting at $850+, not a Rental Price');
     brb_t(substr_count($q, 'name="walk_days[]"') === 5 && substr_count($q, 'name="walk_window[]"') === 2, 'form has Mon–Fri and morning/afternoon choices');
     brb_t(strpos($q, 'not set until we reach out and confirm') !== false, 'form says the walk-through is not set until we confirm');
-    brb_t(strpos($q, 'you can skip the walk-through') !== false, 'walk-through fields note that returning renters can skip the walk-through');
-    brb_t(strpos($q, 'name="rented_before"') === false && strpos($q, 'I\'ve rented here before') === false, 'no rented-before checkbox on the form');
+    brb_t(strpos($q, 'can skip the walk-through') !== false, 'walk-through fields note that returning renters can skip the walk-through');
+    brb_t(strpos($q, 'name="guest_says_returning"') !== false && strpos($q, 'rented with The Boardroom before') !== false, 'form has optional I\'ve rented with The Boardroom before checkbox');
+    brb_t(strpos($q, 'the weekday and time are then optional') !== false, 'form note says weekday and time are optional when the box is checked');
+    brb_t(strpos($q, 'name="returning_renter"') === false, 'public form does not include the staff-only returning_renter field');
+    brb_t(strpos($q, 'if(claimed())return;') !== false && strpos($q, "input[name='guest_says_returning']") !== false, 'client submit guard skips walk-through weekday/time when the guest claim is checked');
+
 
     brb_t(strpos($q, 'Send Hold a Date request') !== false, 'button says Send Hold a Date request');
+
+    // ---- guest claim checkbox (Max, Nov 25, 2026, 8:16 AM CT: "Add those")
+    $ymd_claim = $open_weekday(43);
+    $GLOBALS['brb_np_mails'] = [];
+    $no_days = brb_process_public_booking($post_for($ymd_claim, 'nopricing-claim-req@example.com', ['guest_says_returning' => '1']));
+    brb_t($no_days && !is_wp_error($no_days), 'checked guest claim: walk-through weekday and time are optional');
+    if ($no_days && !is_wp_error($no_days)) {
+        $created[] = (int) $no_days->id;
+        brb_t(!empty($no_days->guest_says_returning) && empty($no_days->returning_renter), 'guest claim is stored and does not set the staff returning_renter flag');
+        brb_t((string) ($no_days->walk_days ?? '') === '' && (string) ($no_days->walk_window ?? '') === '', 'optional walk-through fields may be left blank');
+        $gb = ''; $gsub = '';
+        foreach ($GLOBALS['brb_np_mails'] as $mail) {
+            $to = is_array($mail['to']) ? implode(',', $mail['to']) : (string) $mail['to'];
+            if (strpos($to, 'nopricing-claim-req@example.com') !== false) { $gb = (string) $mail['message']; $gsub = (string) $mail['subject']; }
+        }
+        brb_t(strpos($gsub, 'We received your Boardroom request') !== false, 'returning confirmation uses the same request-received subject');
+        brb_t(strpos($gb, 'tentatively held') !== false && strpos($gb, 'A tentative hold is not a confirmed booking') !== false, 'returning email keeps tentative-hold wording');
+        brb_t(strpos($gb, 'We\'ll reach out to confirm your hold and the quote, starting at $850+') !== false, 'returning email confirms the hold and the quote, starting at $850+');
+        brb_t(strpos($gb, 'set up an in-person walk-through') === false && strpos($gb, 'set up a walk-through') === false && strpos($gb, 'your walk-through') === false, 'returning email does not mention setting up a walk-through');
+        brb_t(strpos(str_replace('Thank you for contacting The Boardroom!', '', $gb), '!') === false, 'returning email body has no new exclamation points');
+        $staffb = '';
+        foreach ($GLOBALS['brb_np_mails'] as $mail) {
+            $to = is_array($mail['to']) ? implode(',', $mail['to']) : (string) $mail['to'];
+            if (strpos($to, 'nopricing-claim-req@example.com') === false) $staffb = (string) $mail['message'];
+        }
+        brb_t(strpos($staffb, 'Guest claim:') !== false && strpos($staffb, 'I\'ve rented with The Boardroom before') !== false && strpos($staffb, 'mark Returning renter') !== false, 'staff notice shows the guest claim and that staff still verify it');
+        $_GET = ['br_token' => $no_days->token];
+        ob_start(); brb_view_confirmation($no_days->token); $page = ob_get_clean();
+        $_GET = [];
+        brb_t(strpos($page, 'Nothing is charged') !== false && strpos($page, 'confirm your hold and the quote, starting at $850+') !== false, 'post-submit screen uses the returning thanks line');
+        brb_t(strpos($page, 'set up an in-person walk-through') === false, 'post-submit screen does not mention setting up a walk-through');
+        $denied = brb_approve_booking($no_days->id, false);
+        brb_t(is_wp_error($denied) && $denied->get_error_code() === 'walkthrough', 'guest claim alone does not waive the staff walk-through approval gate');
+        $detail = brb_sd_booking_detail($no_days);
+        brb_t(!empty($detail['guest_says_returning']) && empty($detail['returning_renter']), 'staff dashboard detail shows the guest claim and not the staff flag');
+        if (function_exists('brb_sd_draft')) {
+            $draft = brb_sd_draft($no_days->id, 'request');
+            $dbody = is_array($draft) ? (string) ($draft['body'] ?? '') : '';
+            brb_t(!is_wp_error($draft) && strpos($dbody, 'confirm your hold and the quote, starting at $850+') !== false && strpos($dbody, 'set up an in-person walk-through') === false, 'staff request-email preview uses the returning confirmation body');
+        }
+    }
+    $ymd_tamper = $open_weekday(44);
+    $tamp = brb_process_public_booking($post_for($ymd_tamper, 'nopricing-tamper@example.com', ['returning_renter' => '1', 'walk_days' => ['mon'], 'walk_window' => ['morning']]));
+    brb_t($tamp && !is_wp_error($tamp), 'tampered POST with returning_renter still saves when walk-through fields are present');
+    if ($tamp && !is_wp_error($tamp)) {
+        $created[] = (int) $tamp->id;
+        brb_t(empty($tamp->returning_renter) && empty($tamp->guest_says_returning), 'a tampered returning_renter POST does not set the staff flag or the guest claim');
+    }
+    $ymd_both = $open_weekday(45);
+    $both = brb_process_public_booking($post_for($ymd_both, 'nopricing-both@example.com', ['guest_says_returning' => '1', 'returning_renter' => '1']));
+    brb_t($both && !is_wp_error($both), 'POST with both the guest claim and a tampered staff flag is accepted (walk fields optional)');
+    if ($both && !is_wp_error($both)) {
+        $created[] = (int) $both->id;
+        brb_t(!empty($both->guest_says_returning) && empty($both->returning_renter), 'only the guest claim is stored; the staff flag stays off');
+    }
+    $ymd_off = $open_weekday(46);
+    $still_req = brb_process_public_booking($post_for($ymd_off, 'nopricing-claim-off@example.com'));
+    brb_t(is_wp_error($still_req) && $still_req->get_error_code() === 'walk_days', 'unchecked claim: walk-through weekday is still required');
+
 
     // ---- QA round 2 (Les, Nov 24): chat, checklist, pay window, FAQ cancellation, guest cap
     $chat = function ($q) { $r = brb_chat_answer($q); return (string) $r['reply']; };
@@ -342,6 +405,7 @@ try {
     ob_start(); brb_view_quote(); $q = ob_get_clean();
     $_GET = [];
     brb_t(strpos($q, 'Rental Price') !== false && strpos($q, 'walk_days') === false, 'old flow: Rental Price back, no walk-through fields');
+    brb_t(strpos($q, 'guest_says_returning') === false && strpos($q, 'I\'ve rented with The Boardroom before') === false, 'old flow: no I\'ve rented with The Boardroom before checkbox');
     $GLOBALS['brb_chat_detail'] = true;
     brb_t(strpos(brb_chat_payment_text(true), '50%') !== false, 'old flow: chat quotes the 50% deposit again');
     brb_t(strpos(do_shortcode('[brb_checklist]'), 'The deposit is received and approved.') !== false, 'old flow: checklist deposit line is back');
