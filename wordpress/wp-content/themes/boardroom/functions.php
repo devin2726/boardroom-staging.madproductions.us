@@ -3,7 +3,7 @@ add_action('after_setup_theme', function () {
     add_theme_support('title-tag'); add_theme_support('post-thumbnails'); add_theme_support('custom-logo');
     register_nav_menus(['primary' => 'Primary', 'footer' => 'Footer']);
 });
-function br_ver() { return '1.2.51'; }
+function br_ver() { return '1.2.53'; }
 add_action('wp_enqueue_scripts', function () {
     wp_enqueue_style('boardroom', get_stylesheet_uri(), [], br_ver());
     wp_enqueue_script('boardroom', get_template_directory_uri() . '/assets/site.js', [], br_ver(), true);
@@ -421,7 +421,7 @@ function br_gallery_alt($file) {
 }
 function br_seo_pages() {
     $place = 'Party & Event Venue in Moline, IL (Quad Cities)';
-    return [
+    $pages = [
         'home' => ['title' => 'The Boardroom | ' . $place, 'description' => 'The Boardroom is a party and event venue in Moline, IL, in the Quad Cities. Prices show on the calendar; nothing is charged until we approve your request.'],
         'reserve-the-boardroom-quad-cities' => ['title' => 'Book The Boardroom | ' . $place, 'description' => 'Request a date at The Boardroom in Moline. The price shows on the calendar. Nothing is charged until we approve the booking and email a payment link. Pay a 50% deposit; the balance is due 7 days before.'],
         'faq' => ['title' => 'FAQ | The Boardroom, ' . $place, 'description' => 'Answers about booking, hours, food and drink, capacity (up to 80 guests), and cancellation at The Boardroom, a party and event venue in Moline, IL.'],
@@ -434,6 +434,14 @@ function br_seo_pages() {
         'blog' => ['title' => 'Event Planning Tips & Guides | The Boardroom, Moline IL', 'description' => 'Event planning tips and guides from The Boardroom in Moline, IL: party checklists, timelines, budgets, and venue advice for hosts across the Quad Cities.'],
         'holiday-party-venue-quad-cities' => ['title' => '', 'description' => 'Planning a holiday party in the Quad Cities? The Boardroom in Moline, IL hosts up to 80 guests. See open dates and pricing on our calendar.'],
     ];
+    // 1.2.53: walk-through flow first-time / returning wording (Les QA round 7, Nov 25, 2026).
+    // Bookings > Settings > Booking flow = old flow brings the lines above back unchanged.
+    if (function_exists('brb_walkthrough_mode') && brb_walkthrough_mode()) {
+        $pages['home']['description'] = 'The Boardroom is a party and event venue in Moline, IL, in the Quad Cities. Hold a date online. First-time renters come in for a walk-through, where we quote your price. If you\'ve rented with us before, you can simply place a tentative hold.';
+        $pages['reserve-the-boardroom-quad-cities']['description'] = 'Hold a date at The Boardroom in Moline. Nothing is charged. We place a tentative hold. First-time renters come in for a walk-through, where we quote your price. If you\'ve rented with us before, you can simply place a tentative hold.';
+        $pages['holiday-party-venue-quad-cities']['description'] = 'Planning a holiday party in the Quad Cities? The Boardroom in Moline, IL hosts up to 80 guests. See open dates on our calendar.';
+    }
+    return $pages;
 }
 function br_seo_key() {
     if (is_front_page()) return 'home';

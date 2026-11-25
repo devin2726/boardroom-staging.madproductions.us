@@ -76,7 +76,7 @@ function brb_pay_token_valid($token, $sig) {
 }
 function brb_pay_link($b) {
     if (!$b || empty($b->token) || !brb_stripe_enabled()) return '';
-    if (empty($b->walkthrough_done)) return '';
+    if (empty($b->walkthrough_done) && brb_walk_required_for_approval($b)) return '';
     if (brb_amount_due_now($b) <= 0) return '';
     return add_query_arg([
         'br_pay' => $b->token,
@@ -119,7 +119,7 @@ function brb_pay_link_blockers($b) {
     if (!$b) return $all;
     $missing = [];
     if (!brb_stripe_enabled()) $missing['stripe'] = $all['stripe'];
-    if (empty($b->walkthrough_done)) $missing['walkthrough'] = $all['walkthrough'];
+    if (empty($b->walkthrough_done) && brb_walk_required_for_approval($b)) $missing['walkthrough'] = $all['walkthrough'];
     $priced = brb_price_is_set($b);
     if (!$priced) $missing['price'] = $all['price'];
     $status = (string) ($b->status ?? '');

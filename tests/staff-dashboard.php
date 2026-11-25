@@ -10,6 +10,8 @@
  * - Page: noindex, no phone number, no 2212 address, no other-platform name.
  */
 if (!defined('ABSPATH')) exit;
+// 2.5.91: this suite covers the old pricing flow (Settings > Booking flow = old flow). The walk-through flow is in no-pricing-walkthrough.php.
+add_filter('brb_pricing_mode', function () { return 'calendar'; }, 5);
 
 if (!function_exists('brb_t')) {
     $GLOBALS['brb_fail'] = 0;
@@ -127,7 +129,7 @@ try {
     delete_option('brb_sd_sent');
     putenv('BRB_STRIPE_SECRET_KEY=sk_test_local_fake_not_a_key');
 
-    brb_t(BRB_VER === '2.5.90', 'BRB_VER is 2.5.90');
+    brb_t(BRB_VER === '2.5.100', 'BRB_VER is 2.5.100');
     brb_t(sd_count(brb_table(), "start_dt >= '2027-10-01' AND start_dt < '2027-11-01' AND status NOT IN ('cancelled','declined','expired','spam')") === 0, 'Oct 2027 starts empty on this test box');
 
     // ---------- role, capability, users ----------
@@ -188,7 +190,7 @@ try {
     brb_t(brb_sd_page_state() === 'ok', 'staff user sees the dashboard');
     $html = brb_sd_page_html();
     brb_t(strpos($html, 'noindex, nofollow') !== false, 'page has robots noindex, nofollow');
-    brb_t(strpos($html, 'brb-staff.css?ver=2.5.90') !== false && strpos($html, 'brb-staff.js?ver=2.5.90') !== false, 'assets are versioned with BRB_VER');
+    brb_t(strpos($html, 'brb-staff.css?ver=2.5.100') !== false && strpos($html, 'brb-staff.js?ver=2.5.100') !== false, 'assets are versioned with BRB_VER');
     brb_t(strpos($html, 'SD Test Waiting') === false, 'page shell has no booking data (it loads through the checked REST routes)');
     brb_t(!preg_match('/\(?\d{3}\)?[\s.\-]\d{3}[\s.\-]\d{4}/', $html) && stripos($html, '2212') === false && stripos($html, 'airbnb') === false, 'page has no phone number, no 2212 address, no other-platform name');
     brb_t(substr_count($html, 'data-jump="') === 9 && substr_count($html, '<nav class="nav"') === 1, 'six-item bottom nav plus three summary cards');

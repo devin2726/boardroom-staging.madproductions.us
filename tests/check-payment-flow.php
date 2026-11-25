@@ -8,6 +8,8 @@ if (!defined('ABSPATH')) {
     fwrite(STDERR, "Load this with wp eval-file\n");
     exit(1);
 }
+// 2.5.91: this suite covers the old pricing flow (Settings > Booking flow = old flow). The walk-through flow is in no-pricing-walkthrough.php.
+add_filter('brb_pricing_mode', function () { return 'calendar'; }, 5);
 
 $GLOBALS['brb_fail'] = 0;
 $GLOBALS['brb_ok'] = 0;
@@ -46,7 +48,7 @@ add_filter('pre_wp_mail', function ($short, $atts) {
 $GLOBALS['brb_mails'] = [];
 
 try {
-    brb_t(get_option('brb_version') === '2.5.90', 'plugin storage version is 2.5.90');
+    brb_t(get_option('brb_version') === '2.5.100', 'plugin storage version is 2.5.100');
     $cc_settings = get_option('brb_settings');
     if (!is_array($cc_settings)) $cc_settings = [];
     $cc_before = (string) ($cc_settings['inquiry_cc'] ?? '');

@@ -94,6 +94,7 @@ function brb_chat_apply_rate_settings($new, $post) {
 }
 
 function brb_quote_prices_enabled() {
+    if (function_exists('brb_walkthrough_mode') && brb_walkthrough_mode()) return false;
     return (string) brb_opt('quote_prices') !== '0';
 }
 
@@ -479,6 +480,10 @@ function brb_chat_intents($text) {
             }
         }
     }
+    // 2.5.97 walk-through flow only: first-time vs returning / skip the walk-through / just place a hold.
+    if (function_exists('brb_walkthrough_mode') && brb_walkthrough_mode() && preg_match('/rented before|rented with (?:you|us)|returning renter|skip (?:the |a )?walk[- ]?through|just place a hold|just hold (?:it|the date)/', $t)) {
+        if (!in_array('tour', $hits, true)) $hits[] = 'tour';
+    }
     return $hits;
 }
 function brb_chat_chips($intent) {
@@ -486,7 +491,7 @@ function brb_chat_chips($intent) {
     $catalog = [
         ['label' => 'Check dates', 'href' => $book . '#brb-cal'],
         ['label' => 'How much', 'question' => 'How much does it cost?'],
-        ['label' => 'Deposit', 'question' => 'How much is the deposit?'],
+        (function_exists('brb_walkthrough_mode') && brb_walkthrough_mode()) ? ['label' => 'Walk-through', 'question' => 'How does the walk-through work?'] : ['label' => 'Deposit', 'question' => 'How much is the deposit?'],
         ['label' => 'Drinks', 'question' => 'Can we bring alcohol?'],
         ['label' => 'Hours', 'question' => 'What are your hours?'],
         ['label' => 'Parking', 'question' => 'Is there parking?'],
@@ -565,6 +570,7 @@ function brb_chat_invalid_date($text) {
 }
 
 function brb_chat_suggestions() {
+    if (function_exists('brb_walkthrough_mode') && brb_walkthrough_mode()) return 'You can ask me whether a date is open, what\'s in the room, or how the walk-through works.';
     return 'You can ask me whether a date is open, what\'s in the room, or how the deposit works.';
 }
 function brb_chat_refusal() {
@@ -579,6 +585,7 @@ function brb_chat_estimate_phrase() {
     return 'That\'s the calendar price for that date. We confirm the final price in writing.';
 }
 function brb_chat_reserved_sentence() {
+    if (function_exists('brb_walkthrough_mode') && brb_walkthrough_mode()) return 'A Hold a Date request places a tentative hold on your date. ' . brb_walk_first_time_line();
     return 'A request doesn\'t hold the date. Your date is reserved once your deposit is received and approved.';
 }
 function brb_chat_insurance_sentence() {
@@ -604,6 +611,7 @@ function brb_chat_food_line() {
     return $line;
 }
 function brb_chat_no_date_price() {
+    if (function_exists('brb_walkthrough_mode') && brb_walkthrough_mode()) return brb_walk_price_line() . ' Send a Hold a Date request.';
     $text = function_exists('brb_faq_price_html') ? trim(wp_strip_all_tags(brb_faq_price_html())) : 'Sunday to Thursday from $850. The price for your date is on the calendar.';
     return $text . ' Tell me a date and I\'ll show its calendar price.';
 }
@@ -739,6 +747,7 @@ function brb_chat_day_sentence($ymd) {
     $status = brb_chat_date_status($ymd);
     if ($status === 'past') return $label . ' has already passed. I can check another date if you\'d like.';
     if ($status === 'blackout') return 'I\'m sorry, ' . $label . ' is unavailable.';
+    if (($status === 'partial' || $status === 'reserved') && function_exists('brb_walkthrough_mode') && brb_walkthrough_mode()) return $label . ' is already held. Please pick another date.';
     if ($status === 'partial' || $status === 'reserved') return $label . ' is already reserved. A date is reserved only once a deposit is paid.';
     if ($status === 'notice') {
         $slot = brb_slot_info(new DateTimeImmutable($ymd . ' 00:00:00', brb_tz()));
@@ -747,7 +756,7 @@ function brb_chat_day_sentence($ymd) {
         return $label . ' is a bit soon. ' . $notice;
     }
     $open = $label . ' looks open. ' . brb_chat_reserved_sentence();
-    if (brb_chat_detail()) $open .= ' ' . brb_guest_review_line();
+    if (brb_chat_detail()) $open .= ' ' . brb_chat_review_line();
     return $open;
 }
 
@@ -932,6 +941,7 @@ function brb_chat_suggestion_bits($rows) {
     $bits = [];
     $chips = [];
     foreach ($rows as $row) {
+        if (function_exists('brb_walkthrough_mode') && brb_walkthrough_mode()) $row['price'] = null;
         $dt = new DateTimeImmutable($row['date'] . ' 12:00:00', brb_tz());
         $label = brb_chat_date_label($row['date']);
         $money = $row['price'] === null ? '' : ' (' . brb_whole_money($row['price']) . ')';
@@ -1020,6 +1030,7 @@ function brb_chat_availability_text($parsed) {
 function brb_chat_price_for_dates($parsed) {
     if (!empty($parsed['too_long'])) return 'I can estimate up to 14 days at a time. Please give me a shorter range. ' . brb_chat_estimate_phrase();
     if (empty($parsed['dates'])) return brb_chat_no_date_price();
+    if (function_exists('brb_walkthrough_mode') && brb_walkthrough_mode()) return brb_chat_no_date_price();
     if (!brb_quote_prices_enabled()) {
         return 'Our team will confirm pricing. I can\'t share an estimate here, but they\'d be glad to help. ' . brb_chat_estimate_phrase();
     }
@@ -1146,7 +1157,9 @@ function brb_chat_specific_text($text) {
     if (preg_match('/vendor market|sell items|\bsell\b|merchandise/', $t) && !preg_match('/alcohol|liquor|drink|booze|beer/', $t)) {
         $bits[] = 'No. All events are free to attend. There are no merchandise sales and no ticket sales.';
     }
-    if (preg_match('/meet you|meet us|walk[- ]?through|in person/', $t)) {
+    if (preg_match('/meet you|meet us|walk[- ]?through|in person/', $t) && function_exists('brb_walkthrough_mode') && brb_walkthrough_mode()) {
+        $bits[] = brb_chat_tour_text();
+    } elseif (preg_match('/meet you|meet us|walk[- ]?through|in person/', $t)) {
         $bits[] = brb_chat_detail()
             ? 'We review your request. Once it\'s approved, we\'ll email you a payment link. Nothing is charged until then.'
             : 'We review your request, then email a payment link after approval. Want more details?';
@@ -1321,6 +1334,8 @@ function brb_chat_asks_checks($text) {
     return (bool) preg_match('/\b(check|checks|mail|drop[- ]?off|where to pay|where do i pay|payable)\b/i', $text);
 }
 function brb_chat_payment_text($include_checks = false) {
+    // 2.5.91: walk-through flow. No deposit percent, due time or card-fee figure; payment is covered at the in-person quote.
+    if (function_exists('brb_walkthrough_mode') && brb_walkthrough_mode()) return brb_chat_walk_payment_text($include_checks);
     $fee = brb_fee_percent_label();
     $text = brb_guest_review_line() . ' The deposit is 50% of the agreed total. It is due within 1 day of signing. Pay by check, in person, or by card once approved. It is refundable if written cancellation is received 60 or more days before the event, less the non-refundable ' . $fee . ' card processing fee and costs already incurred. It is not refundable if cancellation is received less than 60 days before the event. See ' . home_url('/terms/') . '.';
     if ($include_checks) {
@@ -1355,9 +1370,17 @@ function brb_chat_payment_text($include_checks = false) {
 function brb_chat_party_line() {
     return 'Yes. We\'d be glad to host a bachelorette or bachelor party. A full day runs from 10:00 AM to 11:30 PM, and setup can begin at 8:00 AM. Up to 80 guests, with a serving kitchen, a game room, an 80-inch TV, and ample parking. You may bring your own decorations. Balloons are fine. Glitter, confetti, confetti cannons, rice, birdseed, loose sequins, and wall tape aren\'t allowed. Check a date and reserve here: ' . brb_book_url();
 }
+/**
+ * 2.5.93 (Les QA round 2, Nov 24): chat answers must not say a date IS held when no request exists.
+ * Walk-through flow: conditional wording. Old flow: the original review line.
+ */
+function brb_chat_review_line() {
+    if (function_exists('brb_walkthrough_mode') && brb_walkthrough_mode()) return 'Once you send a Hold a Date request, we\'ll be in touch. ' . brb_walk_followup_line() . ' Please don\'t count on a walk-through time until we confirm it with you.';
+    return brb_guest_review_line();
+}
 function brb_chat_book_text() {
     $core = 'Submit a request on the Book page: ' . brb_book_url() . '. ' . brb_chat_reserved_sentence();
-    if (brb_chat_detail()) return $core . ' ' . brb_guest_review_line();
+    if (brb_chat_detail()) return $core . ' ' . brb_chat_review_line();
     return $core . ' Want more details?';
 }
 function brb_chat_confirm_line() {
@@ -1376,11 +1399,16 @@ function brb_chat_december_open() {
     }
     if (!$found) return 'I do not see an open December date in that quick look. ' . brb_chat_confirm_line();
     $line = 'A few open dates in December: ' . brb_chat_list_dates($found) . '.';
-    if (brb_chat_detail()) return $line . ' ' . brb_guest_review_line();
+    if (brb_chat_detail()) return $line . ' ' . brb_chat_review_line();
     return $line . ' Want more details?';
 }
 
 function brb_chat_tour_text() {
+    if (function_exists('brb_walkthrough_mode') && brb_walkthrough_mode()) {
+        $long = brb_walk_first_time_line() . ' Send a Hold a Date request on the Book page (' . brb_book_url() . '). If you need a walk-through, pick the weekdays and time (morning 8 AM–12 PM or afternoon 12–4 PM) that work for you. We place a tentative hold on your date and reach out. At a walk-through we show you the space and quote your price. ' . brb_walk_price_line();
+        if (brb_chat_detail()) return $long;
+        return brb_walk_first_time_line() . ' Send a Hold a Date request on the Book page. Want more details?';
+    }
     $long = 'A tour is a lovely way to see the room. Use the Contact form: ' . home_url('/contact/') . '. Email boardroomqc@gmail.com. A tour request does not hold a date. Leave your name and email below and a team member will follow up.';
     if (brb_chat_detail()) return $long;
     return 'A tour request does not hold a date. Use the Contact form at ' . home_url('/contact/') . ', or email boardroomqc@gmail.com. Want more details?';
@@ -1396,7 +1424,20 @@ function brb_chat_place_text($with_checks) {
     return 'The venue is at ' . brb_venue_address() . '.';
 }
 
+function brb_chat_walk_payment_text($include_checks = false) {
+    // 2.5.93: a check question gets the address first; the walk-through line trails and the range is dropped.
+    if ($include_checks) return brb_check_sentence() . ' We go over your price and other payment details at the walk-through for first-time renters, or when we reach out if you\'ve rented with us before.' . (brb_chat_detail() ? '' : ' Want more details?');
+    $text = brb_public_price_range() . '. We quote your exact price and go over payment details, including how to pay, at the walk-through for first-time renters, or when we reach out if you\'ve rented with us before. After you approve the quote, we send an invoice. See ' . home_url('/terms/') . '.';
+    if ($include_checks) $text .= ' ' . brb_check_sentence();
+    if (brb_chat_detail()) return $text;
+    return brb_public_price_range() . '. We quote your exact price and go over payment details at the walk-through for first-time renters, or when we reach out if you\'ve rented with us before. Want more details?';
+}
 function brb_chat_cancel_text() {
+    if (function_exists('brb_walkthrough_mode') && brb_walkthrough_mode()) {
+        $long = 'Cancellation terms are in the Rental Terms, and we go over them when we quote your price. This is not legal advice. See ' . home_url('/terms/') . '.';
+        if (brb_chat_detail()) return $long;
+        return 'We go over cancellation terms when we quote your price, and they are in the Rental Terms: ' . home_url('/terms/') . '. This is not legal advice. Want more details?';
+    }
     $long = 'The deposit is 50% of the agreed total. It is refundable if written cancellation is received 60 or more days before the event, less the non-refundable 3% card processing fee and costs already incurred. It is not refundable if cancellation is received less than 60 days before the event. This is not legal advice. See ' . home_url('/terms/') . '.';
     if (brb_chat_detail()) return $long;
     return 'It is refundable 60 or more days before the event, less the non-refundable 3% card fee, and not refundable less than 60 days before the event. This is not legal advice. See ' . home_url('/terms/') . '. Want more details?';
@@ -1808,7 +1849,7 @@ function brb_chat_answer($message, $history = [], $detail = null) {
     }
     $norm = brb_chat_normalize($message);
     if (brb_chat_booking_change_request($message) || brb_chat_booking_change_request($norm)) {
-        return brb_chat_finish('I can\'t confirm or change bookings. A date is booked once your deposit is received and approved.', true, 'refuse');
+        return brb_chat_finish((function_exists('brb_walkthrough_mode') && brb_walkthrough_mode()) ? 'I can\'t confirm or change bookings. A date is booked once you approve the quote and we confirm it. First-time renters come in for a walk-through first. If you\'ve rented with us before, no walk-through is needed.' : 'I can\'t confirm or change bookings. A date is booked once your deposit is received and approved.', true, 'refuse');
     }
     $sensitive = brb_chat_sensitive($message);
     if ($sensitive === '') $sensitive = brb_chat_sensitive($norm);
@@ -1873,15 +1914,21 @@ function brb_chat_answer($message, $history = [], $detail = null) {
     if (in_array('availability', $intents, true)) $parts[] = brb_chat_availability_text($parsed);
     $asked_price = brb_chat_asks_price($message) || brb_chat_asks_price($norm);
     $price_ok = !empty($parsed['dates']) || !empty($parsed['too_long']) || ($asked_price && empty($parsed['invalid']));
+    // 2.5.94: walk-through flow always answers a price question with the starting price (81776f6 returned an empty reply for "Saturday price?"; old flow left as is).
+    // 2.5.95/2.5.96: if the payment answer is also given (deposit, "what does it cost and how do I pay?"), skip the price part; payment already carries the starting price.
+    if (function_exists('brb_walkthrough_mode') && brb_walkthrough_mode() && in_array('payment', $intents, true)) $price_ok = false;
+    elseif (function_exists('brb_walkthrough_mode') && brb_walkthrough_mode() && in_array('pricing', $intents, true)) $price_ok = true;
     if (in_array('pricing', $intents, true) && $price_ok) $parts[] = brb_chat_price_for_dates($parsed);
-    if (in_array('payment', $intents, true)) $parts[] = brb_chat_payment_text((brb_chat_asks_checks($message) || brb_chat_asks_checks($norm)) && !in_array('place', $intents, true));
+    $walk_check = (function_exists('brb_walkthrough_mode') && brb_walkthrough_mode()) && (brb_chat_asks_checks($message) || brb_chat_asks_checks($norm));
+    // 2.5.93: walk-through flow, "Where do I mail a check?" (payment + place): the address answer leads, no range first.
+    if (in_array('payment', $intents, true) && !($walk_check && in_array('place', $intents, true))) $parts[] = brb_chat_payment_text((brb_chat_asks_checks($message) || brb_chat_asks_checks($norm)) && !in_array('place', $intents, true));
     if (in_array('rules', $intents, true)) $parts[] = brb_chat_rules_text();
     if (in_array('amenities', $intents, true)) $parts[] = brb_chat_amenities_text();
     if (in_array('cancel', $intents, true)) $parts[] = brb_chat_cancel_text();
     if (in_array('book', $intents, true)) $parts[] = brb_chat_book_text();
     if (in_array('tour', $intents, true)) $parts[] = brb_chat_tour_text();
     if (in_array('contact', $intents, true)) $parts[] = brb_chat_contact_text();
-    if (in_array('place', $intents, true)) $parts[] = brb_chat_place_text(in_array('payment', $intents, true));
+    if (in_array('place', $intents, true)) $parts[] = brb_chat_place_text(in_array('payment', $intents, true)) . (($walk_check && in_array('payment', $intents, true)) ? ' We go over your price and other payment details at the walk-through for first-time renters, or when we reach out if you\'ve rented with us before.' : '');
     $lead = brb_chat_lead_flag($intents, $history) || brb_chat_extra_lead($message) || brb_chat_extra_lead($norm);
     return brb_chat_finish(brb_chat_finish_bits($parts), $lead, $intents ? $intents[0] : 'topic');
 }

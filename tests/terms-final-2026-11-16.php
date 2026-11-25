@@ -8,6 +8,8 @@
  * Run with wp eval-file.
  */
 if (!defined('ABSPATH')) exit;
+// 2.5.91: this suite covers the old pricing flow (Settings > Booking flow = old flow). The walk-through flow is in no-pricing-walkthrough.php.
+add_filter('brb_pricing_mode', function () { return 'calendar'; }, 5);
 
 if (!function_exists('brb_t')) {
     $GLOBALS['brb_fail'] = 0;
@@ -34,8 +36,8 @@ function brb_tf_reply($q, $more = false) {
 $saved_opt = get_option('brb_settings');
 $saved_ver = get_option('brb_version');
 try {
-    brb_t(BRB_VER === '2.5.90' && version_compare(BRB_VER, '2.5.80', '>'), 'plugin version is 2.5.90');
-    brb_t(function_exists('br_ver') && br_ver() === '1.2.51' && strpos((string) file_get_contents(get_template_directory() . '/style.css', false, null, 0, 400), 'Version: 1.2.51') !== false, 'theme version is 1.2.51 (after 1.2.50) in br_ver() and style.css');
+    brb_t(BRB_VER === '2.5.100' && version_compare(BRB_VER, '2.5.80', '>'), 'plugin version is 2.5.100');
+    brb_t(function_exists('br_ver') && br_ver() === '1.2.53' && strpos((string) file_get_contents(get_template_directory() . '/style.css', false, null, 0, 400), 'Version: 1.2.53') !== false, 'theme version is 1.2.53 (after 1.2.51) in br_ver() and style.css');
 
     $seo_check = br_seo_pages();
     brb_t($seo_check['faq']['description'] === 'Answers about booking, hours, food and drink, capacity (up to 80 guests), and cancellation at The Boardroom, a party and event venue in Moline, IL.' && strlen($seo_check['faq']['description']) === 147, 'FAQ meta description is the approved 147-character text');

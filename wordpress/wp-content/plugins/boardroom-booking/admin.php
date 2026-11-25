@@ -295,6 +295,9 @@ add_action('admin_post_brb_flags', function () {
     $fields = [
         'walkthrough_done' => empty($_POST['walkthrough_done']) ? 0 : 1,
     ];
+    if (function_exists('brb_walkthrough_mode') && brb_walkthrough_mode()) {
+        $fields['returning_renter'] = empty($_POST['returning_renter']) ? 0 : 1;
+    }
     $wpdb->update(brb_table(), $fields, ['id' => $id]);
     if (!empty($_POST['setup_addon'])) brb_apply_addon($id, 'setup');
     if (!empty($_POST['takedown_addon'])) brb_apply_addon($id, 'takedown');
@@ -955,6 +958,13 @@ function brb_admin_detail($id) {
         'Free admission' => (($b->free_admission ?? '') === '1') ? 'Acknowledged' : '—',
         'About the event' => ($b->event_about ?? '') !== '' ? $b->event_about : '—',
     ];
+    $walk_pref = brb_walk_pref_label($b);
+    if ($walk_pref !== '') $rows['Walk-through preference'] = $walk_pref;
+    if (function_exists('brb_walkthrough_mode') && brb_walkthrough_mode()) {
+        $rows['Guest claim'] = !empty($b->guest_says_returning)
+            ? 'I\'ve rented with The Boardroom before (the guest\'s own statement; staff still need to verify this)'
+            : 'The guest did not say they have rented with The Boardroom before';
+    }
     $saved_type = brb_event_type_label($b->event_type ?? '');
     if ($saved_type !== '') $rows['Event type'] = $saved_type;
     $saved_alcohol = brb_yes_no_label($b->alcohol ?? '');
@@ -1015,8 +1025,10 @@ function brb_admin_detail($id) {
         echo '</ol>';
     }
     $edit_date = substr((string) $b->start_dt, 0, 10);
-    if (empty($b->walkthrough_done)) {
-        echo '<div class="notice notice-warning"><p>The in-person walk-through is not marked complete. Approval and the payment link stay off until it is checked.</p></div>';
+    if (empty($b->walkthrough_done) && brb_walk_required_for_approval($b)) {
+        echo '<div class="notice notice-warning"><p>The in-person walk-through is not marked complete. Approval and the payment link stay off until it is checked or this booking is marked as a returning renter.</p></div>';
+    } elseif (function_exists('brb_walkthrough_mode') && brb_walkthrough_mode() && brb_is_returning_renter($b) && empty($b->walkthrough_done)) {
+        echo '<div class="notice notice-info"><p>This booking is marked as a returning renter. The walk-through is not required for approval.</p></div>';
     }
     echo '<h2>Save changes</h2><form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="max-width:720px">';
     echo '<input type="hidden" name="action" value="brb_save_changes"><input type="hidden" name="booking" value="' . (int) $b->id . '">';
@@ -1030,6 +1042,9 @@ function brb_admin_detail($id) {
     echo '</table>';
     echo '<h2>Walk-through, deposit, and add-ons</h2>';
     echo '<p><label><input type="checkbox" name="walkthrough_done" value="1"' . (!empty($b->walkthrough_done) ? ' checked' : '') . '> Walk-through completed</label></p>';
+    if (function_exists('brb_walkthrough_mode') && brb_walkthrough_mode()) {
+        echo '<p><label><input type="checkbox" name="returning_renter" value="1"' . (!empty($b->returning_renter) ? ' checked' : '') . '> Returning renter (walk-through not needed)</label></p>';
+    }
     echo '<p>Damage deposit setting for new bookings: ' . esc_html(brb_money(brb_damage_amount())) . '. The Nov 16, 2026 Terms and Rental Agreement no longer list a damage deposit; it is an optional invoice line only. A cleaning fee may be applied if the space is left dirty or damaged.</p>';
     echo '<p><label><input type="checkbox" name="setup_addon" value="1"' . (!empty($b->setup_addon) ? ' checked' : '') . '> Setup day</label></p>';
     echo '<p><label><input type="checkbox" name="takedown_addon" value="1"' . (!empty($b->takedown_addon) ? ' checked' : '') . '> Takedown day</label></p>';
@@ -2011,7 +2026,8 @@ function brb_admin_settings() {
         $new['card_fee_percent'] = (string) max(0, min(100, round((float) ($new['card_fee_percent'] ?? 3), 2)));
         $new['damage_deposit_amount'] = brb_dec(max(0, round((float) ($new['damage_deposit_amount'] ?? 0), 2)));
         $new['deposit_fixed'] = brb_dec(max(0, (float) $new['deposit_fixed']));
-        $new['starting_price'] = brb_dec(max(0, (float) $new['starting_price']));
+        $new['starting_price'] = brb_dec(max(0, (int) round((float) $new['starting_price'])));
+        $new['pricing_mode'] = array_key_exists((string) ($new['pricing_mode'] ?? ''), brb_pricing_modes()) ? (string) $new['pricing_mode'] : 'walkthrough';
         if (!isset($new['typical_price'])) $new['typical_price'] = (string) ($prev['typical_price'] ?? '');
         if (trim((string) $new['venue_address']) === '') $new['venue_address'] = $defaults['venue_address'];
         if (trim((string) $new['pay_location']) === '') $new['pay_location'] = $defaults['pay_location'];
@@ -2036,7 +2052,8 @@ function brb_admin_settings() {
     if (trim((string) ($o['checklist'] ?? '')) === '') $o['checklist'] = brb_checklist_default();
     $groups = [
         'Pricing shown to guests' => [
-            ['starting_price', 'Starting price ($ per day)', 'text', null, 'Guests see “from” this amount per day. Default 850. Whole dollars are shown without cents.'],
+            ['pricing_mode', 'Booking flow shown to guests', 'select', brb_pricing_modes(), 'Hold a Date + walk-through (Max, Nov 24, 2026): no prices on the calendar or in the request email, a new request places a tentative hold on the date, guests pick a walk-through weekday and morning or afternoon, and staff quote the price in person. Pick the old flow to reinstall the calendar prices and deposit wording exactly as they were. Staff invoices and Stripe pay links work the same in both.'],
+            ['starting_price', 'Starting price ($ per day)', 'text', null, 'Guests see “from” this amount per day. Default 850. Whole dollars (decimals are rounded). The walk-through flow shows it as “Starting at $850+”.'],
         ],
         'Hours and capacity' => [
             ['min_hours', 'Minimum hours', 'number', null, ''],

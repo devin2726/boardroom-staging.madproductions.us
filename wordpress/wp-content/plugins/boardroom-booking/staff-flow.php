@@ -19,6 +19,12 @@ if (!defined('ABSPATH')) exit;
 /** Countdown facts for an unpaid booking on a pay window, or null when there is none. */
 function brb_sd_hold_info($b) {
     if (!$b || !in_array((string) $b->status, ['approved', 'held'], true) || (float) $b->amount_paid > 0.009) return null;
+    // 2.5.91 walk-through flow: no pay-window clock, lapse flag or release (Max, Nov 24, 1:52 PM CT: no time constraints).
+    // Staff still see "Pay link not sent" as a to-do, without a timer.
+    if (function_exists('brb_walkthrough_mode') && brb_walkthrough_mode()) {
+        if (!brb_price_is_set($b) || !empty($b->pay_link_sent_at)) return null;
+        return ['seconds_left' => null, 'lapsed' => false, 'short' => 'No link', 'text' => 'Pay link not sent yet. There is no pay deadline in the walk-through flow.', 'until_text' => '', 'clock' => 'none', 'waiting_for_link' => true];
+    }
     $until = trim((string) ($b->hold_until ?? ''));
     $t = $until === '' ? 0 : (int) strtotime($until . ' UTC');
     if (!$t) {
@@ -45,6 +51,7 @@ function brb_sd_hold_info($b) {
     return ['seconds_left' => $left, 'lapsed' => $lapsed, 'short' => $short, 'text' => $long, 'until_text' => $until_text, 'clock' => brb_hold_clock_start(), 'link_sent_text' => $sent_text, 'waiting_for_link' => false];
 }
 function brb_sd_lapsed() {
+    if (function_exists('brb_walkthrough_mode') && brb_walkthrough_mode()) return [];
     global $wpdb;
     $rows = (array) $wpdb->get_results($wpdb->prepare(
         'SELECT * FROM ' . brb_table() . " WHERE status IN ('approved','held') AND amount_paid < 0.01 AND hold_until IS NOT NULL AND hold_until < %s ORDER BY hold_until ASC, id ASC LIMIT 200",
@@ -54,7 +61,7 @@ function brb_sd_lapsed() {
 }
 /** Approved or held, unpaid, priced, still waiting for the pay link. Staff flag only; nothing is freed or emailed. */
 function brb_sd_awaiting_link() {
-    if (brb_hold_clock_start() !== 'link_sent') return [];
+    if (brb_hold_clock_start() !== 'link_sent' && !(function_exists('brb_walkthrough_mode') && brb_walkthrough_mode())) return [];
     global $wpdb;
     $rows = (array) $wpdb->get_results("SELECT * FROM " . brb_table() . " WHERE status IN ('approved','held') AND amount_paid < 0.01 AND (hold_until IS NULL OR hold_until = '' OR hold_until LIKE '0000%') ORDER BY start_dt ASC, id ASC LIMIT 200");
     $out = [];
