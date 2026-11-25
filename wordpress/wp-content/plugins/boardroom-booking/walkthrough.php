@@ -48,6 +48,17 @@ function brb_public_price_range() {
 function brb_walk_price_line() {
     return brb_public_price_range() . '. We quote your exact price in person at your walk-through.';
 }
+/*
+ * First-time vs returning renters (Max, Nov 25, 2026, 7:07 AM CT, relayed by the Czar):
+ * "first-time renters have to do the walkthrough. if you've rented before you, you can just place a hold on it."
+ * Calm wording, no exclamation points, no auto-confirmation, no time limits. Tentative-hold language kept.
+ */
+function brb_walk_first_time_line() {
+    return 'First time renting The Boardroom? We\'ll set up an in-person walk-through before your date is confirmed. If you\'ve rented with us before, you can simply place a tentative hold, and no walk-through is needed.';
+}
+function brb_walk_first_time_form_note() {
+    return 'If you\'ve rented with us before, you can skip the walk-through. We still ask for a preferred weekday and time in case plans change.';
+}
 function brb_walk_days() {
     return ['mon' => 'Monday', 'tue' => 'Tuesday', 'wed' => 'Wednesday', 'thu' => 'Thursday', 'fri' => 'Friday'];
 }
@@ -99,7 +110,8 @@ function brb_walk_pref_label($b) {
 }
 function brb_walk_fields_html() {
     $h = '<fieldset class="brb-field brb-walk"><legend>Walk-through: preferred weekday<span class="brb-req">*</span></legend>';
-    $h .= '<p class="brb-small">Before we confirm a booking, we meet you at The Boardroom for a short walk-through and quote the price in person. Pick the weekdays that work for you.</p>';
+    $h .= '<p class="brb-small">First-time renters meet us at The Boardroom for a short walk-through, where we quote the price in person. Pick the weekdays that work for you.</p>';
+    $h .= '<p class="brb-small brb-walk-return">' . esc_html(brb_walk_first_time_form_note()) . '</p>';
     $h .= '<div class="brb-walk-opts">';
     foreach (brb_walk_days() as $k => $label) {
         $h .= '<label class="brb-check brb-walk-opt"><input type="checkbox" name="walk_days[]" value="' . esc_attr($k) . '"> ' . esc_html($label) . '</label>';
@@ -121,8 +133,8 @@ function brb_walk_steps() {
     return [
         'Hold a Date. Pick an open date and send a request. Nothing is charged.',
         'We email you a confirmation and place a tentative hold on your date.',
-        'We reach out to set up an in-person walk-through on a weekday, morning (8 AM–12 PM) or afternoon (12–4 PM).',
-        'At the walk-through we quote your price, starting at ' . brb_public_price_from() . '.',
+        brb_walk_first_time_line(),
+        'For a first-time rental, the walk-through is on a weekday, morning (8 AM–12 PM) or afternoon (12–4 PM). We quote your price there, starting at ' . brb_public_price_from() . '.',
         'Once you\'re ready, we send your invoice to lock in the date.',
     ];
 }
@@ -154,14 +166,14 @@ function brb_walk_replace_details($pattern, $replacement, $html) {
 }
 /** Public FAQ in walk-through mode (no dollar amounts besides the range line). */
 function brb_walk_faq_swap($html) {
-    $how = '<details><summary>How do I book?</summary><p>We\'d love to host you. Pick an open date on the <a href="/reserve-the-boardroom-quad-cities/">Book</a> page and send a Hold a Date request. Nothing is charged. We email you a confirmation and place a tentative hold on your date. Then we reach out to set up an in-person walk-through on a weekday, morning (8 AM–12 PM) or afternoon (12–4 PM), and we quote your price at the walk-through. Bookings need at least 48 hours\' notice.</p></details>';
+    $how = '<details><summary>How do I book?</summary><p>We\'d love to host you. Pick an open date on the <a href="/reserve-the-boardroom-quad-cities/">Book</a> page and send a Hold a Date request. Nothing is charged. We email you a confirmation and place a tentative hold on your date. ' . esc_html(brb_walk_first_time_line()) . ' For a first-time rental, the walk-through is on a weekday, morning (8 AM–12 PM) or afternoon (12–4 PM), and we quote your price there. Bookings need at least 48 hours\' notice.</p></details>';
     $html = brb_walk_replace_details('/<details><summary>How do I book\?<\/summary>.*?<\/details>/s', $how, $html);
     $steps = '<details><summary>How booking works</summary><p>' . esc_html(implode(' ', brb_walk_steps())) . '</p></details>';
     $html = brb_walk_replace_details('/<details><summary>How booking works<\/summary>.*?<\/details>/s', $steps, $html);
     $price = '<details><summary>How is pricing set?</summary><p>' . esc_html(brb_walk_price_line()) . '</p></details>';
     $pay = '<details><summary>How do I pay?</summary><p>After your walk-through, once you approve your quote, we send an invoice. Pay by check or in person, or online by card (a card processing fee applies). Mail or drop off checks payable to Boardroom QC LLC at the office, ' . BRB_CHECK_ADDRESS . '. We don\'t keep set hours. We meet on demand and set a time together, by appointment. Payment terms are in the <a href="/terms/">Rental Terms</a>. Sales tax is included in the price.</p></details>';
     $html = brb_walk_replace_details('/<details><summary>How do I pay\?<\/summary>.*?<\/details>/s', $price . $pay, $html);
-    $walk = '<details><summary>What is the walk-through?</summary><p>A short, in-person visit at The Boardroom before your booking is confirmed. We show you the space, go over your plans and the house rules, and quote your price. Walk-throughs are on weekdays, morning (8 AM–12 PM) or afternoon (12–4 PM). You pick your preference on the request form, and we reach out to confirm a time.</p></details>';
+    $walk = '<details><summary>What is the walk-through?</summary><p>A short, in-person visit at The Boardroom before your booking is confirmed. We show you the space, go over your plans and the house rules, and quote your price. Walk-throughs are on weekdays, morning (8 AM–12 PM) or afternoon (12–4 PM). You pick your preference on the request form, and we reach out to confirm a time. ' . esc_html(brb_walk_first_time_line()) . '</p></details>';
     $html = str_replace('<details><summary>What dates are open?</summary>', $walk . '<details><summary>What dates are open?</summary>', $html);
     $html = str_replace('(including the 3% card processing fee)', '(including the card processing fee)', $html);
     // QA MINOR (Nov 24): neutral cancellation answer, no "deposit" wording. Same 60-day rule as the Rental Terms.

@@ -2,11 +2,11 @@
 /**
  * Plugin Name: Boardroom Booking
  * Description: Self-hosted direct booking for The Boardroom — full-day blocks, availability calendar, agreed prices, approval before payment, blackout dates, and emails.
- * Version: 2.5.96
+ * Version: 2.5.97
  * Author: Boardroom QC LLC
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.5.96');
+define('BRB_VER', '2.5.97');
 function brb_reserve_explainer_steps() {
     if (function_exists('brb_walkthrough_mode') && brb_walkthrough_mode()) return brb_walk_steps();
     return [
@@ -849,7 +849,8 @@ function brb_how_booking_works_html() {
             'Price Quoted in Person',
         ], 0) : '';
         $range = '<p class="brb-range">' . esc_html(brb_walk_price_line()) . '</p>';
-        return '<section class="brb-how"><h2>Hold a Date</h2>' . $facts . $range . '</section>';
+        $who = '<p class="brb-walk-who">' . esc_html(brb_walk_first_time_line()) . '</p>';
+        return '<section class="brb-how"><h2>Hold a Date</h2>' . $facts . $range . $who . '</section>';
     }
     $facts = function_exists('br_facts_strip') ? br_facts_strip([
         'Prices on the Calendar',

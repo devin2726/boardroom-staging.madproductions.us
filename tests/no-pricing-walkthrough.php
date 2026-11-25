@@ -65,14 +65,21 @@ try {
     // ---- public copy
     $how = brb_how_booking_works_html();
     brb_t(strpos($how, 'Hold a Date') !== false && strpos($how, 'Prices&nbsp;on') === false && strpos($how, '50%') === false, 'Book page facts say Hold a Date, no calendar prices or 50%');
+    brb_t(strpos($how, 'First time renting The Boardroom') !== false && strpos($how, 'no walk-through is needed') !== false && strpos($how, '!') === false, 'Book page intro has the first-time / returning renter line, no exclamation');
+
     brb_t(strpos($how, 'Starting at $850+') !== false && strpos($how, '1,500') === false && strpos($how, '$850++') === false, 'Book page shows Starting at $850+, no top of range');
     $steps = implode(' ', brb_how_booking_works_steps());
     brb_t(strpos($steps, 'tentative hold') !== false && strpos($steps, 'walk-through') !== false && !preg_match('/3%|50%|7 days/', $steps), 'booking steps describe tentative hold + walk-through, no fee/deposit/balance');
+    brb_t(strpos($steps, brb_walk_first_time_line()) !== false && strpos($steps, 'no walk-through is needed') !== false, 'booking steps include first-time walk-through and returning renters can place a hold');
+    brb_t(strpos($steps, 'automatically') === false && strpos($steps, 'confirmed immediately') === false && strpos($steps, '!') === false, 'steps do not promise auto-confirmation or use exclamation points');
+
     $GLOBALS['brb_np_test_faq'] = true;
     $faq = brb_walk_faq_swap(brb_faq_markup());
     brb_t(strpos($faq, 'The price shows right on the calendar') === false, 'FAQ no longer says the price is on the calendar');
     brb_t(strpos($faq, 'How is pricing set?') !== false && strpos($faq, 'Starting at $850+') !== false && strpos($faq, '1,500') === false, 'FAQ How is pricing set? says Starting at $850+');
     brb_t(strpos($faq, 'What is the walk-through?') !== false, 'FAQ explains the walk-through');
+    brb_t(strpos($faq, 'First time renting The Boardroom') !== false && strpos($faq, 'no walk-through is needed') !== false, 'FAQ How do I book / What is the walk-through include the first-time / returning line');
+
     brb_t(strpos($faq, '3% processing fee') === false && strpos($faq, 'The deposit (50% of the agreed total)') === false, 'FAQ How do I pay has no 3% or 50% figure');
     preg_match_all('/\$\s?[0-9][0-9,]*/', wp_strip_all_tags($faq), $m);
     $amounts = array_values(array_unique($m[0]));
@@ -145,6 +152,9 @@ try {
     brb_t(strpos($q, 'Rental Price') === false && strpos($q, 'Starting at $850+') !== false && strpos($q, '1,500') === false, 'Your date card shows Starting at $850+, not a Rental Price');
     brb_t(substr_count($q, 'name="walk_days[]"') === 5 && substr_count($q, 'name="walk_window[]"') === 2, 'form has Mon–Fri and morning/afternoon choices');
     brb_t(strpos($q, 'not set until we reach out and confirm') !== false, 'form says the walk-through is not set until we confirm');
+    brb_t(strpos($q, 'you can skip the walk-through') !== false, 'walk-through fields note that returning renters can skip the walk-through');
+    brb_t(strpos($q, 'name="rented_before"') === false && strpos($q, 'I\'ve rented here before') === false, 'no rented-before checkbox on the form');
+
     brb_t(strpos($q, 'Send Hold a Date request') !== false, 'button says Send Hold a Date request');
 
     // ---- QA round 2 (Les, Nov 24): chat, checklist, pay window, FAQ cancellation, guest cap
@@ -161,6 +171,17 @@ try {
     $GLOBALS['brb_chat_detail'] = true;
     brb_t($short_ok && $no_old_pay(brb_chat_payment_text(true)) && $no_old_pay(brb_chat_cancel_text()), 'chat payment and cancel texts (short and detailed) carry no deposit terms');
     brb_t(stripos(brb_chat_tour_text(), 'Hold a Date') !== false, 'chat walk-through answer points to Hold a Date');
+    brb_t(strpos(brb_chat_tour_text(), brb_walk_first_time_line()) !== false, 'chat walk-through answer includes first-time / returning wording');
+    brb_t(strpos(brb_chat_reserved_sentence(), brb_walk_first_time_line()) !== false, 'chat hold sentence includes first-time / returning wording');
+    foreach (['Can I book a tour?', 'Do I need a walk-through?', 'I have rented before, can I just place a hold?', 'How do I hold a date?'] as $q) {
+        $GLOBALS['brb_chat_detail'] = true;
+        $a = (string) brb_chat_answer($q, [], true)['reply'];
+        brb_t(strpos($a, 'no walk-through is needed') !== false && strpos($a, 'tentatively held.') === false && strpos($a, '!') === false, 'chat detail "' . $q . '" covers returning renters, does not claim a hold exists, no exclamation');
+    }
+    $GLOBALS['brb_chat_detail'] = false;
+    $llms_body = function_exists('brb_llms_txt_body') ? brb_llms_txt_body() : '';
+    if ($llms_body !== '') brb_t(strpos($llms_body, brb_walk_first_time_line()) !== false, 'llms.txt includes the first-time / returning line');
+
     brb_t(stripos(brb_chat_suggestions(), 'deposit') === false, 'chat suggestions do not mention the deposit');
     $chips = wp_list_pluck(brb_chat_chips('price'), 'label');
     brb_t(!in_array('Deposit', $chips, true), 'chat chips: no Deposit chip');
@@ -252,6 +273,9 @@ try {
     $set_mode('calendar');
     brb_t(!brb_walkthrough_mode(), 'switching to calendar mode turns the walk-through flow off');
     brb_t(strpos(brb_how_booking_works_html(), 'Prices&nbsp;on&nbsp;the&nbsp;Calendar') !== false, 'old flow: Prices on the Calendar is back');
+    brb_t(strpos(brb_how_booking_works_html(), brb_walk_first_time_line()) === false && strpos(implode(' ', brb_how_booking_works_steps()), 'no walk-through is needed') === false, 'old flow: first-time / returning walk-through line is gone');
+    brb_t(strpos(brb_chat_reserved_sentence(), 'First time renting') === false, 'old flow: chat hold sentence does not mention first-time renters');
+
     $res = brb_rest_availability($req)->get_data();
     $prices = array_filter(array_map(function ($x) { return $x['price']; }, $res['days']));
     brb_t((bool) $prices, 'old flow: calendar prices are back');

@@ -23,7 +23,7 @@ function brb_llms_txt_body() {
         '## Links',
         '',
         (brb_walkthrough_mode()
-            ? '- [Hold a Date](' . $site . '/reserve-the-boardroom-quad-cities/): pick an open date and request a tentative hold; we set up an in-person walk-through and quote the price there (starting at ' . brb_public_price_from() . ')'
+            ? '- [Hold a Date](' . $site . '/reserve-the-boardroom-quad-cities/): pick an open date and request a tentative hold. ' . brb_walk_first_time_line() . ' We quote the price at the walk-through (starting at ' . brb_public_price_from() . ')'
             : '- [Book a date](' . $site . '/reserve-the-boardroom-quad-cities/): pick a date and see the price on the calendar'),
         '- [FAQ](' . $site . '/faq/): booking, hours, food and drink, capacity, and cancellation',
         '- [Contact](' . $site . '/contact/): questions for the team',

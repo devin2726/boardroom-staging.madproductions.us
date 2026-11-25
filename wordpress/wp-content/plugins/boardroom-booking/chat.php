@@ -480,6 +480,10 @@ function brb_chat_intents($text) {
             }
         }
     }
+    // 2.5.97 walk-through flow only: first-time vs returning / skip the walk-through / just place a hold.
+    if (function_exists('brb_walkthrough_mode') && brb_walkthrough_mode() && preg_match('/rented before|rented with (?:you|us)|returning renter|skip (?:the |a )?walk[- ]?through|just place a hold|just hold (?:it|the date)/', $t)) {
+        if (!in_array('tour', $hits, true)) $hits[] = 'tour';
+    }
     return $hits;
 }
 function brb_chat_chips($intent) {
@@ -581,7 +585,7 @@ function brb_chat_estimate_phrase() {
     return 'That\'s the calendar price for that date. We confirm the final price in writing.';
 }
 function brb_chat_reserved_sentence() {
-    if (function_exists('brb_walkthrough_mode') && brb_walkthrough_mode()) return 'A Hold a Date request places a tentative hold on your date. It is confirmed after your walk-through, once you approve the quote.';
+    if (function_exists('brb_walkthrough_mode') && brb_walkthrough_mode()) return 'A Hold a Date request places a tentative hold on your date. ' . brb_walk_first_time_line();
     return 'A request doesn\'t hold the date. Your date is reserved once your deposit is received and approved.';
 }
 function brb_chat_insurance_sentence() {
@@ -1401,9 +1405,9 @@ function brb_chat_december_open() {
 
 function brb_chat_tour_text() {
     if (function_exists('brb_walkthrough_mode') && brb_walkthrough_mode()) {
-        $long = 'Every booking starts with an in-person walk-through. Send a Hold a Date request on the Book page (' . brb_book_url() . ') and pick the weekdays and time (morning 8 AM–12 PM or afternoon 12–4 PM) that work for you. We place a tentative hold on your date and reach out to confirm a time. At the walk-through we show you the space and quote your price. ' . brb_walk_price_line();
+        $long = brb_walk_first_time_line() . ' Send a Hold a Date request on the Book page (' . brb_book_url() . '). If you need a walk-through, pick the weekdays and time (morning 8 AM–12 PM or afternoon 12–4 PM) that work for you. We place a tentative hold on your date and reach out. At a walk-through we show you the space and quote your price. ' . brb_walk_price_line();
         if (brb_chat_detail()) return $long;
-        return 'Send a Hold a Date request on the Book page and pick a weekday and morning or afternoon. We reach out to confirm the walk-through, where we quote your price. Want more details?';
+        return brb_walk_first_time_line() . ' Send a Hold a Date request on the Book page. Want more details?';
     }
     $long = 'A tour is a lovely way to see the room. Use the Contact form: ' . home_url('/contact/') . '. Email boardroomqc@gmail.com. A tour request does not hold a date. Leave your name and email below and a team member will follow up.';
     if (brb_chat_detail()) return $long;
