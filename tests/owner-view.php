@@ -80,8 +80,8 @@ $snapshot = get_option('brb_settings');
 $made_b = []; $made_h = []; $made_p = [];
 $unlock = function () { return false; };
 try {
-    brb_t(get_option('brb_version') === '2.5.90', 'plugin storage version is 2.5.90');
-    brb_t(BRB_VER === '2.5.90', 'BRB_VER is 2.5.90');
+    brb_t(get_option('brb_version') === '2.5.101', 'plugin storage version is 2.5.101');
+    brb_t(BRB_VER === '2.5.101', 'BRB_VER is 2.5.101');
     brb_t(shortcode_exists('brb_owner_view'), 'the [brb_owner_view] shortcode is registered');
 
     $tz = brb_tz();
