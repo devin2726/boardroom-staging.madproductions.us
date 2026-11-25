@@ -195,6 +195,10 @@ function brb_walk_review_line() {
 function brb_walk_hold_line() {
     return 'A tentative hold is not a confirmed booking. Your date is booked once you approve the quote and we confirm it.';
 }
+/** Greeting for the Hold a Date confirmation email only (first-time and returning). Old flow keeps brb_guest_hello_line(). */
+function brb_walk_guest_hello_line() {
+    return 'Thank you for contacting The Boardroom.';
+}
 /** Guest "We received your request" email body in walk-through mode. No price, deposit or fee. */
 function brb_walk_request_guest_body($b) {
     $pref = brb_walk_pref_label($b);
@@ -205,7 +209,7 @@ function brb_walk_request_guest_body($b) {
     $follow = brb_guest_says_returning($b)
         ? brb_walk_returning_followup_line() . "\n\n"
         : brb_walk_followup_line() . " Please don't count on a walk-through time until we confirm it with you.\n\n";
-    return brb_guest_hello_line() . "\n\n"
+    return brb_walk_guest_hello_line() . "\n\n"
         . "We received your request, and your date is tentatively held.\n\n"
         . $follow
         . $detail . "\n"

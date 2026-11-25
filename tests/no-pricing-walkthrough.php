@@ -55,6 +55,7 @@ try {
     brb_t((get_option('brb_settings')['pricing_mode'] ?? '') === 'walkthrough', 'upgrade without a stored flow switches to walkthrough');
     $set_mode('walkthrough');
     brb_t(brb_walkthrough_mode(), 'walkthrough mode is on');
+    brb_t(brb_walk_guest_hello_line() === 'Thank you for contacting The Boardroom.' && brb_guest_hello_line() === 'Thank you for contacting The Boardroom!', 'walk-mode confirmation hello uses a period; the shared hello line is unchanged');
     brb_t(brb_public_price_range() === 'Starting at $850+', 'public price line is Starting at $850+ (Max, Nov 25, 2026, 5:15 AM CT)');
     brb_t(brb_public_price_from() === '$850+', 'amount helper appends a single plus');
     brb_t(brb_walk_price_line() === 'Starting at $850+. We quote your exact price at the walk-through for first-time renters, or when we reach out if you\'ve rented with us before.', 'walk price sentence is first-time / returning, keeps Starting at $850+');
@@ -122,6 +123,7 @@ try {
         }
         $gb = $guest ? (string) $guest['message'] : '';
         brb_t($guest !== null, 'guest confirmation email is produced');
+        brb_t(strpos($gb, 'Thank you for contacting The Boardroom.') === 0 && strpos($gb, 'Thank you for contacting The Boardroom!') === false, 'first-time guest confirmation email greeting ends with a period, not an exclamation');
         brb_t(strpos($gb, 'tentatively held') !== false && strpos($gb, 'If this is your first time renting The Boardroom') !== false && strpos($gb, 'confirm your hold') !== false, 'guest email: received, tentatively held, first-time walk-through or confirm the hold');
         brb_t(strpos($gb, "Please don't count on a walk-through time until we confirm it") !== false, 'guest email says not to count on the time until confirmed');
         brb_t(!preg_match('/\$\s?\d|deposit|3%|50%|price to be confirmed|payment link/i', wp_strip_all_tags($gb)), 'guest email has no price, deposit, fee or pay-link wording');
@@ -179,7 +181,8 @@ try {
         brb_t(strpos($gb, 'tentatively held') !== false && strpos($gb, 'A tentative hold is not a confirmed booking') !== false, 'returning email keeps tentative-hold wording');
         brb_t(strpos($gb, 'We\'ll reach out to confirm your hold and the quote, starting at $850+') !== false, 'returning email confirms the hold and the quote, starting at $850+');
         brb_t(strpos($gb, 'set up an in-person walk-through') === false && strpos($gb, 'set up a walk-through') === false && strpos($gb, 'your walk-through') === false, 'returning email does not mention setting up a walk-through');
-        brb_t(strpos(str_replace('Thank you for contacting The Boardroom!', '', $gb), '!') === false, 'returning email body has no new exclamation points');
+        brb_t(strpos($gb, 'Thank you for contacting The Boardroom.') === 0 && strpos($gb, 'Thank you for contacting The Boardroom!') === false, 'returning confirmation email greeting ends with a period, not an exclamation');
+        brb_t(strpos($gb, '!') === false, 'returning email body has no exclamation points');
         $staffb = '';
         foreach ($GLOBALS['brb_np_mails'] as $mail) {
             $to = is_array($mail['to']) ? implode(',', $mail['to']) : (string) $mail['to'];
@@ -198,7 +201,7 @@ try {
         if (function_exists('brb_sd_draft')) {
             $draft = brb_sd_draft($no_days->id, 'request');
             $dbody = is_array($draft) ? (string) ($draft['body'] ?? '') : '';
-            brb_t(!is_wp_error($draft) && strpos($dbody, 'confirm your hold and the quote, starting at $850+') !== false && strpos($dbody, 'set up an in-person walk-through') === false, 'staff request-email preview uses the returning confirmation body');
+            brb_t(!is_wp_error($draft) && strpos($dbody, 'Thank you for contacting The Boardroom.') === 0 && strpos($dbody, 'confirm your hold and the quote, starting at $850+') !== false && strpos($dbody, 'set up an in-person walk-through') === false, 'staff request-email preview uses the returning confirmation body and period greeting');
         }
     }
     $ymd_tamper = $open_weekday(44);
@@ -378,6 +381,7 @@ try {
     // ---- reinstall switch: old flow comes back
     $set_mode('calendar');
     brb_t(!brb_walkthrough_mode(), 'switching to calendar mode turns the walk-through flow off');
+    brb_t(brb_guest_hello_line() === 'Thank you for contacting The Boardroom!', 'old flow: shared guest hello line still ends with an exclamation (81776f6)');
     $ymd_old = $open_weekday(50);
     $bold = brb_process_public_booking($post_for($ymd_old, 'nopricing-oldreturn@example.com'));
     brb_t($bold && !is_wp_error($bold), 'old-flow returning-renter test request is saved');
