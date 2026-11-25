@@ -5,6 +5,7 @@
     <p class="footer-name">The Boardroom QC</p>
     <p>2220 37th Street, Moline, IL 61265</p>
     <p><a href="mailto:boardroomqc@gmail.com">boardroomqc@gmail.com</a></p>
+    <p><a href="<?php echo esc_url('tel:+13097221984'); ?>">Call 309-722-1984</a></p>
     <p><a href="<?php echo esc_url('https://www.google.com/maps/dir/?api=1&destination=2220+37th+Street%2C+Moline%2C+IL+61265'); ?>" target="_blank" rel="noopener">Get directions</a></p>
   </div>
 </div>
