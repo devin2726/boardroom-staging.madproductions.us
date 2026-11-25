@@ -28,17 +28,20 @@ function brb_walkthrough_mode() {
     return brb_pricing_mode() === 'walkthrough';
 }
 /*
- * Public price (walk-through flow). Max, Nov 24, 2026, 3:16 PM CT: "say 'Starting at $850' for all prices."
- * Replaces the earlier "$850–$1,500 depending on seasonal availability" line (no top of range anywhere).
- * 2.5.95: reads the existing starting_price setting ("Starting price ($ per day)", default 850), one source.
- * The old public_price_range text setting is no longer read.
+ * Public price (walk-through flow).
+ * Max, Nov 24, 2026, 3:16 PM CT: "Starting at $850".
+ * Max, Nov 25, 2026, 5:15 AM CT: "Ok but pricing has to say Starting at $850+. Instead of the range".
+ * Reads the existing starting_price setting ("Starting price ($ per day)", default 850), one source.
+ * The "+" is appended in this helper after the formatted amount, so $1,200 becomes $1,200+ (never $850++).
  */
 function brb_public_price_from() {
     $n = (float) brb_opt('starting_price');
     if ($n <= 0) $n = 850;
-    return brb_whole_money($n);
+    // Whole dollars (Les round 5): decimals are rounded. The "+" is added once after the formatted amount.
+    $n = max(1, (int) round($n));
+    return rtrim(brb_whole_money($n), '+') . '+';
 }
-/** "Starting at $850" */
+/** "Starting at $850+" */
 function brb_public_price_range() {
     return 'Starting at ' . brb_public_price_from();
 }

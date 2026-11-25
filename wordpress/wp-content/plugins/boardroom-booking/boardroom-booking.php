@@ -2,11 +2,11 @@
 /**
  * Plugin Name: Boardroom Booking
  * Description: Self-hosted direct booking for The Boardroom — full-day blocks, availability calendar, agreed prices, approval before payment, blackout dates, and emails.
- * Version: 2.5.95
+ * Version: 2.5.96
  * Author: Boardroom QC LLC
  */
 if (!defined('ABSPATH')) exit;
-define('BRB_VER', '2.5.95');
+define('BRB_VER', '2.5.96');
 function brb_reserve_explainer_steps() {
     if (function_exists('brb_walkthrough_mode') && brb_walkthrough_mode()) return brb_walk_steps();
     return [
@@ -191,7 +191,6 @@ function brb_defaults() {
         'quote_prices' => '1',
         // 2.5.91: 'walkthrough' (Max, Nov 24, 2026, 1:44 PM CT) or 'calendar' (the old pricing flow, kept for reinstall).
         'pricing_mode' => 'walkthrough',
-        'public_price_range' => '',
         'rate_sun_thu' => '850',
         'rate_fri_sat' => '1400',
         'rate_ranges' => wp_json_encode(brb_default_rate_ranges()),
@@ -1366,7 +1365,8 @@ function brb_migrate_settings() {
     if (!isset($stored['balance_due_days'])) $merged['balance_due_days'] = '7';
     // 2.5.91: switch to the walk-through flow on upgrade (Max, Nov 24, 2026). Set it back to 'calendar' in Settings to reinstall the old pricing.
     if (!isset($stored['pricing_mode']) || !in_array($stored['pricing_mode'], ['walkthrough', 'calendar'], true)) $merged['pricing_mode'] = 'walkthrough';
-    if (!isset($stored['public_price_range'])) $merged['public_price_range'] = '';
+    // 2.5.96: drop unused keys from earlier walk-flow iterations (public_price_range, public_price_from).
+    unset($merged['public_price_range'], $merged['public_price_from']);
     if (!isset($stored['deposit_fixed']) || $stored['deposit_fixed'] === '') $merged['deposit_fixed'] = '0';
     $defaults = brb_defaults();
     foreach (['payee', 'pay_location', 'pay_hours', 'pay_instructions'] as $k) {

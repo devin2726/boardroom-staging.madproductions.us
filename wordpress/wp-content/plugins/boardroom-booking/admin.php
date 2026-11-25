@@ -2013,7 +2013,7 @@ function brb_admin_settings() {
         $new['card_fee_percent'] = (string) max(0, min(100, round((float) ($new['card_fee_percent'] ?? 3), 2)));
         $new['damage_deposit_amount'] = brb_dec(max(0, round((float) ($new['damage_deposit_amount'] ?? 0), 2)));
         $new['deposit_fixed'] = brb_dec(max(0, (float) $new['deposit_fixed']));
-        $new['starting_price'] = brb_dec(max(0, (float) $new['starting_price']));
+        $new['starting_price'] = brb_dec(max(0, (int) round((float) $new['starting_price'])));
         $new['pricing_mode'] = array_key_exists((string) ($new['pricing_mode'] ?? ''), brb_pricing_modes()) ? (string) $new['pricing_mode'] : 'walkthrough';
         if (!isset($new['typical_price'])) $new['typical_price'] = (string) ($prev['typical_price'] ?? '');
         if (trim((string) $new['venue_address']) === '') $new['venue_address'] = $defaults['venue_address'];
@@ -2040,7 +2040,7 @@ function brb_admin_settings() {
     $groups = [
         'Pricing shown to guests' => [
             ['pricing_mode', 'Booking flow shown to guests', 'select', brb_pricing_modes(), 'Hold a Date + walk-through (Max, Nov 24, 2026): no prices on the calendar or in the request email, a new request places a tentative hold on the date, guests pick a walk-through weekday and morning or afternoon, and staff quote the price in person. Pick the old flow to reinstall the calendar prices and deposit wording exactly as they were. Staff invoices and Stripe pay links work the same in both.'],
-            ['starting_price', 'Starting price ($ per day)', 'text', null, 'Guests see “from” this amount per day. Default 850. Whole dollars are shown without cents. The walk-through flow shows it as “Starting at $850”.'],
+            ['starting_price', 'Starting price ($ per day)', 'text', null, 'Guests see “from” this amount per day. Default 850. Whole dollars (decimals are rounded). The walk-through flow shows it as “Starting at $850+”.'],
         ],
         'Hours and capacity' => [
             ['min_hours', 'Minimum hours', 'number', null, ''],
